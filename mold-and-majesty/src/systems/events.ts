@@ -9,6 +9,7 @@ export type WorldEvent =
   | { type: 'arrive' | 'leave'; allyId: number; species: AllySpeciesId }
   | { type: 'infection'; nodeId: number; fromNodeId: number | null }
   | { type: 'climate'; eventId: string; name: string; phase: 'start' | 'end' }
-  | { type: 'rival'; colonyId: number; phase: 'spawn' | 'defeated'; x: number; y: number };
+  | { type: 'rival'; colonyId: number; phase: 'spawn' | 'defeated'; x: number; y: number }
+  | { type: 'sporee'; reach: number; score: number };
 
 export type Emit = (event: WorldEvent) => void;

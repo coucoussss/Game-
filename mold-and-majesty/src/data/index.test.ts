@@ -26,6 +26,8 @@ function raw() {
     soil: gameData.soil,
     allies: gameData.allies,
     threats: gameData.threats,
+    sporulation: gameData.sporulation,
+    skills: gameData.skills,
   };
 }
 
@@ -84,5 +86,17 @@ describe('données du jeu', () => {
     const threats = structuredClone(gameData.threats);
     threats.rivals.kinds.verdigris!.color = 'vert';
     expect(() => buildGameData({ ...raw(), threats })).toThrow(/Couleur invalide/);
+  });
+
+  it('rejette un prérequis de compétence circulaire', () => {
+    const skills = structuredClone(gameData.skills);
+    skills.skills[0]!.requires = [skills.skills[3]!.id];
+    expect(() => buildGameData({ ...raw(), skills })).toThrow(/circulaire/);
+  });
+
+  it('rejette un motif rythmique mal formé', () => {
+    const sporulation = structuredClone(gameData.sporulation);
+    sporulation.patterns.push([1, 0, 1]);
+    expect(() => buildGameData({ ...raw(), sporulation })).toThrow(/8 croches/);
   });
 });

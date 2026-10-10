@@ -4,7 +4,9 @@ import forestsJson from './forests.json';
 import networkJson from './network.json';
 import seasonsJson from './seasons.json';
 import soilJson from './soil.json';
+import skillsJson from './skills.json';
 import speciesJson from './species.json';
+import sporulationJson from './sporulation.json';
 import threatsJson from './threats.json';
 import type {
   AlliesDef,
@@ -14,10 +16,22 @@ import type {
   NetworkDef,
   SeasonsDef,
   SoilDef,
+  SkillsDef,
   SpeciesDef,
+  SporulationDef,
   ThreatsDef,
 } from './types';
-import { ALLY_SPECIES, CLIMATE_KINDS, FLUX_IDS, LAYERS, NODE_KINDS, PERSONALITY_TRAITS, THICKNESS_IDS } from './types';
+import {
+  ALLY_SPECIES,
+  BONUS_KEYS,
+  CLIMATE_KINDS,
+  FLUX_IDS,
+  LAYERS,
+  NODE_KINDS,
+  PERSONALITY_TRAITS,
+  SKILL_BRANCHES,
+  THICKNESS_IDS,
+} from './types';
 import { hexToInt } from '../ui/color';
 
 export interface GameData {
@@ -31,6 +45,8 @@ export interface GameData {
   soil: SoilDef;
   allies: AlliesDef;
   threats: ThreatsDef;
+  sporulation: SporulationDef;
+  skills: SkillsDef;
 }
 
 function indexById<T extends { id: string }>(items: T[], kind: string): Map<string, T> {
@@ -55,6 +71,8 @@ export function buildGameData(raw: {
   soil: SoilDef;
   allies: AlliesDef;
   threats: ThreatsDef;
+  sporulation: SporulationDef;
+  skills: SkillsDef;
 }): GameData {
   const species = indexById(raw.species, 'Espèce');
   const events = indexById(raw.events.events, 'Événement');
@@ -95,6 +113,8 @@ export function buildGameData(raw: {
   validateSoil(raw.soil);
   validateAllies(raw.allies, checkSeasons);
   validateThreats(raw.threats, checkSeasons);
+  validateSporulation(raw.sporulation);
+  validateSkills(raw.skills);
   return {
     species,
     events,
@@ -105,6 +125,8 @@ export function buildGameData(raw: {
     soil: raw.soil,
     allies: raw.allies,
     threats: raw.threats,
+    sporulation: raw.sporulation,
+    skills: raw.skills,
   };
 }
 
@@ -213,6 +235,48 @@ export function validateThreats(def: ThreatsDef, checkSeasons: SeasonCheck): voi
   inRange(def.defense.minSignal, 0, 1, 'defense.minSignal');
 }
 
+export function validateSporulation(def: SporulationDef): void {
+  inRange(def.bpm, 30, 240, 'sporulation.bpm');
+  inRange(def.bars, 1, 64, 'sporulation.bars');
+  if (!(def.windows.perfect > 0 && def.windows.good >= def.windows.perfect)) {
+    throw new Error('Sporée : fenêtres de jugement invalides (0 < perfect ≤ good)');
+  }
+  if (def.patterns.length === 0) throw new Error('Sporée : aucun motif');
+  for (const p of def.patterns) {
+    if (p.length !== 8 || p.some((v) => v !== 0 && v !== 1)) throw new Error('Sporée : un motif compte 8 croches de 0 ou 1');
+  }
+  inRange(def.minScoreFactor, 0, 1, 'sporulation.minScoreFactor');
+}
+
+/** Compétences : identifiants uniques, branches connues, prérequis existants et sans cycle. */
+export function validateSkills(def: SkillsDef): void {
+  const ids = new Set<string>();
+  for (const s of def.skills) {
+    if (ids.has(s.id)) throw new Error(`Compétence en double : "${s.id}"`);
+    ids.add(s.id);
+    if (!SKILL_BRANCHES.includes(s.branch)) throw new Error(`Compétence "${s.id}" : branche inconnue`);
+    inRange(s.cost, 0, 1e6, `skill.${s.id}.cost`);
+    for (const [key, factor] of Object.entries(s.effects)) {
+      if (!BONUS_KEYS.includes(key as never)) throw new Error(`Compétence "${s.id}" : bonus inconnu "${key}"`);
+      if (!((factor ?? 0) > 0)) throw new Error(`Compétence "${s.id}" : facteur ${key} doit être > 0`);
+    }
+  }
+  const byId = new Map(def.skills.map((s) => [s.id, s]));
+  for (const s of def.skills) {
+    for (const r of s.requires) if (!byId.has(r)) throw new Error(`Compétence "${s.id}" : prérequis inconnu "${r}"`);
+    // Pas de cycle : on remonte les prérequis.
+    const seen = new Set<string>();
+    const stack = [...s.requires];
+    while (stack.length > 0) {
+      const id = stack.pop()!;
+      if (id === s.id) throw new Error(`Compétence "${s.id}" : prérequis circulaire`);
+      if (seen.has(id)) continue;
+      seen.add(id);
+      stack.push(...byId.get(id)!.requires);
+    }
+  }
+}
+
 /** Données du jeu, chargées depuis les fichiers JSON de src/data. */
 export const gameData: GameData = buildGameData({
   species: speciesJson as SpeciesDef[],
@@ -224,4 +288,6 @@ export const gameData: GameData = buildGameData({
   soil: soilJson as SoilDef,
   allies: alliesJson as unknown as AlliesDef,
   threats: threatsJson as ThreatsDef,
+  sporulation: sporulationJson as SporulationDef,
+  skills: skillsJson as unknown as SkillsDef,
 });

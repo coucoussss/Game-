@@ -350,3 +350,80 @@ export interface ThreatsDef {
   /** Guerre chimique : les nœuds riches en signal sécrètent des antifongiques. */
   defense: { radius: number; damage: number; sugarCost: number; minSignal: number };
 }
+
+// ─── Sporée et compétences ───────────────────────────────────────────────
+
+/** Paramètres du mini-jeu rythmique de la sporée d'automne (src/data/sporulation.json). */
+export interface SporulationDef {
+  bpm: number;
+  /** Nombre de mesures de 8 croches. */
+  bars: number;
+  /** Délai avant la première note, en ms. */
+  leadInMs: number;
+  /** Fenêtres de jugement (écart maximal à la note), en ms. */
+  windows: { perfect: number; good: number };
+  /** Motifs d'une mesure : 1 = note sur la croche. */
+  patterns: number[][];
+  /** Portée de base, en mètres. */
+  baseReach: number;
+  /** Portée ajoutée par spore libérée. */
+  perSpore: number;
+  /** Part de la portée obtenue même avec un rythme raté. */
+  minScoreFactor: number;
+  /** Mémoire gagnée par mètre de portée. */
+  memoryPerMeter: number;
+  /** Spores nécessaires pour lancer une sporée. */
+  minSpores: number;
+}
+
+export type SkillBranch = 'roots' | 'chemistry' | 'spores';
+export const SKILL_BRANCHES: readonly SkillBranch[] = ['roots', 'chemistry', 'spores'];
+
+/** Bonus qu'une compétence peut accorder : chacun multiplie un paramètre des données. */
+export type BonusKey =
+  | 'waterAbsorption'
+  | 'mineralRate'
+  | 'growthCost'
+  | 'upkeep'
+  | 'frostResistance'
+  | 'defenseDamage'
+  | 'defenseCost'
+  | 'trustGain'
+  | 'parasiteCure'
+  | 'fruiting'
+  | 'rhythmWindow'
+  | 'sporeReach'
+  | 'memoryPerSpore';
+export const BONUS_KEYS: readonly BonusKey[] = [
+  'waterAbsorption',
+  'mineralRate',
+  'growthCost',
+  'upkeep',
+  'frostResistance',
+  'defenseDamage',
+  'defenseCost',
+  'trustGain',
+  'parasiteCure',
+  'fruiting',
+  'rhythmWindow',
+  'sporeReach',
+  'memoryPerSpore',
+];
+
+export interface SkillDef {
+  id: string;
+  branch: SkillBranch;
+  /** Rang dans la branche (1 = racine de la branche). */
+  tier: number;
+  name: string;
+  description: string;
+  /** Coût en mémoire. */
+  cost: number;
+  requires: string[];
+  effects: Partial<Record<BonusKey, number>>;
+}
+
+export interface SkillsDef {
+  branches: Record<SkillBranch, string>;
+  skills: SkillDef[];
+}

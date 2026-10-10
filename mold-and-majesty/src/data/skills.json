@@ -1,0 +1,172 @@
+{
+  "branches": {
+    "roots": "Racines",
+    "chemistry": "Chimie",
+    "spores": "Spores"
+  },
+  "skills": [
+    {
+      "id": "deep-drink",
+      "branch": "roots",
+      "tier": 1,
+      "name": "Boire profond",
+      "description": "Les filaments puisent 40 % d'eau en plus.",
+      "cost": 3,
+      "requires": [],
+      "effects": {
+        "waterAbsorption": 1.4
+      }
+    },
+    {
+      "id": "mineral-sense",
+      "branch": "roots",
+      "tier": 2,
+      "name": "Flair minéral",
+      "description": "Extraction des minéraux +50 %.",
+      "cost": 6,
+      "requires": [
+        "deep-drink"
+      ],
+      "effects": {
+        "mineralRate": 1.5
+      }
+    },
+    {
+      "id": "lean-growth",
+      "branch": "roots",
+      "tier": 3,
+      "name": "Pousse frugale",
+      "description": "Pousser coûte 30 % de moins, l'entretien 20 % de moins.",
+      "cost": 10,
+      "requires": [
+        "mineral-sense"
+      ],
+      "effects": {
+        "growthCost": 0.7,
+        "upkeep": 0.8
+      }
+    },
+    {
+      "id": "frost-ward",
+      "branch": "roots",
+      "tier": 4,
+      "name": "Cœur de givre",
+      "description": "Le gel fait deux fois moins de dégâts.",
+      "cost": 16,
+      "requires": [
+        "lean-growth"
+      ],
+      "effects": {
+        "frostResistance": 0.5
+      }
+    },
+    {
+      "id": "antifungal",
+      "branch": "chemistry",
+      "tier": 1,
+      "name": "Antifongiques",
+      "description": "La défense chimique frappe 50 % plus fort.",
+      "cost": 3,
+      "requires": [],
+      "effects": {
+        "defenseDamage": 1.5
+      }
+    },
+    {
+      "id": "kind-words",
+      "branch": "chemistry",
+      "tier": 2,
+      "name": "Mots doux",
+      "description": "La confiance des alliés grandit 50 % plus vite.",
+      "cost": 6,
+      "requires": [
+        "antifungal"
+      ],
+      "effects": {
+        "trustGain": 1.5
+      }
+    },
+    {
+      "id": "immunity",
+      "branch": "chemistry",
+      "tier": 3,
+      "name": "Immunité",
+      "description": "Le signal soigne les parasites deux fois plus vite.",
+      "cost": 10,
+      "requires": [
+        "kind-words"
+      ],
+      "effects": {
+        "parasiteCure": 2
+      }
+    },
+    {
+      "id": "cheap-venom",
+      "branch": "chemistry",
+      "tier": 4,
+      "name": "Venin sobre",
+      "description": "La défense chimique coûte deux fois moins de sucre.",
+      "cost": 16,
+      "requires": [
+        "immunity"
+      ],
+      "effects": {
+        "defenseCost": 0.5
+      }
+    },
+    {
+      "id": "abundance",
+      "branch": "spores",
+      "tier": 1,
+      "name": "Abondance",
+      "description": "Les ruches fructifient 50 % plus vite.",
+      "cost": 3,
+      "requires": [],
+      "effects": {
+        "fruiting": 1.5
+      }
+    },
+    {
+      "id": "steady-pulse",
+      "branch": "spores",
+      "tier": 2,
+      "name": "Pouls régulier",
+      "description": "Fenêtres du rythme de sporée 40 % plus larges.",
+      "cost": 6,
+      "requires": [
+        "abundance"
+      ],
+      "effects": {
+        "rhythmWindow": 1.4
+      }
+    },
+    {
+      "id": "wind-riders",
+      "branch": "spores",
+      "tier": 3,
+      "name": "Chevaucheurs du vent",
+      "description": "Les spores portent 30 % plus loin.",
+      "cost": 10,
+      "requires": [
+        "steady-pulse"
+      ],
+      "effects": {
+        "sporeReach": 1.3
+      }
+    },
+    {
+      "id": "remembrance",
+      "branch": "spores",
+      "tier": 4,
+      "name": "Réminiscence",
+      "description": "Chaque spore laisse deux fois plus de mémoire.",
+      "cost": 16,
+      "requires": [
+        "wind-riders"
+      ],
+      "effects": {
+        "memoryPerSpore": 2
+      }
+    }
+  ]
+}

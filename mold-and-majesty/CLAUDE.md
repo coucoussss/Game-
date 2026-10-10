@@ -62,6 +62,8 @@ Le contenu du jeu vit dans des **fichiers JSON séparés du code**, dans `src/da
 - `allies.json` : les espèces alliées (personnalité, habitat, accord, service, trahison) et la dynamique de confiance (`AlliesDef`)
 - `threats.json` : les moisissures rivales, les parasites et la défense chimique du réseau (`ThreatsDef`)
 - `events.json` : les événements climatiques et leurs probabilités par saison (`EventsDef`)
+- `sporulation.json` : le mini-jeu rythmique de la sporée (tempo, motifs, fenêtres de jugement) et le calcul de la portée (`SporulationDef`)
+- `skills.json` : l'arbre de compétences, avec 3 branches de 4 rangs (`SkillsDef`)
 
 Les types sont définis dans `src/data/types.ts`. Au chargement, `src/data/index.ts` indexe les données
 et les **valide** : identifiants uniques, valeurs cohérentes, références croisées. Pour ajouter du
@@ -166,6 +168,22 @@ avec un test.
   `?parasite`. `new World(data, forêt, graine, { threats: false })` désactive les menaces, comme dans le
   test d'équilibrage.
 
+## Sporée et compétences (étape 5)
+
+- **Sporée d'automne** : une fois par automne, avec au moins une ruche et des spores, le champignon du
+  coin supérieur droit (ou la touche F) lance `RhythmScene`. La logique est pure, dans
+  `systems/RhythmGame.ts` : la partition est générée depuis une graine, chaque frappe est jugée
+  (parfait, bien ou fausse note), et le score va de 0 à 1. `World.sporulate(score)` libère les spores ;
+  la portée en mètres vaut (base + spores × k) × facteur de rythme. La portée donne de la mémoire
+  et sert d'objectif aux forêts (étape 6).
+- **Compétences** (`systems/Skills.ts`) : chaque effet multiplie un paramètre des JSON. `applyBonuses`
+  produit des **données effectives** (`World.data`) à partir des données de base (`World.baseData`), si
+  bien qu'aucun système ne connaît les compétences. On les achète avec de la mémoire, dans
+  `SkillScene` (les cernes en haut à gauche, ou la touche K).
+- **Sorties de champignons** (`FruitView`) : chaque ruche fait pousser un carpophore en surface, relié
+  par un fil lumineux. Il grandit, luit en automne (halo en mélange additif) et lâche des spores en
+  particules ; la sporée déclenche une explosion de spores.
+
 ## Conventions de code
 
 - Le code et les identifiants sont en **anglais**. Les commentaires, les textes affichés et les messages
@@ -186,20 +204,20 @@ avec un test.
 
 ## Étapes
 
-> ⚠️ Le brief initial ne contenait pas la liste d'étapes. Celle-ci est une **proposition**,
-> à remplacer ou à ajuster.
-
 - [x] 0. Fondations : Vite + TS + Phaser 3, rendu 384×216 pixel-perfect à l'échelle entière,
       données JSON validées, `SaveSystem` sur localStorage, Vitest
-- [ ] 1. Vue en coupe de la forêt : grille de tuiles par couche, caméra, défilement horizontal
 - [x] 2. Réseau de mycélium : tracé à la souris ou au doigt sur une grille souple, épaisseurs,
       nœuds (réserve, relais, ruche), flux sucre/eau/signal, dépérissement, tests de simulation
 - [x] 3. Ressources (sucre, eau, minéraux, mémoire), cycle de 4 saisons de 15 min, météo,
       interface par le décor
 - [x] 4. Alliés (arbres, fourmis, vers, scarabées : confiance, personnalité, échanges, trahisons)
       et menaces (moisissures rivales, parasites, sécheresse, inondation, feu, gel), lisibles par l'animation
-- [ ] 5. Espèces de champignons constructibles par couche (depuis `species.json`)
-- [ ] 6. HUD et interface : ressources, menu de construction, info-bulles, police bitmap
-- [ ] 7. Sauvegarde et chargement complets, menu principal
-- [ ] 8. Plusieurs forêts et progression (depuis `forests.json`)
-- [ ] 9. Sprites, animations, audio et finitions
+- [x] 5. Fructification d'automne et mini-jeu rythmique (portée des spores), arbre de compétences
+      (Racines, Chimie, Spores) payé en mémoire, sorties de champignons avec particules et lueur
+- [ ] 6. Campagne de 8 forêts aux règles spéciales (JSON), génération procédurale depuis une graine,
+      mode infini, écran de sélection, sauvegarde de la progression
+- [ ] 7. Souvenirs : séquences scriptées en JSON (caméra, sprites, musique), 8 scènes sans dialogue
+- [ ] 8. Vrai pixel art (palette limitée), parallaxe, particules, éclairage dynamique, animations,
+      musique ambient évolutive et sons organiques en WebAudio
+- [ ] 9. Équilibrage, tutoriel, options (volume, plein écran, accessibilité), tactile, performances,
+      README, build de production

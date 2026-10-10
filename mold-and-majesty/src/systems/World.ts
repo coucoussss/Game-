@@ -19,6 +19,8 @@ import type { WorldEvent } from './events';
 import { type FlowModifiers, stepNetwork } from './FlowSystem';
 import { seedInfection, stepParasites } from './ParasiteSystem';
 import { Random } from './Random';
+import { sporeReach } from './RhythmGame';
+import { applyBonuses, computeBonuses, unlockStatus } from './Skills';
 import { type RivalContext, spawnColony, stepRivals } from './RivalSystem';
 import { type SeasonInfo, type WeatherState, rollWeather, seasonAt, seasonModifiers, stepWeather } from './SeasonSystem';
 import { type Deposit, absorb, applyFrost, applyLitter, generateDeposits, layerBounds, stepMoisture } from './SoilSystem';
@@ -26,6 +28,18 @@ import { type Deposit, absorb, applyFrost, applyLitter, generateDeposits, layerB
 export interface WorldOptions {
   /** Moisissures, parasites et événements climatiques (désactivables pour les tests d'équilibrage). */
   threats?: boolean;
+  /** Compétences déjà acquises (progression du profil). */
+  skills?: Iterable<string>;
+  /** Mémoire de départ (banque du profil) ; par défaut, celle de la forêt. */
+  memory?: number;
+}
+
+/** Résultat d'une sporée d'automne. */
+export interface SporeeResult {
+  score: number;
+  released: number;
+  reach: number;
+  memoryGained: number;
 }
 
 /** Nombre maximal d'événements gardés en attente quand personne ne les consomme. */
@@ -47,6 +61,13 @@ export class World {
   /** Largeur jouable, en pixels (un seul écran tant que la caméra n'existe pas). */
   readonly widthPx: number;
   readonly threats: boolean;
+  /** Données effectives : celles des JSON, modifiées par les compétences. */
+  data: GameData;
+  readonly skills: Set<string>;
+  /** Année de la dernière sporée (une seule par automne). */
+  sporeeYear = 0;
+  lastReach = 0;
+  bestReach = 0;
   tick = 0;
   memory: number;
   /** Humidité du sol (0..1). */
@@ -57,19 +78,22 @@ export class World {
   private nextId = 1;
 
   constructor(
-    readonly data: GameData,
+    readonly baseData: GameData,
     forestId: string,
     seed = 1,
     options: WorldOptions = {},
   ) {
-    const forest = data.forests.get(forestId);
+    const forest = baseData.forests.get(forestId);
     if (!forest) throw new Error(`Forêt inconnue : "${forestId}"`);
     this.forest = forest;
     this.threats = options.threats ?? true;
+    this.skills = new Set(options.skills ?? []);
+    this.data = applyBonuses(baseData, computeBonuses(this.skills, baseData.skills));
+    const data = this.data;
     this.rng = new Random(seed);
     this.widthPx = Math.min(forest.widthTiles * TILE, NATIVE_WIDTH);
     this.deposits = generateDeposits(forest, this.widthPx, this.rng);
-    this.memory = forest.startingResources.memory;
+    this.memory = options.memory ?? forest.startingResources.memory;
     this.net.spores = forest.startingResources.spores;
     this.sporesCounted = this.net.spores;
 
@@ -272,6 +296,48 @@ export class World {
     const def = rollClimate(allowed, this.season.def, this.rng);
     if (!def) return;
     this.startClimate(def.id);
+  }
+
+  /** Achète une compétence avec de la mémoire. Retourne false si c'est impossible. */
+  unlockSkill(id: string): boolean {
+    const skill = this.baseData.skills.skills.find((s) => s.id === id);
+    if (!skill || unlockStatus(skill, this.skills, this.memory) !== 'available') return false;
+    this.memory -= skill.cost;
+    this.skills.add(id);
+    this.data = applyBonuses(this.baseData, computeBonuses(this.skills, this.baseData.skills));
+    return true;
+  }
+
+  /** Ruches opérationnelles du réseau. */
+  get hives(): number {
+    return [...this.net.nodes.values()].filter((n) => n.kind === 'fruiting' && n.build >= 1).length;
+  }
+
+  /** La sporée est possible une fois par automne, avec au moins une ruche et quelques spores. */
+  canSporulate(): boolean {
+    const season = this.season;
+    return (
+      season.def.id === 'autumn' &&
+      this.sporeeYear < season.year &&
+      this.hives > 0 &&
+      this.net.spores >= this.data.sporulation.minSpores
+    );
+  }
+
+  /** Libère les spores selon le score du mini-jeu rythmique. */
+  sporulate(score: number): SporeeResult {
+    const def = this.data.sporulation;
+    const released = this.net.spores;
+    const reach = sporeReach(def, released, score);
+    const memoryGained = reach * def.memoryPerMeter;
+    this.net.spores = 0;
+    this.sporesCounted = 0;
+    this.memory += memoryGained;
+    this.sporeeYear = this.season.year;
+    this.lastReach = reach;
+    this.bestReach = Math.max(this.bestReach, reach);
+    this.emit({ type: 'sporee', reach, score });
+    return { score, released, reach, memoryGained };
   }
 
   /** Lance un événement climatique précis (débogage, tests). */
