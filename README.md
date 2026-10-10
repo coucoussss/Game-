@@ -1,3 +1,8 @@
+# 🎮 Jeux
+
+- **Nuit des Morts** (ci-dessous) : `index.html`
+- **Undyne l'Immortelle** : fan game inspiré d'Undertale. Voir [`undyne/README.md`](undyne/README.md) et ouvrir `undyne/index.html`.
+
 # 🧟 Nuit des Morts
 
 Jeu de combat 2D contre des zombies, de nuit, sous la pluie. Il tourne entièrement dans le navigateur en HTML5 Canvas, sans aucune dépendance.
