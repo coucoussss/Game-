@@ -58,7 +58,9 @@ const Snd = (() => {
       g.gain.setValueAtTime(v, t + Math.max(a, dur - r));
       g.gain.linearRampToValueAtTime(0.0001, t + dur);
     }
-    osc.connect(g); g.connect(o.bus || sfx);
+    if (o.lp) { const bq = ac.createBiquadFilter(); bq.type = 'lowpass'; bq.frequency.value = o.lp; osc.connect(bq); bq.connect(g); }
+    else osc.connect(g);
+    g.connect(o.bus || sfx);
     if (o.send) g.connect(o.send);
     osc.start(t); osc.stop(t + dur + 0.05);
   }
@@ -164,7 +166,7 @@ const Snd = (() => {
 
   // ---------- Musique ----------
   const CH = {
-    Dm: [38, [62, 65, 69]], C: [36, [60, 64, 67]], Bb: [34, [58, 62, 65]], A: [33, [57, 61, 64]],
+    Dm: [38, [62, 65, 69]], C: [36, [60, 64, 67]], B: [35, [59, 62, 67]], Bb: [34, [58, 62, 65]], A: [33, [57, 61, 64]],
     F: [41, [65, 69, 72]], G: [43, [67, 71, 74]], Am: [33, [57, 60, 64]], Em: [40, [64, 67, 71]],
   };
   function midi(n) {
@@ -183,37 +185,40 @@ const Snd = (() => {
     return out;
   }
   function song(def) {
-    const bars = def.bars.map(b => ({ ch: CH[b[0]], mel: parseMel(b[1]), dr: b[2] || 'none', arp: !!b[3] }));
+    const bars = def.bars.map(b => {
+      const o = Array.isArray(b) ? { ch: b[0], mel: b[1], dr: b[2], arp: b[3] } : b;
+      return { ...o, chName: o.ch, ch: CH[o.ch], mel: parseMel(o.mel), dr: o.dr || 'none', arp: !!o.arp };
+    });
     return { ...def, bars, total: bars.length * 16, loopStep: (def.loop || 0) * 16 };
   }
 
+  // « Jugement dernier » : thème de combat original, ré mineur, 120 BPM,
+  // sur la descente de basse ré – do – si – si bémol.
+  const PROG = ['Dm', 'C', 'B', 'Bb'];
+  const HOOK = [
+    'F5:1 E5:1 D5:2 A5:2 r:1 A5:1 C6:2 A5:1 G5:1 F5:2 E5:2',
+    'E5:1 D5:1 C5:2 G5:2 r:1 G5:1 Bb5:2 G5:1 F5:1 E5:2 C5:2',
+    'D5:1 C5:1 B4:2 G5:2 r:1 G5:1 B5:2 D6:2 C6:1 B5:1 G5:2',
+    'D5:2 F5:2 Bb5:2 D6:2 C6:1 Bb5:1 A5:2 G5:2 A5:2',
+  ];
+  const RUN = 'Bb5:1 A5:1 G5:1 F5:1 E5:1 D5:1 C#5:1 D5:1 E5:1 F5:1 G5:1 A5:1 Bb5:1 C6:1 C#6:2';
+  const SOAR = [
+    'D6:6 C6:2 A5:4 F5:4', 'E6:6 D6:2 C6:4 G5:4', 'D6:4 B5:2 G5:2 B5:2 D6:2 G6:4', 'F6:6 E6:2 D6:2 C6:2 Bb5:2 A5:2',
+    'A6:4 G6:2 F6:2 E6:2 F6:2 D6:4', 'G6:4 F6:2 E6:2 D6:2 E6:2 C6:4', 'F6:3 E6:1 D6:4 B5:4 G5:4', 'A5:2 Bb5:2 C6:2 D6:2 E6:2 F6:2 G6:2 A6:2',
+  ];
+  const BREAK = ['A5:2 r:2 A5:2 r:2 G5:2 F5:2 E5:2 D5:2', 'G5:2 r:2 G5:2 r:2 F5:2 E5:2 D5:2 C5:2', 'G5:2 r:2 G5:2 r:2 B5:2 D6:2 C6:2 B5:2', 'D5:2 E5:2 F5:2 G5:2 A5:2 Bb5:2 C6:2 C#6:2'];
+  const battleBars = [
+    ...PROG.map((ch, i) => ({ ch, dr: i < 2 ? 'intro1' : 'intro2', bass: 'drive' })),
+    ...PROG.map((ch, i) => ({ ch, mel: HOOK[i], dr: 'full', crash: i === 0 })),
+    ...PROG.map((ch, i) => ({ ch, mel: i === 3 ? RUN : HOOK[i], dr: i === 3 ? 'fill' : 'full' })),
+    ...SOAR.map((mel, i) => ({ ch: PROG[i % 4], mel, dr: i === 7 ? 'fill' : 'drive', harm: true, pad: true, crash: i % 4 === 0 })),
+    ...BREAK.map((mel, i) => ({ ch: PROG[i], mel, dr: i === 3 ? 'roll' : 'half', bass: i === 3 ? 'drive' : 'half', arp: true })),
+    ...PROG.map((ch, i) => ({ ch, mel: HOOK[i], dr: 'drive', harm: true, saw: true, pad: true, crash: i === 0 })),
+    ...PROG.map((ch, i) => ({ ch, mel: i === 3 ? RUN : HOOK[i], dr: i === 3 ? 'fill' : 'drive', harm: true, saw: true, pad: true })),
+  ];
+
   const SONGS = {
-    // « Jugement » : thème de combat, ré mineur, 125 BPM
-    battle: song({
-      bpm: 125, bass: 'oct', lead: 'battle', loop: 2, bars: [
-        ['Dm', '', 'intro'], ['C', '', 'intro'],
-        ['Dm', 'A4:2 D5:2 F5:2 A5:4 G5:2 F5:2 E5:2', 'full'],
-        ['C', 'E5:2 G5:2 C6:4 B5:2 G5:2 E5:4', 'full'],
-        ['Bb', 'F5:2 D5:2 Bb4:2 D5:2 F5:3 G5:1 F5:2 D5:2', 'full'],
-        ['A', 'E5:4 C#5:2 E5:2 A5:4 C#6:4', 'full'],
-        ['Dm', 'A4:2 D5:2 F5:2 A5:4 G5:2 F5:2 E5:2', 'full'],
-        ['C', 'E5:2 G5:2 C6:4 B5:2 G5:2 E5:4', 'full'],
-        ['Bb', 'F5:2 D5:2 Bb4:2 D5:2 F5:3 G5:1 F5:2 D5:2', 'full'],
-        ['A', 'E5:2 F5:2 G5:2 A5:2 Bb5:2 A5:2 G5:2 E5:2', 'fill'],
-        ['Dm', 'D6:3 C6:1 A5:2 F5:2 A5:2 C6:2 D6:4', 'full', 1],
-        ['F', 'C6:3 A5:1 F5:2 C5:2 F5:2 A5:2 C6:4', 'full', 1],
-        ['C', 'B5:2 C6:2 G5:2 E5:2 G5:2 E5:2 C5:2 E5:2', 'full', 1],
-        ['A', 'C#6:4 A5:2 E5:2 C#5:2 E5:2 A5:4', 'full', 1],
-        ['Bb', 'D6:2 F6:2 D6:2 Bb5:2 F5:2 Bb5:2 D6:4', 'full', 1],
-        ['C', 'E6:2 G6:2 E6:2 C6:2 G5:2 C6:2 E6:4', 'full', 1],
-        ['Dm', 'F6:3 E6:1 D6:2 A5:2 F5:2 A5:2 D6:2 E6:2', 'full', 1],
-        ['A', 'C#6:6 A5:2 E5:4 r:4', 'fill', 1],
-        ['Dm', 'D5:1 r:1 D5:1 r:1 F5:2 D5:2 r:2 A4:2 C5:2 D5:2', 'break', 1],
-        ['Dm', 'D5:1 r:1 D5:1 r:1 F5:2 A5:2 r:2 G5:2 F5:2 E5:2', 'break', 1],
-        ['Bb', 'D5:1 r:1 D5:1 r:1 F5:2 D5:2 r:2 Bb4:2 C5:2 D5:2', 'break', 1],
-        ['C', 'E5:2 G5:2 C6:2 G5:2 E5:2 G5:2 C6:2 E6:2', 'fill', 1],
-      ],
-    }),
+    battle: song({ bpm: 120, bass: 'drive', lead: 'battle', loop: 4, bars: battleBars }),
     // Boîte à musique de l'écran titre
     title: song({
       bpm: 84, bass: 'hold', lead: 'box', bars: [
@@ -237,10 +242,18 @@ const Snd = (() => {
     }),
   };
 
-  function lead(sg, m, dur, t, g) {
+  // Tierce inférieure dans la gamme de l'accord en cours
+  function harmony(m, ch) {
+    const sc = ch === 'B' ? [2, 4, 5, 7, 9, 11, 0] : ch === 'A' ? [2, 4, 5, 7, 9, 10, 1] : [2, 4, 5, 7, 9, 10, 0];
+    for (const d of [3, 4]) if (sc.includes(((m - d) % 12 + 12) % 12)) return m - d;
+    return m - 5;
+  }
+  function lead(sg, bar, m, dur, t, g) {
     if (sg.lead === 'battle') {
-      tone(mf(m), dur * 0.92, { w: 'p25', v: 0.08, t, bus: g, send: delayIn, vib: dur > 0.3 ? [6, 5] : null });
-      tone(mf(m - 12), dur * 0.9, { w: 'p50', v: 0.025, t, bus: g });
+      tone(mf(m), dur * 0.92, { w: 'p25', v: 0.07, t, bus: g, send: delayIn, vib: dur > 0.25 ? [6, 6] : null });
+      tone(mf(m) * 1.005, dur * 0.9, { w: 'p25', v: 0.028, t, bus: g });
+      if (bar.harm) tone(mf(harmony(m, bar.chName)), dur * 0.9, { w: 'p50', v: 0.032, t, bus: g });
+      if (bar.saw) tone(mf(m + 12), dur * 0.9, { w: 'sawtooth', v: 0.03, t, bus: g, lp: 3200, vib: dur > 0.25 ? [6, 8] : null });
     } else if (sg.lead === 'box') {
       tone(mf(m), dur * 1.6, { w: 'triangle', v: 0.13, t, bus: g, decay: true });
       tone(mf(m + 12), dur, { w: 'sine', v: 0.04, t, bus: g, decay: true });
@@ -249,27 +262,47 @@ const Snd = (() => {
       tone(mf(m), dur * 0.95, { w: 'triangle', v: 0.08, t, bus: g, a: 0.06, r: 0.25 });
     }
   }
-  function drums(p, s, t, g) {
+  function drums(p, s, t, g, sd) {
     if (p === 'none') return;
-    const kick = () => tone(150, 0.18, { w: 'sine', to: 42, toT: 0.12, v: 0.42, t, bus: g, decay: true });
-    const snare = () => { nz(0.14, { ft: 'highpass', f: 1200, v: 0.18, t, bus: g }); tone(190, 0.08, { w: 'triangle', v: 0.1, t, bus: g, decay: true }); };
-    const hat = v => nz(0.03, { ft: 'highpass', f: 7000, v, t, bus: g });
-    if (p === 'full') { if (s === 0 || s === 8 || s === 10) kick(); if (s === 4 || s === 12) snare(); hat(s % 2 ? 0.018 : 0.045); }
-    else if (p === 'intro') { if (s === 0 || s === 8) kick(); if (s % 4 === 2) hat(0.045); }
-    else if (p === 'break') { if (s === 0 || s === 3 || s === 6 || s === 10) kick(); if (s === 4 || s === 12 || s === 14 || s === 15) snare(); hat(s % 2 ? 0.018 : 0.035); }
-    else if (p === 'fill') { if (s === 0 || s === 8) kick(); if ((s >= 8 && s % 2 === 0) || s >= 12) snare(); hat(0.03); }
+    const kick = (v = 0.45) => { tone(160, 0.2, { w: 'sine', to: 40, toT: 0.12, v, t, bus: g, decay: true }); nz(0.02, { ft: 'highpass', f: 2000, v: 0.05, t, bus: g }); };
+    const snare = (v = 0.2) => { nz(0.16, { ft: 'highpass', f: 1100, v, t, bus: g }); tone(200, 0.09, { w: 'triangle', to: 150, v: v * 0.6, t, bus: g, decay: true }); };
+    const hat = v => nz(0.03, { ft: 'highpass', f: 7500, v, t, bus: g });
+    const tom = f => tone(f, 0.18, { w: 'sine', to: f * 0.6, v: 0.3, t, bus: g, decay: true });
+    switch (p) {
+      case 'intro1': if (s === 0 || s === 8) kick(); if (s % 2 === 0) hat(0.03); break;
+      case 'intro2': if (s % 4 === 0) kick(); hat(s % 2 ? 0.015 : 0.04); if (s >= 12) snare(0.06 + (s - 12) * 0.04); break;
+      case 'full': if (s === 0 || s === 8 || s === 10) kick(); if (s === 4 || s === 12) snare(); if (s === 15) snare(0.05); hat(s % 4 === 2 ? 0.05 : s % 2 ? 0.015 : 0.03); break;
+      case 'drive': if ([0, 3, 6, 8, 11, 14].includes(s)) kick(0.4); if (s === 4 || s === 12) snare(0.22); hat(s % 2 ? 0.02 : 0.045); break;
+      case 'half': if (s === 0) kick(); if (s === 8) snare(0.22); if (s % 2 === 0) hat(0.03); break;
+      case 'roll': if (s === 0 || s === 8) kick(); snare(0.04 + s * 0.012); break;
+      case 'fill':
+        if (s === 0 || s === 4) kick(); if (s === 2 || s === 6) snare();
+        if (s === 8) tom(220); if (s === 10) tom(180); if (s === 12) tom(140);
+        if (s >= 13) snare(0.15 + (s - 13) * 0.04);
+        hat(0.02); break;
+    }
+    void sd;
   }
+  const DRIVE = [0, 0, 12, 0, 0, 12, 0, 0, 0, 0, 12, 0, 0, 12, 0, 12];
   function playStep(sg, step, t, sd, g) {
     const bar = sg.bars[Math.floor(step / 16)], s = step % 16;
-    for (const n of bar.mel) if (n.s === s) lead(sg, n.m, n.len * sd, t, g);
-    if (sg.bass === 'oct') {
-      if (s % 2 === 0) tone(mf(bar.ch[0] + (s % 4 === 2 ? 12 : 0)), sd * 1.7, { w: 'p50', v: 0.1, t, bus: g, r: 0.03 });
+    if (bar.crash && s === 0) nz(1.4, { ft: 'highpass', f: 5000, v: 0.13, t, bus: g });
+    for (const n of bar.mel) if (n.s === s) lead(sg, bar, n.m, n.len * sd, t, g);
+    const bass = bar.bass || sg.bass, root = bar.ch[0];
+    if (bass === 'drive') {
+      tone(mf(root + DRIVE[s]), sd * 0.8, { w: 'p50', v: 0.085, t, bus: g, r: 0.02 });
+      if (s % 8 === 0) tone(mf(root - 12), sd * 4, { w: 'triangle', v: 0.16, t, bus: g, r: 0.05 });
+    } else if (bass === 'half') {
+      if (s % 8 === 0) { tone(mf(root), sd * 7, { w: 'p50', v: 0.07, t, bus: g, r: 0.1 }); tone(mf(root - 12), sd * 7, { w: 'triangle', v: 0.16, t, bus: g, r: 0.1 }); }
+    } else if (bass === 'oct') {
+      if (s % 2 === 0) tone(mf(root + (s % 4 === 2 ? 12 : 0)), sd * 1.7, { w: 'p50', v: 0.1, t, bus: g, r: 0.03 });
     } else if (s === 0) {
-      tone(mf(bar.ch[0] + 12), sd * 16, { w: 'triangle', v: 0.12, t, bus: g, a: 0.05, r: 0.4 });
+      tone(mf(root + 12), sd * 16, { w: 'triangle', v: 0.12, t, bus: g, a: 0.05, r: 0.4 });
       for (const m of bar.ch[1]) tone(mf(m), sd * 16, { w: 'sine', v: 0.018, t, bus: g, a: 0.3, r: 0.6 });
     }
-    if (bar.arp) tone(mf(bar.ch[1][s % 3] + 12), sd * 0.9, { w: 'p12', v: 0.03, t, bus: g });
-    drums(bar.dr, s, t, g);
+    if (bar.pad && s === 0) for (const m of bar.ch[1]) tone(mf(m), sd * 16, { w: 'sawtooth', v: 0.014, t, bus: g, a: 0.15, r: 0.3, lp: 1600 });
+    if (bar.arp) tone(mf(bar.ch[1][s % 3] + 12 + (s % 6 >= 3 ? 12 : 0)), sd * 0.9, { w: 'p12', v: 0.035, t, bus: g, send: delayIn });
+    drums(bar.dr, s, t, g, sd);
   }
   function tick() {
     if (!cur || !ac || ac.state !== 'running') return;

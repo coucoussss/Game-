@@ -1,7 +1,7 @@
 # ⚖️ Jugement Final
 
 Fan game **non officiel** qui recrée le combat contre Sans d'UNDERTALE (Toby Fox), entièrement dans le navigateur (HTML5 Canvas, sans dépendance).
-Les sprites sont dessinés pixel par pixel dans le code. Les musiques sont des compositions originales en 8-bit, synthétisées en temps réel avec la Web Audio API. Les dialogues ont été réécrits en français. Aucun fichier du jeu original n'est utilisé.
+Les sprites sont dessinés pixel par pixel dans le code. Les musiques sont des compositions originales en 8-bit, synthétisées en temps réel avec la Web Audio API. Le thème de combat, « Jugement dernier », s'inspire du style de Megalovania (ré mineur, 120 BPM, descente de basse ré – do – si – si bémol, basse en doubles croches) avec une mélodie originale. Les dialogues ont été réécrits en français. Aucun fichier du jeu original n'est utilisé.
 
 ## Lancer le jeu
 

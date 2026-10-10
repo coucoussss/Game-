@@ -135,6 +135,20 @@ class PG {
     for (let k = 0; k <= n; k++) { const t = n ? k / n : 0; this.set(Math.round(x0 + (x1 - x0) * t), Math.round(y0 + (y1 - y0) * t), c); }
     return this;
   }
+  // Contour intérieur : les pixels pleins qui touchent le vide prennent la couleur c.
+  outline(c = 2) {
+    const add = [];
+    for (let j = 0; j < this.h; j++) for (let i = 0; i < this.w; i++) {
+      const v = this.d[j * this.w + i];
+      if (!v || v === c) continue;
+      const empty = (x, y) => x < 0 || y < 0 || x >= this.w || y >= this.h || !this.d[y * this.w + x];
+      if (empty(i - 1, j) || empty(i + 1, j) || empty(i, j - 1) || empty(i, j + 1)) add.push(j * this.w + i);
+    }
+    for (const k of add) this.d[k] = c;
+    return this;
+  }
+  paste(o) { for (let k = 0; k < o.d.length; k++) if (o.d[k]) this.d[k] = o.d[k]; return this; }
+  mirror() { for (let j = 0; j < this.h; j++) for (let i = 0; i < this.w / 2; i++) { const a = j * this.w + i, b = j * this.w + this.w - 1 - i; if (this.d[a]) this.d[b] = this.d[a]; } return this; }
   img(pal = PAL) {
     const k = document.createElement('canvas'); k.width = this.w; k.height = this.h;
     const g = k.getContext('2d'), im = g.createImageData(this.w, this.h);
@@ -149,46 +163,65 @@ class PG {
 const PAL = { 1: [255, 255, 255], 2: [0, 0, 0], 3: [20, 169, 255], 4: [255, 255, 0], 5: [255, 0, 0], 6: [255, 127, 39] };
 const PAL_SIL = { 1: [28, 19, 6], 2: [255, 255, 255] };
 
+// Sans en combat : chaque partie est remplie puis cernée de noir, puis superposée.
+const part = (w, h, draw, c = 2) => { const p = new PG(w, h); draw(p); return p.outline(c); };
 function gHead(e) {
-  const g = new PG(34, 30);
-  g.ell(17, 13, 16.5, 13.2, 1);
-  g.rect(5, 16, 24, 10, 1); g.rect(6, 26, 22, 1, 1); g.rect(8, 27, 18, 1, 1);
+  const g = part(34, 31, p => {
+    p.ell(17, 13.5, 16.5, 13.6, 1);
+    p.poly([[2.5, 14], [31.5, 14], [31, 22], [28.5, 28], [25, 30.5], [9, 30.5], [5.5, 28], [3, 22]], 1);
+  });
+  // orbites
   if (e === 'closed') {
-    g.rect(6, 13, 8, 1, 2); g.rect(20, 13, 8, 1, 2); g.set(5, 12, 2); g.set(28, 12, 2);
+    g.rect(6, 14, 9, 1, 2); g.rect(19, 14, 9, 1, 2); g.set(5, 13, 2); g.set(28, 13, 2); g.set(15, 13, 2); g.set(18, 13, 2);
   } else {
-    g.ell(10, 13, 4.6, 3.9, 2);
-    if (e === 'wink') g.rect(20, 13, 8, 2, 2); else g.ell(24, 13, 4.6, 3.9, 2);
-    if (e === 'normal' || e === 'wink') g.rect(9, 12, 2, 2, 1);
-    if (e === 'normal') g.rect(23, 12, 2, 2, 1);
-    if (e === 'blue' || e === 'yellow') { g.ell(10, 13, 2.7, 2.7, e === 'blue' ? 3 : 4); g.rect(9, 12, 2, 2, 1); }
+    g.ell(10.5, 13.5, 4.8, 4.4, 2);
+    if (e === 'wink') { g.rect(19, 14, 9, 1, 2); g.set(18, 13, 2); g.set(28, 13, 2); }
+    else g.ell(23.5, 13.5, 4.8, 4.4, 2);
+    if (e === 'normal' || e === 'wink') g.rect(10, 13, 2, 2, 1);
+    if (e === 'normal') g.rect(22, 13, 2, 2, 1);
+    if (e === 'blue' || e === 'yellow') { g.ell(10.5, 13.5, 3, 3, e === 'blue' ? 3 : 4); g.rect(10, 13, 2, 2, 1); }
+    if (e === 'tired') { g.rect(10, 14, 2, 1, 1); g.rect(22, 14, 2, 1, 1); g.rect(6, 10, 9, 1, 2); g.rect(19, 10, 9, 1, 2); }
   }
-  g.rect(15, 18, 4, 1, 2); g.rect(16, 19, 2, 1, 2);
-  for (let x = 6; x <= 27; x++) { const d = Math.abs(x + 0.5 - 17); g.set(x, 22 - (d > 8 ? 1 : 0) - (d > 10 ? 1 : 0), 2); }
-  for (let x = 9; x <= 25; x += 3) g.rect(x, 22, 1, 3, 2);
-  g.rect(8, 25, 18, 1, 2);
+  // nez
+  g.rect(15, 19, 4, 1, 2); g.rect(16, 20, 2, 1, 2);
+  // grand sourire, fossettes et dents
+  for (let x = 6; x <= 27; x++) { const d = Math.abs(x + 0.5 - 17); g.set(x, 23 - (d > 8.5 ? 1 : 0) - (d > 10 ? 1 : 0), 2); }
+  g.rect(4, 19, 1, 3, 2); g.rect(29, 19, 1, 3, 2); g.set(5, 22, 2); g.set(28, 22, 2);
+  for (let x = 8; x <= 25; x++) { const d = Math.abs(x + 0.5 - 17); g.set(x, 26 - (d > 7 ? 1 : 0), 2); }
+  for (let x = 9; x <= 25; x += 3) g.rect(x, 24, 1, 2, 2);
+  // pommettes
+  g.set(6, 18, 2); g.set(7, 18, 2); g.set(26, 18, 2); g.set(27, 18, 2);
   return g;
 }
 function gTorso(hurt) {
-  const g = new PG(48, 28);
-  g.poly([[6, 5], [42, 5], [47, 11], [45, 28], [3, 28], [1, 11]], 1);
-  g.ell(24, 5, 15, 5, 1);
-  for (const [x, y] of [[12, 4], [15, 2], [19, 1], [24, 1], [29, 1], [33, 2], [36, 4], [14, 6], [34, 6], [10, 6], [38, 6]]) g.set(x, y, 2);
-  g.poly([[19, 7], [29, 7], [28, 28], [20, 28]], 2);
-  g.line(18, 9, 17, 14, 2); g.line(30, 9, 31, 14, 2);
-  g.line(12, 10, 10, 23, 2); g.line(36, 10, 38, 23, 2);
-  g.line(4, 21, 16, 21, 2); g.line(32, 21, 44, 21, 2);
-  g.rect(3, 25, 17, 1, 2); g.rect(29, 25, 17, 1, 2);
-  if (hurt) { g.line(8, 23, 38, 8, 5); g.line(9, 23, 39, 8, 5); g.line(10, 23, 39, 9, 5); }
+  const W = 52, H = 32;
+  const g = part(W, H, p => { p.ell(26, 7, 18.5, 6.5, 1); });                            // capuche fourrée
+  for (const [x, y] of [[11, 5], [14, 3], [18, 2], [22, 1], [26, 1], [30, 1], [34, 2], [38, 3], [41, 5], [13, 8], [39, 8], [9, 8], [43, 8]]) g.set(x, y, 2);
+  g.paste(part(W, H, p => p.poly([[7, 9], [45, 9], [50.5, 16], [50, 32], [2, 32], [1.5, 16]], 1)));   // veste
+  g.paste(part(W, H, p => p.poly([[19.5, 10], [32.5, 10], [32, 32], [20, 32]], 1)));          // t-shirt
+  for (let x = 22; x <= 30; x++) g.set(x, 11 + (Math.abs(x - 26) < 3 ? 1 : 0), 2);           // encolure
+  g.paste(part(W, H, p => p.poly([[1.5, 15], [12, 12], [15.5, 27], [3, 29]], 1)));           // manche gauche
+  g.paste(part(W, H, p => p.poly([[50.5, 15], [40, 12], [36.5, 27], [49, 29]], 1)));         // manche droite
+  g.rect(4, 26, 11, 1, 2); g.rect(37, 26, 11, 1, 2);                                         // poignets
+  for (const x of [18, 34]) { g.rect(x, 10, 1, 9, 2); g.rect(x - 1, 19, 3, 3, 2); g.set(x, 20, 1); }   // cordons
+  g.rect(16, 25, 4, 1, 2); g.rect(32, 25, 4, 1, 2);                                          // poches
+  g.rect(2, 29, 18, 1, 2); g.rect(32, 29, 18, 1, 2);                                         // ourlet
+  if (hurt) for (let k = 0; k < 3; k++) g.line(9 + k, 25, 41 + k, 10, 5);
   return g;
 }
 function gLegs() {
-  const g = new PG(32, 22);
-  g.rect(4, 0, 24, 11, 1); g.rect(5, 0, 22, 10, 2);
-  g.rect(7, 0, 2, 10, 1); g.rect(23, 0, 2, 10, 1);
-  g.rect(14, 6, 4, 5, 0); g.rect(13, 6, 1, 4, 1); g.rect(18, 6, 1, 4, 1);
-  g.rect(9, 11, 3, 6, 1); g.rect(20, 11, 3, 6, 1);
-  g.ell(9, 19, 7, 3, 1); g.ell(23, 19, 7, 3, 1);
-  g.line(3, 19, 8, 18, 2); g.line(24, 18, 29, 19, 2);
+  const W = 34, H = 23;
+  const g = part(W, H, p => p.poly([[4, 0], [30, 0], [31, 10.5], [19.5, 10.5], [17, 7], [14.5, 10.5], [3, 10.5]], 2), 1);   // short
+  g.rect(7, 1, 1, 9, 1); g.rect(26, 1, 1, 9, 1);
+  g.paste(part(W, H, p => { p.rect(10, 10, 4, 8, 1); p.rect(20, 10, 4, 8, 1); }));          // tibias
+  g.paste(part(W, H, p => { p.ell(10, 19.5, 7.5, 3.3, 1); p.ell(24, 19.5, 7.5, 3.3, 1); })); // chaussons
+  g.rect(9, 18, 3, 1, 2); g.rect(22, 18, 3, 1, 2);
+  return g;
+}
+function gArm() {
+  const g = part(30, 14, p => p.poly([[0, 1], [17, 0.5], [19, 13], [0, 13]], 1));
+  g.rect(15, 2, 1, 10, 2);
+  g.paste(part(30, 14, p => { p.ell(22, 7, 3.6, 4, 1); p.rect(23, 3, 6, 2, 1); p.rect(23, 6, 7, 2, 1); p.rect(23, 9, 6, 2, 1); }));
   return g;
 }
 function gBlTop(open) {
@@ -263,7 +296,8 @@ function pixText(str, x, y, px, color, align = 'center') {
 
 const SPR = {};
 function buildSprites() {
-  for (const e of ['normal', 'dark', 'blue', 'yellow', 'wink', 'closed']) SPR['head_' + e] = gHead(e).img();
+  for (const e of ['normal', 'dark', 'blue', 'yellow', 'wink', 'closed', 'tired']) SPR['head_' + e] = gHead(e).img();
+  SPR.arm = gArm().img();
   SPR.torso = gTorso(false).img(); SPR.torsoHurt = gTorso(true).img(); SPR.legs = gLegs().img();
   SPR.blTop = gBlTop(false).img(); SPR.blTopOpen = gBlTop(true).img(); SPR.blJaw = gBlJaw().img();
   SPR.heart = gHeart(5).img(); SPR.heartBlue = gHeart(3).img();
@@ -559,12 +593,13 @@ function mkBlaster(tx, ty, ang, o = {}) {
     if (b.bw > 0.5) {
       const m = b.mouth();
       ctx.save(); ctx.translate(m.x, m.y); ctx.rotate(ang);
+      ctx.fillStyle = 'rgba(160,220,255,0.35)'; ctx.fillRect(0, -b.bw * 0.7, 1500, b.bw * 1.4);
       ctx.fillStyle = '#fff'; ctx.fillRect(0, -b.bw / 2, 1500, b.bw);
       circ(2, 0, b.bw / 2);
       ctx.restore();
     }
     ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.rot - Math.PI / 2);
-    const s = size;
+    const s = size * (b.t < 0.32 ? 0.6 + 0.4 * ease(b.t / 0.32) : 1) * (1 + (b.open > 0 && !b.fired ? Math.sin(b.t * 80) * 0.02 : 0));
     ctx.drawImage(SPR.blJaw, -20 * s, (15 + b.open * 7) * s, 40 * s, 10 * s);
     ctx.drawImage(b.open > 0.5 ? SPR.blTopOpen : SPR.blTop, -20 * s, -17 * s, 40 * s, 34 * s);
     ctx.restore();
@@ -1077,36 +1112,60 @@ function updateBattle(dt) {
 }
 
 // ---------- Combat : rendu ----------
+const ARM_ANG = { right: -0.15, down: Math.PI / 4, left: Math.PI + 0.15, up: -Math.PI / 3 };
 function drawSans(cx, baseY, sc, o = {}) {
-  const t = S.t;
-  const still = o.still;
-  const sway = still ? 0 : Math.round(Math.sin(t * 2.1) * 1.4);
-  const bob = still ? 0 : Math.round(Math.sin(t * 4.2 + 0.5) * 0.9);
-  const ly = baseY - 22 * sc;
-  dImg(SPR.legs, cx - 16 * sc, ly, sc);
-  const tx = cx - 24 * sc + sway * sc, ty = ly - 28 * sc + 3 * sc;
+  const t = S.t, still = o.still, tired = (o.sweat || 0) >= 2, spd = tired ? 0.55 : 1;
+  const px = v => Math.round(v) * sc;
+  // Le torse se balance et respire ; la tête suit avec un petit retard.
+  const sway = still ? 0 : Math.sin(t * 2.2 * spd) * 1.3;
+  const hsway = still ? 0 : Math.sin((t - 0.14) * 2.2 * spd) * 1.7;
+  const breath = still ? 0 : (Math.sin(t * 4.4 * spd) > 0.25 ? 1 : 0);
+  const hbob = still ? 0 : Math.round(Math.sin(t * 4.4 * spd + 0.9));
+  const talk = o.talking ? Math.floor(t * 10) % 2 : 0;
+  let lx = 0, lyy = 0;
+  if (o.arm) { const d = GDIR[o.arm]; lx = d[0] * 2; lyy = d[1] * 1.5; }
+  const ly = baseY - 23 * sc;
+  dImg(SPR.legs, cx - 17 * sc, ly, sc);
+  const tx = cx - 26 * sc + px(sway + lx), ty = ly - 28 * sc + px(breath + lyy);
   dImg(o.hurt ? SPR.torsoHurt : SPR.torso, tx, ty, sc);
-  const hx = cx - 17 * sc + sway * sc, hy = ty - 30 * sc + 7 * sc + bob * sc + (o.headDY || 0);
-  dImg(SPR['head_' + (o.eyes || 'normal')], hx, hy, sc);
-  if (o.sweat) {
-    ctx.fillStyle = '#6fd3ff';
-    const n = Math.ceil(o.sweat);
-    for (let i = 0; i < n; i++) {
-      const ph = (t * 0.7 + i * 0.33) % 1;
+  if (o.arm) {
+    const left = o.arm === 'left';
+    const sx = tx + (left ? 8 : 44) * sc, sy = ty + 13 * sc, a = ARM_ANG[o.arm];
+    if (o.armT > 0.25) {
+      ctx.strokeStyle = `rgba(255,255,255,${Math.min(0.8, (o.armT - 0.25) * 4)})`; ctx.lineWidth = 2 * sc;
+      ctx.beginPath(); left ? ctx.arc(sx, sy, 32 * sc, a + 0.15, a + 1.0) : ctx.arc(sx, sy, 32 * sc, a - 1.0, a - 0.15); ctx.stroke();
+    }
+    ctx.save(); ctx.translate(sx, sy); ctx.rotate(a);
+    if (left) ctx.scale(1, -1);
+    ctx.drawImage(SPR.arm, -2 * sc, -7 * sc, 30 * sc, 14 * sc);
+    ctx.restore();
+  }
+  const hx = cx - 17 * sc + px(hsway + lx * 1.4);
+  const hy = ty - 23 * sc + px(hbob - talk + (o.headDY || 0) + (tired ? 1 : 0) + lyy * 0.5);
+  const eyes = o.eyes || 'normal';
+  dImg(SPR['head_' + (tired && eyes === 'normal' ? 'tired' : eyes)] || SPR.head_normal, hx, hy, sc);
+  if (eyes === 'blue' || eyes === 'yellow') {
+    // Œil gauche qui flambe : halo et traînée de flammes bleues et jaunes.
+    const ex = hx + 10.5 * sc, ey = hy + 13.5 * sc;
+    const gr = ctx.createRadialGradient(ex, ey, 0, ex, ey, 9 * sc);
+    gr.addColorStop(0, 'rgba(80,200,255,0.55)'); gr.addColorStop(1, 'rgba(80,200,255,0)');
+    ctx.fillStyle = gr; ctx.fillRect(ex - 9 * sc, ey - 9 * sc, 18 * sc, 18 * sc);
+    for (let i = 0; i < 7; i++) {
+      const ph = (t * 2.6 + i / 7) % 1, sz = Math.max(1, Math.round((1 - ph) * 4)) * sc;
       ctx.globalAlpha = (o.alpha ?? 1) * (1 - ph);
-      const side = i % 2 ? 1 : -1;
-      circ(cx + side * 15 * sc + sway * sc, hy + 7 * sc + ph * 10 * sc, 1.6 * sc);
+      ctx.fillStyle = i % 3 === 0 ? COL.yellow : COL.blue;
+      ctx.fillRect(Math.round(ex - ph * 14 * sc - sz / 2 + Math.sin(ph * 9 + i) * sc), Math.round(ey - ph * 16 * sc - sz / 2), sz, sz);
     }
     ctx.globalAlpha = o.alpha ?? 1;
   }
-  if (o.arm) {
-    const d = GDIR[o.arm];
-    const sx = cx + (o.arm === 'left' ? -18 : 18) * sc + sway * sc, sy = ty + 8 * sc;
-    const ex = sx + d[0] * 24 * sc + (d[0] === 0 ? 6 * sc : 0), ey = sy + d[1] * 22 * sc - (d[1] === 0 ? 4 * sc : 0);
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = '#000'; ctx.lineWidth = 7 * sc; ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey); ctx.stroke();
-    ctx.strokeStyle = '#fff'; ctx.lineWidth = 5 * sc; ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey); ctx.stroke();
-    ctx.fillStyle = '#000'; circ(ex, ey, 4.5 * sc); ctx.fillStyle = '#fff'; circ(ex, ey, 3.5 * sc);
+  if (o.sweat) {
+    ctx.fillStyle = '#6fd3ff';
+    for (let i = 0; i < Math.ceil(o.sweat); i++) {
+      const ph = (t * 0.7 + i * 0.33) % 1, side = i % 2 ? 1 : -1;
+      ctx.globalAlpha = (o.alpha ?? 1) * (1 - ph);
+      ctx.fillRect(Math.round(cx + side * 16 * sc + px(hsway)), Math.round(hy + 6 * sc + ph * 12 * sc), sc * 1.5, sc * 2.5);
+    }
+    ctx.globalAlpha = o.alpha ?? 1;
   }
   return { hx, hy };
 }
@@ -1180,7 +1239,12 @@ function renderBattle() {
   ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
   if (s.alpha > 0) {
     ctx.globalAlpha = s.alpha;
-    drawSans(SANS_X + s.dx, SANS_BASE, 2, { eyes: sansEyes(), sweat: s.sweat, arm: s.arm, hurt: s.hurt, still: s.sleep || s.hurt, alpha: s.alpha, headDY: s.sleep ? 2 : 0 });
+    const so = { eyes: sansEyes(), sweat: s.sweat, arm: s.arm, armT: s.armT, hurt: s.hurt, still: s.sleep || s.hurt, alpha: s.alpha,
+      headDY: s.sleep ? 2 + Math.round(Math.sin(S.t * 1.5)) : 0, talking: ph === 'talk' && !B.bubble.pageDone };
+    if (s.dodgeT >= 0 && s.dodgeT < 1.05) for (const k of [0.66, 0.33]) {
+      ctx.globalAlpha = 0.22 * s.alpha; drawSans(SANS_X + s.dx * k, SANS_BASE, 2, { ...so, alpha: 0.22 }); ctx.globalAlpha = s.alpha;
+    }
+    drawSans(SANS_X + s.dx, SANS_BASE, 2, so);
     ctx.globalAlpha = 1;
     if (s.sleep && !s.hurt) for (let i = 0; i < 3; i++) {
       const ph2 = (S.t * 0.5 + i / 3) % 1;
@@ -1389,7 +1453,7 @@ function renderTitle() {
   pixText('JUGEMENT', 320, 26, 6, '#fff');
   pixText('FINAL', 320, 76, 4, '#fff');
   txt('fan game non officiel inspiré d\'UNDERTALE', 320, 112, { font: F(16, F_TEXT), color: COL.grey, align: 'center' });
-  drawSans(320, 290, 1.1, { eyes: Math.floor(S.t) % 7 === 6 ? 'wink' : 'normal' });
+  drawSans(320, 292, 1.1, { eyes: Math.floor(S.t) % 7 === 6 ? 'wink' : 'normal' });
   const items = titleItems();
   items.forEach((it, i) => {
     const y = 314 + i * 32, on = i === S.ti.sel;
