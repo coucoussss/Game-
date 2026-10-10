@@ -229,6 +229,28 @@ avec un test.
   graine qui devient le cœur du joueur).
 - **Développement** : `?memory=the-fire` joue directement un souvenir.
 
+## Pixel art, lumière et son (étape 8)
+
+- **Caméra** : les forêts font 72 tuiles (576 px). On défile avec les flèches, Q/A et D, la molette,
+  le clic droit glissé ou deux doigts. Tout ce qui relève de l'interface est en `setScrollFactor(0)`.
+- **Parallaxe** (`ParallaxView`) : ciel en dégradé (étoiles quand il est sombre), collines, puis deux
+  rangées de silhouettes d'arbres à 0,15, 0,35 et 0,6 de la vitesse de la caméra, aux couleurs de la saison.
+- **Pixel art** : police pixel Tiny5 (OFL, `@fontsource/tiny5`, attendue avant le démarrage de Phaser) ;
+  sprites des nœuds (cœur qui bat, réserve, relais, ruche), des cristaux de minéraux (trois tailles), des
+  fourmis et scarabées, et des icônes d'outils. `art/drawSprite.ts` dessine un sprite pixel par pixel dans
+  un Graphics, avec teinte et retournement. Le sol a des frontières de couches irrégulières, des cailloux,
+  et un liseré d'herbe qui ondule ; les arbres ont une écorce, un houppier ombré et balancé par le vent.
+- **Animations** : pulsations de signal le long des filaments (du cœur vers l'extérieur), cœur qui bat,
+  pointe lumineuse des filaments en pousse, marche des bêtes.
+- **Éclairage** (`LightingView`) : un voile d'obscurité (en `RenderTexture`), plus dense en profondeur,
+  en hiver et dans les caves, troué par les sources de lumière (cœur, relais, ruches, réserves,
+  jonctions chargées de signal, cristaux, feu), avec des halos colorés en mélange additif.
+- **Particules** (`AmbientView`) : poussières bioluminescentes dans le sol, pollen au printemps et en été.
+- **Son** (`SoundView`, `audio/MusicDirector.ts`) : la musique d'ambiance suit la taille du réseau
+  (densité des arpèges, tempo, accords enrichis), la saison (progression et humeur), le biome (tonalité)
+  et le danger. Les sons organiques suivent la simulation : pousse, filament qui meurt, gouttes selon
+  l'humidité, pluie, feu, trahisons, contagions, catastrophes, sporée.
+
 ## Conventions de code
 
 - Le code et les identifiants sont en **anglais**. Les commentaires, les textes affichés et les messages
@@ -262,7 +284,7 @@ avec un test.
 - [x] 6. Campagne de 8 forêts aux règles spéciales (JSON), génération procédurale depuis une graine,
       mode infini, écran de sélection, sauvegarde de la progression
 - [x] 7. Souvenirs : séquences scriptées en JSON (caméra, sprites, musique), 8 scènes sans dialogue
-- [ ] 8. Vrai pixel art (palette limitée), parallaxe, particules, éclairage dynamique, animations,
+- [x] 8. Vrai pixel art (palette limitée), parallaxe, particules, éclairage dynamique, animations,
       musique ambient évolutive et sons organiques en WebAudio
 - [ ] 9. Équilibrage, tutoriel, options (volume, plein écran, accessibilité), tactile, performances,
       README, build de production

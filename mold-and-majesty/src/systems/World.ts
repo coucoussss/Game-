@@ -1,4 +1,4 @@
-import { GROUND_Y, NATIVE_WIDTH, PLAY_BOTTOM, TILE } from '../config';
+import { GROUND_Y, PLAY_BOTTOM, TILE } from '../config';
 import type { GameData } from '../data';
 import type { AllySpeciesId, ForestDef } from '../data/types';
 import { ALLY_SPECIES } from '../data/types';
@@ -96,7 +96,7 @@ export class World {
   readonly rng: Random;
   /** Faits marquants à animer ; la scène les vide à chaque image. */
   readonly events: WorldEvent[] = [];
-  /** Largeur jouable, en pixels (un seul écran tant que la caméra n'existe pas). */
+  /** Largeur de la forêt, en pixels (la caméra défile horizontalement). */
   readonly widthPx: number;
   readonly threats: boolean;
   /** Données effectives : celles des JSON, modifiées par la forêt puis par les compétences. */
@@ -134,7 +134,7 @@ export class World {
     this.data = applyBonuses(this.forestData, computeBonuses(this.skills, baseData.skills));
     const data = this.data;
     this.rng = new Random(seed);
-    this.widthPx = Math.min(forest.widthTiles * TILE, NATIVE_WIDTH);
+    this.widthPx = forest.widthTiles * TILE;
     this.deposits = generateDeposits(forest, this.widthPx, this.rng);
     this.memory = options.memory ?? forest.startingResources.memory;
     this.net.spores = forest.startingResources.spores;

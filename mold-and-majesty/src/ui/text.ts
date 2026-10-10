@@ -1,8 +1,11 @@
 import type Phaser from 'phaser';
 
-/** Style de texte commun, en attendant une police bitmap (étape HUD). */
+/** Police pixel du jeu (Tiny5, licence OFL), conçue pour une hauteur de 5 pixels. */
+export const PIXEL_FONT = '"Tiny5"';
+
+/** Style de texte commun. */
 export const TEXT_STYLE: Phaser.Types.GameObjects.Text.TextStyle = {
-  fontFamily: 'monospace',
+  fontFamily: `${PIXEL_FONT}, monospace`,
   fontSize: '8px',
   color: '#e8dcc0',
 };

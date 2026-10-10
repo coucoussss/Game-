@@ -162,6 +162,35 @@ export const SPRITES: Readonly<Record<string, SpriteDef>> = {
       ],
     ],
   },
+  // ─── Réseau ──────────────────────────────────────────────────────────────
+  /** Cœur du réseau (deux temps de battement). */
+  heart: {
+    frames: [
+      ['.y...y.', 'yoy.yoy', 'yoyyyoy', '.yoooy.', '..yoy..', '...y...'],
+      ['.......', '.y...y.', '.oyyyo.', '..yoy..', '...y...', '.......'],
+    ],
+  },
+  storage: { frames: [['.nnn.', 'nsnsn', 'nnnnn', 'nsnnn', '.nnn.']] },
+  relay: { frames: [['..P..', '.PpP.', 'PpwpP', '.PpP.', '..P..']] },
+  hive: { frames: [['.ppp.', 'ppwpp', 'ppppp', '.pPp.', '..P..']] },
+  /** Gisement de minéraux : petit, moyen, grand. */
+  mineral: {
+    frames: [
+      ['.....', '.....', '..t..', '.tT..', '.TT..'],
+      ['.....', '..t..', '.tTt.', '.TtT.', '.TTT.'],
+      ['.t.t.', '.ttt.', 'tTtTt', 'TtTtT', '.TTT.'],
+    ],
+  },
+  // ─── Icônes de la barre d'outils (7×7) ───────────────────────────────────
+  'icon-thin': { frames: [['......w', '.....w.', '....w..', '...w...', '..w....', '.w.....', 'w......']] },
+  'icon-medium': { frames: [['.....ww', '....www', '...www.', '..www..', '.www...', 'www....', 'ww.....']] },
+  'icon-thick': { frames: [['....www', '...wwww', '..wwwww', '.wwwww.', 'wwwww..', 'wwww...', 'www....']] },
+  'icon-storage': { frames: [['.......', '..nnn..', '.nsnsn.', '.nnnnn.', '.nsnnn.', '..nnn..', '.......']] },
+  'icon-relay': { frames: [['...P...', '...P...', '..PpP..', 'PPpwpPP', '..PpP..', '...P...', '...P...']] },
+  'icon-hive': { frames: [['.ppppp.', 'ppwpppp', 'ppppwpp', '.xxxxx.', '...w...', '...w...', '..www..']] },
+  'icon-cut': { frames: [['w.....w', '.w...w.', '..w.w..', '...w...', '.CC.CC.', 'C..C..C', '.CC.CC.']] },
+  'icon-view': { frames: [['.......', '..www..', '.w.t.w.', 'w.ttt.w', '.w.t.w.', '..www..', '.......']] },
+  'icon-speed': { frames: [['.......', 'w..w...', '.w..w..', '..w..w.', '.w..w..', 'w..w...', '.......']] },
   /** Spore isolée. */
   spore: {
     frames: [['t'], ['p']],

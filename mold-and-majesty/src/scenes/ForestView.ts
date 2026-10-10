@@ -2,13 +2,14 @@ import type Phaser from 'phaser';
 import { GROUND_Y, NATIVE_HEIGHT } from '../config';
 import { type Ally, moodOf } from '../entities/Ally';
 import { TREE_REGROWTH } from '../systems/ClimateSystem';
-import type { Layer } from '../data/types';
+import { LAYERS, type Layer } from '../data/types';
 import { Random } from '../systems/Random';
 import { type ResolvedPalette, paletteAt } from '../systems/SeasonSystem';
 import { layerBounds, layerMoisture } from '../systems/SoilSystem';
 import type { World } from '../systems/World';
 import { hexToInt, lerpColor, shade } from '../ui/color';
 import { PALETTE } from '../ui/text';
+import { drawSprite } from '../art/drawSprite';
 
 interface Leaf {
   dx: number;
@@ -48,6 +49,9 @@ export class ForestView {
   private readonly back: Phaser.GameObjects.Graphics;
   private readonly front: Phaser.GameObjects.Graphics;
   private readonly looks = new Map<number, TreeLook>();
+  private readonly pebbles: { x: number; y: number; size: number; light: boolean; layer: Layer }[] = [];
+  private readonly tufts: { x: number; h: number; phase: number }[] = [];
+  private readonly waves: number[] = [];
   private readonly cracks: [number, number, number, number][] = [];
   private readonly falling: Particle[] = [];
   private readonly litter: { x: number; color: number; age: number }[] = [];
@@ -67,6 +71,19 @@ export class ForestView {
   private generate(): void {
     const rng = new Random(this.world.rng.state ^ 0x5eed);
     const bounds = layerBounds(this.world.forest);
+    const width = this.world.widthPx;
+    // Cailloux et radicelles : la matière du sol, plus dense en profondeur.
+    for (const layer of LAYERS) {
+      const [top, bottom] = bounds[layer];
+      const count = Math.round((width * (Math.min(bottom, NATIVE_HEIGHT) - top)) / (layer === 'deep' ? 90 : 140));
+      for (let i = 0; i < count; i++) {
+        this.pebbles.push({ x: rng.int(0, width), y: rng.int(top + 2, Math.min(bottom, NATIVE_HEIGHT) - 1), size: rng.next() < 0.15 ? 2 : 1, light: rng.next() < 0.5, layer });
+      }
+    }
+    // Touffes d'herbe le long de la surface.
+    for (let x = 0; x < width; x += rng.int(2, 5)) this.tufts.push({ x, h: rng.int(1, 4), phase: rng.next() * 6 });
+    // Ondulation des frontières entre couches (par colonne de 4 px).
+    for (let x = 0; x < width; x += 4) this.waves.push(Math.round(Math.sin(x / 23 + rng.next() * 0.6) * 1.5 + Math.sin(x / 7) * 0.8));
     for (let i = 0; i < 40; i++) {
       const x = rng.int(0, this.world.widthPx);
       const y = rng.int(bounds.surface[0] + 2, bounds.surface[1] - 2);
@@ -103,6 +120,10 @@ export class ForestView {
   }
 
   private timeMs = 0;
+  /** Couleur du ciel de l'image en cours (palette, météo, climat), pour la parallaxe. */
+  skyColor = 0;
+  /** Palette de l'image en cours. */
+  current: ResolvedPalette | null = null;
 
   /** Palette de saison mêlée à la teinte du biome. */
   private palette(): ResolvedPalette {
@@ -126,6 +147,7 @@ export class ForestView {
   draw(deltaMs: number): void {
     this.timeMs += deltaMs;
     const p = this.palette();
+    this.current = p;
     const cave = this.world.forest.rules.noSky === true;
     const weather = this.world.data.seasons.weather[this.world.weather.id]!;
     let sky = weather.skyTint ? lerpColor(p.sky, hexToInt(weather.skyTint), weather.tintStrength ?? 0) : p.sky;
@@ -135,8 +157,9 @@ export class ForestView {
     const g = this.back.clear();
     const width = this.world.widthPx;
 
+    // Le ciel est dessiné par ParallaxView ; ici, seulement la voûte d'une caverne.
     if (cave) this.drawCaveCeiling(g, p);
-    else g.fillStyle(sky).fillRect(0, 0, width, GROUND_Y);
+    this.skyColor = sky;
     this.drawSoil(g, p);
     this.drawDeposits(g);
     this.drawTrees(g, p, this.timeMs);
@@ -171,13 +194,37 @@ export class ForestView {
     const { soil } = this.world.data;
     const frozen = this.world.season.def.rules.frozenSurface;
     const colors: Record<Layer, number> = { surface: p.surface, humus: p.humus, deep: p.deep };
-    for (const layer of ['surface', 'humus', 'deep'] as const) {
+    const layerColor: Partial<Record<Layer, number>> = {};
+    for (const layer of LAYERS) {
       const [top, bottom] = bounds[layer];
       // Un sol humide est plus sombre ; la surface gelée blanchit.
       const wet = layerMoisture(layer, this.world.moisture, soil);
       let color = shade(colors[layer], 1.08 - 0.25 * wet);
       if (layer === 'surface' && frozen) color = lerpColor(color, FROST, 0.12);
+      layerColor[layer] = color;
       g.fillStyle(color).fillRect(0, top, this.world.widthPx, Math.min(bottom, NATIVE_HEIGHT) - top);
+      // Frontière irrégulière avec la couche du dessus, par colonnes de 4 px.
+      if (layer !== 'surface') {
+        const above = layerColor[layer === 'humus' ? 'surface' : 'humus']!;
+        this.waves.forEach((dy, i) => {
+          if (dy > 0) g.fillStyle(above).fillRect(i * 4, top, 4, dy);
+          else if (dy < 0) g.fillStyle(color).fillRect(i * 4, top + dy, 4, -dy);
+        });
+      }
+    }
+    for (const pb of this.pebbles) {
+      const base = layerColor[pb.layer]!;
+      g.fillStyle(shade(base, pb.light ? 1.35 : 0.65)).fillRect(pb.x, pb.y, pb.size, pb.size === 2 ? 1 : 1);
+    }
+    // Liseré de terre claire et herbe qui ondule au vent (absente sous la neige et en caverne).
+    g.fillStyle(shade(layerColor.surface!, 1.25)).fillRect(0, GROUND_Y, this.world.widthPx, 1);
+    if (!this.world.forest.rules.noSky) {
+      const grass = lerpColor(p.leaf, p.leafAlt, 0.3);
+      for (const tuft of this.tufts) {
+        const sway = Math.round(Math.sin(this.timeMs / 900 + tuft.phase) * 0.7);
+        g.fillStyle(shade(grass, 0.8)).fillRect(tuft.x, GROUND_Y - tuft.h, 1, tuft.h);
+        g.fillStyle(grass).fillRect(tuft.x + sway, GROUND_Y - tuft.h, 1, 1);
+      }
     }
     // Fissures de sécheresse dans la couche de surface.
     const dryness = Math.max(0, (0.25 - this.world.moisture) / 0.25);
@@ -195,11 +242,10 @@ export class ForestView {
         g.fillStyle(PALETTE.ink, 0.5).fillRect(d.x, d.y, 1, 1);
         continue;
       }
-      const size = 1 + Math.round(fill * 2);
-      g.fillStyle(shade(PALETTE.minerals, 0.55)).fillRect(d.x - 1, d.y - size + 1, size + 1, size);
-      g.fillStyle(PALETTE.minerals).fillRect(d.x, d.y - size + 1, size - 1 || 1, size - 1 || 1);
+      // Le cristal rétrécit à mesure que le gisement s'épuise.
+      drawSprite(g, 'mineral', d.x, d.y - 2, { frame: fill > 0.66 ? 2 : fill > 0.33 ? 1 : 0 });
       // Scintillement discret, décalé par gisement.
-      if ((t + i * 37) % 97 < 3) g.fillStyle(0xffffff).fillRect(d.x, d.y - size + 1, 1, 1);
+      if ((t + i * 37) % 97 < 3) g.fillStyle(0xffffff).fillRect(d.x, d.y - 3, 1, 1);
     }
   }
 
@@ -249,8 +295,14 @@ export class ForestView {
       const top = GROUND_Y - tree.height;
       g.fillStyle(p.trunk).fillRect(tree.x, top, look.trunkWidth, tree.height);
       g.fillStyle(shade(p.trunk, 0.7)).fillRect(tree.x + look.trunkWidth - 1, top, 1, tree.height);
+      g.fillStyle(shade(p.trunk, 1.25)).fillRect(tree.x, top, 1, tree.height);
+      // Écorce : petites stries décalées.
+      for (let y = top + 3; y < GROUND_Y - 2; y += 5) {
+        g.fillStyle(shade(p.trunk, 0.75)).fillRect(tree.x + 1 + ((y * 3 + tree.id) % Math.max(1, look.trunkWidth - 2)), y, 1, 2);
+      }
       const droop = mood === 'wary' ? 1 : mood === 'hostile' ? 2 : 0;
       const shiver = mood === 'hostile' && Math.sin(timeMs / 60) > 0.6 ? 1 : 0;
+      const wind = Math.sin(this.timeMs / 1300 + tree.id) * 0.8;
       const cx = tree.x + Math.floor(look.trunkWidth / 2) + shiver;
       const cy = top - 4 + droop;
       const density = mood === 'devoted' ? Math.min(1, p.leafDensity * 1.1) : p.leafDensity;
@@ -261,7 +313,11 @@ export class ForestView {
         if (mood === 'hostile') color = lerpColor(color, 0x6a5040, 0.35);
         // Les feuilles basses pendent davantage quand l'arbre se méfie.
         const sag = droop > 0 && leaf.dy > 0 ? droop : 0;
-        g.fillStyle(color).fillRect(cx + leaf.dx, cy + leaf.dy + sag, 1, 1);
+        // Le haut du houppier ondule davantage au vent.
+        const sway = Math.round(wind * (0.5 - leaf.dy / 30));
+        // Ombre sous le houppier, lumière au-dessus.
+        const lit = leaf.dy < -4 ? lerpColor(color, 0xffffff, 0.08) : leaf.dy > 4 ? shade(color, 0.8) : color;
+        g.fillStyle(lit).fillRect(cx + leaf.dx + sway, cy + leaf.dy + sag, 1, 1);
       }
       if (p.snow > 0.3) g.fillStyle(SNOW, p.snow).fillRect(tree.x, top - 1, look.trunkWidth, 1);
     }

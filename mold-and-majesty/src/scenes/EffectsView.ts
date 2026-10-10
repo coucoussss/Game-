@@ -25,12 +25,17 @@ export class EffectsView {
     scene: Phaser.Scene,
     private readonly world: World,
     private readonly announce: (text: string) => void,
+    /** Appelé pour chaque événement (sons). */
+    private readonly onEvent: (event: WorldEvent) => void = () => {},
   ) {
     this.graphics = scene.add.graphics().setDepth(8);
   }
 
   draw(deltaMs: number): void {
-    for (const event of this.world.events.splice(0)) this.spawn(event);
+    for (const event of this.world.events.splice(0)) {
+      this.spawn(event);
+      this.onEvent(event);
+    }
     const g = this.graphics.clear();
     for (let i = this.effects.length - 1; i >= 0; i--) {
       const fx = this.effects[i]!;

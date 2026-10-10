@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { GROUND_Y, NATIVE_WIDTH, PLAY_BOTTOM, TICK_MS } from '../config';
+import { GROUND_Y, NATIVE_HEIGHT, NATIVE_WIDTH, PLAY_BOTTOM, TICK_MS } from '../config';
 import { gameData } from '../data';
 import type { NodeKind, ThicknessId } from '../data/types';
 import { FixedStep } from '../systems/FixedStep';
@@ -11,6 +11,10 @@ import { TOOLBAR_Y, Toolbar } from '../ui/Toolbar';
 import { AllyView } from './AllyView';
 import { EffectsView } from './EffectsView';
 import { ForestView } from './ForestView';
+import { LightingView } from './LightingView';
+import { ParallaxView } from './ParallaxView';
+import { AmbientView } from './AmbientView';
+import { SoundView } from './SoundView';
 import { FruitView } from './FruitView';
 import { type GameStart, profile, saveProfile } from './session';
 import { recordReach } from '../systems/Profile';
@@ -49,6 +53,11 @@ export class GameScene extends Phaser.Scene {
   private threatView!: ThreatView;
   private effectsView!: EffectsView;
   private fruitView!: FruitView;
+  private parallax!: ParallaxView;
+  private lighting!: LightingView;
+  private ambient!: AmbientView;
+  private soundscape!: SoundView;
+  private scrollKeys: Phaser.Input.Keyboard.Key[][] = [];
   private sporeeButton!: Phaser.GameObjects.Container;
   private memoryButton!: Phaser.GameObjects.Graphics;
   private stroke!: StrokeBuilder;
@@ -96,12 +105,17 @@ export class GameScene extends Phaser.Scene {
     this.world.memory = p.memory;
     this.world.syncSkills(p.skills);
 
+    this.parallax = new ParallaxView(this, this.world);
     this.forestView = new ForestView(this, this.world);
     this.threatView = new ThreatView(this, this.world);
-    this.networkView = new NetworkView(this, this.world.net, gameData.network);
+    this.networkView = new NetworkView(this, () => this.world.net, () => this.world.data.network);
     this.fruitView = new FruitView(this, this.world);
     this.allyView = new AllyView(this, this.world);
-    this.effectsView = new EffectsView(this, this.world, (text) => this.showBanner(text));
+    this.lighting = new LightingView(this, this.world);
+    this.ambient = new AmbientView(this, this.world, false);
+    this.events.once('shutdown', () => this.soundscape.stop());
+    this.soundscape = new SoundView(this.world);
+    this.effectsView = new EffectsView(this, this.world, (text) => this.showBanner(text), (e) => this.soundscape.onEvent(e));
     const event = params.get('event');
     if (event) this.world.startClimate(event);
     this.world.net.spores = Number(params.get('spores')) || 0;
@@ -113,37 +127,39 @@ export class GameScene extends Phaser.Scene {
       step: 10,
       snapRadius: 6,
       bounds: { minX: 4, maxX: this.world.widthPx - 4, minY: GROUND_Y + 4, maxY: PLAY_BOTTOM },
+      blocked: (x, y) => this.world.isBlocked(x, y),
     });
 
-    this.add.graphics().setDepth(9).fillStyle(PALETTE.ink).fillRect(0, TOOLBAR_Y, NATIVE_WIDTH, 216 - TOOLBAR_Y);
-    this.hint = this.add.text(4, TOOLBAR_Y - 10, '', TEXT_STYLE).setResolution(1).setDepth(10);
+    this.add.graphics().setDepth(9).setScrollFactor(0).fillStyle(PALETTE.ink).fillRect(0, TOOLBAR_Y, NATIVE_WIDTH, 216 - TOOLBAR_Y);
+    this.hint = this.add.text(4, TOOLBAR_Y - 10, '', TEXT_STYLE).setResolution(1).setDepth(10).setScrollFactor(0);
     this.banner = this.add
       .text(NATIVE_WIDTH / 2, 14, '', { ...TEXT_STYLE, align: 'center' })
       .setOrigin(0.5, 0)
       .setResolution(1)
-      .setDepth(10)
+      .setDepth(10).setScrollFactor(0)
       .setAlpha(0);
-    this.debug = this.add.text(24, 3, '', TEXT_STYLE).setResolution(1).setDepth(10).setVisible(false);
+    this.debug = this.add.text(24, 3, '', TEXT_STYLE).setResolution(1).setDepth(10).setScrollFactor(0).setVisible(false);
     this.input.keyboard?.on('keydown-I', () => this.debug.setVisible(!this.debug.visible));
 
     this.toolbar = new Toolbar<ToolId>(
       this,
       [
-        { id: 'thin', label: 'Fin', key: 'ONE' },
-        { id: 'medium', label: 'Moyen', key: 'TWO' },
-        { id: 'thick', label: 'Épais', key: 'THREE' },
-        { id: 'storage', label: 'Stock', key: 'FOUR' },
-        { id: 'relay', label: 'Relais', key: 'FIVE' },
-        { id: 'fruiting', label: 'Ruche', key: 'SIX' },
-        { id: 'cut', label: 'Coupe', key: 'SEVEN' },
-        { id: 'overlay', label: 'Vue', key: 'EIGHT', action: true },
-        { id: 'speed', label: `×${this.speed}`, key: 'NINE', action: true },
+        { id: 'thin', label: 'Fin', key: 'ONE', icon: 'icon-thin' },
+        { id: 'medium', label: 'Moyen', key: 'TWO', icon: 'icon-medium' },
+        { id: 'thick', label: 'Épais', key: 'THREE', icon: 'icon-thick' },
+        { id: 'storage', label: 'Stock', key: 'FOUR', icon: 'icon-storage' },
+        { id: 'relay', label: 'Relais', key: 'FIVE', icon: 'icon-relay' },
+        { id: 'fruiting', label: 'Ruche', key: 'SIX', icon: 'icon-hive' },
+        { id: 'cut', label: 'Coupe', key: 'SEVEN', icon: 'icon-cut' },
+        { id: 'overlay', label: 'Vue', key: 'EIGHT', action: true, icon: 'icon-view' },
+        { id: 'speed', label: `×${this.speed}`, key: 'NINE', action: true, icon: 'icon-speed' },
       ],
       this.tool,
       (id) => this.selectTool(id),
     );
     this.showHint(TOOL_HINTS[this.tool]);
     this.setupPointer();
+    this.setupCamera();
     this.createCornerButtons();
 
     // Échap : sauvegarder et revenir au royaume. Sauvegarde aussi quand l'onglet est masqué.
@@ -155,7 +171,7 @@ export class GameScene extends Phaser.Scene {
       .text(NATIVE_WIDTH / 2, 3, this.world.forest.name, { ...TEXT_STYLE, color: '#8a7a70' })
       .setOrigin(0.5, 0)
       .setResolution(1)
-      .setDepth(10)
+      .setDepth(10).setScrollFactor(0)
       .setAlpha(0.7);
   }
 
@@ -200,11 +216,11 @@ export class GameScene extends Phaser.Scene {
    * et, en automne quand c'est possible, le champignon de la sporée (F).
    */
   private createCornerButtons(): void {
-    this.memoryButton = this.add.graphics().setDepth(10);
+    this.memoryButton = this.add.graphics().setDepth(10).setScrollFactor(0);
     this.add
       .zone(2, 2, 18, 18)
       .setOrigin(0)
-      .setDepth(10)
+      .setDepth(10).setScrollFactor(0)
       .setInteractive()
       .on('pointerdown', () => this.openSkills());
     this.input.keyboard?.on('keydown-K', () => this.openSkills());
@@ -215,11 +231,11 @@ export class GameScene extends Phaser.Scene {
     g.fillStyle(0xffffff, 0.7).fillRect(-2, -5, 2, 1);
     const glow = this.add.image(0, -2, 'glow').setBlendMode(Phaser.BlendModes.ADD).setTint(0xff7ad8).setAlpha(0.5);
     const label = this.add.text(0, 9, 'Sporée', TEXT_STYLE).setOrigin(0.5, 0).setResolution(1);
-    this.sporeeButton = this.add.container(NATIVE_WIDTH - 22, 12, [glow, g, label]).setDepth(10).setVisible(false);
+    this.sporeeButton = this.add.container(NATIVE_WIDTH - 22, 12, [glow, g, label]).setDepth(10).setScrollFactor(0).setVisible(false);
     this.add
       .zone(NATIVE_WIDTH - 40, 2, 38, 28)
       .setOrigin(0)
-      .setDepth(10)
+      .setDepth(10).setScrollFactor(0)
       .setInteractive()
       .on('pointerdown', () => this.startSporee());
     this.input.keyboard?.on('keydown-F', () => this.startSporee());
@@ -276,12 +292,17 @@ export class GameScene extends Phaser.Scene {
     for (let i = 0; i < steps; i++) this.world.step();
 
     const visualDelta = delta * Math.min(this.speed, 4);
+    this.scrollCamera(delta);
     this.forestView.draw(visualDelta);
+    if (this.forestView.current) this.parallax.draw({ ...this.forestView.current, sky: this.forestView.skyColor }, time);
     this.threatView.draw(visualDelta);
     this.networkView.draw(this.overlay, this.world.memory, time);
     this.fruitView.draw(visualDelta);
     this.allyView.draw(visualDelta);
     this.effectsView.draw(visualDelta);
+    this.lighting.draw(time);
+    this.ambient.update();
+    this.soundscape.update(delta, time);
     this.updateMessages(delta);
     this.drawMemoryButton(time);
     const canSporulate = this.world.canSporulate();
@@ -348,11 +369,55 @@ export class GameScene extends Phaser.Scene {
     this.hintAge = 0;
   }
 
+  /**
+   * Caméra : la forêt est plus large que l'écran. On défile avec les flèches (ou Q/A et D),
+   * la molette, le clic droit glissé, ou deux doigts sur écran tactile.
+   */
+  private setupCamera(): void {
+    const cam = this.cameras.main;
+    cam.setBounds(0, 0, this.world.widthPx, NATIVE_HEIGHT);
+    const heart = [...this.world.net.nodes.values()].find((n) => n.kind === 'heart');
+    cam.centerOn(heart?.x ?? this.world.widthPx / 2, NATIVE_HEIGHT / 2);
+    const kb = this.input.keyboard;
+    if (kb) {
+      const keys = kb.addKeys('LEFT,RIGHT,Q,A,D', false) as Record<string, Phaser.Input.Keyboard.Key>;
+      this.scrollKeys = [
+        [keys.LEFT!, keys.Q!, keys.A!],
+        [keys.RIGHT!, keys.D!],
+      ];
+    }
+    this.input.mouse?.disableContextMenu();
+    this.input.addPointer(1);
+    this.input.on('wheel', (_p: Phaser.Input.Pointer, _o: unknown, dx: number, dy: number) => {
+      cam.scrollX += (Math.abs(dx) > Math.abs(dy) ? dx : dy) * 0.4;
+    });
+    this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
+      const a = this.input.pointer1;
+      const b = this.input.pointer2;
+      if (a.isDown && b.isDown) {
+        // Deux doigts : on fait glisser la forêt (et on interrompt le tracé en cours).
+        this.stroke.end();
+        cam.scrollX -= (p.x - p.prevPosition.x) / 2;
+      } else if (p.rightButtonDown() || p.middleButtonDown()) {
+        cam.scrollX -= p.x - p.prevPosition.x;
+      }
+    });
+  }
+
+  private scrollCamera(delta: number): void {
+    const [left, right] = this.scrollKeys;
+    const speed = 0.25 * delta;
+    if (left?.some((k) => k.isDown)) this.cameras.main.scrollX -= speed;
+    if (right?.some((k) => k.isDown)) this.cameras.main.scrollX += speed;
+  }
+
   private setupPointer(): void {
     const isThickness = (t: ToolId): t is ThicknessId => t === 'thin' || t === 'medium' || t === 'thick';
 
     this.input.on('pointerdown', (p: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) => {
       if (over.length > 0) return; // clic sur la barre d'outils
+      if (p.rightButtonDown() || p.middleButtonDown()) return; // défilement
+      if (this.input.pointer1.isDown && this.input.pointer2.isDown) return;
       if (isThickness(this.tool)) {
         this.stroke.begin(p.worldX, p.worldY);
       } else if (this.tool === 'cut') {
@@ -363,7 +428,8 @@ export class GameScene extends Phaser.Scene {
       }
     });
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
-      if (!p.isDown) return;
+      if (!p.isDown || p.rightButtonDown() || p.middleButtonDown()) return;
+      if (this.input.pointer1.isDown && this.input.pointer2.isDown) return;
       if (this.stroke.active && isThickness(this.tool)) this.stroke.move(p.worldX, p.worldY, this.tool);
       // Couper au glissé : on tranche tout ce que le geste traverse.
       else if (this.tool === 'cut') cutAt(this.world.net, p.worldX, p.worldY, 3);

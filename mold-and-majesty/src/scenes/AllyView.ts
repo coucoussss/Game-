@@ -1,11 +1,11 @@
 import type Phaser from 'phaser';
 import { type Ally, type Mood, moodOf } from '../entities/Ally';
 import type { World } from '../systems/World';
+import { drawSprite } from '../art/drawSprite';
 import { lerpColor } from '../ui/color';
 import { PALETTE } from '../ui/text';
 
 const HISTORY = 24;
-const ANT = 0x2a1c18;
 const WORM = 0xc98a8a;
 const BEETLE = 0x2f4a5a;
 const ANGER = 0x9a2a20;
@@ -82,7 +82,6 @@ export class AllyView {
       g.fillStyle(0x3a2a20).fillRect(Math.round(ally.x) - 1, Math.round(ally.y) - 1, 3, 1);
       return;
     }
-    const color = mood === 'hostile' ? lerpColor(ANT, ANGER, 0.6) : ANT;
     const carrying = this.world.tick - ally.lastTrade < 30 && mood !== 'hostile';
     const spacing = mood === 'devoted' ? 4 : mood === 'friendly' ? 5 : 3;
     for (let i = 0; i < 4; i++) {
@@ -90,10 +89,12 @@ export class AllyView {
       const chaos = mood === 'hostile' ? 2 : mood === 'wary' ? 1 : 0;
       const x = Math.round(point.x) + this.jitter(chaos, ally.id + i);
       const y = Math.round(point.y) + this.jitter(chaos * 0.5, ally.id * 3 + i);
-      g.fillStyle(color).fillRect(x, y, 2, 1);
-      g.fillRect(x + 2, y, 1, 1);
-      // Pattes qui alternent.
-      if (Math.floor(this.time / 120 + i) % 2 === 0) g.fillRect(x + 1, y + 1, 1, 1);
+      // Sprite en deux temps de marche, teinté de rouge quand la colonie est hostile.
+      drawSprite(g, 'ant', x + 2, y + 1, {
+        frame: Math.floor(this.time / 120 + i) % 2,
+        flipX: (trail[0]?.x ?? 0) < (trail[1]?.x ?? 0),
+        ...(mood === 'hostile' ? { tint: ANGER, tintAmount: 0.6 } : {}),
+      });
       if (carrying && i % 2 === 0) {
         const bit = ally.lastGift === 'minerals' ? PALETTE.minerals : 0x7fbf5f;
         g.fillStyle(bit).fillRect(x + 1, y - 1, 1, 1);
@@ -142,9 +143,12 @@ export class AllyView {
     } else if (mood === 'hostile') {
       shell = lerpColor(BEETLE, ANGER, 0.45);
     }
-    g.fillStyle(shell).fillRect(x, y - 1, 3, 2);
-    g.fillStyle(0x111111).fillRect(x + 3, y, 1, 1);
-    g.fillStyle(0xffffff, 0.5).fillRect(x + 1, y - 1, 1, 1);
+    drawSprite(g, 'beetle', x + 2, y, {
+      frame: Math.floor(this.time / 160) % 2,
+      flipX: ally.tx < ally.x,
+      tint: shell,
+      tintAmount: mood === 'friendly' ? 0 : 0.6,
+    });
     const flutter = mood === 'wary' && Math.floor(this.time / 80) % 2 === 0;
     if (mood === 'hostile' || flutter) {
       g.fillStyle(0xd8d0c0, 0.5).fillRect(x - 1, y - 2, 2, 1).fillRect(x + 2, y - 2, 2, 1);
