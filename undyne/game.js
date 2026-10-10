@@ -122,8 +122,9 @@ function spearImg(main, dark, light) {
   }
   return c;
 }
-const SPEAR = spearImg('#5fe9ff', '#1180d0', '#ffffff');
-const SPEAR_HOT = spearImg('#ffffff', '#ffffff', '#ffffff');
+const SPEAR = spearImg('#ffffff', '#6cc8f0', '#c8f6ff');
+const SPEAR_HOT = spearImg('#9ff4ff', '#ffffff', '#ffffff');
+const SPEAR_BLUE = spearImg('#5fe9ff', '#1180d0', '#ffffff');
 function arrowImg(main, dark) {
   const c = document.createElement('canvas'); c.width = 38; c.height = 15;
   const g = c.getContext('2d');
@@ -137,7 +138,7 @@ function arrowImg(main, dark) {
   for (let k = 0; k < 6; k++) { px(k, 5 - (k >> 1), main); px(k, 9 + (k >> 1), main); }
   return c;
 }
-const ARROW = { b: arrowImg('#40d0ff', '#0a6ac0'), y: arrowImg('#ffff30', '#c08000') };
+const ARROW = { b: arrowImg('#40d0ff', '#0a6ac0'), y: arrowImg('#ffff30', '#c08000'), f: arrowImg('#e6fbff', '#3aa0e0') };
 // Bouclier (arc bleu orienté vers le haut, centré sur l'âme)
 const SHIELD = (() => {
   const c = document.createElement('canvas'); c.width = 64; c.height = 64;
@@ -181,6 +182,7 @@ addEventListener('keydown', e => {
   const k = keyName(e.key);
   if (k) { if (!held[k]) press[k] = true; held[k] = true; e.preventDefault(); }
   if (e.key === 'm' || e.key === 'M') Audio8.toggleMute();
+  if ((e.key === 'p' || e.key === 'P' || e.key === 'Escape') && scene === 'battle') { paused = !paused; Audio8.sfx.select(); }
   if (e.key === 'f' || e.key === 'F') { if (document.fullscreenElement) document.exitFullscreen(); else cv.requestFullscreen && cv.requestFullscreen(); }
 });
 addEventListener('keyup', e => { const k = keyName(e.key); if (k) held[k] = false; });
@@ -256,14 +258,16 @@ function flavorText() {
 }
 
 // ---------- État global ----------
-let scene = 'loading', sceneT = 0, time = 0;
+let scene = 'loading', sceneT = 0, time = 0, paused = false;
 let G, U;
 function newGame(keepName) {
   const name = keepName && G ? G.name : 'CHARA';
   const mode = G ? G.mode : 'normal';
   G = { name, mode, lv: 15, hp: 76, maxhp: 76, atk: 0, speed: 150, items: ITEMS0.map(i => ({ ...i })), turn: 0, retry: G ? G.retry : 0,
     stats: { time: 0, hits: 0, items: 0, hitsDealt: 0 } };
-  U = { hp: MAX_UNDYNE, shake: 0, melt: 0, meltTo: 0, flash: 0, visible: true, jitter: false, x: 120, y: -14 };
+  U = { hp: MAX_UNDYNE, shake: 0, melt: 0, meltTo: 0, flash: 0, visible: true, jitter: false, x: 120, y: -6,
+    raise: 0, raiseT: 0, white: 0, phase2: false, phase2Said: false, finalDone: false };
+  Audio8.setIntensity(0);
 }
 
 // ---------- Boîte de combat ----------
@@ -446,10 +450,10 @@ function greenSeq(o) {
     else if (pat === 'spin') dir = (last + spinDir) % 4;
     else if (pat === 'burst') dir = left % 3 === 0 ? rint(0, 3) : last;
     else dir = rint(0, 3);
-    const kind = Math.random() < (o.yellow || 0) ? 'y' : 'b';
+    const r = Math.random(), kind = r < (o.yellow || 0) ? 'y' : r < (o.yellow || 0) + (o.fast || 0) ? 'f' : 'b';
     const gap = dir === last && kind === 'b' ? o.gap * 0.62 : o.gap;
     if (i > 0) t += gap * rand(0.95, 1.15);
-    out.push({ at: t, dir, kind, v: o.v });
+    out.push({ at: t, dir, kind, v: kind === 'f' ? o.v * 1.5 : o.v });
     last = dir; k++;
   }
   return out;
@@ -473,7 +477,7 @@ function phRed(w, h, events, extra = 0.5) {
     mode: 'red', w, h, cx: 320, cy: 318,
     init(ph) { ph.ev = events.slice().sort((a, b) => a[0] - b[0]); ph.i = 0; ph.end = (ph.ev.length ? ph.ev[ph.ev.length - 1][0] : 0) + extra; },
     update(ph, t) {
-      while (ph.i < ph.ev.length && ph.ev[ph.i][0] <= t) ph.ev[ph.i++][1]();
+      while (ph.i < ph.ev.length && ph.ev[ph.i][0] <= t) { ph.ev[ph.i++][1](); U.raiseT = Math.max(U.raiseT, 0.3); }
       return t > ph.end && spears.length === 0;
     },
   };
@@ -541,28 +545,60 @@ const evSides = (start, count, interval, v = 480) => {
   return ev;
 };
 
+const evOrbit = (start, waves, interval, count) => {
+  const ev = [];
+  for (let k = 0; k < waves; k++) ev.push([start + k * interval, () => {
+    const cx = soul.x, cy = soul.y, a0 = rand(0, TAU), dirn = k % 2 ? -1 : 1;
+    Audio8.sfx.spear();
+    for (let i = 0; i < count; i++) {
+      const base = a0 + i * TAU / count;
+      spears.push({ t: 0, x: cx, y: cy, ang: 0, harm: false, fly: false,
+        update(s, dt) {
+          if (!s.fly) {
+            const a = base + dirn * s.t * 2.4, r = 120 - Math.min(1, s.t / 0.25) * 10;
+            s.x = cx + Math.cos(a) * r; s.y = cy + Math.sin(a) * r;
+            s.ang = Math.atan2(cy - s.y, cx - s.x);
+            if (s.t >= 0.95) { s.fly = true; s.harm = true; s.vx = Math.cos(s.ang) * 430; s.vy = Math.sin(s.ang) * 430; if (i === 0) Audio8.sfx.thrust(); }
+          } else {
+            s.x += s.vx * dt; s.y += s.vy * dt;
+            if (s.x < -80 || s.x > W + 80 || s.y < -80 || s.y > H + 80) s.dead = true;
+          }
+        },
+        hit: spearHits,
+        draw(s) { drawSpear(s.x, s.y, s.ang, Math.min(1, s.t / 0.2), !s.fly && s.t > 0.8 ? SPEAR_HOT : SPEAR); } });
+    }
+  }]);
+  return ev;
+};
+
 function buildAttack(turn) {
-  const late = Math.max(0, turn - 16), sp = 1 + Math.min(late, 6) * 0.04;
+  const late = Math.max(0, turn - 16), sp = (1 + Math.min(late, 6) * 0.04) * (U.phase2 ? 1.07 : 1);
   const L = Math.min(turn, 16);
   const v = (330 + L * 9) * sp, gap = Math.max(0.16, 0.34 - L * 0.011) / sp;
   const g = (n, o = {}) => phGreen(greenSeq({ n, gap, v, ...o }));
-  const T = turn > 16 ? 12 + (late % 5) : turn;
+  const T = turn === 'final' ? 'final' : turn > 16 ? 12 + (late % 5) : turn;
   switch (T) {
+    case 'final': return [
+      g(34, { pats: ['spin', 'burst', 'rand', 'alt'], yellow: 0.4, fast: 0.15, gap: Math.max(0.16, gap * 0.9) }),
+      phRed(170, 130, evRing(0.3, 5, 0.7, 8, { chain: 0.05, wind: 0.5, v: 600 })),
+      phRed(240, 130, [...evRain(0.3, 18, 0.24), ...evPillars(0.5, 5, 1.0), ...evSides(1.0, 6, 0.6)]),
+      g(30, { pats: ['spin', 'rand', 'burst'], yellow: 0.5, fast: 0.2, gap: Math.max(0.16, gap * 0.88) }),
+    ];
     case 0: return [g(10, { pats: ['rand'], gap: 0.4, v: 300 })];
     case 1: return [phRed(150, 130, evRing(0.4, 4, 1.0, 4, { wind: 0.7, v: 460 }))];
     case 2: return [g(14, { pats: ['rand', 'spin'], yellow: 0.18 })];
     case 3: return [phRed(240, 130, evPillars(0.3, 6, 0.85))];
-    case 4: return [g(18, { pats: ['spin', 'alt', 'rand'], yellow: 0.12 })];
+    case 4: return [g(18, { pats: ['spin', 'alt', 'rand'], yellow: 0.12, fast: 0.1 })];
     case 5: return [g(10, { yellow: 0.2 }), phRed(150, 130, evRing(0.3, 3, 0.95, 5, { wind: 0.6 }))];
     case 6: return [phRed(240, 130, [...evWalls(0.3, 5, 0.9, 250), ...evRain(0.8, 8, 0.5)])];
-    case 7: return [g(22, { pats: ['spin', 'burst', 'rand'], yellow: 0.28 })];
+    case 7: return [g(22, { pats: ['spin', 'burst', 'rand'], yellow: 0.28, fast: 0.1 })];
     case 8: return [phRed(240, 130, [...evPillars(0.3, 5, 1.0), ...evRing(0.8, 4, 1.0, 3, { wind: 0.7 })])];
     case 9: return [g(14, { pats: ['burst', 'rand'], yellow: 0.15 }), phRed(170, 130, evRing(0.3, 4, 0.8, 6, { chain: 0.07, wind: 0.55 }))];
     case 10: return [phRed(240, 130, evRain(0.3, 14, 0.32)), g(12, { yellow: 0.3 }), phRed(150, 130, evRing(0.3, 3, 0.9, 6, { wind: 0.55 }))];
-    case 11: return [g(26, { pats: ['spin', 'alt', 'burst', 'rand'], yellow: 0.38 })];
-    case 12: return [phRed(170, 130, evRing(0.3, 5, 0.85, 8, { chain: 0.06, wind: 0.5, v: 560 }))];
+    case 11: return [g(26, { pats: ['spin', 'alt', 'burst', 'rand'], yellow: 0.32, fast: 0.12 }), phRed(170, 130, evOrbit(0.3, 3, 1.5, 8))];
+    case 12: return [phRed(170, 130, [...evRing(0.3, 3, 0.85, 8, { chain: 0.06, wind: 0.5, v: 560 }), ...evOrbit(3.0, 2, 1.5, 10)])];
     case 13: return [g(16, { yellow: 0.3 }), phRed(240, 130, [...evSides(0.3, 10, 0.4), ...evPillars(0.6, 4, 1.0)]), g(12, { yellow: 0.4 })];
-    case 14: return [g(30, { pats: ['spin', 'burst', 'rand', 'alt'], yellow: 0.42 })];
+    case 14: return [g(30, { pats: ['spin', 'burst', 'rand', 'alt'], yellow: 0.4, fast: 0.15 })];
     case 15: return [phRed(240, 130, [...evRain(0.3, 12, 0.35), ...evWalls(0.6, 4, 1.1, 280), ...evRing(1.2, 3, 1.3, 5, { wind: 0.6 })])];
     default: return [
       g(20, { yellow: 0.35, gap: gap * 0.92 }),
@@ -664,6 +700,12 @@ function updBattle(dt) {
   bsT += dt;
   updBox(dt);
   if (U.shake > 0) U.shake = Math.max(0, U.shake - dt * 30);
+  U.white = Math.max(0, (U.white || 0) - dt * 5);
+  U.raiseT = Math.max(0, (U.raiseT || 0) - dt);
+  U.raise += ((U.raiseT > 0 ? 1 : 0) - (U.raise || 0)) * Math.min(1, dt * 14);
+  // gouttes de fonte quand Undyne faiblit
+  if (U.visible && U.hp < MAX_UNDYNE * 0.45 && Math.random() < dt * (3 + 14 * (1 - U.hp / MAX_UNDYNE * 2.2)))
+    effects.push({ kind: 'drip', t: 0, life: rand(0.5, 0.9), x: U.x + rand(160, 240), y: U.y + rand(70, 200), vx: 0, vy: rand(10, 40), g: 1, col: pick(['#ffffff', '#c9c9d6', '#4ab8f0']) });
   U.melt += (U.meltTo - U.melt) * Math.min(1, dt * 2);
   soul.inv = Math.max(0, soul.inv - dt);
   soul.flash = Math.max(0, soul.flash - dt);
@@ -744,7 +786,7 @@ function updBattle(dt) {
       break;
   }
   // Effets
-  for (const e of effects) { e.t += dt; if (e.vx !== undefined) { e.x += e.vx * dt; e.y += e.vy * dt; } if (e.kind === 'dmg') { e.vy += 700 * dt; if (e.y > e.y0) { e.y = e.y0; e.vy = 0; } e.hpShow += (e.hpTo - e.hpShow) * Math.min(1, dt * 6); } }
+  for (const e of effects) { e.t += dt; if (e.g) e.vy += 500 * dt; if (e.vx !== undefined) { e.x += e.vx * dt; e.y += e.vy * dt; } if (e.kind === 'dmg') { e.vy += 700 * dt; if (e.y > e.y0) { e.y = e.y0; e.vy = 0; } e.hpShow += (e.hpTo - e.hpShow) * Math.min(1, dt * 6); } }
   effects = effects.filter(e => e.t < e.life);
 }
 function menuSoulTo(i) { soul.visible = true; soul.mode = 'red'; soul.x = BTNS[i].x + 16; soul.y = 432 + 21; }
@@ -782,8 +824,9 @@ function attackResult(dist) {
       const from = U.hp;
       U.hp = Math.max(0, U.hp - dmg);
       G.stats.hitsDealt++;
-      U.shake = 16;
+      U.shake = 16; U.white = 1;
       Audio8.sfx.damage();
+      if (!U.phase2 && U.hp > 0 && U.hp < MAX_UNDYNE * 0.5) { U.phase2 = true; Audio8.setIntensity(1); flashA = 0.5; }
       effects.push({ kind: 'dmg', t: 0, life: 1.3, val: dmg, x: 320, y: 104, y0: 104, vx: 0, vy: -300, hpShow: from, hpTo: U.hp });
       setTimeout(() => { if (U.hp <= 0) startEnding(); else enemyTurn(); }, 1300);
     }, 550);
@@ -794,12 +837,15 @@ function enemyTurn() {
   if (scene !== 'battle') return;
   bs = 'enemyTalk';
   soul.visible = true;
-  atk = { phases: buildAttack(G.turn), i: -1, t: 0, ph: null };
+  const final = U.hp < MAX_UNDYNE * 0.12 && !U.finalDone;
+  atk = { phases: buildAttack(final ? 'final' : G.turn), i: -1, t: 0, ph: null, throwT: 0 };
   const first = atk.phases[0];
   setBox(first.w, first.h, first.cx, first.cy);
-  soul.mode = first.mode; soul.x = first.cx; soul.y = first.cy; soul.shield = 0; soul.ang = 0;
-  if (first.mode === 'green') { soul.flash = 0.3; Audio8.sfx.soul(); }
-  const line = G.turn < TURN_LINES.length ? TURN_LINES[G.turn] : pick(LATE_LINES);
+  soul.mode = 'red'; soul.x = first.cx; soul.y = first.cy; soul.shield = 0; soul.ang = 0;
+  U.raiseT = 0.6;
+  let line = G.turn < TURN_LINES.length ? TURN_LINES[G.turn] : pick(LATE_LINES);
+  if (final) { U.finalDone = true; line = 'C\'est fini... DÉGAGE DE MON CHEMIN !!!'; U.shake = 12; shakeScreen = 6; }
+  else if (U.phase2 && !U.phase2Said) { U.phase2Said = true; line = 'Tu sens ça ? Mon cœur brûle... Je suis encore PLUS FORTE !'; }
   say([{ t: line }], () => { bs = 'attack'; nextPhase(); });
 }
 function placeSoulForPhase() {
@@ -811,10 +857,11 @@ function nextPhase() {
   if (atk.i >= atk.phases.length) { endAttack(); return; }
   const ph = atk.phases[atk.i];
   atk.ph = ph; atk.t = 0; atk.wait = 0;
-  if (ph.mode !== soul.mode || atk.i === 0) {
-    if (ph.mode !== soul.mode) { soul.flash = 0.3; Audio8.sfx.soul(); flashA = 0.15; }
-    soul.mode = ph.mode;
-  }
+  if (ph.mode === 'green' && soul.mode !== 'green') {
+    atk.throwT = 0.34; U.raiseT = 0.7; Audio8.sfx.spear();
+    effects.push({ kind: 'throw', t: 0, life: 0.34, x0: U.x + 254, y0: U.y + 40, x1: ph.cx, y1: ph.cy });
+  } else if (ph.mode !== soul.mode) { soul.flash = 0.3; Audio8.sfx.soul(); flashA = 0.15; soul.mode = ph.mode; }
+  else U.raiseT = 0.4;
   setBox(ph.w, ph.h, ph.cx, ph.cy);
   if (ph.mode === 'green') { soul.x = ph.cx; soul.y = ph.cy; }
   else { soul.x = clamp(soul.x, ph.cx - ph.w / 2 + 14, ph.cx + ph.w / 2 - 14); soul.y = clamp(soul.y, ph.cy - ph.h / 2 + 14, ph.cy + ph.h / 2 - 14); }
@@ -838,6 +885,11 @@ function updAttack(dt) {
     soul.y = clamp(soul.y, box.y + 12, box.y + box.h - 12);
   }
   if (!boxReady()) return; // on attend que la boîte ait fini de changer de taille
+  if (atk.throwT > 0) {
+    atk.throwT -= dt;
+    if (atk.throwT <= 0) { soul.mode = 'green'; soul.flash = 0.3; Audio8.sfx.soul(); flashA = 0.12; shakeScreen = 3; }
+    return;
+  }
   if (!atk.started) { atk.started = true; ph.init(ph); }
   atk.t += dt;
   for (const e of ev2) e[0] -= dt;
@@ -864,10 +916,8 @@ function startEnding() {
 function startDust() {
   bs = 'dust';
   // Capture de l'image fondue actuelle
-  const snap = document.createElement('canvas'); snap.width = UndyneSprite.SW; snap.height = UndyneSprite.SH + 70;
-  const sc = snap.getContext('2d'); sc.imageSmoothingEnabled = false;
-  UndyneSprite.draw(sc, { t: time, x: 0, y: 0, s: 1, melt: U.melt });
-  const data = sc.getImageData(0, 0, snap.width, snap.height).data;
+  const snap = UndyneSprite.snapshot({ t: time, melt: U.melt });
+  const data = snap.getContext('2d').getImageData(0, 0, snap.width, snap.height).data;
   const rows = [];
   for (let y = 0; y < snap.height; y++) {
     const r = [];
@@ -981,7 +1031,7 @@ function drawTitle() {
   text(G.mode === 'normal' ? 'Fidèle au combat original' : 'Dégâts reçus divisés par deux', 320, 340, { sx: 1, sy: 2, center: true, color: '#9a9a9a' });
   text('Flèches : se déplacer / orienter le bouclier', 320, 384, { sx: 1, sy: 2, center: true, color: '#c0c0c0' });
   text('Z ou Entrée : valider    X ou Maj : annuler', 320, 404, { sx: 1, sy: 2, center: true, color: '#c0c0c0' });
-  text('M : couper le son    F : plein écran', 320, 424, { sx: 1, sy: 2, center: true, color: '#c0c0c0' });
+  text('M : son    F : plein écran    P : pause', 320, 424, { sx: 1, sy: 2, center: true, color: '#c0c0c0' });
   text("Fan game non officiel inspiré d'UNDERTALE (Toby Fox)", 320, 460, { sx: 1, sy: 1, center: true, color: '#707070' });
 }
 let nameBuf = '';
@@ -1115,6 +1165,12 @@ function drawEffects() {
       ctx.fillStyle = '#00ff00'; ctx.fillRect(220, 146, Math.round(200 * e.hpShow / MAX_UNDYNE), 14);
     } else if (e.kind === 'miss') {
       text('MISS', 320, 110 - Math.min(20, e.t * 60), { sx: 3, sy: 4, color: '#c0c0c0', center: true });
+    } else if (e.kind === 'drip') {
+      ctx.fillStyle = e.col; ctx.globalAlpha = Math.min(1, 2 * (1 - e.t / e.life));
+      ctx.fillRect(Math.round(e.x), Math.round(e.y), 2, e.vy > 120 ? 4 : 2); ctx.globalAlpha = 1;
+    } else if (e.kind === 'throw') {
+      const k = Math.min(1, e.t / e.life), x = e.x0 + (e.x1 - e.x0) * k, y = e.y0 + (e.y1 - e.y0) * k;
+      drawSpear(x, y, Math.atan2(e.y1 - e.y0, e.x1 - e.x0), 1, SPEAR_BLUE);
     } else if (e.kind === 'spark') {
       ctx.fillStyle = '#ffffff'; ctx.globalAlpha = 1 - e.t / e.life;
       ctx.fillRect(Math.round(e.x), Math.round(e.y), 2, 2); ctx.globalAlpha = 1;
@@ -1124,7 +1180,7 @@ function drawEffects() {
 function drawBattle() {
   if (U.visible) {
     const shake = U.shake > 0 ? Math.sin(U.shake * 2.2) * U.shake * 0.6 : 0;
-    UndyneSprite.draw(ctx, { t: time, x: U.x, y: U.y, s: 2, shake, melt: U.melt > 0.02 ? U.melt : 0, jitter: U.jitter || U.hp < MAX_UNDYNE * 0.3, wind: 1 + (1 - U.hp / MAX_UNDYNE) * 0.4 });
+    UndyneSprite.draw(ctx, { t: time, x: U.x, y: U.y, s: 2, shake, raise: U.raise, white: U.white, melt: U.melt > 0.02 ? U.melt : 0, jitter: U.jitter || U.hp < MAX_UNDYNE * 0.3, wind: 1 + (1 - U.hp / MAX_UNDYNE) * 0.4 });
   }
   drawDust();
   drawBubble();
@@ -1141,9 +1197,15 @@ let last = performance.now();
 function frame(nowT) {
   const dt = Math.min(1 / 30, (nowT - last) / 1000);
   last = nowT;
-  time += dt; sceneT += dt;
-  update(dt);
+  if (scene !== 'battle') paused = false;
+  if (!paused) { time += dt; sceneT += dt; update(dt); }
   render();
+  if (paused) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0, 0, W, H);
+    text('PAUSE', 320, 200, { sx: 4, sy: 5, center: true });
+    text('P ou Échap : reprendre', 320, 260, { sx: 1, sy: 2, center: true, color: '#c0c0c0' });
+  }
   for (const k in press) press[k] = false;
   requestAnimationFrame(frame);
 }

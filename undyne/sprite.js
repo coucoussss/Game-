@@ -1,19 +1,28 @@
 'use strict';
 // ============================================================
 //  Sprite d'Undyne l'Immortelle, dessiné pixel par pixel.
-//  (Fan art original : formes rastérisées sans anticrénelage,
-//  puis affichées en x2 comme les sprites de combat d'Undertale.)
+//  Fan art original : formes rastérisées sans anticrénelage, ombrage
+//  biseauté, puis affichage en x2 comme les sprites de combat d'Undertale.
+//  Forme « Immortelle » : plus de cache-œil (l'orbite vide jette un éclat
+//  en forme de lance), œil à sclère noire et pupille blanche, queue de
+//  cheval qui se termine en trident, nageoires plus pointues, armure
+//  sombre à grandes épaulières hérissées, cœurs sur le plastron et les
+//  gants blancs à pointes, bottes à bouts pointus.
 // ============================================================
 const UndyneSprite = (() => {
-  const SW = 150, SH = 128, OY = 8; // OY : marge au-dessus de y=0 (cheveux, pointe de la lance)
-  const TH = SH + OY;
+  const SW = 150, SH = 128, OY = 8, TH = SH + OY, BH = TH + 64;
   const PAL = {
-    K: '#000000', W: '#ffffff', G: '#a0a0a0', g: '#555555', s: '#2a2a2a',
-    C: '#4ab8f0', c: '#2373b8', d: '#123c6e',
-    R: '#ff2b3c', r: '#b3122a', q: '#5e0616',
-    Y: '#fff43c', y: '#d79a00', O: '#ff9a2b',
-    B: '#6ef2ff', b: '#1ea4ea', n: '#0b5c9c',
-    P: '#3a0010', T: '#ffffff',
+    K: '#000000', W: '#ffffff',
+    // armure (du plus sombre au plus clair)
+    1: '#15151c', 2: '#26262f', 3: '#3d3d48', 4: '#62626e', 5: '#9a9aa8',
+    // gants blancs
+    G: '#c9c9d6', g: '#8c8c9c',
+    // peau
+    L: '#a6e4ff', C: '#4ab8f0', c: '#2a7cc0', d: '#14467e', e: '#0a2448',
+    // cheveux
+    H: '#ffa0aa', R: '#ff2b3c', m: '#d4122c', r: '#8c0a1e', q: '#3a020c',
+    // bouche, cœurs
+    P: '#2a000a', h: '#ff1f3d', j: '#7a0014', k: '#ff8096',
   };
 
   // ---------- Petit moteur de pixel art ----------
@@ -21,6 +30,7 @@ const UndyneSprite = (() => {
     constructor(w = SW, h = SH + OY, oy = OY) { this.w = w; this.h = h; this.oy = oy; this.d = new Array(w * h).fill(null); }
     set(x, y, c) { x = Math.floor(x); y = Math.floor(y) + this.oy; if (x >= 0 && y >= 0 && x < this.w && y < this.h) this.d[y * this.w + x] = c; }
     get(x, y) { y += this.oy; return x < 0 || y < 0 || x >= this.w || y >= this.h ? null : this.d[y * this.w + x]; }
+    each(fn) { for (let y = -this.oy; y < this.h - this.oy; y++) for (let x = 0; x < this.w; x++) fn(x, y, this.get(x, y)); }
     rect(x, y, w, h, c) { for (let j = y; j < y + h; j++) for (let i = x; i < x + w; i++) this.set(i, j, c); return this; }
     poly(pts, c) {
       let y0 = Infinity, y1 = -Infinity;
@@ -63,26 +73,40 @@ const UndyneSprite = (() => {
       rows.forEach((row, j) => { for (let i = 0; i < row.length; i++) if (row[i] !== '.') this.set(ox + i, oy + j, row[i]); });
       return this;
     }
-    // Ajoute un contour d'une couleur autour de la silhouette (à l'extérieur).
+    // Contour extérieur
     outline(c, diag = false) {
       const add = [];
-      for (let y = -this.oy; y < this.h - this.oy; y++) for (let x = 0; x < this.w; x++) {
-        if (this.get(x, y) !== null) continue;
+      this.each((x, y, v) => {
+        if (v !== null) return;
         let hit = this.get(x - 1, y) !== null || this.get(x + 1, y) !== null || this.get(x, y - 1) !== null || this.get(x, y + 1) !== null;
         if (!hit && diag) hit = this.get(x - 1, y - 1) !== null || this.get(x + 1, y - 1) !== null || this.get(x - 1, y + 1) !== null || this.get(x + 1, y + 1) !== null;
         if (hit) add.push(x, y);
-      }
+      });
       for (let i = 0; i < add.length; i += 2) this.set(add[i], add[i + 1], c);
       return this;
     }
-    // Contour intérieur : les pixels de bord de la forme prennent la couleur c.
-    edge(c) {
+    // Bord intérieur
+    edge(c, only) {
       const add = [];
-      for (let y = -this.oy; y < this.h - this.oy; y++) for (let x = 0; x < this.w; x++) {
-        if (this.get(x, y) === null) continue;
+      this.each((x, y, v) => {
+        if (v === null || (only && v !== only)) return;
         if (this.get(x - 1, y) === null || this.get(x + 1, y) === null || this.get(x, y - 1) === null || this.get(x, y + 1) === null) add.push(x, y);
-      }
+      });
       for (let i = 0; i < add.length; i += 2) this.set(add[i], add[i + 1], c);
+      return this;
+    }
+    // Ombrage biseauté : lumière venant de (lx, ly). lit/shade = couleurs par distance au bord
+    // (une entrée peut être une paire [a, b] pour un tramage en damier).
+    bevel(base, lit, shade = [], lx = 1, ly = -1) {
+      const out = this.d.slice();
+      this.each((x, y, v) => {
+        if (v !== base) return;
+        let col = null;
+        for (let k = 1; k <= lit.length; k++) if (this.get(x + lx * k, y + ly * k) === null) { col = lit[k - 1]; break; }
+        if (!col) for (let k = 1; k <= shade.length; k++) if (this.get(x - lx * k, y - ly * k) === null) { col = shade[k - 1]; break; }
+        if (col) { if (Array.isArray(col)) col = (x + y) & 1 ? col[0] : col[1]; out[(y + this.oy) * this.w + x] = col; }
+      });
+      this.d = out;
       return this;
     }
     over(o) { for (let i = 0; i < this.d.length; i++) if (o.d[i] !== null) this.d[i] = o.d[i]; return this; }
@@ -98,194 +122,120 @@ const UndyneSprite = (() => {
       return cv;
     }
   }
-  // Une pièce d'armure : forme noire, contour blanc, puis détails.
-  function plate(layer, draw, detail) {
-    const p = new Pix(); draw(p); p.outline('W');
-    if (detail) detail(p);
-    layer.over(p);
-  }
-  const mirror = (pts, cx) => pts.map(([x, y]) => [2 * cx - x, y]);
-
-  // ---------- Construction des calques ----------
   const CX = 100;
+  const HS = 1.15, HX = CX - 15 * HS, HY = 36 - 34 * HS; // placement de la tête
+  const mirror = (pts, cx = CX) => pts.map(([x, y]) => [2 * cx - x, y]);
+  const ARMOR_LIT = ['4', ['3', '2'], '2', ['2', '1']], ARMOR_SH = ['1'];
+  // Pièce d'armure : forme noire ombrée, contour blanc, puis détails
+  function plate(layer, draw, detail, o = {}) {
+    const p = new Pix(); draw(p);
+    p.bevel('K', o.lit || ARMOR_LIT, o.shade || ARMOR_SH, o.lx ?? 1, o.ly ?? -1);
+    if (detail) detail(p);
+    p.outline(o.outline || 'W');
+    layer.over(p);
+    return p;
+  }
+  function heart(p, cx, cy, big) { // cœur blanc à âme rouge
+    const rows = big ? [
+      '.WWWW...WWWW.',
+      'WWjjWW.WWjjWW',
+      'WjhhjWWWjhhjW',
+      'WjhkhhjjhhhjW',
+      'WjhkhhhhhhhjW',
+      'WjhhhhhhhhhjW',
+      '.WjhhhhhhhjW.',
+      '..WjhhhhhjW..',
+      '...WjhhhjW...',
+      '....WjhjW....',
+      '.....WjW.....',
+      '......W......',
+    ] : [
+      '.WW.WW.',
+      'WhhWhhW',
+      'WhkhhhW',
+      '.WhhhW.',
+      '..WhW..',
+      '...W...',
+    ];
+    p.map(rows, cx - Math.floor(rows[0].length / 2), cy - Math.floor(rows.length / 2));
+  }
+
+  // ---------- Cheveux : longue queue de cheval qui se termine en trident ----------
   function buildHair() {
     const L = new Pix();
-    // Queue de cheval : une longue crinière en flammèches qui flotte vers la gauche.
     const mane = [
-      [104, 1], [100, -4], [92, -7], [82, -7], [72, -5], [62, -2], [52, 1], [42, 5], [32, 10], [22, 16], [12, 22], [2, 28],
-      [10, 29], [3, 36], [15, 33], [10, 42], [23, 36], [20, 47], [32, 39], [32, 50], [43, 41], [45, 50],
-      [54, 39], [58, 46], [64, 35], [71, 38], [76, 28], [86, 22], [90, 12],
+      [101, 2], [98, -5], [91, -8], [81, -8], [71, -6], [61, -3], [51, 1], [41, 5], [32, 8], [23, 8],
+      [14, 2], [5, -6], [12, 5], [18, 10],
+      [8, 9], [0, 11], [10, 14], [18, 15],
+      [11, 19], [6, 23], [16, 21], [24, 20],
+      [30, 22], [36, 25], [44, 23], [50, 28], [57, 26], [63, 31], [71, 28], [77, 32], [84, 25], [90, 20], [96, 12],
     ];
     L.poly(mane, 'R');
-    // Mèches sombres le long de la crinière
+    L.bevel('R', ['H', ['H', 'R']], ['m', ['m', 'r']], 0, -1);
+    // mèches qui suivent le mouvement
     const strands = [
-      [[96, -2], [80, -2], [64, 2], [48, 7], [34, 13], [20, 21], [8, 28]],
-      [[92, 8], [78, 11], [62, 16], [48, 22], [34, 29], [22, 36]],
-      [[88, 16], [76, 21], [64, 27], [52, 33], [42, 41]],
-      [[94, 3], [70, 6], [56, 11], [42, 16], [28, 22], [16, 29]],
+      [[96, -3], [82, -3], [68, 0], [54, 5], [40, 10], [28, 13], [16, 12], [8, 3]],
+      [[94, 6], [80, 8], [66, 12], [52, 17], [40, 20], [28, 18], [16, 15], [4, 11]],
+      [[92, 14], [80, 18], [68, 22], [56, 23], [44, 22], [32, 21], [20, 20], [10, 21]],
+      [[88, 19], [78, 25], [70, 27], [62, 28]],
+      [[90, 1], [76, 3], [62, 7], [50, 11], [38, 15], [26, 15]],
     ];
-    for (const s of strands) L.path(s, 'r');
-    // Reflets clairs
-    L.path([[94, -5], [80, -5], [66, -2], [54, 2]], 'T');
-    L.path([[72, 1], [60, 4], [48, 8]], '#ff8090');
+    strands.forEach((s, i) => L.path(s, i % 2 ? 'r' : 'm'));
+    L.path([[92, -6], [80, -6], [68, -3], [58, 0], [48, 4]], 'W');
+    L.path([[76, -4], [64, -1], [52, 3], [42, 7]], 'H');
+    L.path([[20, 6], [12, 0], [8, -3]], 'H');
     L.outline('q');
     return L;
   }
 
-  function buildLegs() {
-    const L = new Pix();
-    // Jambes et bottes
-    plate(L, p => p.poly([[90, 94], [98, 94], [97, 115], [91, 115]], 'K'), p => { p.line(94, 99, 94, 112, 's'); });
-    plate(L, p => p.poly(mirror([[90, 94], [98, 94], [97, 115], [91, 115]], CX), 'K'), p => { p.line(106, 99, 106, 112, 's'); });
-    plate(L, p => p.poly([[88, 114], [98, 114], [99, 122], [99, 125], [83, 125], [84, 121]], 'K'), p => { p.line(86, 121, 97, 121, 'g'); });
-    plate(L, p => p.poly(mirror([[88, 114], [98, 114], [99, 122], [99, 125], [83, 125], [84, 121]], CX), 'K'), p => { p.line(103, 121, 114, 121, 'g'); });
-    // Genouillères pointues
-    plate(L, p => p.poly([[94, 101], [97, 104], [94, 109], [91, 104]], 'K'), p => p.set(94, 104, 'G'));
-    plate(L, p => p.poly(mirror([[94, 101], [97, 104], [94, 109], [91, 104]], CX), 'K'), p => p.set(106, 104, 'G'));
-    // Jupe d'armure en lames, bord inférieur déchiqueté
-    plate(L, p => p.poly([[84, 76], [93, 76], [92, 92], [88, 98], [85, 93], [80, 96], [81, 88]], 'K'), p => { p.line(85, 80, 87, 92, 's'); });
-    plate(L, p => p.poly(mirror([[84, 76], [93, 76], [92, 92], [88, 98], [85, 93], [80, 96], [81, 88]], CX), 'K'), p => { p.line(115, 80, 113, 92, 's'); });
-    plate(L, p => p.poly([[93, 76], [107, 76], [108, 93], [104, 97], [100, 101], [96, 97], [92, 93]], 'K'), p => {
-      p.line(100, 79, 100, 97, 'g'); p.line(95, 80, 96, 93, 's'); p.line(105, 80, 104, 93, 's');
-    });
-    return L;
-  }
-
-  function buildTorso() {
-    const L = new Pix();
-    // Gorgerin
-    plate(L, p => p.poly([[89, 37], [111, 37], [113, 42], [87, 42]], 'K'), p => { p.line(90, 40, 110, 40, 'g'); });
-    // Plastron
-    plate(L, p => p.poly([[86, 41], [114, 41], [117, 52], [113, 64], [109, 73], [91, 73], [87, 64], [83, 52]], 'K'), p => {
-      p.path([[88, 64], [100, 67], [112, 64]], 'g');
-      p.path([[90, 69], [100, 71], [110, 69]], 'g');
-      p.line(100, 67, 100, 72, 's');
-      p.path([[86, 46], [89, 58]], 's'); p.path([[114, 46], [111, 58]], 's');
-    });
-    // Cœur sur le plastron (l'âme qui refuse de céder)
-    const heart = new Pix();
-    heart.map([
-      '.WWW...WWW.',
-      'WKKKW.WKKKW',
-      'WKRRKWKRRKW',
-      'WKRRRKRRRKW',
-      'WKRRRRRRRKW',
-      '.WKRRRRRKW.',
-      '..WKRRRKW..',
-      '...WKRKW...',
-      '....WKW....',
-      '.....W.....',
-    ], 95, 48);
-    L.over(heart);
-    // Ceinture
-    plate(L, p => p.rect(89, 73, 22, 4, 'K'), p => { p.rect(97, 73, 6, 4, 'G'); p.rect(98, 74, 4, 2, 'K'); });
-    return L;
-  }
-
-  function buildPauldron(side) {
-    const L = new Pix();
-    const m = pts => side < 0 ? pts : mirror(pts, CX);
-    // Pointes
-    plate(L, p => { p.poly(m([[69, 42], [74, 39], [62, 27]]), 'K'); p.poly(m([[77, 38], [82, 38], [76, 23]]), 'K'); });
-    // Épaulière arrondie en trois lames
-    plate(L, p => p.ellipse(side < 0 ? 79 : 121, 47, 13.5, 10.5, 'K'), p => {
-      const cx = side < 0 ? 79 : 121;
-      for (const [dy, c] of [[-2, 'g'], [3, 'g'], [7, 's']]) {
-        const pts = [];
-        for (let a = -1.2; a <= 1.21; a += 0.2) pts.push([cx + Math.sin(a) * 12.5, 47 + dy + (1 - Math.cos(a)) * 4]);
-        p.path(pts, c);
-      }
-      p.set(cx - 5 * side * -1, 43, 'G'); p.set(cx - 6 * side * -1, 43, 'W');
-    });
-    return L;
-  }
-
-  function buildArmLeft() { // bras droit d'Undyne (à gauche de l'écran), poing serré
-    const L = new Pix();
-    plate(L, p => p.poly([[70, 54], [80, 55], [80, 67], [71, 67]], 'K'), p => p.line(75, 57, 75, 65, 's'));
-    plate(L, p => p.poly([[68, 66], [81, 66], [80, 80], [70, 80]], 'K'), p => { p.line(69, 70, 80, 70, 'g'); p.line(70, 74, 79, 74, 's'); });
-    plate(L, p => p.poly([[69, 80], [81, 80], [82, 86], [79, 89], [71, 89], [68, 86]], 'K'), p => {
-      p.line(71, 84, 79, 84, 'g'); p.set(73, 86, 'g'); p.set(76, 86, 'g');
-    });
-    return L;
-  }
-
-  function buildArmRight() { // bras gauche d'Undyne, qui tient la lance
-    const L = new Pix();
-    plate(L, p => p.poly([[120, 55], [130, 54], [131, 66], [121, 67]], 'K'), p => p.line(125, 57, 126, 65, 's'));
-    plate(L, p => p.poly([[121, 66], [132, 64], [137, 75], [127, 79]], 'K'), p => { p.line(124, 70, 133, 67, 'g'); });
-    return L;
-  }
-
-  function buildSpear() {
-    const L = new Pix();
-    const top = [129.5, 20], bot = [139.5, 126];
-    const shaft = new Pix();
-    for (let k = 0; k <= 1; k += 0.004) {
-      const x = top[0] + (bot[0] - top[0]) * k, y = top[1] + (bot[1] - top[1]) * k;
-      shaft.set(x - 1, y, 'b'); shaft.set(x, y, 'B'); shaft.set(x + 1, y, 'n');
-    }
-    L.over(shaft);
-    // Fer de lance
-    const head = new Pix();
-    head.poly([[128.5, 0], [133.5, 12], [131, 22], [128, 22], [124, 12]], 'b');
-    head.path([[128.5, 1], [129, 20]], 'B');
-    head.path([[128, 3], [126, 11]], 'W');
-    head.edge('n');
-    head.set(128, 0, 'B'); head.set(129, 1, 'W');
-    L.over(head);
-    // Garde
-    L.rect(126, 21, 8, 2, 'n').rect(127, 21, 6, 1, 'B');
-    // Poing autour de la hampe
-    plate(L, p => p.poly([[129, 72], [139, 71], [141, 80], [131, 82]], 'K'), p => { p.line(131, 75, 139, 74, 'g'); p.line(131, 78, 139, 77, 'g'); });
-    return L;
-  }
-
+  // ---------- Tête ----------
   function buildHead() {
     const L = new Pix();
-    const hx = 85, hy = 2; // coin haut-gauche de la tête (30 x 34)
-    const H = (pts) => pts.map(([x, y]) => [hx + x, hy + y]);
-    // Nageoires d'oreille, larges et épineuses
-    const fin = [[3, 16], [-4, 5], [-3, 11], [-9, 8], [-6, 14], [-12, 15], [-6, 19], [-10, 24], [-3, 23], [2, 28]];
+    const S = HS, hx = HX, hy = HY; // tête 30 x 34 agrandie (S)
+    const H = pts => pts.map(([x, y]) => [hx + x * S, hy + y * S]);
+    const R = v => Math.round(v);
+    // Nageoires d'oreille : membrane + rayons rigides qui dépassent en pointes
+    const fin = [[3, 16], [-3, 6], [-3, 11], [-8, 8], [-6, 14], [-11, 15], [-6, 19], [-9, 24], [-3, 23], [2, 28]];
+    const rays = [[[-5, 3], [3, 19]], [[-10, 6], [3, 20]], [[-13, 15], [3, 21]], [[-11, 26], [3, 23]]];
     for (const left of [true, false]) {
-      const f = new Pix(), pts = H(left ? fin : fin.map(([x, y]) => [29 - x, y]));
-      f.poly(pts, 'C'); f.edge('c');
-      const sp = [[[-4, 6], [3, 19]], [[-9, 9], [3, 20]], [[-12, 15], [3, 21]], [[-10, 23], [3, 23]]];
-      for (const [u, v] of sp) {
-        const X = q => hx + (left ? q[0] : 29 - q[0]);
-        f.line(X(u), hy + u[1], X(v), hy + v[1], 'd');
-      }
-      f.outline('K');
+      const f = new Pix(), X = x => hx + (left ? x : 29 - x) * S;
+      f.poly(fin.map(([x, y]) => [X(x), hy + y * S]), 'C');
+      f.bevel('C', ['L'], ['c', ['c', 'C']], left ? -1 : 1, -1);
+      for (const [u, v] of rays) { f.line(X(u[0]), hy + u[1] * S, X(v[0]), hy + v[1] * S, 'd'); f.set(X(u[0]), hy + u[1] * S, 'L'); }
+      f.outline('e');
       L.over(f);
     }
     // Visage
     const face = new Pix();
-    face.poly(H([[3, 6], [27, 6], [29.5, 13], [29, 24], [26, 30], [20, 34], [10, 34], [4, 30], [1, 24], [0.5, 13]]), 'C');
-    // Ombre sur le côté gauche et sous la mâchoire
-    for (let y = 0; y < 40; y++) for (let x = 0; x < 30; x++) {
-      if (face.get(hx + x, hy + y) !== 'C') continue;
-      if (x < 4 + Math.max(0, y - 26) * 0.6 || y > 31 || (x > 26 && y > 20)) face.set(hx + x, hy + y, 'c');
-    }
-    face.edge('K');
+    face.poly(H([[4, 5], [26, 5], [29, 11], [29.5, 19], [28.5, 25], [24.5, 30.5], [18.5, 34], [11.5, 34], [5.5, 30.5], [1.5, 25], [0.5, 19], [1, 11]]), 'C');
+    face.bevel('C', ['L', ['L', 'C']], ['c', 'c', ['c', 'C']], 1, -1);
+    face.each((x, y, v) => { if (v && y > hy + 30 * S) face.set(x, y, 'd'); });
+    face.edge('e');
     L.over(face);
-    // Cache-œil et sangle
-    L.poly(H([[2, 13], [13, 12], [13.5, 18], [11, 21], [5, 21.5], [1.5, 18]]), 'K');
-    L.line(hx + 12, hy + 13, hx + 24, hy + 6, 'K').line(hx + 13, hy + 13, hx + 25, hy + 6, 'K');
-    L.line(hx + 1, hy + 14, hx + 2, hy + 13, 'K');
-    L.set(hx + 4, hy + 15, 's'); L.set(hx + 5, hy + 14, 's');
-    // Œil : sclère jaune, pupille fendue, paupière furieuse
+    // Pommettes / joues
+    L.path(H([[3, 21], [5, 24], [5, 27]]), 'c');
+    L.path(H([[27, 21], [25, 24]]), 'c');
+    // Orbite vide (côté gauche de l'écran) : plus de cache-œil
+    L.poly(H([[3, 13.5], [12, 12], [13.5, 15], [12, 18.5], [6.5, 19.5], [3, 17.5]]), 'e');
+    L.poly(H([[4.5, 14.5], [11, 13.5], [12, 15.5], [10.5, 17.5], [6.5, 18], [4.5, 16.5]]), 'K');
+    L.path(H([[3, 12.5], [12, 11.5]]), 'e');
+    L.path(H([[4, 20], [10, 19.5]]), 'd');
+    // Sourcil furieux et œil : sclère noire, pupille blanche fendue
+    L.path(H([[15, 12], [20, 10], [26, 8]]), 'e'); L.path(H([[15, 11], [20, 9], [26, 7]]), 'd');
     L.map([
-      '.......KKKK',
-      '....KKKKKKK',
-      'KKKKKYYYYKK',
-      '.KYYYYKKYYK',
-      '.KYYYYKKYYK',
-      '..KYYYKKYK.',
-      '...KKKKKK..',
-    ], hx + 16, hy + 12);
-    L.set(hx + 21, hy + 15, 'W');
+      '......eeeee',
+      '...eeeKKKKe',
+      'eeeKKKKKKKKe',
+      '.eKKKKKWWKKe',
+      '.eKKKKKWWKKe',
+      '..eKKKKWWKe.',
+      '...eKKKKKe..',
+      '....eeeee...',
+    ], R(hx + 15 * S), R(hy + 11 * S));
+    L.set(R(hx + 15 * S) + 8, R(hy + 11 * S) + 2, 'W');
+    L.path(H([[18, 20], [24, 19]]), 'c');
     // Sourire carnassier : deux rangées de crocs
-    const m0 = hx + 5, m1 = hx + 25, my = hy + 23;
+    const m0 = R(hx + 5 * S), m1 = R(hx + 25 * S), my = R(hy + 23 * S);
     L.rect(m0, my, m1 - m0 + 1, 7, 'K');
     L.rect(m0 + 1, my + 1, m1 - m0 - 1, 5, 'P');
     for (let x = m0 + 1, k = 0; x < m1; x++, k++) {
@@ -296,113 +246,253 @@ const UndyneSprite = (() => {
       if (q !== 1) L.set(x, my + 4, 'W');
       if (q === 3) L.set(x, my + 3, 'W');
     }
-    L.set(m0, my, 'K'); L.set(m1, my + 6, 'K');
-    // Commissures relevées
-    L.set(m0 - 1, my - 1, 'K'); L.set(m1 + 1, my - 1, 'K');
+    for (let x = m0 + 2; x < m1; x += 4) L.set(x, my + 1, 'G');
+    L.set(m0 - 1, my - 1, 'K'); L.set(m1 + 1, my - 1, 'K'); L.set(m0 - 2, my - 2, 'e'); L.set(m1 + 2, my - 2, 'e');
     // Cheveux sur le crâne : frange en pointes
     const top = new Pix();
-    top.poly(H([[1, 13], [0, 6], [4, 1], [10, -2], [18, -2], [25, 0], [29, 5], [30, 13], [27, 9], [26, 12], [23, 7], [21, 11], [18, 6], [14, 10], [12, 6], [9, 12], [7, 7], [4, 12]]), 'R');
-    top.path(H([[6, 2], [11, 0], [16, 0]]), 'T');
-    top.path(H([[5, 4], [9, 2]]), '#ff8090');
-    top.path(H([[20, 1], [25, 4], [27, 8]]), 'r');
-    top.path(H([[13, 3], [12, 6]]), 'r');
-    top.path(H([[21, 4], [21, 9]]), 'r');
-    top.path(H([[3, 6], [4, 11]]), 'r');
+    top.poly(H([[0, 12], [0, 5], [4, 0], [10, -2], [18, -2], [25, 0], [29, 4], [30, 10], [27, 7], [25, 9], [22, 6], [18, 8], [15, 6], [11, 13], [10, 7], [6, 9], [3, 7]]), 'R');
+    top.bevel('R', ['H', ['H', 'R']], ['m', 'r'], 0, -1);
+    top.path(H([[6, 2], [11, 0], [16, 0]]), 'W');
+    top.path(H([[13, 3], [11, 10]]), 'r'); top.path(H([[21, 2], [22, 5]]), 'r'); top.path(H([[3, 4], [1, 9]]), 'r'); top.path(H([[26, 3], [28, 7]]), 'm');
     top.outline('q');
     L.over(top);
     return L;
   }
 
+  // ---------- Corps ----------
+  function buildLegs() {
+    const L = new Pix();
+    const thigh = [[89, 92], [98, 92], [97, 104], [91, 104]];
+    const greave = [[90, 103], [98, 103], [97, 112], [91, 112]];
+    const boot = [[89, 111], [98, 111], [99, 116], [100, 120], [86, 120], [78, 119], [86, 116]]; // bout pointu vers l'extérieur
+    for (const s of [1, -1]) {
+      const M = pts => s > 0 ? pts : mirror(pts);
+      plate(L, p => p.poly(M(thigh), 'K'));
+      plate(L, p => p.poly(M(greave), 'K'), p => p.line(s > 0 ? 94 : 106, 105, s > 0 ? 94 : 106, 110, '3'));
+      plate(L, p => p.poly(M(boot), 'K'), p => { p.path(M([[87, 117], [98, 117]]), '3'); });
+      // genouillère en pointe
+      plate(L, p => p.poly(M([[93.5, 99], [98, 102], [94, 108], [90, 102]]), 'K'), p => p.set(s > 0 ? 94 : 105, 102, '5'));
+    }
+    // Jupe d'armure en lames pointues
+    const side = [[83, 75], [93, 75], [93, 90], [89, 99], [86, 92], [80, 98], [80, 88]];
+    for (const s of [1, -1]) plate(L, p => p.poly(s > 0 ? side : mirror(side), 'K'), p => p.path(s > 0 ? [[86, 79], [87, 92]] : [[114, 79], [113, 92]], '2'));
+    plate(L, p => p.poly([[93, 75], [107, 75], [108, 92], [104, 96], [100, 103], [96, 96], [92, 92]], 'K'), p => {
+      p.line(100, 78, 100, 99, '3'); p.path([[95, 79], [96, 92]], '2'); p.path([[105, 79], [104, 92]], '2');
+    });
+    return L;
+  }
+  // Lambeaux de tissu sombre sous la jupe (animés séparément)
+  function buildCloth() {
+    const L = new Pix();
+    const strips = [[84, 88, 11], [89, 92, 14], [96, 95, 12], [104, 95, 13], [110, 92, 14], [115, 88, 10]];
+    for (const [x, y, len] of strips) {
+      const p = new Pix();
+      p.poly([[x - 2.5, y], [x + 2.5, y], [x + 1.5, y + len - 3], [x, y + len], [x - 1.5, y + len - 2]], '2');
+      p.bevel('2', ['3'], ['1'], 1, 0);
+      p.outline('K');
+      L.over(p);
+    }
+    return L;
+  }
+  function buildTorso() {
+    const L = new Pix();
+    // Haut col d'armure
+    plate(L, p => { p.poly([[88, 34], [92, 31], [93, 41], [87, 42]], 'K'); p.poly(mirror([[88, 34], [92, 31], [93, 41], [87, 42]]), 'K'); });
+    plate(L, p => p.poly([[89, 37], [111, 37], [113, 43], [87, 43]], 'K'), p => p.line(90, 40, 110, 40, '3'));
+    // Plastron ajusté
+    plate(L, p => p.poly([[86, 41], [114, 41], [118, 50], [115, 62], [110, 74], [90, 74], [85, 62], [82, 50]], 'K'), p => {
+      p.path([[87, 63], [100, 66], [113, 63]], '3');
+      p.path([[89, 68], [100, 70], [111, 68]], '3');
+      p.path([[91, 72], [100, 73], [109, 72]], '2');
+      p.line(100, 66, 100, 73, '2');
+      p.path([[86, 45], [89, 58]], '2'); p.path([[114, 45], [111, 58]], '2');
+      heart(p, 100, 53, true);
+    });
+    // Ceinture
+    plate(L, p => p.rect(89, 73, 22, 4, 'K'), p => { p.rect(97, 73, 6, 4, '5'); p.rect(98, 74, 4, 2, 'K'); });
+    return L;
+  }
+  // Épaulières : dôme + deux lames superposées, pointes recourbées vers le haut
+  function buildPauldron(side) {
+    const L = new Pix();
+    const m = pts => side < 0 ? pts : mirror(pts);
+    plate(L, p => p.poly(m([[62, 54], [68, 57], [78, 57], [85, 55], [83, 61], [76, 64], [67, 63], [62, 59]]), 'K'), p => p.path(m([[66, 60], [79, 59]]), '3'));
+    plate(L, p => p.poly(m([[61, 49], [69, 53], [80, 53], [87, 51], [86, 56], [78, 59], [68, 59], [61, 55]]), 'K'), p => p.path(m([[65, 55], [81, 55]]), '3'));
+    plate(L, p => {
+      p.poly(m([[69, 38], [75, 36], [64, 15], [67, 28]]), 'K');   // grande pointe
+      p.poly(m([[62, 44], [65, 39], [50, 30], [56, 39]]), 'K');   // pointe extérieure
+      p.poly(m([[80, 36], [85, 38], [83, 24]]), 'K');             // petite pointe
+    }, p => { p.path(m([[70, 35], [66, 22]]), '4'); p.path(m([[62, 40], [55, 35]]), '4'); });
+    plate(L, p => p.poly(m([[89, 41], [85, 37], [77, 34.5], [69, 36], [63, 40], [60, 46], [62, 51], [70, 54], [80, 54], [88, 50]]), 'K'), p => {
+      p.path(m([[67, 40], [75, 37], [83, 38]]), '5');
+      p.path(m([[64, 47], [72, 50], [82, 49]]), '2');
+    }, { lit: ['4', '3', ['3', '2'], '2', ['2', '1']] });
+    return L;
+  }
+  // Bras : brassard à lame tranchante + gant blanc à pointes (et cœur)
+  function buildArm(side, raised) {
+    const L = new Pix();
+    const m = pts => side < 0 ? pts : mirror(pts);
+    if (!raised) {
+      plate(L, p => p.poly(m([[67, 52], [78, 54], [77, 67], [68, 67]]), 'K'), p => p.path(m([[72, 56], [72, 65]]), '2'));
+      plate(L, p => p.poly(m([[66, 66], [79, 66], [78, 80], [68, 80], [60, 70]]), 'K'), p => { p.path(m([[64, 70], [77, 70]]), '3'); p.path(m([[68, 75], [77, 75]]), '2'); });
+      glove(L, m, side, 0);
+    } else {
+      // bras levé, poing au-dessus de l'épaule (pose d'invocation)
+      plate(L, p => p.poly(m([[72, 56], [81, 49], [69, 30], [60, 35]]), 'K'), p => p.path(m([[72, 50], [65, 36]]), '2'));
+      plate(L, p => p.poly(m([[59, 37], [70, 32], [69, 14], [59, 14], [52, 23]]), 'K'), p => { p.path(m([[56, 24], [69, 22]]), '3'); p.path(m([[60, 30], [69, 28]]), '2'); });
+      glove(L, m, side, -82, -8);
+    }
+    return L;
+  }
+  function glove(L, m, side, dy, dx = 0) {
+    const T = pts => m(pts.map(([x, y]) => [x + dx, y + dy]));
+    const g = new Pix();
+    g.poly(T([[66, 80], [79, 80], [81, 86], [80, 92], [77, 95], [69, 95], [66, 91], [65, 86]]), 'W');
+    g.bevel('W', [], ['G', ['G', 'W']], 1, -1);
+    // doigts griffus
+    for (const fx of [68, 72, 76]) {
+      const claw = new Pix();
+      claw.poly(T([[fx - 1, 93], [fx + 2, 93], [fx + 1, 97], [fx - 0.5, 100]]), 'W');
+      claw.bevel('W', [], ['G'], 1, -1);
+      g.over(claw);
+      g.path(T([[fx + 2, 89], [fx + 2, 93]]), 'g');
+    }
+    g.path(T([[67, 84], [79, 84]]), 'g');
+    g.outline('K');
+    // pointes sur le dos du gant
+    const sp = new Pix();
+    for (const tri of [[[66, 81], [69, 81], [60, 76]], [[65, 86], [66, 89], [58, 87]], [[78, 80], [80, 82], [83, 74]]]) sp.poly(T(tri), 'W');
+    sp.bevel('W', [], ['G'], 1, -1);
+    sp.outline('K');
+    L.over(sp); L.over(g);
+    const [[hx, hy]] = T([[72.5, 88]]);
+    heart(L, Math.round(hx), hy, false);
+  }
+
   // ---------- Assemblage ----------
   let parts = null;
   function build() {
-    const hair = buildHair(), legs = buildLegs(), torso = buildTorso();
-    const pl = buildPauldron(-1), pr = buildPauldron(1);
-    const armL = buildArmLeft(), armR = buildArmRight(), spear = buildSpear(), head = buildHead();
-    const neck = new Pix().rect(96, 34, 8, 5, 'C').rect(96, 34, 2, 5, 'c');
+    const neck = new Pix().rect(96, 33, 8, 6, 'C').rect(96, 33, 2, 6, 'c').rect(102, 33, 2, 6, 'L');
     parts = {
-      hair: hair.canvas(), legs: legs.canvas(), torso: torso.canvas(), neck: neck.canvas(),
-      pl: pl.canvas(), pr: pr.canvas(), armL: armL.canvas(), armR: armR.canvas(), spear: spear.canvas(), head: head.canvas(),
+      hair: buildHair().canvas(), legs: buildLegs().canvas(), cloth: buildCloth().canvas(), torso: buildTorso().canvas(), neck: neck.canvas(),
+      pl: buildPauldron(-1).canvas(), pr: buildPauldron(1).canvas(),
+      armL: buildArm(-1, false).canvas(), armR: buildArm(1, false).canvas(), armRup: buildArm(1, true).canvas(),
+      head: buildHead().canvas(),
     };
     return parts;
   }
 
-  // Dessine Undyne. o = { t, x, y (coin haut-gauche à l'écran), s (échelle), shake, melt, hurt }
-  function draw(ctx, o) {
+  // Tampons de rendu à l'échelle 1
+  const buf = document.createElement('canvas'); buf.width = SW; buf.height = BH;
+  const bctx = buf.getContext('2d');
+  const buf2 = document.createElement('canvas'); buf2.width = SW; buf2.height = BH;
+  const b2 = buf2.getContext('2d');
+
+  // Compose une image à l'échelle 1 dans buf. o = { t, melt, jitter, wind, raise }
+  function compose(o) {
     if (!parts) build();
-    const s = o.s || 2, t = o.t || 0;
-    const X = Math.round(o.x + (o.shake || 0)), Y = Math.round(o.y);
-    const bob = Math.round(Math.sin(t * 2.6) * 1.2 + 0.2);          // respiration
-    const hb = Math.round(Math.sin(t * 2.6 - 0.6) * 1.2 + 0.2);      // tête légèrement décalée
-    const jit = o.jitter ? (Math.random() < 0.5 ? 0 : (Math.random() < 0.5 ? -1 : 1)) : 0;
-    ctx.save();
-    ctx.imageSmoothingEnabled = false;
-    // Cheveux : chaque colonne ondule comme un drapeau
-    const hair = parts.hair, wind = o.wind || 1;
-    for (let x = 0; x < 100; x++) {
-      const k = Math.pow(Math.max(0, (100 - x) / 100), 1.2);
-      const dy = Math.round(Math.sin(t * 6 * wind + x * 0.13) * 4.5 * k + Math.sin(t * 3.1 + x * 0.05) * 1.5 * k) + hb;
-      ctx.drawImage(hair, x, 0, 1, TH, X + x * s, Y + dy * s, s, TH * s);
+    const t = o.t || 0, c = bctx;
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    c.clearRect(0, 0, SW, BH);
+    c.imageSmoothingEnabled = false;
+    const bob = Math.round(Math.sin(t * 2.6) * 1.2 + 0.2);
+    const hb = Math.round(Math.sin(t * 2.6 - 0.7) * 1.2 + 0.2);
+    const pb = Math.round(Math.sin(t * 2.6 - 0.35) * 1.4 + 0.2);
+    const jit = o.jitter ? (Math.random() < 0.6 ? 0 : (Math.random() < 0.5 ? -1 : 1)) : 0;
+    const wind = o.wind || 1;
+    // cheveux : ondulation de drapeau, plus forte vers le trident
+    for (let x = 0; x < 102; x++) {
+      const k = Math.pow(Math.max(0, (102 - x) / 102), 1.15);
+      const dy = Math.round(Math.sin(t * 6 * wind + x * 0.13) * 4.5 * k + Math.sin(t * 3.1 + x * 0.05) * 1.6 * k) + hb;
+      c.drawImage(parts.hair, x, 0, 1, TH, x, dy, 1, TH);
     }
-    if (o.melt > 0) drawMelting(ctx, o, X, Y, s, bob, hb);
-    else {
-      const L = (img, dx, dy) => ctx.drawImage(img, 0, 0, SW, TH, X + dx * s, Y + dy * s, SW * s, TH * s);
-      L(parts.legs, 0, 0);
-      L(parts.neck, 0, hb);
-      L(parts.torso, jit, bob);
-      L(parts.armL, jit, bob + Math.round(Math.sin(t * 2.6 + 1) * 0.6));
-      L(parts.spear, 0, bob);
-      L(parts.armR, 0, bob);
-      L(parts.pl, jit, bob);
-      L(parts.pr, jit, bob);
-      L(parts.head, jit, hb);
-      // Éclat de l'œil
-      const ph = (t % 2.2) / 2.2;
-      if (ph < 0.25) {
-        const ex = X + (106 + jit) * s, ey = Y + (OY + 16 + hb) * s, a = 1 - ph / 0.25, len = (6 + 22 * (ph / 0.25)) * s / 2;
-        ctx.globalAlpha = a;
-        ctx.fillStyle = '#fff43c';
-        ctx.fillRect(ex - len, ey, len * 2, s);
-        ctx.fillRect(ex, ey - len * 0.6, s, len * 1.2);
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(ex - s, ey - s, s * 3, s * 3);
-        ctx.globalAlpha = 1;
+    c.drawImage(parts.legs, 0, 0);
+    // lambeaux : chaque colonne flotte un peu
+    for (let x = 78; x < 122; x++) {
+      const dx = Math.round(Math.sin(t * 4.2 + x * 0.4) * 0.8);
+      c.drawImage(parts.cloth, x, 0, 1, TH, x + dx, Math.round(Math.sin(t * 3 + x * 0.3) * 0.6), 1, TH);
+    }
+    c.drawImage(parts.neck, 0, hb);
+    c.drawImage(parts.torso, jit, bob);
+    const raise = o.raise || 0;
+    c.drawImage(parts.armL, jit, bob + Math.round(Math.sin(t * 2.6 + 1) * 0.8));
+    if (raise <= 0.5) c.drawImage(parts.armR, jit, bob + Math.round(Math.sin(t * 2.6 + 2) * 0.8) - Math.round(raise * 4));
+    c.drawImage(parts.pl, jit, pb);
+    c.drawImage(parts.pr, jit, pb);
+    c.drawImage(parts.head, jit, hb);
+    if (raise > 0.5) c.drawImage(parts.armRup, jit, pb);
+    // Lueur de l'œil
+    return { bob, hb, jit };
+  }
+  // Éclat en forme de lance qui jaillit de l'orbite vide
+  function flare(c, o, info, s) {
+    const t = o.t || 0, P = 2.4, ph = (t % P) / P;
+    const x = o.x + Math.round(HX + 8 * HS + info.jit) * s, y = o.y + Math.round(OY + HY + 16 * HS + info.hb) * s;
+    // petite lueur permanente au fond de l'orbite
+    c.save();
+    c.fillStyle = '#bff8ff'; c.globalAlpha = 0.55 + 0.45 * Math.sin(t * 7);
+    c.fillRect(x - s, y - s, s * 2, s * 2);
+    if (ph < 0.2) {
+      const k = ph / 0.2, a = k < 0.2 ? k / 0.2 : 1 - (k - 0.2) / 0.8;
+      const len = Math.round(5 + 15 * Math.min(1, k * 2.5));
+      c.globalAlpha = Math.max(0, a);
+      for (let i = -len; i <= len; i++) { // lance de lumière verticale
+        const f = 1 - Math.abs(i) / len, w = Math.round(f * f * 3);
+        c.fillStyle = f > 0.55 ? '#ffffff' : '#7fefff';
+        c.fillRect(x - w * s - s / 2, y + i * s, (w * 2 + 1) * s, s);
       }
+      c.fillStyle = '#ffffff';
+      c.fillRect(x - Math.round(len * 0.7) * s, y - s / 2, Math.round(len * 1.4 + 1) * s, s);
     }
-    ctx.restore();
+    c.restore();
   }
 
-  // Version « fondue » : chaque colonne coule vers le bas.
-  let comp = null;
-  function composite(t) {
-    if (!parts) build();
-    if (!comp) { comp = document.createElement('canvas'); comp.width = SW; comp.height = TH; }
-    const c = comp.getContext('2d');
-    c.clearRect(0, 0, SW, TH);
-    for (const k of ['legs', 'neck', 'torso', 'armL', 'spear', 'armR', 'pl', 'pr', 'head']) c.drawImage(parts[k], 0, 0);
-    return comp;
+  // Dessine Undyne. o = { t, x, y (coin haut-gauche), s (échelle), shake, melt, jitter, wind, raise, white }
+  function draw(ctx, o) {
+    const s = o.s || 2;
+    const info = compose(o);
+    let src = buf;
+    if (o.melt > 0) { melt(o); src = buf2; }
+    if (o.white > 0) {
+      const sc = src === buf ? b2 : bctx, dst = src === buf ? buf2 : buf;
+      sc.setTransform(1, 0, 0, 1, 0, 0);
+      if (src === buf) { sc.clearRect(0, 0, SW, BH); sc.drawImage(buf, 0, 0); }
+      else { sc.clearRect(0, 0, SW, BH); sc.drawImage(buf2, 0, 0); }
+      sc.globalCompositeOperation = 'source-atop';
+      sc.globalAlpha = Math.min(1, o.white);
+      sc.fillStyle = '#ffffff'; sc.fillRect(0, 0, SW, BH);
+      sc.globalCompositeOperation = 'source-over'; sc.globalAlpha = 1;
+      src = dst;
+    }
+    const X = Math.round(o.x + (o.shake || 0)), Y = Math.round(o.y);
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(src, 0, 0, SW, BH, X, Y, SW * s, BH * s);
+    if (!(o.melt > 0.3)) flare(ctx, { ...o, x: X, y: Y }, info, s);
+    ctx.restore();
   }
-  function drawMelting(ctx, o, X, Y, s, bob) {
-    const img = composite(o.t), m = o.melt;
+  // Fonte : chaque colonne coule et s'étire vers le bas
+  function melt(o) {
+    const m = o.melt;
+    b2.setTransform(1, 0, 0, 1, 0, 0);
+    b2.clearRect(0, 0, SW, BH);
     for (let x = 0; x < SW; x++) {
       const sm = 0.5 + 0.5 * Math.sin(x * 0.21 + 1.3) * Math.cos(x * 0.07 - 0.4);
       const n = Math.abs((Math.sin(x * 12.9898) * 43758.5453) % 1);
-      const drip = Math.round(m * (4 + 16 * sm + (n > 0.8 ? 26 * n : 0)) + Math.sin(o.t * 2 + x * 0.3) * m * 1.5);
-      ctx.drawImage(img, x, 0, 1, TH, X + x * s, Y + Math.round(bob + drip * 0.45) * s, s, (TH + drip) * s);
+      const drip = Math.round(m * (4 + 16 * sm + (n > 0.8 ? 26 * n : 0)) + Math.sin((o.t || 0) * 2 + x * 0.3) * m * 1.5);
+      b2.drawImage(buf, x, 0, 1, TH, x, Math.round(drip * 0.45), 1, TH + drip);
     }
   }
-
-  // Pixels actuels (pour l'effet de poussière lors de la disparition)
-  function pixels() {
-    const img = composite(0);
-    const data = img.getContext('2d').getImageData(0, 0, SW, TH).data;
-    const out = [];
-    for (let y = 0; y < TH; y++) for (let x = 0; x < SW; x++) {
-      const i = (y * SW + x) * 4;
-      if (data[i + 3] > 0) out.push({ x, y, r: data[i], g: data[i + 1], b: data[i + 2] });
-    }
-    return out;
+  // Image figée à l'échelle 1 (pour la désintégration en poussière)
+  function snapshot(o) {
+    compose(o);
+    let src = buf;
+    if (o.melt > 0) { melt(o); src = buf2; }
+    const c = document.createElement('canvas'); c.width = SW; c.height = BH;
+    c.getContext('2d').drawImage(src, 0, 0);
+    return c;
   }
 
-  return { draw, build, pixels, composite, SW, SH: TH, PAL, Pix };
+  return { draw, build, snapshot, SW, SH: BH, PAL, Pix };
 })();

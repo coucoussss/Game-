@@ -6,7 +6,7 @@
 // ============================================================
 const Audio8 = (() => {
   let ac = null, master, musicBus, sfxBus, echoIn, noiseBuf, pulse25, pulse12;
-  let muted = false;
+  let muted = false, intensity = 0;
   const NOTE = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
   function freq(n) {
     const m = /^([A-G])(#|b)?(-?\d)$/.exec(n);
@@ -160,6 +160,7 @@ const Audio8 = (() => {
       const len = noteLen(B.mel, step) * STEP, f = freq(tok);
       tone(t, f, len * 0.92, { wave: pulse25, vol: 0.17, vib: 0.012, dest, echo: true });
       tone(t, f * 1.004, len * 0.92, { wave: pulse12, vol: 0.05, dest });
+      if (intensity) tone(t, f * 2, len * 0.9, { wave: pulse12, vol: 0.035, dest });
     }
     // Basse
     const root = ROOT[B.ch];
@@ -179,6 +180,7 @@ const Audio8 = (() => {
     }
     // Batterie
     const dr = sec.drums, bi = B.bi, last = bi === sec.chords.length - 1;
+    if (intensity && step % 2 === 1) hat(t);
     if (step === 0 && bi === 0) crash(t);
     if (dr === 'intro') {
       if (bi < 3) { if (step % 8 === 0) kick(t); if (step % 8 === 4) snare(t); if (step % 2 === 0) hat(t); if ([3, 6, 10].includes(step)) kick(t); }
@@ -263,5 +265,5 @@ const Audio8 = (() => {
     if (master) master.gain.setTargetAtTime(muted ? 0 : 0.8, ac.currentTime, 0.02);
     return muted;
   }
-  return { init, playBattle, playGameOver, playDrone, stopMusic, sfx, toggleMute, now, isMuted: () => muted };
+  return { init, setIntensity: v => { intensity = v; }, playBattle, playGameOver, playDrone, stopMusic, sfx, toggleMute, now, isMuted: () => muted };
 })();
