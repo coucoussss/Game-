@@ -29,3 +29,9 @@ Ouvrez `index.html` dans un navigateur récent (Chrome, Firefox, Edge). Mettez l
 - **Éclairage dynamique** : lampe torche dans la direction du tir, flash du canon, lampadaires qui grésillent, feux de tonneaux, éclairs. Les yeux des zombies luisent dans le noir.
 - **Ambiance** : pluie, brouillard, orage, ville en ruines en parallaxe. La musique devient plus intense quand la horde se rapproche.
 - Vagues de difficulté croissante, combos, butin (munitions, trousses de soin), meilleur score sauvegardé.
+
+---
+
+## ⚖️ Aussi dans ce dépôt : Jugement Final
+
+Un fan game du combat contre Sans (UNDERTALE) : ouvrez `sans/index.html`. Détails dans [`sans/README.md`](sans/README.md).
