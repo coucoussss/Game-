@@ -1,0 +1,16 @@
+{
+  "waterRate": 0.01,
+  "layerWater": {
+    "surface": 1,
+    "humus": 0.8,
+    "deep": 0.5
+  },
+  "layerBuffer": {
+    "surface": 0,
+    "humus": 0.3,
+    "deep": 0.6
+  },
+  "mineralRate": 0.03,
+  "mineralRadius": 14,
+  "moistureRate": 0.002
+}

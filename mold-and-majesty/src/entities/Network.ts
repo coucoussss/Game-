@@ -1,4 +1,4 @@
-import type { FluxId, NodeKind, ThicknessId } from '../data/types';
+import { FLUX_IDS, type FluxId, type NodeKind, type ThicknessId } from '../data/types';
 
 export type Stock = Record<FluxId, number>;
 
@@ -30,7 +30,7 @@ export interface NetSegment {
 }
 
 export function emptyStock(): Stock {
-  return { sugar: 0, water: 0, signal: 0 };
+  return { sugar: 0, water: 0, minerals: 0, signal: 0 };
 }
 
 /**
@@ -120,9 +120,7 @@ export class Network {
   totals(): Stock {
     const total = emptyStock();
     for (const node of this.nodes.values()) {
-      total.sugar += node.stock.sugar;
-      total.water += node.stock.water;
-      total.signal += node.stock.signal;
+      for (const flux of FLUX_IDS) total[flux] += node.stock[flux];
     }
     return total;
   }

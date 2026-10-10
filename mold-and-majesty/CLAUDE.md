@@ -57,6 +57,8 @@ Le contenu du jeu vit dans des **fichiers JSON séparés du code**, dans `src/da
 - `events.json` : les événements de forêt (`EventDef`)
 - `forests.json` : les forêts jouables (`ForestDef`)
 - `network.json` : les paramètres du réseau (`NetworkDef`) : flux, épaisseurs, rôles des nœuds, signal, fructification
+- `seasons.json` : la durée des saisons, leurs règles, leurs palettes, leurs météos, et les gains de mémoire (`SeasonsDef`)
+- `soil.json` : l'absorption d'eau et de minéraux, et l'inertie hydrique des couches (`SoilDef`)
 
 Les types sont définis dans `src/data/types.ts`. Au chargement, `src/data/index.ts` indexe les données
 et les **valide** : identifiants uniques, valeurs cohérentes, références croisées. Pour ajouter du
@@ -79,6 +81,41 @@ avec un test.
 - **Santé** : chaque segment actif paie un entretien en sucre et en eau à ses extrémités. Sous-alimenté,
   il pâlit (perte de santé proportionnelle au manque), puis meurt à 0 ; les nœuds isolés disparaissent.
 - **Ordre d'un tick** : nœuds → transport → entretien → pousse → nettoyage. Tick = 100 ms.
+
+## Ressources, saisons et décor (étape 3)
+
+- **`systems/World.ts`** regroupe tout l'état d'une partie (réseau, calendrier, météo, sol, mémoire,
+  générateur aléatoire à graine). Il est sans Phaser et testable ; `step()` = un tick. Ordre d'un tick :
+  météo → humidité → absorption → litière → gel → réseau → mémoire.
+- **Ressources** :
+  - le sucre vient du cœur, et surtout de l'échange minéraux → sucre avec les arbres ;
+  - l'eau est bue dans le sol, selon l'humidité et la couche ;
+  - les minéraux sont extraits de gisements qui s'épuisent ; l'automne regarnit ceux de surface ;
+  - la mémoire est globale : elle se gagne à chaque saison traversée et à chaque spore, et réduit
+    le dépérissement ;
+  - les spores sont produites par les ruches.
+- **Saisons** : 15 minutes chacune (9000 ticks). Les règles changent net au début de la saison (`SeasonRules`
+  devient des `FlowModifiers`) ; la palette, elle, glisse vers la suivante pendant les 35 % finaux.
+  - Le printemps étend : pousse rapide et bon marché.
+  - L'été produit : l'échange avec les arbres est maximal, mais gare aux canicules.
+  - L'automne fructifie : les ruches y sont efficaces, la litière rend des minéraux.
+  - L'hiver fait survivre : plus de sucre, entretien réduit, surface gelée (plus d'eau, et le gel tue
+    les filaments fins).
+- **Météo** : tirée parmi celles que la saison permet, avec une durée aléatoire. Le sol suit lentement
+  l'humidité ; les couches profondes l'amortissent (`layerBuffer`), donc s'enraciner profond protège
+  des sécheresses.
+- **Interface minimale** : aucune barre de ressources, l'information passe par le décor.
+  - Le feuillage (densité, couleur) est l'horloge des saisons ; il flétrit quand le sol s'assèche.
+  - Le sol fonce quand il est humide, se fissure quand il est sec, givre en hiver.
+  - Les cristaux de minéraux rétrécissent à mesure qu'on les exploite.
+  - Les filaments pâlissent quand ils sont affamés.
+  - Le halo du cœur montre ses réserves de sucre, ses cernes la mémoire accumulée.
+  - Le nom de la saison s'affiche à son début puis s'efface ; même chose pour les aides d'outil.
+  - `I` affiche les chiffres (débogage).
+- **Développement** : `?seed=4&tick=22000&speed=60` dans l'URL fixe la graine, le moment de départ et la
+  vitesse. En jeu, le bouton 8 fait passer la vitesse de ×1 à ×4 puis ×16.
+- **Équilibrage** : `World.test.ts` simule une année entière avec un réseau type. S'il casse après un
+  réglage des JSON, c'est que l'équilibre du jeu a changé : vérifier que c'est voulu.
 
 ## Conventions de code
 
@@ -108,7 +145,8 @@ avec un test.
 - [ ] 1. Vue en coupe de la forêt : grille de tuiles par couche, caméra, défilement horizontal
 - [x] 2. Réseau de mycélium : tracé à la souris ou au doigt sur une grille souple, épaisseurs,
       nœuds (réserve, relais, ruche), flux sucre/eau/signal, dépérissement, tests de simulation
-- [ ] 3. Économie : sources de sucre et d'eau dans la forêt (racines, pluie), spores comme monnaie
+- [x] 3. Ressources (sucre, eau, minéraux, mémoire), cycle de 4 saisons de 15 min, météo,
+      interface par le décor
 - [ ] 4. Espèces de champignons constructibles par couche (depuis `species.json`)
 - [ ] 5. Événements de forêt aléatoires et pondérés (depuis `events.json`)
 - [ ] 6. HUD et interface : ressources, menu de construction, info-bulles, police bitmap

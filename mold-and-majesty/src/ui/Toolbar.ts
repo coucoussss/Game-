@@ -18,6 +18,7 @@ export const TOOLBAR_Y = NATIVE_HEIGHT - TOOLBAR_HEIGHT;
 export class Toolbar<T extends string> {
   private readonly graphics: Phaser.GameObjects.Graphics;
   private readonly width: number;
+  private readonly labels = new Map<T, Phaser.GameObjects.Text>();
   private selected: T;
 
   constructor(
@@ -32,11 +33,12 @@ export class Toolbar<T extends string> {
 
     buttons.forEach((button, i) => {
       const x = i * this.width;
-      scene.add
+      const text = scene.add
         .text(x + this.width / 2, TOOLBAR_Y + 3, `${i + 1}·${button.label}`, TEXT_STYLE)
         .setOrigin(0.5, 0)
         .setResolution(1)
         .setDepth(11);
+      this.labels.set(button.id, text);
       scene.add
         .zone(x, TOOLBAR_Y, this.width, TOOLBAR_HEIGHT)
         .setOrigin(0)
@@ -53,6 +55,11 @@ export class Toolbar<T extends string> {
       this.redraw();
     }
     this.onSelect(id);
+  }
+
+  setLabel(id: T, label: string): void {
+    const index = this.buttons.findIndex((b) => b.id === id);
+    this.labels.get(id)?.setText(`${index + 1}·${label}`);
   }
 
   private redraw(): void {

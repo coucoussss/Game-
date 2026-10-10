@@ -1,6 +1,7 @@
-import Phaser from 'phaser';
+import type Phaser from 'phaser';
 import type { FluxId, NetworkDef, NodeKind } from '../data/types';
 import type { Network } from '../entities/Network';
+import { lerpColor } from '../ui/color';
 import { PALETTE } from '../ui/text';
 
 /** Calque optionnel : colore le réseau selon le remplissage d'un flux. */
@@ -14,17 +15,10 @@ const NODE_STYLE: Record<NodeKind, { size: number; color: number }> = {
   fruiting: { size: 4, color: 0xd86a8f },
 };
 
-const lerpColor = (from: number, to: number, t: number): number => {
-  const c = Phaser.Display.Color.Interpolate.ColorWithColor(
-    Phaser.Display.Color.ValueToColor(from),
-    Phaser.Display.Color.ValueToColor(to),
-    100,
-    Math.round(Phaser.Math.Clamp(t, 0, 1) * 100),
-  );
-  return Phaser.Display.Color.GetColor(c.r, c.g, c.b);
-};
-
-/** Dessine le réseau : segments (épaisseur, pousse, santé) et nœuds (rôle, construction). */
+/**
+ * Dessine le réseau : segments (épaisseur, pousse, santé) et nœuds (rôle, construction).
+ * Le halo du cœur dit ses réserves de sucre ; ses cernes disent la mémoire accumulée.
+ */
 export class NetworkView {
   private readonly graphics: Phaser.GameObjects.Graphics;
 
@@ -36,8 +30,9 @@ export class NetworkView {
     this.graphics = scene.add.graphics().setDepth(5);
   }
 
-  draw(overlay: FluxOverlay): void {
+  draw(overlay: FluxOverlay, memory: number, timeMs: number): void {
     const g = this.graphics.clear();
+    this.drawHeartAura(g, memory, timeMs);
     const fill = (id: number, flux: FluxId) => {
       const node = this.net.nodes.get(id)!;
       return node.stock[flux] / this.defs.nodes[node.kind].capacity;
@@ -73,6 +68,23 @@ export class NetworkView {
         g.fillStyle(color, 1);
         g.fillRect(node.x - half, node.y + half + 1, Math.max(1, Math.round(size * node.build)), 1);
       }
+    }
+  }
+
+  private drawHeartAura(g: Phaser.GameObjects.Graphics, memory: number, timeMs: number): void {
+    for (const node of this.net.nodes.values()) {
+      if (node.kind !== 'heart') continue;
+      // Cernes de mémoire : un anneau de plus à chaque doublement.
+      const rings = Math.min(6, Math.floor(Math.log2(1 + memory)));
+      for (let i = 1; i <= rings; i++) {
+        g.lineStyle(1, PALETTE.signal, 0.08 + 0.02 * (rings - i));
+        g.strokeCircle(node.x, node.y, 6 + i * 4);
+      }
+      // Halo de sucre : il pulse lentement et s'éteint quand les réserves fondent.
+      const fill = node.stock.sugar / this.defs.nodes.heart.capacity;
+      const pulse = 0.5 + 0.5 * Math.sin(timeMs / 700);
+      g.fillStyle(PALETTE.sugar, 0.1 + 0.15 * fill * pulse);
+      g.fillCircle(node.x, node.y, 2 + Math.round(5 * fill));
     }
   }
 }

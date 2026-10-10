@@ -4,9 +4,41 @@
     "name": "Bosquet des Murmures",
     "description": "Une forêt de chênes paisible, idéale pour une première colonie.",
     "widthTiles": 96,
-    "layers": { "surface": 4, "humus": 8, "deep": 10 },
-    "startingResources": { "sugar": 120, "water": 120, "spores": 0 },
-    "species": ["puffball", "chanterelle", "deep-truffle"],
-    "events": ["spring-rain", "drought", "fallen-oak"]
+    "layers": {
+      "surface": 4,
+      "humus": 8,
+      "deep": 10
+    },
+    "startingResources": {
+      "sugar": 120,
+      "water": 120,
+      "minerals": 40,
+      "memory": 0,
+      "spores": 0
+    },
+    "deposits": {
+      "surface": {
+        "count": 5,
+        "amount": 30
+      },
+      "humus": {
+        "count": 9,
+        "amount": 60
+      },
+      "deep": {
+        "count": 12,
+        "amount": 120
+      }
+    },
+    "species": [
+      "puffball",
+      "chanterelle",
+      "deep-truffle"
+    ],
+    "events": [
+      "spring-rain",
+      "drought",
+      "fallen-oak"
+    ]
   }
 ]

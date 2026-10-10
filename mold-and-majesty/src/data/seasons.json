@@ -1,0 +1,189 @@
+{
+  "seasonLengthTicks": 9000,
+  "paletteBlend": 0.35,
+  "seasons": [
+    {
+      "id": "spring",
+      "name": "Printemps",
+      "motto": "S'étendre",
+      "rules": {
+        "sugarProduction": 0.6,
+        "mineralTrade": 0.1,
+        "tradeRatio": 3,
+        "growthSpeed": 1.6,
+        "growthCost": 0.6,
+        "upkeep": 1,
+        "fruiting": 0,
+        "frost": 0,
+        "frozenSurface": false,
+        "litter": 0
+      },
+      "palette": {
+        "sky": "#4a5a7e",
+        "leaf": "#7fbf5f",
+        "leafAlt": "#b4e08a",
+        "trunk": "#4a352c",
+        "surface": "#54412c",
+        "humus": "#3a2b20",
+        "deep": "#211915",
+        "leafDensity": 0.75,
+        "snow": 0
+      },
+      "weather": {
+        "rain": 4,
+        "clear": 3,
+        "fog": 2
+      }
+    },
+    {
+      "id": "summer",
+      "name": "Été",
+      "motto": "Produire",
+      "rules": {
+        "sugarProduction": 1.2,
+        "mineralTrade": 0.3,
+        "tradeRatio": 5,
+        "growthSpeed": 1,
+        "growthCost": 1,
+        "upkeep": 1.1,
+        "fruiting": 0.2,
+        "frost": 0,
+        "frozenSurface": false,
+        "litter": 0
+      },
+      "palette": {
+        "sky": "#3f6c9a",
+        "leaf": "#3f7f3f",
+        "leafAlt": "#5c9c48",
+        "trunk": "#4a352c",
+        "surface": "#5e4a30",
+        "humus": "#3b2c20",
+        "deep": "#221a15",
+        "leafDensity": 1,
+        "snow": 0
+      },
+      "weather": {
+        "clear": 4,
+        "heat": 3,
+        "rain": 1
+      }
+    },
+    {
+      "id": "autumn",
+      "name": "Automne",
+      "motto": "Fructifier",
+      "rules": {
+        "sugarProduction": 0.5,
+        "mineralTrade": 0.1,
+        "tradeRatio": 3,
+        "growthSpeed": 0.7,
+        "growthCost": 1.2,
+        "upkeep": 1,
+        "fruiting": 2,
+        "frost": 0,
+        "frozenSurface": false,
+        "litter": 0.02
+      },
+      "palette": {
+        "sky": "#5a4a62",
+        "leaf": "#d08a2e",
+        "leafAlt": "#b0452c",
+        "trunk": "#3f2d26",
+        "surface": "#4f3b28",
+        "humus": "#36271d",
+        "deep": "#1f1714",
+        "leafDensity": 0.45,
+        "snow": 0
+      },
+      "weather": {
+        "rain": 3,
+        "fog": 3,
+        "clear": 2
+      }
+    },
+    {
+      "id": "winter",
+      "name": "Hiver",
+      "motto": "Survivre",
+      "rules": {
+        "sugarProduction": 0,
+        "mineralTrade": 0,
+        "tradeRatio": 0,
+        "growthSpeed": 0.25,
+        "growthCost": 2,
+        "upkeep": 0.1,
+        "fruiting": 0,
+        "frost": 4,
+        "frozenSurface": true,
+        "litter": 0
+      },
+      "palette": {
+        "sky": "#2a2f45",
+        "leaf": "#8a7a62",
+        "leafAlt": "#6a5d4c",
+        "trunk": "#362a26",
+        "surface": "#5a4f52",
+        "humus": "#2f2622",
+        "deep": "#1d1613",
+        "leafDensity": 0,
+        "snow": 1
+      },
+      "weather": {
+        "snow": 4,
+        "clear": 2,
+        "fog": 1
+      }
+    }
+  ],
+  "weather": {
+    "clear": {
+      "name": "Éclaircie",
+      "moisture": 0.45,
+      "minTicks": 900,
+      "maxTicks": 2400,
+      "precipitation": "none"
+    },
+    "rain": {
+      "name": "Pluie",
+      "moisture": 1,
+      "minTicks": 600,
+      "maxTicks": 1800,
+      "precipitation": "rain",
+      "skyTint": "#30384a",
+      "tintStrength": 0.5
+    },
+    "heat": {
+      "name": "Canicule",
+      "moisture": 0.05,
+      "minTicks": 900,
+      "maxTicks": 2400,
+      "precipitation": "none",
+      "skyTint": "#c8743a",
+      "tintStrength": 0.35
+    },
+    "fog": {
+      "name": "Brume",
+      "moisture": 0.7,
+      "minTicks": 600,
+      "maxTicks": 1500,
+      "precipitation": "fog",
+      "skyTint": "#8a8a96",
+      "tintStrength": 0.4
+    },
+    "snow": {
+      "name": "Neige",
+      "moisture": 0.3,
+      "minTicks": 900,
+      "maxTicks": 2400,
+      "precipitation": "snow",
+      "skyTint": "#9aa0b4",
+      "tintStrength": 0.3
+    }
+  },
+  "memory": {
+    "perSeason": 1,
+    "perSegment": 0.05,
+    "perSpore": 0.2,
+    "decayReduction": 0.02
+  }
+}

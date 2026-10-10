@@ -1,15 +1,20 @@
 import eventsJson from './events.json';
 import forestsJson from './forests.json';
 import networkJson from './network.json';
+import seasonsJson from './seasons.json';
+import soilJson from './soil.json';
 import speciesJson from './species.json';
-import type { EventDef, ForestDef, NetworkDef, SpeciesDef } from './types';
-import { FLUX_IDS, NODE_KINDS, RESOURCE_IDS, THICKNESS_IDS } from './types';
+import type { EventDef, ForestDef, NetworkDef, SeasonsDef, SoilDef, SpeciesDef } from './types';
+import { FLUX_IDS, LAYERS, NODE_KINDS, RESOURCE_IDS, THICKNESS_IDS } from './types';
+import { hexToInt } from '../ui/color';
 
 export interface GameData {
   species: ReadonlyMap<string, SpeciesDef>;
   events: ReadonlyMap<string, EventDef>;
   forests: ReadonlyMap<string, ForestDef>;
   network: NetworkDef;
+  seasons: SeasonsDef;
+  soil: SoilDef;
 }
 
 function indexById<T extends { id: string }>(items: T[], kind: string): Map<string, T> {
@@ -30,6 +35,8 @@ export function buildGameData(raw: {
   events: EventDef[];
   forests: ForestDef[];
   network: NetworkDef;
+  seasons: SeasonsDef;
+  soil: SoilDef;
 }): GameData {
   const species = indexById(raw.species, 'Espèce');
   const events = indexById(raw.events, 'Événement');
@@ -55,7 +62,9 @@ export function buildGameData(raw: {
     }
   }
   validateNetwork(raw.network);
-  return { species, events, forests, network: raw.network };
+  validateSeasons(raw.seasons);
+  validateSoil(raw.soil);
+  return { species, events, forests, network: raw.network, seasons: raw.seasons, soil: raw.soil };
 }
 
 function inRange(value: number, min: number, max: number, label: string): void {
@@ -85,10 +94,50 @@ export function validateNetwork(net: NetworkDef): void {
   inRange(net.buildRate, 0.001, 1e6, 'buildRate');
 }
 
+/** Vérifie le cycle des saisons : règles cohérentes, couleurs valides, météos existantes. */
+export function validateSeasons(def: SeasonsDef): void {
+  if (def.seasons.length === 0) throw new Error('Saisons : aucune saison définie');
+  if (!(def.seasonLengthTicks >= 1)) throw new Error('Saisons : seasonLengthTicks doit être ≥ 1');
+  if (!(def.paletteBlend > 0 && def.paletteBlend <= 1)) throw new Error('Saisons : paletteBlend hors de ]0, 1]');
+  for (const [id, w] of Object.entries(def.weather)) {
+    if (!(w.moisture >= 0 && w.moisture <= 1)) throw new Error(`Météo "${id}" : humidité hors de [0, 1]`);
+    if (!(w.minTicks >= 1 && w.maxTicks >= w.minTicks)) throw new Error(`Météo "${id}" : durées invalides`);
+    if (w.skyTint) hexToInt(w.skyTint);
+  }
+  for (const season of def.seasons) {
+    const label = `Saison "${season.id}"`;
+    for (const [key, value] of Object.entries(season.rules)) {
+      if (typeof value === 'number' && value < 0) throw new Error(`${label} : ${key} négatif`);
+    }
+    for (const [key, value] of Object.entries(season.palette)) {
+      if (typeof value === 'string') hexToInt(value);
+      else if (!(value >= 0 && value <= 1)) throw new Error(`${label} : palette.${key} hors de [0, 1]`);
+    }
+    const weights = Object.entries(season.weather);
+    if (!weights.some(([, w]) => w > 0)) throw new Error(`${label} : aucune météo possible`);
+    for (const [id] of weights) {
+      if (!def.weather[id]) throw new Error(`${label} : météo inconnue "${id}"`);
+    }
+  }
+}
+
+export function validateSoil(soil: SoilDef): void {
+  for (const layer of LAYERS) {
+    inRange(soil.layerWater[layer] ?? NaN, 0, 10, `soil.layerWater.${layer}`);
+    inRange(soil.layerBuffer[layer] ?? NaN, 0, 1, `soil.layerBuffer.${layer}`);
+  }
+  inRange(soil.moistureRate, 0, 1, 'soil.moistureRate');
+  inRange(soil.waterRate, 0, 1e3, 'soil.waterRate');
+  inRange(soil.mineralRate, 0, 1e3, 'soil.mineralRate');
+}
+
 /** Données du jeu, chargées depuis les fichiers JSON de src/data. */
 export const gameData: GameData = buildGameData({
   species: speciesJson as SpeciesDef[],
   events: eventsJson as EventDef[],
   forests: forestsJson as ForestDef[],
   network: networkJson as NetworkDef,
+  // Les objets de météo ont des clés différentes selon la saison : TypeScript exige un passage par unknown.
+  seasons: seasonsJson as unknown as SeasonsDef,
+  soil: soilJson as SoilDef,
 });

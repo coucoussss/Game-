@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { TILE } from '../config';
 import type { NetworkDef } from '../data/types';
 import { Network } from '../entities/Network';
-import { grow, removeDead, stepNetwork, transport, updateNodes, upkeep } from './FlowSystem';
+import { NEUTRAL_MODIFIERS, grow, removeDead, stepNetwork, transport, updateNodes, upkeep } from './FlowSystem';
 
 /** Paramètres fixes, indépendants du réglage de network.json. */
 function defs(): NetworkDef {
@@ -12,12 +12,13 @@ function defs(): NetworkDef {
     conductance,
     growthSpeed,
     growthCost: 1,
+    growthMinerals: 0,
     upkeep: { sugar: 0.1, water: 0.1 },
     decay,
     regen: 0.05,
   });
   return {
-    flux: { sugar: { mobility: 0.5 }, water: { mobility: 0.5 }, signal: { mobility: 0.9 } },
+    flux: { sugar: { mobility: 0.5 }, water: { mobility: 0.5 }, minerals: { mobility: 0.5 }, signal: { mobility: 0.9 } },
     thickness: {
       thin: thickness(0.3, 0.2, 1),
       medium: thickness(0.6, 0.1, 0.5),
@@ -48,7 +49,7 @@ function pair(thickness: 'thin' | 'medium' | 'thick' = 'medium') {
 /** Comme pair(), sans aucune réserve aux extrémités. */
 function starvedPair(thickness: 'thin' | 'medium' | 'thick' = 'medium') {
   const p = pair(thickness);
-  p.a.stock = { sugar: 0, water: 0, signal: 0 };
+  p.a.stock = { sugar: 0, water: 0, minerals: 0, signal: 0 };
   return p;
 }
 
@@ -308,6 +309,88 @@ describe('nœuds', () => {
     expect(node.stock.signal).toBeCloseTo(4.75); // pas encore de réémission
     updateNodes(net, defs()); // il ne reste que 1 de sucre
     expect(node.build).toBeCloseTo(0.75);
+  });
+});
+
+describe('modificateurs de saison', () => {
+  const mods = (overrides: Partial<typeof NEUTRAL_MODIFIERS>) => ({ ...NEUTRAL_MODIFIERS, ...overrides });
+
+  it('sans production (hiver), le cœur ne crée plus de sucre', () => {
+    const net = new Network();
+    const heart = net.addNode('heart', 0, 0);
+    updateNodes(net, defs(), mods({ sugarProduction: 0 }));
+    expect(heart.stock.sugar).toBe(0);
+  });
+
+  it('le cœur échange des minéraux contre du sucre avec les arbres', () => {
+    const net = new Network();
+    const heart = net.addNode('heart', 0, 0, { minerals: 1 });
+    updateNodes(net, defs(), mods({ sugarProduction: 0, mineralTrade: 0.4, tradeRatio: 5 }));
+    expect(heart.stock.minerals).toBeCloseTo(0.6);
+    expect(heart.stock.sugar).toBeCloseTo(2);
+  });
+
+  it('pas d\'échange sans minéraux', () => {
+    const net = new Network();
+    const heart = net.addNode('heart', 0, 0);
+    updateNodes(net, defs(), mods({ sugarProduction: 0, mineralTrade: 0.4, tradeRatio: 5 }));
+    expect(heart.stock.sugar).toBe(0);
+  });
+
+  it('la pousse accélère au printemps et coûte moins', () => {
+    const growth = (m: typeof NEUTRAL_MODIFIERS) => {
+      const net = new Network();
+      const a = net.addNode('storage', 0, 0, { sugar: 50 });
+      const b = net.addNode('junction', 4 * TILE, 0);
+      const seg = net.addSegment(a.id, b.id, 'thick')!;
+      grow(net, defs(), m);
+      return { growth: seg.growth, spent: 50 - a.stock.sugar };
+    };
+    const normal = growth(NEUTRAL_MODIFIERS);
+    const spring = growth(mods({ growthSpeed: 2, growthCost: 0.5 }));
+    expect(spring.growth).toBeCloseTo(normal.growth * 2);
+    expect(spring.spent).toBeCloseTo(normal.spent); // deux fois plus de pousse pour le même prix
+  });
+
+  it('un filament qui exige des minéraux cale sans eux', () => {
+    const d = defs();
+    d.thickness.thick.growthMinerals = 1;
+    const net = new Network();
+    const a = net.addNode('storage', 0, 0, { sugar: 50 });
+    const b = net.addNode('junction', 4 * TILE, 0);
+    const seg = net.addSegment(a.id, b.id, 'thick')!;
+    grow(net, d);
+    expect(seg.growth).toBe(0);
+    a.stock.minerals = 10;
+    grow(net, d);
+    expect(seg.growth).toBeGreaterThan(0);
+    expect(a.stock.minerals).toBeLessThan(10);
+  });
+
+  it('l\'entretien réduit de l\'hiver épargne les réserves', () => {
+    const spent = (upkeepMul: number) => {
+      const { net, a } = pair();
+      upkeep(net, defs(), mods({ upkeep: upkeepMul }));
+      return 80 - a.stock.sugar;
+    };
+    expect(spent(0.1)).toBeCloseTo(spent(1) / 10);
+  });
+
+  it('pas de fructification hors saison', () => {
+    const net = new Network();
+    const hive = net.addNode('fruiting', 0, 0, { sugar: 10, water: 10, signal: 10 });
+    for (let i = 0; i < 10; i++) updateNodes(net, defs(), mods({ fruiting: 0 }));
+    expect(net.spores).toBe(0);
+    expect(hive.stock.sugar).toBe(10);
+  });
+
+  it('la mémoire ralentit le dépérissement', () => {
+    const health = (decay: number) => {
+      const { net, seg } = starvedPair();
+      upkeep(net, defs(), mods({ decay }));
+      return seg.health;
+    };
+    expect(health(0.5)).toBeGreaterThan(health(1));
   });
 });
 

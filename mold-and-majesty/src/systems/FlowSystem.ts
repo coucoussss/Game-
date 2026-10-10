@@ -18,7 +18,37 @@ import type { NetNode, NetSegment, Network } from '../entities/Network';
  *
  * Ordre d'un tick : nœuds (production, signal, ruches, conversion) → transport
  * → entretien et santé des segments → pousse → nettoyage des morts.
+ *
+ * La saison et la mémoire agissent via des `FlowModifiers` (multiplicateurs) ; le sol
+ * (absorption, gel) est géré à part, dans SoilSystem.
  */
+
+/** Multiplicateurs appliqués à la simulation (saison, mémoire). */
+export interface FlowModifiers {
+  sugarProduction: number;
+  /** Minéraux échangés aux arbres par le cœur, par tick. */
+  mineralTrade: number;
+  /** Sucre rendu par minéral échangé. */
+  tradeRatio: number;
+  growthSpeed: number;
+  growthCost: number;
+  upkeep: number;
+  fruiting: number;
+  /** Multiplicateur du dépérissement (la mémoire le réduit). */
+  decay: number;
+}
+
+/** Aucune modification : les valeurs de network.json s'appliquent telles quelles. */
+export const NEUTRAL_MODIFIERS: Readonly<FlowModifiers> = {
+  sugarProduction: 1,
+  mineralTrade: 0,
+  tradeRatio: 0,
+  growthSpeed: 1,
+  growthCost: 1,
+  upkeep: 1,
+  fruiting: 1,
+  decay: 1,
+};
 
 /** Un nœud est-il opérationnel (conversion terminée) ? */
 const isBuilt = (n: NetNode) => n.build >= 1;
@@ -30,16 +60,19 @@ export function capacityOf(node: NetNode, defs: NetworkDef): number {
 }
 
 /** Avance la simulation d'un tick. */
-export function stepNetwork(net: Network, defs: NetworkDef): void {
-  updateNodes(net, defs);
+export function stepNetwork(net: Network, defs: NetworkDef, mods: FlowModifiers = NEUTRAL_MODIFIERS): void {
+  updateNodes(net, defs, mods);
   transport(net, defs);
-  upkeep(net, defs);
-  grow(net, defs);
+  upkeep(net, defs, mods);
+  grow(net, defs, mods);
   removeDead(net);
 }
 
-/** Production du cœur, atténuation et relais du signal, fructification, conversion des nœuds. */
-export function updateNodes(net: Network, defs: NetworkDef): void {
+/**
+ * Production du cœur et échange minéraux → sucre avec les arbres, atténuation et relais
+ * du signal, fructification, conversion des nœuds.
+ */
+export function updateNodes(net: Network, defs: NetworkDef, mods: FlowModifiers = NEUTRAL_MODIFIERS): void {
   const { signal, fruiting } = defs;
   for (const node of net.nodes.values()) {
     const cap = capacityOf(node, defs);
@@ -53,8 +86,11 @@ export function updateNodes(net: Network, defs: NetworkDef): void {
       node.build = cost > 0 ? Math.min(1, node.build + spent / cost) : 1;
     } else if (node.kind === 'heart') {
       const prod = defs.nodes.heart.production ?? {};
-      s.sugar += prod.sugar ?? 0;
+      s.sugar += (prod.sugar ?? 0) * mods.sugarProduction;
       s.water += prod.water ?? 0;
+      const traded = Math.min(s.minerals, mods.mineralTrade);
+      s.minerals -= traded;
+      s.sugar += traded * mods.tradeRatio;
       s.signal = cap;
     } else if (node.kind === 'relay') {
       if (s.signal >= signal.relayThreshold * cap && s.sugar >= signal.relayCost) {
@@ -62,10 +98,11 @@ export function updateNodes(net: Network, defs: NetworkDef): void {
         s.signal = Math.max(s.signal, signal.relayStrength * cap);
       }
     } else if (node.kind === 'fruiting') {
-      if (s.signal >= fruiting.signalThreshold * cap && s.sugar >= fruiting.sugar && s.water >= fruiting.water) {
+      const ready = s.signal >= fruiting.signalThreshold * cap && s.sugar >= fruiting.sugar && s.water >= fruiting.water;
+      if (ready && mods.fruiting > 0) {
         s.sugar -= fruiting.sugar;
         s.water -= fruiting.water;
-        node.fruiting += fruiting.rate;
+        node.fruiting += fruiting.rate * mods.fruiting;
         if (node.fruiting >= 1) {
           node.fruiting -= 1;
           net.spores += 1;
@@ -123,7 +160,7 @@ function transportFlux(net: Network, defs: NetworkDef, flux: FluxId): void {
  * Un nœud qui ne peut pas tout fournir rationne équitablement tous ses segments.
  * Couvert : le segment regagne de la santé. Sinon il en perd, à proportion du manque.
  */
-export function upkeep(net: Network, defs: NetworkDef): void {
+export function upkeep(net: Network, defs: NetworkDef, mods: FlowModifiers = NEUTRAL_MODIFIERS): void {
   type Resource = 'sugar' | 'water';
   const resources: readonly Resource[] = ['sugar', 'water'];
   /** Demande totale adressée à chaque nœud, par ressource. */
@@ -134,7 +171,7 @@ export function upkeep(net: Network, defs: NetworkDef): void {
   for (const seg of net.segments.values()) {
     if (!isActive(seg)) continue;
     const up = defs.thickness[seg.thickness].upkeep;
-    const tiles = lengthInTiles(seg);
+    const tiles = lengthInTiles(seg) * mods.upkeep;
     const a = net.nodes.get(seg.a)!.stock;
     const b = net.nodes.get(seg.b)!.stock;
     const need = { sugar: up.sugar * tiles, water: up.water * tiles };
@@ -171,21 +208,29 @@ export function upkeep(net: Network, defs: NetworkDef): void {
     const t = defs.thickness[seg.thickness];
     seg.health = satisfaction >= 1 - 1e-9
       ? Math.min(1, seg.health + t.regen)
-      : seg.health - t.decay * (1 - satisfaction);
+      : seg.health - t.decay * mods.decay * (1 - satisfaction);
   }
 }
 
-/** Les segments en pousse avancent en puisant du sucre dans leur nœud d'origine. */
-export function grow(net: Network, defs: NetworkDef): void {
+/** Les segments en pousse avancent en puisant sucre et minéraux dans leur nœud d'origine. */
+export function grow(net: Network, defs: NetworkDef, mods: FlowModifiers = NEUTRAL_MODIFIERS): void {
   for (const seg of net.segments.values()) {
     if (isActive(seg)) continue;
     const t = defs.thickness[seg.thickness];
-    const origin = net.nodes.get(seg.a)!;
-    const step = Math.min(1 - seg.growth, t.growthSpeed / lengthInTiles(seg));
-    const cost = step * lengthInTiles(seg) * t.growthCost;
-    const paid = Math.min(cost, origin.stock.sugar);
-    origin.stock.sugar -= paid;
-    seg.growth = cost > 0 ? seg.growth + step * (paid / cost) : 1;
+    const origin = net.nodes.get(seg.a)!.stock;
+    const tiles = lengthInTiles(seg);
+    const step = Math.min(1 - seg.growth, (t.growthSpeed * mods.growthSpeed) / tiles);
+    const sugarCost = step * tiles * t.growthCost * mods.growthCost;
+    const mineralCost = step * tiles * t.growthMinerals * mods.growthCost;
+    // La pousse avance au rythme de la ressource la plus rare.
+    const ratio = Math.min(
+      sugarCost > 0 ? origin.sugar / sugarCost : 1,
+      mineralCost > 0 ? origin.minerals / mineralCost : 1,
+      1,
+    );
+    origin.sugar = Math.max(0, origin.sugar - sugarCost * ratio);
+    origin.minerals = Math.max(0, origin.minerals - mineralCost * ratio);
+    seg.growth += step * ratio;
     if (seg.growth > 1 - 1e-9) seg.growth = 1;
   }
 }

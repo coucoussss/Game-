@@ -5,7 +5,7 @@ export const NATIVE_HEIGHT = 216;
 /** Clé localStorage de la sauvegarde. */
 export const SAVE_KEY = 'mold-and-majesty/save';
 /** Version du format de sauvegarde ; à incrémenter à chaque changement incompatible. */
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 /** Taille d'une tuile, en pixels. */
 export const TILE = 8;

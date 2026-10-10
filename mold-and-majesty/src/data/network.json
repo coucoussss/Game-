@@ -1,8 +1,17 @@
 {
   "flux": {
-    "sugar": { "mobility": 0.5 },
-    "water": { "mobility": 0.8 },
-    "signal": { "mobility": 0.9 }
+    "sugar": {
+      "mobility": 0.5
+    },
+    "water": {
+      "mobility": 0.8
+    },
+    "minerals": {
+      "mobility": 0.4
+    },
+    "signal": {
+      "mobility": 0.9
+    }
   },
   "thickness": {
     "thin": {
@@ -11,9 +20,13 @@
       "conductance": 0.35,
       "growthSpeed": 0.5,
       "growthCost": 1,
-      "upkeep": { "sugar": 0.008, "water": 0.004 },
-      "decay": 0.01,
-      "regen": 0.02
+      "growthMinerals": 0,
+      "upkeep": {
+        "sugar": 0.008,
+        "water": 0.002
+      },
+      "decay": 0.002,
+      "regen": 0.005
     },
     "medium": {
       "name": "Moyen",
@@ -21,9 +34,13 @@
       "conductance": 0.65,
       "growthSpeed": 0.25,
       "growthCost": 2,
-      "upkeep": { "sugar": 0.015, "water": 0.008 },
-      "decay": 0.005,
-      "regen": 0.02
+      "growthMinerals": 0.1,
+      "upkeep": {
+        "sugar": 0.015,
+        "water": 0.004
+      },
+      "decay": 0.001,
+      "regen": 0.005
     },
     "thick": {
       "name": "Épais",
@@ -31,17 +48,44 @@
       "conductance": 1,
       "growthSpeed": 0.1,
       "growthCost": 4,
-      "upkeep": { "sugar": 0.025, "water": 0.012 },
-      "decay": 0.002,
-      "regen": 0.02
+      "growthMinerals": 0.3,
+      "upkeep": {
+        "sugar": 0.025,
+        "water": 0.006
+      },
+      "decay": 0.0004,
+      "regen": 0.005
     }
   },
   "nodes": {
-    "heart": { "name": "Cœur", "capacity": 300, "cost": 0, "production": { "sugar": 1.5, "water": 1.5 } },
-    "junction": { "name": "Jonction", "capacity": 40, "cost": 0 },
-    "storage": { "name": "Réserve", "capacity": 300, "cost": 30 },
-    "relay": { "name": "Relais", "capacity": 50, "cost": 20 },
-    "fruiting": { "name": "Ruche", "capacity": 60, "cost": 40 }
+    "heart": {
+      "name": "Cœur",
+      "capacity": 300,
+      "cost": 0,
+      "production": {
+        "sugar": 1.0
+      }
+    },
+    "junction": {
+      "name": "Jonction",
+      "capacity": 40,
+      "cost": 0
+    },
+    "storage": {
+      "name": "Réserve",
+      "capacity": 300,
+      "cost": 30
+    },
+    "relay": {
+      "name": "Relais",
+      "capacity": 50,
+      "cost": 20
+    },
+    "fruiting": {
+      "name": "Ruche",
+      "capacity": 60,
+      "cost": 40
+    }
   },
   "signal": {
     "decay": 0.01,
@@ -51,9 +95,9 @@
   },
   "fruiting": {
     "signalThreshold": 0.15,
-    "sugar": 0.3,
-    "water": 0.3,
-    "rate": 0.01
+    "sugar": 0.05,
+    "water": 0.03,
+    "rate": 0.0015
   },
   "buildRate": 0.5
 }

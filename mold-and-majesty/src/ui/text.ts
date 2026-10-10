@@ -15,5 +15,6 @@ export const PALETTE = {
   panelActive: 0x5b4636,
   sugar: 0xf2c46d,
   water: 0x6fb3d8,
+  minerals: 0x9fd6c2,
   signal: 0xc58fe0,
 } as const;
