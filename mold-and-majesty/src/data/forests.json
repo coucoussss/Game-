@@ -2,8 +2,18 @@
   {
     "id": "whispering-grove",
     "name": "Bosquet des Murmures",
-    "description": "Une forêt de chênes paisible, idéale pour une première colonie.",
-    "widthTiles": 96,
+    "description": "Une forêt de chênes paisible, où tout commence.",
+    "biome": "temperate",
+    "rules": {
+      "summary": "Aucune : apprends à respirer avec la forêt."
+    },
+    "goal": {
+      "reach": 70
+    },
+    "rivals": [
+      "verdigris"
+    ],
+    "widthTiles": 72,
     "layers": {
       "surface": 4,
       "humus": 8,
@@ -47,6 +57,484 @@
       "fire",
       "cold-snap",
       "fallen-oak"
-    ]
+    ],
+    "memory": "golden-age"
+  },
+  {
+    "id": "mist-marsh",
+    "name": "Marais des Brumes",
+    "description": "Une tourbière noyée de brume, où l'eau ne se retire jamais.",
+    "biome": "marsh",
+    "rules": {
+      "summary": "Une nappe d'eau noie le fond du sol ; l'humidité ne manque jamais, les parasites pullulent.",
+      "waterTable": 0.4,
+      "minMoisture": 0.65,
+      "parasiteChance": 2.5,
+      "eventWeights": {
+        "flood": 2,
+        "drought": 0.1,
+        "fire": 0.1
+      }
+    },
+    "goal": {
+      "reach": 90
+    },
+    "rivals": [
+      "verdigris"
+    ],
+    "widthTiles": 72,
+    "layers": {
+      "surface": 4,
+      "humus": 8,
+      "deep": 10
+    },
+    "startingResources": {
+      "sugar": 120,
+      "water": 120,
+      "minerals": 40,
+      "memory": 0,
+      "spores": 0
+    },
+    "deposits": {
+      "surface": {
+        "count": 4,
+        "amount": 30
+      },
+      "humus": {
+        "count": 12,
+        "amount": 70
+      },
+      "deep": {
+        "count": 6,
+        "amount": 100
+      }
+    },
+    "allies": {
+      "tree": 4,
+      "ant": 1,
+      "worm": 5,
+      "beetle": 3
+    },
+    "species": [
+      "puffball",
+      "chanterelle",
+      "deep-truffle"
+    ],
+    "events": [
+      "flood",
+      "cold-snap",
+      "fallen-oak",
+      "drought"
+    ],
+    "memory": "endless-rain"
+  },
+  {
+    "id": "burnt-pinewood",
+    "name": "Pinède brûlée",
+    "description": "Des pins calcinés au-dessus de cendres riches. Le feu revient souvent.",
+    "biome": "burnt",
+    "rules": {
+      "summary": "La plupart des arbres ont brûlé ; les cendres sont riches mais le feu rôde.",
+      "burntTrees": 0.6,
+      "eventWeights": {
+        "fire": 3,
+        "drought": 1.5
+      },
+      "eventChance": 1.3
+    },
+    "goal": {
+      "reach": 100
+    },
+    "rivals": [
+      "verdigris",
+      "black-rot"
+    ],
+    "widthTiles": 72,
+    "layers": {
+      "surface": 4,
+      "humus": 8,
+      "deep": 10
+    },
+    "startingResources": {
+      "sugar": 120,
+      "water": 120,
+      "minerals": 40,
+      "memory": 0,
+      "spores": 0
+    },
+    "deposits": {
+      "surface": {
+        "count": 10,
+        "amount": 60
+      },
+      "humus": {
+        "count": 8,
+        "amount": 60
+      },
+      "deep": {
+        "count": 8,
+        "amount": 100
+      }
+    },
+    "allies": {
+      "tree": 5,
+      "ant": 4,
+      "worm": 2,
+      "beetle": 2
+    },
+    "species": [
+      "puffball",
+      "chanterelle",
+      "deep-truffle"
+    ],
+    "events": [
+      "fire",
+      "drought",
+      "fallen-oak",
+      "cold-snap"
+    ],
+    "memory": "the-fire"
+  },
+  {
+    "id": "frost-wood",
+    "name": "Forêt de givre",
+    "description": "Des sapins sous la glace. L'hiver y dure deux fois plus longtemps.",
+    "biome": "ice",
+    "rules": {
+      "summary": "Hiver doublé, été écourté ; la surface gèle aussi au printemps et en automne.",
+      "seasonLength": {
+        "winter": 2,
+        "summer": 0.5
+      },
+      "frozenSeasons": [
+        "spring",
+        "autumn"
+      ],
+      "frost": 1.2,
+      "eventWeights": {
+        "cold-snap": 2,
+        "fire": 0
+      }
+    },
+    "goal": {
+      "reach": 110
+    },
+    "rivals": [
+      "black-rot"
+    ],
+    "widthTiles": 72,
+    "layers": {
+      "surface": 4,
+      "humus": 8,
+      "deep": 10
+    },
+    "startingResources": {
+      "sugar": 200,
+      "water": 120,
+      "minerals": 60,
+      "memory": 0,
+      "spores": 0
+    },
+    "deposits": {
+      "surface": {
+        "count": 4,
+        "amount": 30
+      },
+      "humus": {
+        "count": 8,
+        "amount": 60
+      },
+      "deep": {
+        "count": 14,
+        "amount": 140
+      }
+    },
+    "allies": {
+      "tree": 4,
+      "ant": 1,
+      "worm": 3,
+      "beetle": 1
+    },
+    "species": [
+      "puffball",
+      "chanterelle",
+      "deep-truffle"
+    ],
+    "events": [
+      "cold-snap",
+      "fallen-oak",
+      "flood"
+    ],
+    "memory": "long-winter"
+  },
+  {
+    "id": "green-jungle",
+    "name": "Jungle verte",
+    "description": "Chaleur, pluie, profusion. Ici, l'hiver n'existe pas, et les rivaux non plus ne dorment jamais.",
+    "biome": "jungle",
+    "rules": {
+      "summary": "Pas d'hiver ; les moisissures rivales apparaissent et grandissent deux fois plus vite.",
+      "seasonLength": {
+        "winter": 0,
+        "spring": 0.8,
+        "summer": 1.3
+      },
+      "minMoisture": 0.5,
+      "rivalChance": 2.5,
+      "rivalGrowth": 1.8,
+      "eventWeights": {
+        "flood": 1.5,
+        "drought": 0.5
+      }
+    },
+    "goal": {
+      "reach": 120
+    },
+    "rivals": [
+      "verdigris",
+      "black-rot"
+    ],
+    "widthTiles": 72,
+    "layers": {
+      "surface": 4,
+      "humus": 8,
+      "deep": 10
+    },
+    "startingResources": {
+      "sugar": 120,
+      "water": 120,
+      "minerals": 40,
+      "memory": 0,
+      "spores": 0
+    },
+    "deposits": {
+      "surface": {
+        "count": 6,
+        "amount": 30
+      },
+      "humus": {
+        "count": 10,
+        "amount": 60
+      },
+      "deep": {
+        "count": 10,
+        "amount": 120
+      }
+    },
+    "allies": {
+      "tree": 6,
+      "ant": 4,
+      "worm": 4,
+      "beetle": 4
+    },
+    "species": [
+      "puffball",
+      "chanterelle",
+      "deep-truffle"
+    ],
+    "events": [
+      "flood",
+      "drought",
+      "fire",
+      "fallen-oak"
+    ],
+    "memory": "green-stranger"
+  },
+  {
+    "id": "human-ruins",
+    "name": "Ruines humaines",
+    "description": "Sous les racines, du béton et de la ferraille. Les hommes sont partis ; leurs gravats sont restés.",
+    "biome": "ruins",
+    "rules": {
+      "summary": "Des blocs de béton barrent le sol ; la pourriture noire y prospère, les minéraux abondent.",
+      "obstacles": 12,
+      "rivalChance": 1.5
+    },
+    "goal": {
+      "reach": 130
+    },
+    "rivals": [
+      "black-rot"
+    ],
+    "widthTiles": 72,
+    "layers": {
+      "surface": 4,
+      "humus": 8,
+      "deep": 10
+    },
+    "startingResources": {
+      "sugar": 120,
+      "water": 120,
+      "minerals": 40,
+      "memory": 0,
+      "spores": 0
+    },
+    "deposits": {
+      "surface": {
+        "count": 5,
+        "amount": 30
+      },
+      "humus": {
+        "count": 10,
+        "amount": 80
+      },
+      "deep": {
+        "count": 16,
+        "amount": 160
+      }
+    },
+    "allies": {
+      "tree": 3,
+      "ant": 3,
+      "worm": 2,
+      "beetle": 2
+    },
+    "species": [
+      "puffball",
+      "chanterelle",
+      "deep-truffle"
+    ],
+    "events": [
+      "drought",
+      "flood",
+      "fire",
+      "cold-snap"
+    ],
+    "memory": "the-humans"
+  },
+  {
+    "id": "deep-cavern",
+    "name": "Caverne profonde",
+    "description": "Ni ciel ni arbre : seulement la roche, l'eau qui suinte et la lueur du réseau.",
+    "biome": "cave",
+    "rules": {
+      "summary": "Pas d'arbres : seul le cœur produit du sucre (×4). L'obscurité n'est percée que par ta lumière.",
+      "noSky": true,
+      "darkness": 0.8,
+      "heartProduction": 4,
+      "frost": 0,
+      "eventWeights": {
+        "fire": 0,
+        "drought": 0.3,
+        "cold-snap": 0
+      },
+      "minMoisture": 0.4
+    },
+    "goal": {
+      "reach": 140
+    },
+    "rivals": [
+      "black-rot",
+      "verdigris"
+    ],
+    "widthTiles": 72,
+    "layers": {
+      "surface": 4,
+      "humus": 8,
+      "deep": 10
+    },
+    "startingResources": {
+      "sugar": 120,
+      "water": 120,
+      "minerals": 40,
+      "memory": 0,
+      "spores": 0
+    },
+    "deposits": {
+      "surface": {
+        "count": 0,
+        "amount": 0
+      },
+      "humus": {
+        "count": 12,
+        "amount": 60
+      },
+      "deep": {
+        "count": 20,
+        "amount": 120
+      }
+    },
+    "allies": {
+      "tree": 0,
+      "ant": 2,
+      "worm": 4,
+      "beetle": 2
+    },
+    "species": [
+      "puffball",
+      "chanterelle",
+      "deep-truffle"
+    ],
+    "events": [
+      "flood",
+      "drought"
+    ],
+    "memory": "the-exile"
+  },
+  {
+    "id": "mother-tree",
+    "name": "L'Arbre-Mère",
+    "description": "Au cœur de l'ancien royaume, l'Arbre-Mère attend. Toutes les menaces convergent ici.",
+    "biome": "mother",
+    "rules": {
+      "summary": "Un Arbre-Mère géant au centre, prodigue envers qui le nourrit ; toutes les menaces sont présentes et redoublées.",
+      "motherTree": true,
+      "rivalChance": 1.8,
+      "parasiteChance": 1.8,
+      "eventChance": 1.4
+    },
+    "goal": {
+      "reach": 170
+    },
+    "rivals": [
+      "verdigris",
+      "black-rot"
+    ],
+    "widthTiles": 72,
+    "layers": {
+      "surface": 4,
+      "humus": 8,
+      "deep": 10
+    },
+    "startingResources": {
+      "sugar": 120,
+      "water": 120,
+      "minerals": 40,
+      "memory": 0,
+      "spores": 0
+    },
+    "deposits": {
+      "surface": {
+        "count": 6,
+        "amount": 30
+      },
+      "humus": {
+        "count": 10,
+        "amount": 60
+      },
+      "deep": {
+        "count": 14,
+        "amount": 120
+      }
+    },
+    "allies": {
+      "tree": 5,
+      "ant": 4,
+      "worm": 4,
+      "beetle": 3
+    },
+    "species": [
+      "puffball",
+      "chanterelle",
+      "deep-truffle"
+    ],
+    "events": [
+      "drought",
+      "flood",
+      "fire",
+      "cold-snap",
+      "fallen-oak"
+    ],
+    "memory": "the-seed"
   }
 ]

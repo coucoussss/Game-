@@ -27,6 +27,8 @@ export interface RivalContext {
   decay: number;
   emit: Emit;
   nextId: () => number;
+  /** Terrain infranchissable (gravats). */
+  blocked?: (x: number, y: number) => boolean;
 }
 
 /** Bornes de la grille des cellules : tout le sol jouable. */
@@ -88,6 +90,7 @@ function grow(colony: RivalColony, colonies: RivalColony[], ctx: RivalContext, c
   if (gx < b.minGx || gx > b.maxGx || gy < b.minGy || gy > b.maxGy) return;
   const key = cellKey(gx, gy);
   if (colonies.some((c) => c.cells.has(key))) return;
+  if (ctx.blocked?.(cellCenter(gx, ctx.threats.rivals.cellSize), cellCenter(gy, ctx.threats.rivals.cellSize))) return;
   colony.cells.set(key, { gx, gy, hp: kind.hp });
 }
 

@@ -6,12 +6,16 @@ const forest: ForestDef = {
   id: 'f',
   name: 'F',
   description: '',
-  widthTiles: 10,
+  widthTiles: 48,
   layers: { surface: 1, humus: 1, deep: 1 },
   startingResources: { sugar: 0, water: 0, minerals: 0, memory: 0, spores: 0 },
   deposits: { surface: { count: 0, amount: 0 }, humus: { count: 0, amount: 0 }, deep: { count: 0, amount: 0 } },
   allies: { tree: 0, ant: 0, worm: 0, beetle: 0 },
   species: ['ghost'],
+  biome: 'temperate',
+  rules: { summary: 'test' },
+  goal: { reach: 10 },
+  rivals: ['verdigris'],
   events: [],
 };
 
@@ -28,6 +32,7 @@ function raw() {
     threats: gameData.threats,
     sporulation: gameData.sporulation,
     skills: gameData.skills,
+    biomes: gameData.biomes,
   };
 }
 
@@ -98,5 +103,18 @@ describe('données du jeu', () => {
     const sporulation = structuredClone(gameData.sporulation);
     sporulation.patterns.push([1, 0, 1]);
     expect(() => buildGameData({ ...raw(), sporulation })).toThrow(/8 croches/);
+  });
+
+  it('la campagne compte 8 forêts, chacune avec sa règle et son objectif', () => {
+    expect(gameData.forests.size).toBe(8);
+    for (const f of gameData.forests.values()) {
+      expect(f.rules.summary.length).toBeGreaterThan(10);
+      expect(f.goal.reach).toBeGreaterThan(0);
+    }
+  });
+
+  it('refuse une forêt sans automne', () => {
+    const bad = { ...forest, species: [], rules: { summary: 'x', seasonLength: { autumn: 0 } } };
+    expect(() => buildGameData({ ...raw(), forests: [bad] })).toThrow(/automne/);
   });
 });

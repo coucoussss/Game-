@@ -28,6 +28,8 @@ export interface Ally {
   /** Arbre : points de ses racines (zone de contact) et hauteur du tronc. */
   roots: { x: number; y: number }[];
   height: number;
+  /** Échelle de l'allié : l'Arbre-Mère vaut plusieurs arbres (échanges multipliés). */
+  size: number;
 }
 
 /** Humeur lisible, dérivée de la confiance : c'est elle que les animations traduisent. */

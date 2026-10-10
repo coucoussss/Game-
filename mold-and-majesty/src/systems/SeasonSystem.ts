@@ -13,17 +13,34 @@ export interface SeasonInfo {
   year: number;
 }
 
-/** Saison correspondant à un tick donné. Les saisons s'enchaînent dans l'ordre de seasons.json. */
+/** Durée de chaque saison, en ticks (0 pour une saison absente de cette forêt). */
+export function seasonLengths(defs: SeasonsDef): number[] {
+  return defs.seasons.map((s) => Math.round(defs.seasonLengthTicks * (s.lengthFactor ?? 1)));
+}
+
+/**
+ * Saison correspondant à un tick donné. Les saisons s'enchaînent dans l'ordre de
+ * seasons.json ; leur durée peut varier selon la forêt, et une saison de durée nulle
+ * est sautée (pas d'hiver dans la jungle).
+ */
 export function seasonAt(tick: number, defs: SeasonsDef): SeasonInfo {
-  const count = defs.seasons.length;
-  const elapsed = Math.floor(tick / defs.seasonLengthTicks);
-  const index = elapsed % count;
+  const lengths = seasonLengths(defs);
+  const yearLength = lengths.reduce((a, b) => a + b, 0);
+  const year = Math.floor(tick / yearLength) + 1;
+  let t = tick % yearLength;
+  let index = 0;
+  while (lengths[index] === 0 || t >= lengths[index]!) {
+    t -= lengths[index]!;
+    index++;
+  }
+  let next = (index + 1) % lengths.length;
+  while (lengths[next] === 0) next = (next + 1) % lengths.length;
   return {
     index,
     def: defs.seasons[index]!,
-    next: defs.seasons[(index + 1) % count]!,
-    progress: (tick % defs.seasonLengthTicks) / defs.seasonLengthTicks,
-    year: Math.floor(elapsed / count) + 1,
+    next: defs.seasons[next]!,
+    progress: t / lengths[index]!,
+    year,
   };
 }
 

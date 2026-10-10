@@ -10,6 +10,8 @@ export interface StrokeOptions {
   snapRadius: number;
   /** Zone constructible (le sous-sol, hors interface). */
   bounds: { minX: number; maxX: number; minY: number; maxY: number };
+  /** Terrain infranchissable (gravats, béton). */
+  blocked?: (x: number, y: number) => boolean;
 }
 
 export function snapToGrid(value: number, grid: number): number {
@@ -59,6 +61,7 @@ export class StrokeBuilder {
         const gy = snapToGrid(ty, grid);
         if (gx < bounds.minX || gx > bounds.maxX || gy < bounds.minY || gy > bounds.maxY) break;
         if (gx === from.x && gy === from.y) break;
+        if (this.options.blocked?.(gx, gy) || this.options.blocked?.((gx + from.x) / 2, (gy + from.y) / 2)) break;
         target = this.net.addNode('junction', gx, gy);
       }
       const segment = this.net.addSegment(from.id, target.id, thickness);

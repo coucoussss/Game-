@@ -70,11 +70,13 @@ export function createAlly(
     contact: null,
     cooldown: 0,
     sulk: 0,
-    lastTrade: -Infinity,
+    // Valeurs finies (et non -Infinity) pour survivre à la sérialisation JSON.
+    lastTrade: -1e9,
     lastGift: null,
-    lastBetrayal: -Infinity,
+    lastBetrayal: -1e9,
     roots: [],
     height: 0,
+    size: 1,
   };
 }
 
@@ -193,8 +195,9 @@ function chooseTarget(ally: Ally, def: AllySpeciesDef, ctx: AllyContext, dormant
  * Applique l'accord : l'allié prend ce qu'il réclame au nœud, donne en proportion de ce
  * qu'il a reçu et de sa confiance, rend son service, puis révise sa confiance.
  */
-export function trade(ally: Ally, def: AllySpeciesDef, node: NetNode, activity: number, ctx: AllyContext): void {
+export function trade(ally: Ally, def: AllySpeciesDef, node: NetNode, baseActivity: number, ctx: AllyContext): void {
   const p = ally.personality;
+  const activity = baseActivity * ally.size;
   let satisfaction = 1;
   for (const [res, amount] of Object.entries(def.deal.wants) as [TradeResource, number][]) {
     const want = amount * (0.5 + p.greed) * activity;

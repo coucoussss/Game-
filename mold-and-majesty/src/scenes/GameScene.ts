@@ -12,6 +12,8 @@ import { AllyView } from './AllyView';
 import { EffectsView } from './EffectsView';
 import { ForestView } from './ForestView';
 import { FruitView } from './FruitView';
+import { type GameStart, profile, saveProfile } from './session';
+import { recordReach } from '../systems/Profile';
 import type { RhythmSceneData } from './RhythmScene';
 import type { SkillSceneData } from './SkillScene';
 import { ThreatView } from './ThreatView';
@@ -61,18 +63,38 @@ export class GameScene extends Phaser.Scene {
   private hintAge = 0;
   private bannerAge = 0;
   private lastSeasonKey = '';
+  private start!: GameStart;
+  /** La forêt a été conquise pendant cette partie. */
+  private conquered = false;
 
   constructor() {
     super('Game');
   }
 
+  init(data: GameStart): void {
+    this.start = data;
+    this.conquered = false;
+    this.lastSeasonKey = '';
+    this.speed = 1;
+    this.overlay = null;
+    this.tool = 'thin';
+  }
+
   create(): void {
     // Paramètres de développement : ?seed=1&speed=60&tick=20000&event=fire&rival=black-rot&parasite&spores=10&memory=20
     const params = new URLSearchParams(window.location.search);
+    const p = profile();
     const seed = Number(params.get('seed')) || Math.floor(Math.random() * 2 ** 31);
     this.speed = Number(params.get('speed')) || 1;
-    this.world = new World(gameData, 'whispering-grove', seed);
-    this.world.tick = Number(params.get('tick')) || 0;
+    if (this.start.snapshot) {
+      this.world = World.restore(gameData, this.start.snapshot);
+    } else {
+      this.world = new World(gameData, this.start.forest, seed, { skills: p.skills, memory: p.memory });
+      this.world.tick = Number(params.get('tick')) || 0;
+    }
+    // Le profil fait foi pour la mémoire et les compétences, partagées entre les forêts.
+    this.world.memory = p.memory;
+    this.world.syncSkills(p.skills);
 
     this.forestView = new ForestView(this, this.world);
     this.threatView = new ThreatView(this, this.world);
@@ -123,6 +145,54 @@ export class GameScene extends Phaser.Scene {
     this.showHint(TOOL_HINTS[this.tool]);
     this.setupPointer();
     this.createCornerButtons();
+
+    // Échap : sauvegarder et revenir au royaume. Sauvegarde aussi quand l'onglet est masqué.
+    this.input.keyboard?.on('keydown-ESC', () => this.leave());
+    const onHidden = () => document.visibilityState === 'hidden' && this.saveRun();
+    document.addEventListener('visibilitychange', onHidden);
+    this.events.once('shutdown', () => document.removeEventListener('visibilitychange', onHidden));
+    this.add
+      .text(NATIVE_WIDTH / 2, 3, this.world.forest.name, { ...TEXT_STYLE, color: '#8a7a70' })
+      .setOrigin(0.5, 0)
+      .setResolution(1)
+      .setDepth(10)
+      .setAlpha(0.7);
+  }
+
+  /** Reporte la mémoire et les compétences dans le profil, et sauvegarde la partie en cours. */
+  private saveRun(): void {
+    const p = profile();
+    p.memory = this.world.memory;
+    p.skills = [...this.world.skills];
+    p.run = { mode: this.start.mode, snapshot: this.world.snapshot() };
+    saveProfile();
+  }
+
+  private leave(): void {
+    if (!this.scene.isActive()) return;
+    this.saveRun();
+    this.scene.start('ForestSelect');
+  }
+
+  /** Une sporée assez puissante conquiert la forêt (campagne) ou ouvre la suivante (infini). */
+  private checkGoal(reach: number): void {
+    const p = profile();
+    const goal = this.world.forest.goal.reach;
+    if (this.start.mode === 'campaign') {
+      const result = recordReach(p, gameData, this.world.forest.id, reach);
+      if (result.conquered && !this.conquered) {
+        this.conquered = true;
+        const next = result.unlocked ? gameData.forests.get(result.unlocked)!.name : null;
+        this.showBanner(next ? `Forêt conquise !\nTes spores atteignent : ${next}` : 'Forêt conquise !\n(Échap : retour au royaume)');
+      }
+    } else if (reach >= goal && !this.conquered) {
+      this.conquered = true;
+      p.endless.depth++;
+      p.endless.best = Math.max(p.endless.best, p.endless.depth);
+      this.showBanner(`Profondeur ${p.endless.depth} franchie !\n(Échap : forêt suivante)`);
+    }
+    if (reach < goal) this.showBanner(`Portée ${reach} m — il en faut ${goal}.\nRéessaie à l'automne prochain.`);
+    this.saveRun();
   }
 
   /**
@@ -195,6 +265,7 @@ export class GameScene extends Phaser.Scene {
         const result = this.world.sporulate(score);
         this.fruitView.sporee(result.reach);
         this.scene.resume();
+        this.checkGoal(result.reach);
       },
     };
     this.scene.launch('Rhythm', data);
@@ -228,6 +299,8 @@ export class GameScene extends Phaser.Scene {
     const season = this.world.season;
     const key = `${season.year}-${season.index}`;
     if (key !== this.lastSeasonKey) {
+      // Sauvegarde automatique à chaque changement de saison.
+      if (this.lastSeasonKey !== '') this.saveRun();
       this.lastSeasonKey = key;
       this.showBanner(`${season.def.name} · an ${season.year}\n${season.def.motto}`);
     }

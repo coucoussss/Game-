@@ -36,11 +36,59 @@ export interface EventsDef {
   events: EventDef[];
 }
 
+/**
+ * Règle spéciale d'une forêt : modificateurs appliqués aux données (saisons, menaces…)
+ * et particularités du terrain. Tous les champs sont optionnels.
+ */
+export interface ForestRules {
+  /** Énoncé de la règle, montré à l'écran de sélection. */
+  summary: string;
+  /** Multiplicateur de durée par saison (0 = la saison n'existe pas ici). */
+  seasonLength?: Record<string, number>;
+  /** Saisons où la surface est gelée, en plus de celles qui le sont déjà. */
+  frozenSeasons?: string[];
+  /** Multiplicateur du gel. */
+  frost?: number;
+  /** Nappe d'eau permanente : part (0..1) du sous-sol (humus et profondeurs) sous l'eau, depuis le bas. */
+  waterTable?: number;
+  /** Humidité minimale du sol (marais, jungle). */
+  minMoisture?: number;
+  /** Multiplicateurs de poids des événements climatiques. */
+  eventWeights?: Record<string, number>;
+  /** Multiplicateur de la fréquence des événements climatiques. */
+  eventChance?: number;
+  /** Multiplicateurs des moisissures (apparition, croissance) et des parasites. */
+  rivalChance?: number;
+  rivalGrowth?: number;
+  parasiteChance?: number;
+  /** Multiplicateur de la production de sucre du cœur. */
+  heartProduction?: number;
+  /** Pas de ciel : caverne (pas de météo visible, pas d'arbres). */
+  noSky?: boolean;
+  /** Obscurité ambiante (0..1), percée par la bioluminescence. */
+  darkness?: number;
+  /** Blocs infranchissables (gravats, béton) semés dans le sol. */
+  obstacles?: number;
+  /** Part des arbres déjà calcinés au départ. */
+  burntTrees?: number;
+  /** Un Arbre-Mère géant se dresse au centre. */
+  motherTree?: boolean;
+}
+
 /** Forêt jouable (carte / niveau). */
 export interface ForestDef {
   id: string;
   name: string;
   description: string;
+  /** Biome : choisit l'ambiance visuelle et sonore. */
+  biome: string;
+  rules: ForestRules;
+  /** Objectif : une sporée qui porte au moins à cette distance, en mètres. */
+  goal: { reach: number };
+  /** Espèces de moisissures rivales présentes. */
+  rivals: string[];
+  /** Souvenir débloqué en entrant dans cette forêt (étape 7). */
+  memory?: string;
   /** Largeur de la coupe, en tuiles de 8 px. */
   widthTiles: number;
   /** Profondeur de chaque couche, en tuiles. */
@@ -185,6 +233,8 @@ export interface WeatherDef {
 export interface SeasonDef {
   id: string;
   name: string;
+  /** Multiplicateur de durée (règle de forêt) ; 0 = saison absente. */
+  lengthFactor?: number;
   /** Ce que la saison demande au joueur (affiché au changement de saison). */
   motto: string;
   rules: SeasonRules;
@@ -426,4 +476,12 @@ export interface SkillDef {
 export interface SkillsDef {
   branches: Record<SkillBranch, string>;
   skills: SkillDef[];
+}
+
+/** Ambiance visuelle d'un biome : teinte mêlée à la palette de saison. */
+export interface BiomeDef {
+  name: string;
+  tint: string;
+  /** Force du mélange (0..1). */
+  strength: number;
 }

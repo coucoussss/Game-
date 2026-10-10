@@ -79,9 +79,10 @@ export class ForestView {
     if (!look) {
       const rng = new Random(tree.id * 7919);
       const leaves: Leaf[] = [];
-      const rx = 13 + rng.int(0, 5);
-      const ry = 11 + rng.int(0, 4);
-      for (let i = 0; i < 360; i++) {
+      const scale = Math.sqrt(tree.size);
+      const rx = Math.round((13 + rng.int(0, 5)) * scale);
+      const ry = Math.round((11 + rng.int(0, 4)) * scale);
+      for (let i = 0; i < 360 * tree.size; i++) {
         const a = rng.next() * Math.PI * 2;
         const r = Math.sqrt(rng.next());
         leaves.push({
@@ -91,7 +92,7 @@ export class ForestView {
           tint: rng.next(),
         });
       }
-      look = { trunkWidth: 5 + rng.int(0, 2), leaves };
+      look = { trunkWidth: tree.size > 1 ? 12 : 5 + rng.int(0, 2), leaves };
       this.looks.set(tree.id, look);
     }
     return look;
@@ -103,9 +104,29 @@ export class ForestView {
 
   private timeMs = 0;
 
+  /** Palette de saison mêlée à la teinte du biome. */
+  private palette(): ResolvedPalette {
+    const p = paletteAt(this.world.season, this.world.data.seasons);
+    const biome = this.world.data.biomes[this.world.forest.biome];
+    if (!biome || biome.strength <= 0) return p;
+    const tint = hexToInt(biome.tint);
+    const k = biome.strength;
+    return {
+      ...p,
+      sky: lerpColor(p.sky, tint, k),
+      leaf: lerpColor(p.leaf, tint, k * 0.6),
+      leafAlt: lerpColor(p.leafAlt, tint, k * 0.6),
+      trunk: lerpColor(p.trunk, tint, k * 0.5),
+      surface: lerpColor(p.surface, tint, k * 0.5),
+      humus: lerpColor(p.humus, tint, k * 0.4),
+      deep: lerpColor(p.deep, tint, k * 0.3),
+    };
+  }
+
   draw(deltaMs: number): void {
     this.timeMs += deltaMs;
-    const p = paletteAt(this.world.season, this.world.data.seasons);
+    const p = this.palette();
+    const cave = this.world.forest.rules.noSky === true;
     const weather = this.world.data.seasons.weather[this.world.weather.id]!;
     let sky = weather.skyTint ? lerpColor(p.sky, hexToInt(weather.skyTint), weather.tintStrength ?? 0) : p.sky;
     // Ciel de braise pendant une sécheresse ou un incendie.
@@ -114,7 +135,8 @@ export class ForestView {
     const g = this.back.clear();
     const width = this.world.widthPx;
 
-    g.fillStyle(sky).fillRect(0, 0, width, GROUND_Y);
+    if (cave) this.drawCaveCeiling(g, p);
+    else g.fillStyle(sky).fillRect(0, 0, width, GROUND_Y);
     this.drawSoil(g, p);
     this.drawDeposits(g);
     this.drawTrees(g, p, this.timeMs);
@@ -124,7 +146,24 @@ export class ForestView {
     if (p.snow > 0) {
       g.fillStyle(SNOW, p.snow).fillRect(0, GROUND_Y - Math.ceil(p.snow * 2), width, Math.ceil(p.snow * 2));
     }
-    this.drawWeather(weather.precipitation, deltaMs);
+    this.drawWeather(cave ? 'none' : weather.precipitation, deltaMs);
+  }
+
+  /** Caverne : voûte rocheuse et stalactites à la place du ciel, gouttes qui suintent. */
+  private drawCaveCeiling(g: Phaser.GameObjects.Graphics, p: ResolvedPalette): void {
+    const width = this.world.widthPx;
+    g.fillStyle(shade(p.deep, 0.7)).fillRect(0, 0, width, GROUND_Y);
+    g.fillStyle(shade(p.deep, 1.2));
+    for (let x = 0; x < width; x += 9) {
+      const h = 6 + ((x * 37) % 23);
+      g.fillRect(x, 0, 5, h).fillRect(x + 1, h, 3, 3).fillRect(x + 2, h + 3, 1, 3);
+    }
+    g.fillStyle(shade(p.deep, 0.9)).fillRect(0, GROUND_Y - 3, width, 3);
+    for (let i = 0; i < 6; i++) {
+      const x = (i * 71 + 13) % width;
+      const y = ((this.timeMs / 12 + i * 40) % (GROUND_Y - 10)) + 10;
+      g.fillStyle(0x6fb3d8, 0.6).fillRect(x + 2, Math.round(y), 1, 2);
+    }
   }
 
   private drawSoil(g: Phaser.GameObjects.Graphics, p: ResolvedPalette): void {

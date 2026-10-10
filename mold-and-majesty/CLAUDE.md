@@ -64,6 +64,8 @@ Le contenu du jeu vit dans des **fichiers JSON séparés du code**, dans `src/da
 - `events.json` : les événements climatiques et leurs probabilités par saison (`EventsDef`)
 - `sporulation.json` : le mini-jeu rythmique de la sporée (tempo, motifs, fenêtres de jugement) et le calcul de la portée (`SporulationDef`)
 - `skills.json` : l'arbre de compétences, avec 3 branches de 4 rangs (`SkillsDef`)
+- `forests.json` : les 8 forêts de la campagne, dans l'ordre, chacune avec son biome, sa règle spéciale (`ForestRules`), son objectif de portée, ses rivaux et son souvenir
+- `biomes.json` : la teinte d'ambiance de chaque biome
 
 Les types sont définis dans `src/data/types.ts`. Au chargement, `src/data/index.ts` indexe les données
 et les **valide** : identifiants uniques, valeurs cohérentes, références croisées. Pour ajouter du
@@ -184,6 +186,28 @@ avec un test.
   par un fil lumineux. Il grandit, luit en automne (halo en mélange additif) et lâche des spores en
   particules ; la sporée déclenche une explosion de spores.
 
+## Campagne et progression (étape 6)
+
+- **8 forêts** (`forests.json`) : tempérée, marais, pinède brûlée, givre, jungle, ruines, caverne,
+  Arbre-Mère. Chaque règle spéciale agit à deux niveaux :
+  - sur les données, via `systems/ForestRules.ts` : durée des saisons (la jungle n'a pas d'hiver),
+    gel, poids des événements, menaces, moisissures autorisées, production du cœur ;
+  - sur le terrain, géré par `World` : nappe d'eau, gravats infranchissables, arbres calcinés,
+    Arbre-Mère géant (`Ally.size`), caverne sans ciel.
+  Ordre d'application : JSON → règle de forêt → compétences.
+- **Objectif** : une sporée qui porte au moins à `goal.reach` mètres. Elle conquiert la forêt et
+  débloque la suivante (`recordReach`).
+- **Génération procédurale** (`systems/ForestGenerator.ts`) : une graine et une profondeur donnent une
+  forêt valide, inspirée d'un biome de la campagne, plus dure à chaque profondeur. C'est le **mode
+  infini** : chaque objectif atteint ouvre la profondeur suivante.
+- **Profil** (`systems/Profile.ts`, sauvegardé en localStorage via `scenes/session.ts`) : forêts ouvertes
+  et conquises, records, banque de mémoire et compétences (partagées entre les forêts), souvenirs vus,
+  progression du mode infini, réglages, et **une** partie en cours (`World.snapshot()` /
+  `World.restore()`, une reprise déterministe). Sauvegarde automatique à chaque saison, à Échap
+  (retour au royaume) et quand l'onglet est masqué.
+- **Écrans** : `ForestSelectScene` (carte du royaume, avec Entrer, Reprendre, Infini, Mémoire).
+  En développement, `?forest=mist-marsh` (ou `?forest=endless-5`) lance directement une forêt.
+
 ## Conventions de code
 
 - Le code et les identifiants sont en **anglais**. Les commentaires, les textes affichés et les messages
@@ -214,7 +238,7 @@ avec un test.
       et menaces (moisissures rivales, parasites, sécheresse, inondation, feu, gel), lisibles par l'animation
 - [x] 5. Fructification d'automne et mini-jeu rythmique (portée des spores), arbre de compétences
       (Racines, Chimie, Spores) payé en mémoire, sorties de champignons avec particules et lueur
-- [ ] 6. Campagne de 8 forêts aux règles spéciales (JSON), génération procédurale depuis une graine,
+- [x] 6. Campagne de 8 forêts aux règles spéciales (JSON), génération procédurale depuis une graine,
       mode infini, écran de sélection, sauvegarde de la progression
 - [ ] 7. Souvenirs : séquences scriptées en JSON (caméra, sprites, musique), 8 scènes sans dialogue
 - [ ] 8. Vrai pixel art (palette limitée), parallaxe, particules, éclairage dynamique, animations,

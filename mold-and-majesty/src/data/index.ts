@@ -1,4 +1,5 @@
 import alliesJson from './allies.json';
+import biomesJson from './biomes.json';
 import eventsJson from './events.json';
 import forestsJson from './forests.json';
 import networkJson from './network.json';
@@ -10,6 +11,7 @@ import sporulationJson from './sporulation.json';
 import threatsJson from './threats.json';
 import type {
   AlliesDef,
+  BiomeDef,
   EventDef,
   EventsDef,
   ForestDef,
@@ -47,6 +49,7 @@ export interface GameData {
   threats: ThreatsDef;
   sporulation: SporulationDef;
   skills: SkillsDef;
+  biomes: Record<string, BiomeDef>;
 }
 
 function indexById<T extends { id: string }>(items: T[], kind: string): Map<string, T> {
@@ -73,6 +76,7 @@ export function buildGameData(raw: {
   threats: ThreatsDef;
   sporulation: SporulationDef;
   skills: SkillsDef;
+  biomes: Record<string, BiomeDef>;
 }): GameData {
   const species = indexById(raw.species, 'Espèce');
   const events = indexById(raw.events.events, 'Événement');
@@ -97,16 +101,13 @@ export function buildGameData(raw: {
     if (!(e.intensity >= 0)) throw new Error(`${label} : intensité négative`);
     checkSeasons(e.seasons, label);
   }
+  for (const [id, b] of Object.entries(raw.biomes)) {
+    hexToInt(b.tint);
+    inRange(b.strength, 0, 1, `biome.${id}.strength`);
+  }
   for (const f of forests.values()) {
-    for (const id of f.species) {
-      if (!species.has(id)) throw new Error(`Forêt "${f.id}" : espèce inconnue "${id}"`);
-    }
-    for (const id of f.events) {
-      if (!events.has(id)) throw new Error(`Forêt "${f.id}" : événement inconnu "${id}"`);
-    }
-    for (const id of ALLY_SPECIES) {
-      if (!(f.allies?.[id] >= 0)) throw new Error(`Forêt "${f.id}" : nombre d'alliés "${id}" invalide`);
-    }
+    validateForest(f, { species, events, seasons: raw.seasons, threats: raw.threats });
+    if (!raw.biomes[f.biome]) throw new Error(`Forêt "${f.id}" : biome inconnu "${f.biome}"`);
   }
   validateNetwork(raw.network);
   validateSeasons(raw.seasons);
@@ -127,6 +128,7 @@ export function buildGameData(raw: {
     threats: raw.threats,
     sporulation: raw.sporulation,
     skills: raw.skills,
+    biomes: raw.biomes,
   };
 }
 
@@ -192,6 +194,38 @@ export function validateSoil(soil: SoilDef): void {
   inRange(soil.moistureRate, 0, 1, 'soil.moistureRate');
   inRange(soil.waterRate, 0, 1e3, 'soil.waterRate');
   inRange(soil.mineralRate, 0, 1e3, 'soil.mineralRate');
+}
+
+/** Vérifie une forêt (du JSON ou générée) : références existantes, règle et objectif cohérents. */
+export function validateForest(
+  f: ForestDef,
+  ctx: { species: ReadonlyMap<string, SpeciesDef>; events: ReadonlyMap<string, EventDef>; seasons: SeasonsDef; threats: ThreatsDef },
+): void {
+  const label = `Forêt "${f.id}"`;
+  for (const id of f.species) if (!ctx.species.has(id)) throw new Error(`${label} : espèce inconnue "${id}"`);
+  for (const id of f.events) if (!ctx.events.has(id)) throw new Error(`${label} : événement inconnu "${id}"`);
+  for (const id of f.rivals) if (!ctx.threats.rivals.kinds[id]) throw new Error(`${label} : moisissure inconnue "${id}"`);
+  if (f.rivals.length === 0) throw new Error(`${label} : au moins une moisissure rivale est requise`);
+  for (const id of ALLY_SPECIES) {
+    if (!(f.allies?.[id] >= 0)) throw new Error(`${label} : nombre d'alliés "${id}" invalide`);
+  }
+  if (!(f.goal?.reach > 0)) throw new Error(`${label} : objectif de portée invalide`);
+  if (!(f.widthTiles >= 48)) throw new Error(`${label} : forêt trop étroite (48 tuiles minimum)`);
+  const r = f.rules;
+  if (!r?.summary) throw new Error(`${label} : règle spéciale sans énoncé`);
+  const seasonIds = new Set(ctx.seasons.seasons.map((s) => s.id));
+  for (const [id, k] of Object.entries(r.seasonLength ?? {})) {
+    if (!seasonIds.has(id)) throw new Error(`${label} : saison inconnue "${id}"`);
+    if (!(k >= 0)) throw new Error(`${label} : durée de saison négative`);
+  }
+  // La sporée a lieu en automne : chaque forêt doit en avoir un.
+  if ((r.seasonLength?.autumn ?? 1) <= 0) throw new Error(`${label} : l'automne ne peut pas être supprimé`);
+  for (const id of r.frozenSeasons ?? []) if (!seasonIds.has(id)) throw new Error(`${label} : saison inconnue "${id}"`);
+  for (const id of Object.keys(r.eventWeights ?? {})) if (!ctx.events.has(id)) throw new Error(`${label} : événement inconnu "${id}"`);
+  for (const key of ['waterTable', 'minMoisture', 'darkness', 'burntTrees'] as const) {
+    const v = r[key];
+    if (v !== undefined) inRange(v, 0, 1, `${f.id}.rules.${key}`);
+  }
 }
 
 type SeasonCheck = (weights: Record<string, number>, label: string) => void;
@@ -281,7 +315,7 @@ export function validateSkills(def: SkillsDef): void {
 export const gameData: GameData = buildGameData({
   species: speciesJson as SpeciesDef[],
   events: eventsJson as unknown as EventsDef,
-  forests: forestsJson as ForestDef[],
+  forests: forestsJson as unknown as ForestDef[],
   network: networkJson as NetworkDef,
   // Les objets de météo ont des clés différentes selon la saison : TypeScript exige un passage par unknown.
   seasons: seasonsJson as unknown as SeasonsDef,
@@ -290,4 +324,5 @@ export const gameData: GameData = buildGameData({
   threats: threatsJson as ThreatsDef,
   sporulation: sporulationJson as SporulationDef,
   skills: skillsJson as unknown as SkillsDef,
+  biomes: biomesJson as Record<string, BiomeDef>,
 });

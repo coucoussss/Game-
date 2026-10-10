@@ -31,6 +31,14 @@ export interface NetSegment {
   growth: number;
 }
 
+/** État sérialisable du réseau. */
+export interface NetworkSnapshot {
+  nodes: NetNode[];
+  segments: NetSegment[];
+  spores: number;
+  nextId: number;
+}
+
 export function emptyStock(): Stock {
   return { sugar: 0, water: 0, minerals: 0, signal: 0 };
 }
@@ -140,6 +148,31 @@ export class Network {
       }
     }
     return best;
+  }
+
+  snapshot(): NetworkSnapshot {
+    return {
+      nodes: structuredClone([...this.nodes.values()]),
+      segments: structuredClone([...this.segments.values()]),
+      spores: this.spores,
+      nextId: this.nextId,
+    };
+  }
+
+  static fromSnapshot(snapshot: NetworkSnapshot): Network {
+    const net = new Network();
+    for (const node of snapshot.nodes) {
+      net.nodes.set(node.id, { ...structuredClone(node), stock: { ...emptyStock(), ...node.stock } });
+      net.adjacency.set(node.id, new Set());
+    }
+    for (const seg of snapshot.segments) {
+      net.segments.set(seg.id, { ...seg });
+      net.adjacency.get(seg.a)?.add(seg.id);
+      net.adjacency.get(seg.b)?.add(seg.id);
+    }
+    net.spores = snapshot.spores;
+    net.nextId = snapshot.nextId;
+    return net;
   }
 
   /** Somme des stocks de tous les nœuds. */

@@ -31,9 +31,32 @@ export class ThreatView {
     this.time += deltaMs;
     const under = this.under.clear();
     const over = this.over.clear();
+    this.drawTerrain(under);
     this.drawRivals(under);
     this.drawParasites(over);
     this.drawClimate(under, over);
+  }
+
+  /** Gravats de béton (ruines) et nappe d'eau permanente (marais). */
+  private drawTerrain(g: Phaser.GameObjects.Graphics): void {
+    for (const o of this.world.obstacles) {
+      g.fillStyle(0x6a6670).fillRect(o.x, o.y, o.w, o.h);
+      g.fillStyle(0x8a8690).fillRect(o.x, o.y, o.w, 1);
+      g.fillStyle(0x4a4650).fillRect(o.x, o.y + o.h - 1, o.w, 1);
+      // Ferraille rouillée qui dépasse.
+      g.fillStyle(0x8a4a2a).fillRect(o.x + Math.floor(o.w / 3), o.y - 2, 1, 3);
+      for (let x = o.x + 2; x < o.x + o.w - 1; x += 5) g.fillStyle(0x5a5660).fillRect(x, o.y + 2, 2, 1);
+    }
+    const level = this.world.waterTableY;
+    if (level !== null) {
+      const width = this.world.widthPx;
+      g.fillStyle(WATER, 0.45).fillRect(0, level, width, NATIVE_HEIGHT - level);
+      g.lineStyle(1, 0x9fc4e8, 0.5);
+      for (let x = 0; x < width; x += 7) {
+        const y = level + Math.round(Math.sin(this.time / 500 + x / 11));
+        g.lineBetween(x, y, x + 3, y);
+      }
+    }
   }
 
   private drawRivals(g: Phaser.GameObjects.Graphics): void {

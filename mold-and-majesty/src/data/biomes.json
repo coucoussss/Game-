@@ -1,0 +1,42 @@
+{
+  "temperate": {
+    "name": "Tempérée",
+    "tint": "#000000",
+    "strength": 0
+  },
+  "marsh": {
+    "name": "Marais",
+    "tint": "#4a6a4a",
+    "strength": 0.25
+  },
+  "burnt": {
+    "name": "Pinède brûlée",
+    "tint": "#3a2a26",
+    "strength": 0.35
+  },
+  "ice": {
+    "name": "Glace",
+    "tint": "#a8c4e0",
+    "strength": 0.3
+  },
+  "jungle": {
+    "name": "Jungle",
+    "tint": "#2f8a4a",
+    "strength": 0.25
+  },
+  "ruins": {
+    "name": "Ruines",
+    "tint": "#6a6670",
+    "strength": 0.3
+  },
+  "cave": {
+    "name": "Caverne",
+    "tint": "#1a1620",
+    "strength": 0.5
+  },
+  "mother": {
+    "name": "Arbre-Mère",
+    "tint": "#8a5ac8",
+    "strength": 0.15
+  }
+}

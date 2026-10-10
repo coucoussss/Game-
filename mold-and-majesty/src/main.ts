@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { NATIVE_HEIGHT, NATIVE_WIDTH } from './config';
 import { BootScene } from './scenes/BootScene';
+import { ForestSelectScene } from './scenes/ForestSelectScene';
 import { GameScene } from './scenes/GameScene';
 import { RhythmScene } from './scenes/RhythmScene';
 import { SkillScene } from './scenes/SkillScene';
@@ -19,7 +20,7 @@ const game = new Phaser.Game({
     autoCenter: Phaser.Scale.CENTER_BOTH,
     zoom: computeIntegerZoom(window.innerWidth, window.innerHeight),
   },
-  scene: [BootScene, GameScene, RhythmScene, SkillScene],
+  scene: [BootScene, ForestSelectScene, GameScene, RhythmScene, SkillScene],
 });
 
 // Mise à l'échelle entière uniquement : on recalcule le zoom à chaque redimensionnement.

@@ -1,14 +1,15 @@
-import { GROUND_Y, NATIVE_WIDTH, TILE } from '../config';
+import { GROUND_Y, NATIVE_WIDTH, PLAY_BOTTOM, TILE } from '../config';
 import type { GameData } from '../data';
 import type { AllySpeciesId, ForestDef } from '../data/types';
 import { ALLY_SPECIES } from '../data/types';
 import type { Ally } from '../entities/Ally';
-import { Network } from '../entities/Network';
-import type { RivalColony } from '../entities/Rival';
+import { Network, type NetworkSnapshot } from '../entities/Network';
+import { type RivalCell, type RivalColony, cellKey } from '../entities/Rival';
 import { createAlly, habitatBand, stepAllies } from './AllySystem';
 import {
   type ActiveClimate,
   type ClimateContext,
+  TREE_REGROWTH,
   applyClimate,
   onClimateEnd,
   onClimateStart,
@@ -18,6 +19,7 @@ import {
 import type { WorldEvent } from './events';
 import { type FlowModifiers, stepNetwork } from './FlowSystem';
 import { seedInfection, stepParasites } from './ParasiteSystem';
+import { applyForestRules } from './ForestRules';
 import { Random } from './Random';
 import { sporeReach } from './RhythmGame';
 import { applyBonuses, computeBonuses, unlockStatus } from './Skills';
@@ -34,6 +36,31 @@ export interface WorldOptions {
   memory?: number;
 }
 
+/** État complet et sérialisable d'une partie (sauvegarde). */
+export interface WorldSnapshot {
+  forest: ForestDef;
+  seed: number;
+  threats: boolean;
+  rngState: number;
+  tick: number;
+  memory: number;
+  moisture: number;
+  weather: WeatherState;
+  climate: ActiveClimate | null;
+  skills: string[];
+  sporeeYear: number;
+  lastReach: number;
+  bestReach: number;
+  sporesCounted: number;
+  nextId: number;
+  lastSeasonIndex: number;
+  net: NetworkSnapshot;
+  allies: Ally[];
+  colonies: { id: number; kind: string; cells: RivalCell[] }[];
+  deposits: Deposit[];
+  obstacles: Obstacle[];
+}
+
 /** Résultat d'une sporée d'automne. */
 export interface SporeeResult {
   score: number;
@@ -41,6 +68,17 @@ export interface SporeeResult {
   reach: number;
   memoryGained: number;
 }
+
+/** Rectangle infranchissable (gravats, béton). */
+export interface Obstacle {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** Dégâts de noyade de la nappe d'eau permanente (× `decay` de l'épaisseur). */
+const WATER_TABLE_DAMAGE = 1.5;
 
 /** Nombre maximal d'événements gardés en attente quand personne ne les consomme. */
 const MAX_PENDING_EVENTS = 200;
@@ -50,7 +88,7 @@ const MAX_PENDING_EVENTS = 200;
  * sol, mémoire, alliés et menaces. Un appel à `step()` = un tick.
  */
 export class World {
-  readonly net = new Network();
+  net = new Network();
   readonly forest: ForestDef;
   readonly deposits: Deposit[];
   readonly allies: Ally[] = [];
@@ -61,8 +99,11 @@ export class World {
   /** Largeur jouable, en pixels (un seul écran tant que la caméra n'existe pas). */
   readonly widthPx: number;
   readonly threats: boolean;
-  /** Données effectives : celles des JSON, modifiées par les compétences. */
+  /** Données effectives : celles des JSON, modifiées par la forêt puis par les compétences. */
   data: GameData;
+  /** Données modifiées par la seule règle de la forêt. */
+  private readonly forestData: GameData;
+  readonly obstacles: Obstacle[] = [];
   readonly skills: Set<string>;
   /** Année de la dernière sporée (une seule par automne). */
   sporeeYear = 0;
@@ -76,19 +117,21 @@ export class World {
   climate: ActiveClimate | null = null;
   private sporesCounted = 0;
   private nextId = 1;
+  private lastSeasonIndex = 0;
 
   constructor(
     readonly baseData: GameData,
-    forestId: string,
-    seed = 1,
+    forestOrId: string | ForestDef,
+    readonly seed = 1,
     options: WorldOptions = {},
   ) {
-    const forest = baseData.forests.get(forestId);
-    if (!forest) throw new Error(`Forêt inconnue : "${forestId}"`);
+    const forest = typeof forestOrId === 'string' ? baseData.forests.get(forestOrId) : forestOrId;
+    if (!forest) throw new Error(`Forêt inconnue : "${String(forestOrId)}"`);
     this.forest = forest;
     this.threats = options.threats ?? true;
     this.skills = new Set(options.skills ?? []);
-    this.data = applyBonuses(baseData, computeBonuses(this.skills, baseData.skills));
+    this.forestData = applyForestRules(baseData, forest);
+    this.data = applyBonuses(this.forestData, computeBonuses(this.skills, baseData.skills));
     const data = this.data;
     this.rng = new Random(seed);
     this.widthPx = Math.min(forest.widthTiles * TILE, NATIVE_WIDTH);
@@ -104,6 +147,7 @@ export class World {
       water,
       minerals,
     });
+    this.placeObstacles(heart.x, heart.y);
     this.plantTrees(heart.x, heart.y);
     for (const species of ALLY_SPECIES) {
       if (species === 'tree') continue;
@@ -111,7 +155,40 @@ export class World {
     }
 
     this.weather = rollWeather(this.season.def, data.seasons, this.rng);
-    this.moisture = data.seasons.weather[this.weather.id]!.moisture;
+    this.moisture = Math.max(forest.rules.minMoisture ?? 0, data.seasons.weather[this.weather.id]!.moisture);
+  }
+
+  /** Gravats et blocs de béton : ni filament ni moisissure ne les traversent. */
+  private placeObstacles(heartX: number, heartY: number): void {
+    const count = this.forest.rules.obstacles ?? 0;
+    const bounds = layerBounds(this.forest);
+    for (let i = 0, attempts = 0; i < count && attempts < count * 20; attempts++) {
+      const w = this.rng.int(8, 22);
+      const h = this.rng.int(4, 10);
+      const x = this.rng.int(4, this.widthPx - w - 4);
+      const y = this.rng.int(bounds.surface[1] + 4, PLAY_BOTTOM - h);
+      if (Math.hypot(x + w / 2 - heartX, y + h / 2 - heartY) < 40) continue;
+      this.obstacles.push({ x, y, w, h });
+      i++;
+    }
+    // Pas de gisement enfoui sous le béton.
+    for (let i = this.deposits.length - 1; i >= 0; i--) {
+      if (this.isBlocked(this.deposits[i]!.x, this.deposits[i]!.y)) this.deposits.splice(i, 1);
+    }
+  }
+
+  /** Le point est-il dans un obstacle ? */
+  isBlocked(x: number, y: number): boolean {
+    return this.obstacles.some((o) => x >= o.x && x < o.x + o.w && y >= o.y && y < o.y + o.h);
+  }
+
+  /** Ordonnée de la surface de la nappe d'eau permanente (ou null). */
+  get waterTableY(): number | null {
+    const share = this.forest.rules.waterTable ?? 0;
+    if (share <= 0) return null;
+    const bounds = layerBounds(this.forest);
+    const bottom = Math.min(bounds.deep[1], PLAY_BOTTOM);
+    return Math.round(bottom - (bottom - bounds.humus[0]) * share);
   }
 
   get season(): SeasonInfo {
@@ -131,8 +208,10 @@ export class World {
       const mother = i === 0;
       const x = mother ? heartX - 3 : Math.round(((i + Math.floor(count / 2) + 0.5) % count) * slot + this.rng.int(-8, 8));
       const tree = createAlly(this.nextId++, 'tree', this.data.allies, x, GROUND_Y - 1, this.rng);
-      tree.height = 34 + this.rng.int(0, 12);
-      for (let r = 0; r < 3; r++) {
+      const giant = mother && this.forest.rules.motherTree;
+      tree.height = giant ? 72 : 34 + this.rng.int(0, 12);
+      tree.size = giant ? 3 : 1;
+      for (let r = 0; r < (giant ? 6 : 3); r++) {
         let rx = x + 3;
         let ry = GROUND_Y;
         for (let s = 0; s < 4; s++) {
@@ -142,10 +221,14 @@ export class World {
           } else {
             rx += this.rng.int(-6, 6);
             ry += this.rng.int(3, 7);
-            if (ry >= humusTop + 10) break;
+            if (ry >= humusTop + (giant ? 30 : 10)) break;
           }
           tree.roots.push({ x: rx, y: ry });
         }
+      }
+      if (!mother && this.rng.next() < (this.forest.rules.burntTrees ?? 0)) {
+        tree.state = 'burnt';
+        tree.cooldown = this.rng.int(TREE_REGROWTH / 4, TREE_REGROWTH);
       }
       this.allies.push(tree);
     }
@@ -193,13 +276,14 @@ export class World {
     const weatherMoisture = seasons.weather[this.weather.id]!.moisture;
     const target = c?.kind === 'drought' ? 0 : c?.kind === 'flood' ? 1 : weatherMoisture;
     const rate = c?.kind === 'drought' || c?.kind === 'flood' ? soil.moistureRate * 4 : soil.moistureRate;
-    this.moisture = stepMoisture(this.moisture, target, rate);
+    this.moisture = Math.max(this.forest.rules.minMoisture ?? 0, stepMoisture(this.moisture, target, rate));
 
     const coldSnap = c?.kind === 'frost' ? c.intensity : 0;
     absorb(this.net, this.deposits, soil, this.forest, this.moisture, rules.frozenSurface || coldSnap > 0);
     applyLitter(this.deposits, rules.litter);
     applyFrost(this.net, network, this.forest, Math.max(rules.frost, coldSnap), mods.decay);
     if (c) applyClimate(c, this.climateContext());
+    this.drownBelowWaterTable(mods.decay);
 
     stepAllies(this.allies, {
       net: this.net,
@@ -227,9 +311,21 @@ export class World {
     this.memory += newSpores * seasons.memory.perSpore;
 
     this.tick++;
-    if (this.tick % seasons.seasonLengthTicks === 0) {
+    const index = this.season.index;
+    if (index !== this.lastSeasonIndex) {
+      this.lastSeasonIndex = index;
       this.memory += seasons.memory.perSeason + this.net.segments.size * seasons.memory.perSegment;
       this.replenishAllies();
+    }
+  }
+
+  /** La nappe d'eau noie les filaments qui y plongent ; les épais tiennent plus longtemps. */
+  private drownBelowWaterTable(decay: number): void {
+    const level = this.waterTableY;
+    if (level === null) return;
+    for (const seg of this.net.segments.values()) {
+      if (seg.growth < 1 || this.net.midpoint(seg).y < level) continue;
+      seg.health -= this.data.network.thickness[seg.thickness].decay * WATER_TABLE_DAMAGE * decay;
     }
   }
 
@@ -246,6 +342,7 @@ export class World {
       decay: this.modifiers.decay,
       emit: this.emit,
       nextId: () => this.nextId++,
+      blocked: (x, y) => this.isBlocked(x, y),
     };
   }
 
@@ -298,13 +395,74 @@ export class World {
     this.startClimate(def.id);
   }
 
+  /** Photographie l'état complet de la partie. */
+  snapshot(): WorldSnapshot {
+    return structuredClone({
+      forest: this.forest,
+      seed: this.seed,
+      threats: this.threats,
+      rngState: this.rng.state,
+      tick: this.tick,
+      memory: this.memory,
+      moisture: this.moisture,
+      weather: this.weather,
+      climate: this.climate,
+      skills: [...this.skills],
+      sporeeYear: this.sporeeYear,
+      lastReach: this.lastReach,
+      bestReach: this.bestReach,
+      sporesCounted: this.sporesCounted,
+      nextId: this.nextId,
+      lastSeasonIndex: this.lastSeasonIndex,
+      net: this.net.snapshot(),
+      allies: this.allies,
+      colonies: this.colonies.map((c) => ({ id: c.id, kind: c.kind, cells: [...c.cells.values()] })),
+      deposits: this.deposits,
+      obstacles: this.obstacles,
+    });
+  }
+
+  /** Recrée une partie depuis une sauvegarde : la simulation reprend exactement là où elle était. */
+  static restore(baseData: GameData, snap: WorldSnapshot): World {
+    const world = new World(baseData, snap.forest, snap.seed, { threats: snap.threats, skills: snap.skills, memory: snap.memory });
+    const s = structuredClone(snap);
+    world.net = Network.fromSnapshot(s.net);
+    world.rng.state = s.rngState;
+    world.tick = s.tick;
+    world.moisture = s.moisture;
+    world.weather = s.weather;
+    world.climate = s.climate;
+    world.sporeeYear = s.sporeeYear;
+    world.lastReach = s.lastReach;
+    world.bestReach = s.bestReach;
+    world.sporesCounted = s.sporesCounted;
+    world.nextId = s.nextId;
+    world.lastSeasonIndex = s.lastSeasonIndex;
+    world.allies.splice(0, world.allies.length, ...s.allies);
+    world.colonies.splice(
+      0,
+      world.colonies.length,
+      ...s.colonies.map((c) => ({ id: c.id, kind: c.kind, cells: new Map(c.cells.map((cell) => [cellKey(cell.gx, cell.gy), cell])) })),
+    );
+    world.deposits.splice(0, world.deposits.length, ...s.deposits);
+    world.obstacles.splice(0, world.obstacles.length, ...s.obstacles);
+    world.events.length = 0;
+    return world;
+  }
+
+  /** Aligne les compétences sur celles du profil et recalcule les données effectives. */
+  syncSkills(ids: Iterable<string>): void {
+    for (const id of ids) this.skills.add(id);
+    this.data = applyBonuses(this.forestData, computeBonuses(this.skills, this.baseData.skills));
+  }
+
   /** Achète une compétence avec de la mémoire. Retourne false si c'est impossible. */
   unlockSkill(id: string): boolean {
     const skill = this.baseData.skills.skills.find((s) => s.id === id);
     if (!skill || unlockStatus(skill, this.skills, this.memory) !== 'available') return false;
     this.memory -= skill.cost;
     this.skills.add(id);
-    this.data = applyBonuses(this.baseData, computeBonuses(this.skills, this.baseData.skills));
+    this.data = applyBonuses(this.forestData, computeBonuses(this.skills, this.baseData.skills));
     return true;
   }
 

@@ -49,6 +49,15 @@ describe('StrokeBuilder', () => {
     for (const n of net.nodes.values()) expect(n.y).toBeGreaterThanOrEqual(50);
   });
 
+  it('bute sur les obstacles', () => {
+    const net = new Network();
+    net.addNode('heart', 100, 100);
+    const stroke = new StrokeBuilder(net, { ...options, blocked: (x) => x >= 118 && x <= 130 });
+    stroke.begin(100, 100);
+    stroke.move(160, 100, 'thin');
+    for (const n of net.nodes.values()) expect(n.x).toBeLessThan(118);
+  });
+
   it('ne fait rien après end()', () => {
     const { net, stroke } = setup();
     stroke.begin(100, 100);
