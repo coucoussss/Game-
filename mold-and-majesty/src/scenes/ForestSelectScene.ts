@@ -7,6 +7,7 @@ import { campaignOrder } from '../systems/Profile';
 import { unlockStatus } from '../systems/Skills';
 import { hexToInt, lerpColor } from '../ui/color';
 import { TEXT_STYLE } from '../ui/text';
+import { MEMORIES } from './MemoryScene';
 import { type GameStart, nextEndlessForest, profile, saveProfile } from './session';
 import type { SkillSceneData } from './SkillScene';
 
@@ -87,6 +88,7 @@ export class ForestSelectScene extends Phaser.Scene {
       },
       { label: 'Infini', action: () => this.endless(), enabled: () => true },
       { label: 'Mémoire', action: () => this.openSkills(), enabled: () => true },
+      { label: 'Souvenirs', action: () => this.openGallery(), enabled: () => profile().seenMemories.length > 0 },
     ];
     const w = Math.floor(NATIVE_WIDTH / buttons.length);
     buttons.forEach((button, i) => {
@@ -166,7 +168,7 @@ export class ForestSelectScene extends Phaser.Scene {
     // Une seule partie en cours : entrer ailleurs abandonne l'ancienne.
     p.run = null;
     saveProfile();
-    if (forest.memory && !p.seenMemories.includes(forest.memory) && this.scene.get('Memory')) {
+    if (forest.memory && !p.seenMemories.includes(forest.memory)) {
       this.scene.start('Memory', { memoryId: forest.memory, then: { scene: 'Game', data: { mode: 'campaign', forest } } });
       return;
     }
@@ -184,6 +186,29 @@ export class ForestSelectScene extends Phaser.Scene {
     p.run = null;
     saveProfile();
     this.start({ mode: 'endless', forest: nextEndlessForest() });
+  }
+
+  /** Galerie des souvenirs déjà vus, à revoir à volonté. */
+  private openGallery(): void {
+    const seen = profile().seenMemories;
+    const layer = this.add.container(0, 0).setDepth(30);
+    layer.add(this.add.rectangle(0, 0, NATIVE_WIDTH, NATIVE_HEIGHT, 0x0e0b12, 0.94).setOrigin(0).setInteractive());
+    layer.add(this.add.text(NATIVE_WIDTH / 2, 10, 'Souvenirs du royaume', { ...TEXT_STYLE, color: '#c58fe0' }).setOrigin(0.5, 0).setResolution(1));
+    MEMORIES.forEach((m, i) => {
+      const known = seen.includes(m.id);
+      const text = this.add
+        .text(NATIVE_WIDTH / 2, 30 + i * 18, known ? `${m.numeral}. ${m.title}` : `${m.numeral}. ???`, {
+          ...TEXT_STYLE,
+          color: known ? '#e8dcc0' : '#4a4048',
+        })
+        .setOrigin(0.5, 0)
+        .setResolution(1);
+      if (known) text.setInteractive().on('pointerdown', () => this.scene.start('Memory', { memoryId: m.id }));
+      layer.add(text);
+    });
+    const close = this.add.text(NATIVE_WIDTH / 2, NATIVE_HEIGHT - 16, 'Fermer ×', TEXT_STYLE).setOrigin(0.5, 0).setResolution(1);
+    close.setInteractive().on('pointerdown', () => layer.destroy());
+    layer.add(close);
   }
 
   private openSkills(): void {

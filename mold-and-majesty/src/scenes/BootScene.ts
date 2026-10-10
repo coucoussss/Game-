@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { createBaseTextures } from '../art/textures';
+import { createBaseTextures, createSpriteTextures, createWaterTexture } from '../art/textures';
 import { gameData } from '../data';
 import { generateForest } from '../systems/ForestGenerator';
 
@@ -11,8 +11,16 @@ export class BootScene extends Phaser.Scene {
 
   create(): void {
     createBaseTextures(this);
-    // Développement : ?forest=mist-marsh (ou ?forest=endless-3) lance directement une forêt.
+    createSpriteTextures(this);
+    createWaterTexture(this);
+    // Développement : ?forest=mist-marsh (ou ?forest=endless-3) lance directement une forêt ;
+    // ?memory=the-fire joue un souvenir.
     const params = new URLSearchParams(window.location.search);
+    const memory = params.get('memory');
+    if (memory && !/^\d+$/.test(memory)) {
+      this.scene.start('Memory', { memoryId: memory });
+      return;
+    }
     const id = params.get('forest');
     if (id) {
       const depth = /^endless-(\d+)$/.exec(id);

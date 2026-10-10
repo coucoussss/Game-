@@ -1,0 +1,1719 @@
+[
+ {
+  "id": "golden-age",
+  "numeral": "I",
+  "title": "L'âge d'or",
+  "duration": 22000,
+  "backdrop": {
+   "sky": "#2a3a5e",
+   "soil": "#3b2a26",
+   "surfaceY": 80,
+   "features": [
+    "oak",
+    "galleries",
+    "threads"
+   ]
+  },
+  "music": {
+   "root": 220,
+   "tempo": 72,
+   "mood": "warm"
+  },
+  "actors": [
+   {
+    "id": "tower1",
+    "sprite": "tower",
+    "x": 90,
+    "y": 152
+   },
+   {
+    "id": "tower2",
+    "sprite": "tower",
+    "x": 300,
+    "y": 152
+   },
+   {
+    "id": "hut1",
+    "sprite": "hut",
+    "x": 140,
+    "y": 168
+   },
+   {
+    "id": "hut2",
+    "sprite": "hut",
+    "x": 252,
+    "y": 168
+   },
+   {
+    "id": "king",
+    "sprite": "king",
+    "x": 192,
+    "y": 168,
+    "alpha": 0
+   },
+   {
+    "id": "c1",
+    "sprite": "citizen",
+    "x": 40,
+    "y": 176,
+    "fps": 4
+   },
+   {
+    "id": "c2",
+    "sprite": "carrier",
+    "x": 340,
+    "y": 176,
+    "fps": 4,
+    "flipX": true
+   },
+   {
+    "id": "c3",
+    "sprite": "citizen",
+    "x": 120,
+    "y": 176,
+    "fps": 4,
+    "flipX": true
+   }
+  ],
+  "cues": [
+   {
+    "t": 0,
+    "fade": 1
+   },
+   {
+    "t": 1,
+    "fade": 0,
+    "duration": 2500
+   },
+   {
+    "t": 600,
+    "title": "Souvenir I — L'âge d'or"
+   },
+   {
+    "t": 0,
+    "camera": {
+     "x": 192,
+     "y": 70,
+     "zoom": 1
+    }
+   },
+   {
+    "t": 2000,
+    "camera": {
+     "y": 140,
+     "zoom": 1.6
+    },
+    "duration": 5000
+   },
+   {
+    "t": 1500,
+    "actor": "c1",
+    "to": {
+     "x": 150
+    },
+    "duration": 9000,
+    "ease": "linear"
+   },
+   {
+    "t": 2000,
+    "actor": "c2",
+    "to": {
+     "x": 230
+    },
+    "duration": 8000,
+    "ease": "linear"
+   },
+   {
+    "t": 4000,
+    "actor": "c3",
+    "to": {
+     "x": 60
+    },
+    "duration": 6000,
+    "ease": "linear"
+   },
+   {
+    "t": 7000,
+    "actor": "king",
+    "to": {
+     "alpha": 1
+    },
+    "duration": 1500
+   },
+   {
+    "t": 9000,
+    "camera": {
+     "x": 192,
+     "y": 150,
+     "zoom": 2.4
+    },
+    "duration": 3000
+   },
+   {
+    "t": 9000,
+    "sfx": "chime"
+   },
+   {
+    "t": 9200,
+    "particles": {
+     "preset": "spores",
+     "x": 192,
+     "y": 150,
+     "width": 10,
+     "duration": 6000
+    }
+   },
+   {
+    "t": 0,
+    "music": {
+     "chord": [
+      0,
+      4,
+      7
+     ]
+    }
+   },
+   {
+    "t": 6000,
+    "music": {
+     "chord": [
+      5,
+      9,
+      12
+     ]
+    }
+   },
+   {
+    "t": 12000,
+    "music": {
+     "chord": [
+      7,
+      11,
+      14
+     ]
+    }
+   },
+   {
+    "t": 16000,
+    "music": {
+     "chord": [
+      0,
+      4,
+      7,
+      12
+     ]
+    }
+   },
+   {
+    "t": 19400,
+    "fade": 1,
+    "duration": 2500
+   }
+  ]
+ },
+ {
+  "id": "endless-rain",
+  "numeral": "II",
+  "title": "La pluie sans fin",
+  "duration": 22000,
+  "backdrop": {
+   "sky": "#262c3a",
+   "soil": "#33261d",
+   "surfaceY": 80,
+   "features": [
+    "oak",
+    "galleries",
+    "reeds"
+   ]
+  },
+  "music": {
+   "root": 196,
+   "tempo": 60,
+   "mood": "sad"
+  },
+  "actors": [
+   {
+    "id": "tower1",
+    "sprite": "tower",
+    "x": 90,
+    "y": 152
+   },
+   {
+    "id": "hut1",
+    "sprite": "hut",
+    "x": 140,
+    "y": 168
+   },
+   {
+    "id": "hut2",
+    "sprite": "hut",
+    "x": 252,
+    "y": 168
+   },
+   {
+    "id": "king",
+    "sprite": "king",
+    "x": 192,
+    "y": 168
+   },
+   {
+    "id": "c1",
+    "sprite": "citizen",
+    "x": 150,
+    "y": 176,
+    "fps": 4
+   },
+   {
+    "id": "c2",
+    "sprite": "citizen",
+    "x": 230,
+    "y": 176,
+    "fps": 4,
+    "flipX": true
+   },
+   {
+    "id": "water",
+    "sprite": "water",
+    "x": 192,
+    "y": 370,
+    "alpha": 0.85,
+    "depth": 5
+   }
+  ],
+  "cues": [
+   {
+    "t": 0,
+    "fade": 1
+   },
+   {
+    "t": 1,
+    "fade": 0,
+    "duration": 2500
+   },
+   {
+    "t": 600,
+    "title": "Souvenir II — La pluie sans fin"
+   },
+   {
+    "t": 800,
+    "particles": {
+     "preset": "rain",
+     "x": 192,
+     "y": 0,
+     "width": 384,
+     "duration": 19000
+    }
+   },
+   {
+    "t": 800,
+    "sfx": "rain"
+   },
+   {
+    "t": 3000,
+    "actor": "water",
+    "to": {
+     "y": 300
+    },
+    "duration": 12000,
+    "ease": "linear"
+   },
+   {
+    "t": 5000,
+    "tint": {
+     "color": "#30384a",
+     "alpha": 0.3
+    },
+    "duration": 4000
+   },
+   {
+    "t": 7000,
+    "actor": "c1",
+    "to": {
+     "x": 120,
+     "y": 110
+    },
+    "duration": 6000
+   },
+   {
+    "t": 7500,
+    "actor": "c2",
+    "to": {
+     "x": 260,
+     "y": 112
+    },
+    "duration": 6000
+   },
+   {
+    "t": 9000,
+    "actor": "king",
+    "to": {
+     "y": 118
+    },
+    "duration": 7000
+   },
+   {
+    "t": 10000,
+    "actor": "tower1",
+    "to": {
+     "alpha": 0.35
+    },
+    "duration": 4000
+   },
+   {
+    "t": 12000,
+    "camera": {
+     "x": 192,
+     "y": 120,
+     "zoom": 1.6
+    },
+    "duration": 5000
+   },
+   {
+    "t": 0,
+    "music": {
+     "chord": [
+      0,
+      3,
+      7
+     ]
+    }
+   },
+   {
+    "t": 7000,
+    "music": {
+     "chord": [
+      -4,
+      0,
+      3
+     ]
+    }
+   },
+   {
+    "t": 14000,
+    "music": {
+     "chord": [
+      -2,
+      2,
+      5
+     ]
+    }
+   },
+   {
+    "t": 19400,
+    "fade": 1,
+    "duration": 2500
+   }
+  ]
+ },
+ {
+  "id": "the-fire",
+  "numeral": "III",
+  "title": "Le feu",
+  "duration": 22000,
+  "backdrop": {
+   "sky": "#3a2420",
+   "soil": "#2f221c",
+   "surfaceY": 80,
+   "features": [
+    "oak",
+    "galleries"
+   ]
+  },
+  "music": {
+   "root": 174.6,
+   "tempo": 96,
+   "mood": "tense"
+  },
+  "actors": [
+   {
+    "id": "tower1",
+    "sprite": "tower",
+    "x": 90,
+    "y": 152
+   },
+   {
+    "id": "tower2",
+    "sprite": "tower",
+    "x": 300,
+    "y": 152
+   },
+   {
+    "id": "king",
+    "sprite": "king",
+    "x": 192,
+    "y": 168
+   },
+   {
+    "id": "f1",
+    "sprite": "flame",
+    "x": 60,
+    "y": 82,
+    "alpha": 0,
+    "fps": 6,
+    "scale": 2
+   },
+   {
+    "id": "f2",
+    "sprite": "flame",
+    "x": 150,
+    "y": 82,
+    "alpha": 0,
+    "fps": 6,
+    "scale": 2
+   },
+   {
+    "id": "f3",
+    "sprite": "flame",
+    "x": 192,
+    "y": 40,
+    "alpha": 0,
+    "fps": 6,
+    "scale": 3
+   },
+   {
+    "id": "f4",
+    "sprite": "flame",
+    "x": 250,
+    "y": 82,
+    "alpha": 0,
+    "fps": 6,
+    "scale": 2
+   },
+   {
+    "id": "f5",
+    "sprite": "flame",
+    "x": 330,
+    "y": 82,
+    "alpha": 0,
+    "fps": 6,
+    "scale": 2
+   },
+   {
+    "id": "c1",
+    "sprite": "carrier",
+    "x": 300,
+    "y": 176,
+    "fps": 6,
+    "flipX": true
+   },
+   {
+    "id": "c2",
+    "sprite": "carrier",
+    "x": 260,
+    "y": 176,
+    "fps": 6,
+    "flipX": true
+   }
+  ],
+  "cues": [
+   {
+    "t": 0,
+    "fade": 1
+   },
+   {
+    "t": 1,
+    "fade": 0,
+    "duration": 2500
+   },
+   {
+    "t": 600,
+    "title": "Souvenir III — Le feu"
+   },
+   {
+    "t": 2000,
+    "actor": "f5",
+    "to": {
+     "alpha": 1
+    },
+    "duration": 800
+   },
+   {
+    "t": 3500,
+    "actor": "f4",
+    "to": {
+     "alpha": 1
+    },
+    "duration": 800
+   },
+   {
+    "t": 5000,
+    "actor": "f3",
+    "to": {
+     "alpha": 1
+    },
+    "duration": 800
+   },
+   {
+    "t": 6500,
+    "actor": "f2",
+    "to": {
+     "alpha": 1
+    },
+    "duration": 800
+   },
+   {
+    "t": 8000,
+    "actor": "f1",
+    "to": {
+     "alpha": 1
+    },
+    "duration": 800
+   },
+   {
+    "t": 2000,
+    "particles": {
+     "preset": "embers",
+     "x": 192,
+     "y": 80,
+     "width": 360,
+     "duration": 17000
+    }
+   },
+   {
+    "t": 2000,
+    "sfx": "burn"
+   },
+   {
+    "t": 4000,
+    "tint": {
+     "color": "#c8743a",
+     "alpha": 0.35
+    },
+    "duration": 6000
+   },
+   {
+    "t": 9000,
+    "shake": 3
+   },
+   {
+    "t": 9000,
+    "sfx": "crack"
+   },
+   {
+    "t": 9500,
+    "actor": "tower2",
+    "to": {
+     "alpha": 0,
+     "y": 160
+    },
+    "duration": 3000
+   },
+   {
+    "t": 6000,
+    "actor": "c1",
+    "to": {
+     "x": -20
+    },
+    "duration": 9000,
+    "ease": "linear"
+   },
+   {
+    "t": 7000,
+    "actor": "c2",
+    "to": {
+     "x": -20
+    },
+    "duration": 9000,
+    "ease": "linear"
+   },
+   {
+    "t": 12000,
+    "particles": {
+     "preset": "ash",
+     "x": 192,
+     "y": 0,
+     "width": 384,
+     "duration": 8000
+    }
+   },
+   {
+    "t": 13000,
+    "camera": {
+     "x": 192,
+     "y": 150,
+     "zoom": 2
+    },
+    "duration": 4000
+   },
+   {
+    "t": 0,
+    "music": {
+     "chord": [
+      0,
+      3,
+      6
+     ]
+    }
+   },
+   {
+    "t": 5000,
+    "music": {
+     "chord": [
+      1,
+      4,
+      8
+     ]
+    }
+   },
+   {
+    "t": 10000,
+    "music": {
+     "chord": [
+      0,
+      3,
+      6,
+      9
+     ]
+    }
+   },
+   {
+    "t": 15000,
+    "music": {
+     "chord": [
+      -1,
+      3,
+      6
+     ]
+    }
+   },
+   {
+    "t": 19400,
+    "fade": 1,
+    "duration": 2500
+   }
+  ]
+ },
+ {
+  "id": "long-winter",
+  "numeral": "IV",
+  "title": "Le long hiver",
+  "duration": 22000,
+  "backdrop": {
+   "sky": "#1f2438",
+   "soil": "#2a2430",
+   "surfaceY": 80,
+   "features": [
+    "oak-bare",
+    "galleries",
+    "snow"
+   ]
+  },
+  "music": {
+   "root": 164.8,
+   "tempo": 50,
+   "mood": "cold"
+  },
+  "actors": [
+   {
+    "id": "hut1",
+    "sprite": "hut",
+    "x": 140,
+    "y": 168
+   },
+   {
+    "id": "king",
+    "sprite": "king",
+    "x": 192,
+    "y": 168
+   },
+   {
+    "id": "c1",
+    "sprite": "citizen",
+    "x": 60,
+    "y": 176,
+    "fps": 3
+   },
+   {
+    "id": "c2",
+    "sprite": "citizen",
+    "x": 320,
+    "y": 176,
+    "fps": 3,
+    "flipX": true
+   },
+   {
+    "id": "c3",
+    "sprite": "citizen",
+    "x": 100,
+    "y": 176,
+    "fps": 3
+   },
+   {
+    "id": "i1",
+    "sprite": "crystal",
+    "x": 120,
+    "y": 120,
+    "alpha": 0,
+    "scale": 2
+   },
+   {
+    "id": "i2",
+    "sprite": "crystal",
+    "x": 270,
+    "y": 130,
+    "alpha": 0,
+    "scale": 2
+   },
+   {
+    "id": "i3",
+    "sprite": "crystal",
+    "x": 200,
+    "y": 100,
+    "alpha": 0,
+    "scale": 2
+   }
+  ],
+  "cues": [
+   {
+    "t": 0,
+    "fade": 1
+   },
+   {
+    "t": 1,
+    "fade": 0,
+    "duration": 2500
+   },
+   {
+    "t": 600,
+    "title": "Souvenir IV — Le long hiver"
+   },
+   {
+    "t": 500,
+    "particles": {
+     "preset": "snow",
+     "x": 192,
+     "y": 0,
+     "width": 384,
+     "duration": 20000
+    }
+   },
+   {
+    "t": 3000,
+    "tint": {
+     "color": "#8aa4d0",
+     "alpha": 0.35
+    },
+    "duration": 8000
+   },
+   {
+    "t": 4000,
+    "actor": "i1",
+    "to": {
+     "alpha": 1
+    },
+    "duration": 2000
+   },
+   {
+    "t": 6000,
+    "actor": "i2",
+    "to": {
+     "alpha": 1
+    },
+    "duration": 2000
+   },
+   {
+    "t": 8000,
+    "actor": "i3",
+    "to": {
+     "alpha": 1
+    },
+    "duration": 2000
+   },
+   {
+    "t": 5000,
+    "actor": "c1",
+    "to": {
+     "x": 176
+    },
+    "duration": 8000,
+    "ease": "linear"
+   },
+   {
+    "t": 5500,
+    "actor": "c2",
+    "to": {
+     "x": 206
+    },
+    "duration": 8000,
+    "ease": "linear"
+   },
+   {
+    "t": 6000,
+    "actor": "c3",
+    "to": {
+     "x": 168
+    },
+    "duration": 7000,
+    "ease": "linear"
+   },
+   {
+    "t": 12000,
+    "camera": {
+     "x": 192,
+     "y": 160,
+     "zoom": 2.2
+    },
+    "duration": 5000
+   },
+   {
+    "t": 14000,
+    "sfx": "crack"
+   },
+   {
+    "t": 0,
+    "music": {
+     "chord": [
+      0,
+      7,
+      14
+     ]
+    }
+   },
+   {
+    "t": 8000,
+    "music": {
+     "chord": [
+      -2,
+      5,
+      12
+     ]
+    }
+   },
+   {
+    "t": 15000,
+    "music": {
+     "chord": [
+      0,
+      3,
+      10
+     ]
+    }
+   },
+   {
+    "t": 19400,
+    "fade": 1,
+    "duration": 2500
+   }
+  ]
+ },
+ {
+  "id": "green-stranger",
+  "numeral": "V",
+  "title": "L'étranger vert",
+  "duration": 22000,
+  "backdrop": {
+   "sky": "#1e3a2e",
+   "soil": "#2a2a1c",
+   "surfaceY": 80,
+   "features": [
+    "vines",
+    "galleries",
+    "threads"
+   ]
+  },
+  "music": {
+   "root": 207.6,
+   "tempo": 88,
+   "mood": "tense"
+  },
+  "actors": [
+   {
+    "id": "tower1",
+    "sprite": "tower",
+    "x": 90,
+    "y": 152
+   },
+   {
+    "id": "tower2",
+    "sprite": "tower",
+    "x": 300,
+    "y": 152
+   },
+   {
+    "id": "king",
+    "sprite": "king",
+    "x": 160,
+    "y": 168
+   },
+   {
+    "id": "m1",
+    "sprite": "mold",
+    "x": 420,
+    "y": 170,
+    "fps": 3,
+    "scale": 2
+   },
+   {
+    "id": "m2",
+    "sprite": "mold",
+    "x": 440,
+    "y": 140,
+    "fps": 3,
+    "scale": 2
+   },
+   {
+    "id": "m3",
+    "sprite": "mold",
+    "x": 460,
+    "y": 120,
+    "fps": 3,
+    "scale": 2
+   },
+   {
+    "id": "m4",
+    "sprite": "mold",
+    "x": 480,
+    "y": 160,
+    "fps": 3,
+    "scale": 2
+   },
+   {
+    "id": "c1",
+    "sprite": "citizen",
+    "x": 220,
+    "y": 176,
+    "fps": 4
+   }
+  ],
+  "cues": [
+   {
+    "t": 0,
+    "fade": 1
+   },
+   {
+    "t": 1,
+    "fade": 0,
+    "duration": 2500
+   },
+   {
+    "t": 600,
+    "title": "Souvenir V — L'étranger vert"
+   },
+   {
+    "t": 2000,
+    "actor": "m1",
+    "to": {
+     "x": 320
+    },
+    "duration": 9000,
+    "ease": "linear"
+   },
+   {
+    "t": 2500,
+    "actor": "m2",
+    "to": {
+     "x": 300
+    },
+    "duration": 9000,
+    "ease": "linear"
+   },
+   {
+    "t": 3000,
+    "actor": "m3",
+    "to": {
+     "x": 340
+    },
+    "duration": 9000,
+    "ease": "linear"
+   },
+   {
+    "t": 3500,
+    "actor": "m4",
+    "to": {
+     "x": 270
+    },
+    "duration": 9000,
+    "ease": "linear"
+   },
+   {
+    "t": 9000,
+    "particles": {
+     "preset": "chem-war",
+     "x": 250,
+     "y": 150,
+     "width": 40,
+     "duration": 8000
+    }
+   },
+   {
+    "t": 9000,
+    "sfx": "hiss"
+   },
+   {
+    "t": 10000,
+    "shake": 2
+   },
+   {
+    "t": 11000,
+    "actor": "tower2",
+    "to": {
+     "alpha": 0,
+     "y": 165
+    },
+    "duration": 3000
+   },
+   {
+    "t": 8000,
+    "actor": "c1",
+    "to": {
+     "x": 170
+    },
+    "duration": 4000
+   },
+   {
+    "t": 12000,
+    "actor": "king",
+    "to": {
+     "y": 164
+    },
+    "duration": 1000,
+    "ease": "back"
+   },
+   {
+    "t": 13000,
+    "tint": {
+     "color": "#3a6a3a",
+     "alpha": 0.3
+    },
+    "duration": 4000
+   },
+   {
+    "t": 0,
+    "music": {
+     "chord": [
+      0,
+      3,
+      7
+     ]
+    }
+   },
+   {
+    "t": 6000,
+    "music": {
+     "chord": [
+      1,
+      5,
+      8
+     ]
+    }
+   },
+   {
+    "t": 12000,
+    "music": {
+     "chord": [
+      0,
+      3,
+      6
+     ]
+    }
+   },
+   {
+    "t": 19400,
+    "fade": 1,
+    "duration": 2500
+   }
+  ]
+ },
+ {
+  "id": "the-humans",
+  "numeral": "VI",
+  "title": "Les hommes",
+  "duration": 24000,
+  "backdrop": {
+   "sky": "#3a3a44",
+   "soil": "#2f2a28",
+   "surfaceY": 80,
+   "features": [
+    "stumps",
+    "galleries"
+   ]
+  },
+  "music": {
+   "root": 146.8,
+   "tempo": 80,
+   "mood": "tense"
+  },
+  "actors": [
+   {
+    "id": "t1",
+    "sprite": "tree",
+    "x": 120,
+    "y": 81
+   },
+   {
+    "id": "t2",
+    "sprite": "tree",
+    "x": 260,
+    "y": 81
+   },
+   {
+    "id": "tower1",
+    "sprite": "tower",
+    "x": 90,
+    "y": 152
+   },
+   {
+    "id": "king",
+    "sprite": "king",
+    "x": 192,
+    "y": 168
+   },
+   {
+    "id": "h1",
+    "sprite": "human",
+    "x": -20,
+    "y": 81,
+    "fps": 2
+   },
+   {
+    "id": "h2",
+    "sprite": "human",
+    "x": -50,
+    "y": 81,
+    "fps": 2
+   },
+   {
+    "id": "s1",
+    "sprite": "concrete",
+    "x": 140,
+    "y": -30,
+    "scale": 2
+   },
+   {
+    "id": "s2",
+    "sprite": "concrete",
+    "x": 250,
+    "y": -30,
+    "scale": 2
+   }
+  ],
+  "cues": [
+   {
+    "t": 0,
+    "fade": 1
+   },
+   {
+    "t": 1,
+    "fade": 0,
+    "duration": 2500
+   },
+   {
+    "t": 600,
+    "title": "Souvenir VI — Les hommes"
+   },
+   {
+    "t": 1500,
+    "actor": "h1",
+    "to": {
+     "x": 106
+    },
+    "duration": 5000,
+    "ease": "linear"
+   },
+   {
+    "t": 2000,
+    "actor": "h2",
+    "to": {
+     "x": 244
+    },
+    "duration": 7000,
+    "ease": "linear"
+   },
+   {
+    "t": 7500,
+    "sfx": "crack"
+   },
+   {
+    "t": 7500,
+    "shake": 2
+   },
+   {
+    "t": 7500,
+    "actor": "t1",
+    "to": {
+     "angle": 88
+    },
+    "duration": 1500,
+    "ease": "quad"
+   },
+   {
+    "t": 10000,
+    "sfx": "crack"
+   },
+   {
+    "t": 10000,
+    "shake": 2
+   },
+   {
+    "t": 10000,
+    "actor": "t2",
+    "to": {
+     "angle": -88
+    },
+    "duration": 1500,
+    "ease": "quad"
+   },
+   {
+    "t": 12000,
+    "tint": {
+     "color": "#6a6670",
+     "alpha": 0.3
+    },
+    "duration": 4000
+   },
+   {
+    "t": 13000,
+    "actor": "s1",
+    "to": {
+     "y": 124
+    },
+    "duration": 800,
+    "ease": "quad"
+   },
+   {
+    "t": 13800,
+    "shake": 4
+   },
+   {
+    "t": 13800,
+    "sfx": "rumble"
+   },
+   {
+    "t": 15000,
+    "actor": "s2",
+    "to": {
+     "y": 124
+    },
+    "duration": 800,
+    "ease": "quad"
+   },
+   {
+    "t": 15800,
+    "shake": 4
+   },
+   {
+    "t": 15800,
+    "sfx": "rumble"
+   },
+   {
+    "t": 13000,
+    "particles": {
+     "preset": "dust",
+     "x": 192,
+     "y": 120,
+     "width": 200,
+     "duration": 5000
+    }
+   },
+   {
+    "t": 17000,
+    "camera": {
+     "x": 192,
+     "y": 150,
+     "zoom": 2
+    },
+    "duration": 4000
+   },
+   {
+    "t": 0,
+    "music": {
+     "chord": [
+      0,
+      5,
+      10
+     ]
+    }
+   },
+   {
+    "t": 7000,
+    "music": {
+     "chord": [
+      -1,
+      4,
+      9
+     ]
+    }
+   },
+   {
+    "t": 13000,
+    "music": {
+     "chord": [
+      0,
+      3,
+      6,
+      9
+     ]
+    }
+   },
+   {
+    "t": 21400,
+    "fade": 1,
+    "duration": 2500
+   }
+  ]
+ },
+ {
+  "id": "the-exile",
+  "numeral": "VII",
+  "title": "L'exil",
+  "duration": 22000,
+  "backdrop": {
+   "sky": "#100c14",
+   "soil": "#1a1418",
+   "surfaceY": 60,
+   "features": [
+    "cave"
+   ]
+  },
+  "music": {
+   "root": 130.8,
+   "tempo": 56,
+   "mood": "sad"
+  },
+  "actors": [
+   {
+    "id": "king",
+    "sprite": "king",
+    "x": 420,
+    "y": 176,
+    "fps": 0
+   },
+   {
+    "id": "c1",
+    "sprite": "carrier",
+    "x": 440,
+    "y": 176,
+    "fps": 3
+   },
+   {
+    "id": "c2",
+    "sprite": "citizen",
+    "x": 455,
+    "y": 176,
+    "fps": 3
+   },
+   {
+    "id": "c3",
+    "sprite": "carrier",
+    "x": 470,
+    "y": 176,
+    "fps": 3
+   },
+   {
+    "id": "seed",
+    "sprite": "seed",
+    "x": 412,
+    "y": 160,
+    "fps": 2
+   }
+  ],
+  "cues": [
+   {
+    "t": 0,
+    "fade": 1
+   },
+   {
+    "t": 1,
+    "fade": 0,
+    "duration": 2500
+   },
+   {
+    "t": 600,
+    "title": "Souvenir VII — L'exil"
+   },
+   {
+    "t": 500,
+    "tint": {
+     "color": "#000000",
+     "alpha": 0.45
+    },
+    "duration": 0
+   },
+   {
+    "t": 1000,
+    "particles": {
+     "preset": "drips",
+     "x": 192,
+     "y": 60,
+     "width": 384,
+     "duration": 19000
+    }
+   },
+   {
+    "t": 2000,
+    "actor": "king",
+    "to": {
+     "x": 60
+    },
+    "duration": 15000,
+    "ease": "linear"
+   },
+   {
+    "t": 2000,
+    "actor": "seed",
+    "to": {
+     "x": 52
+    },
+    "duration": 15000,
+    "ease": "linear"
+   },
+   {
+    "t": 2600,
+    "actor": "c1",
+    "to": {
+     "x": 80
+    },
+    "duration": 15000,
+    "ease": "linear"
+   },
+   {
+    "t": 3200,
+    "actor": "c2",
+    "to": {
+     "x": 96
+    },
+    "duration": 15000,
+    "ease": "linear"
+   },
+   {
+    "t": 3800,
+    "actor": "c3",
+    "to": {
+     "x": 112
+    },
+    "duration": 15000,
+    "ease": "linear"
+   },
+   {
+    "t": 2000,
+    "camera": {
+     "x": 120,
+     "y": 150,
+     "zoom": 1.6
+    },
+    "duration": 14000
+   },
+   {
+    "t": 6000,
+    "sfx": "drip"
+   },
+   {
+    "t": 11000,
+    "sfx": "drip"
+   },
+   {
+    "t": 15000,
+    "sfx": "drip"
+   },
+   {
+    "t": 0,
+    "music": {
+     "chord": [
+      0,
+      3,
+      7
+     ]
+    }
+   },
+   {
+    "t": 8000,
+    "music": {
+     "chord": [
+      -5,
+      0,
+      3
+     ]
+    }
+   },
+   {
+    "t": 15000,
+    "music": {
+     "chord": [
+      -2,
+      3,
+      7
+     ]
+    }
+   },
+   {
+    "t": 19400,
+    "fade": 1,
+    "duration": 2500
+   }
+  ]
+ },
+ {
+  "id": "the-seed",
+  "numeral": "VIII",
+  "title": "La graine",
+  "duration": 26000,
+  "backdrop": {
+   "sky": "#241c3a",
+   "soil": "#2a1f24",
+   "surfaceY": 80,
+   "features": [
+    "mother-tree"
+   ]
+  },
+  "music": {
+   "root": 220,
+   "tempo": 60,
+   "mood": "hopeful"
+  },
+  "actors": [
+   {
+    "id": "king",
+    "sprite": "king",
+    "x": 30,
+    "y": 176
+   },
+   {
+    "id": "seed",
+    "sprite": "seed",
+    "x": 176,
+    "y": 165,
+    "alpha": 0
+   }
+  ],
+  "cues": [
+   {
+    "t": 0,
+    "fade": 1
+   },
+   {
+    "t": 1,
+    "fade": 0,
+    "duration": 2500
+   },
+   {
+    "t": 600,
+    "title": "Souvenir VIII — La graine"
+   },
+   {
+    "t": 1500,
+    "actor": "king",
+    "to": {
+     "x": 170
+    },
+    "duration": 9000,
+    "ease": "linear"
+   },
+   {
+    "t": 11000,
+    "particles": {
+     "preset": "dissolve",
+     "x": 170,
+     "y": 168,
+     "width": 12,
+     "duration": 4000
+    }
+   },
+   {
+    "t": 11000,
+    "sfx": "chime"
+   },
+   {
+    "t": 11500,
+    "actor": "king",
+    "to": {
+     "alpha": 0
+    },
+    "duration": 3000
+   },
+   {
+    "t": 12500,
+    "actor": "seed",
+    "to": {
+     "alpha": 1
+    },
+    "duration": 2000
+   },
+   {
+    "t": 15000,
+    "actor": "seed",
+    "to": {
+     "x": 192,
+     "y": 196
+    },
+    "duration": 5000
+   },
+   {
+    "t": 15000,
+    "camera": {
+     "x": 192,
+     "y": 180,
+     "zoom": 2.6
+    },
+    "duration": 6000
+   },
+   {
+    "t": 19000,
+    "actor": "seed",
+    "to": {
+     "scale": 2
+    },
+    "duration": 2500,
+    "ease": "back"
+   },
+   {
+    "t": 19000,
+    "tint": {
+     "color": "#f2c46d",
+     "alpha": 0.4
+    },
+    "duration": 3000
+   },
+   {
+    "t": 20000,
+    "sfx": "chime"
+   },
+   {
+    "t": 0,
+    "music": {
+     "chord": [
+      0,
+      4,
+      7
+     ]
+    }
+   },
+   {
+    "t": 8000,
+    "music": {
+     "chord": [
+      -3,
+      0,
+      4
+     ]
+    }
+   },
+   {
+    "t": 14000,
+    "music": {
+     "chord": [
+      5,
+      9,
+      12
+     ]
+    }
+   },
+   {
+    "t": 19000,
+    "music": {
+     "chord": [
+      0,
+      4,
+      7,
+      11,
+      14
+     ]
+    }
+   },
+   {
+    "t": 23400,
+    "fade": 1,
+    "duration": 2500
+   }
+  ]
+ }
+]

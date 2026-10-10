@@ -66,6 +66,7 @@ Le contenu du jeu vit dans des **fichiers JSON séparés du code**, dans `src/da
 - `skills.json` : l'arbre de compétences, avec 3 branches de 4 rangs (`SkillsDef`)
 - `forests.json` : les 8 forêts de la campagne, dans l'ordre, chacune avec son biome, sa règle spéciale (`ForestRules`), son objectif de portée, ses rivaux et son souvenir
 - `biomes.json` : la teinte d'ambiance de chaque biome
+- `memories.json` : les 8 souvenirs (séquences scriptées : décor, musique, acteurs, repères)
 
 Les types sont définis dans `src/data/types.ts`. Au chargement, `src/data/index.ts` indexe les données
 et les **valide** : identifiants uniques, valeurs cohérentes, références croisées. Pour ajouter du
@@ -208,6 +209,26 @@ avec un test.
 - **Écrans** : `ForestSelectScene` (carte du royaume, avec Entrer, Reprendre, Infini, Mémoire).
   En développement, `?forest=mist-marsh` (ou `?forest=endless-5`) lance directement une forêt.
 
+## Souvenirs (étape 7)
+
+- **Pixel art par code** : `art/palette.ts` (palette limitée, une lettre par couleur) et `art/sprites.ts`
+  (cartes ASCII, une ou plusieurs images) deviennent des textures `spr-<nom>` au démarrage
+  (`art/textures.ts`). Un test vérifie que chaque sprite est rectangulaire et n'utilise que la palette.
+  Les décors des souvenirs sont dessinés par `art/backdrops.ts` à partir d'une description JSON.
+- **Séquences** (`systems/Sequence.ts`, sans Phaser) : `evaluate(def, t)` donne l'état à l'instant t
+  (acteurs, caméra, fondu, voile) ; `cuesBetween` renvoie les repères ponctuels (particules, secousse,
+  son, accord, titre). `validateSequence` interdit les transitions d'une même propriété qui se
+  chevauchent.
+- **`MemoryScene`** affiche cet état, avec une caméra d'interface insensible au zoom pour les voiles et
+  le titre. On peut passer le souvenir en touchant l'écran. Un souvenir est joué la première fois
+  qu'on entre dans sa forêt, puis reste disponible dans la galerie « Souvenirs ».
+- **Audio** (`audio/AudioEngine.ts`, WebAudio pur) : bus musique et bruitages, réverbération générée,
+  nappes d'accords et arpèges de cloches colorés par l'humeur, sons organiques synthétisés.
+- **Récit** : I. L'âge d'or · II. La pluie sans fin · III. Le feu · IV. Le long hiver ·
+  V. L'étranger vert · VI. Les hommes · VII. L'exil · VIII. La graine (le roi se dissout en une
+  graine qui devient le cœur du joueur).
+- **Développement** : `?memory=the-fire` joue directement un souvenir.
+
 ## Conventions de code
 
 - Le code et les identifiants sont en **anglais**. Les commentaires, les textes affichés et les messages
@@ -240,7 +261,7 @@ avec un test.
       (Racines, Chimie, Spores) payé en mémoire, sorties de champignons avec particules et lueur
 - [x] 6. Campagne de 8 forêts aux règles spéciales (JSON), génération procédurale depuis une graine,
       mode infini, écran de sélection, sauvegarde de la progression
-- [ ] 7. Souvenirs : séquences scriptées en JSON (caméra, sprites, musique), 8 scènes sans dialogue
+- [x] 7. Souvenirs : séquences scriptées en JSON (caméra, sprites, musique), 8 scènes sans dialogue
 - [ ] 8. Vrai pixel art (palette limitée), parallaxe, particules, éclairage dynamique, animations,
       musique ambient évolutive et sons organiques en WebAudio
 - [ ] 9. Équilibrage, tutoriel, options (volume, plein écran, accessibilité), tactile, performances,
