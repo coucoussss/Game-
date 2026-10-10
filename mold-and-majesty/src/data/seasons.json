@@ -8,8 +8,6 @@
       "motto": "S'étendre",
       "rules": {
         "sugarProduction": 0.6,
-        "mineralTrade": 0.1,
-        "tradeRatio": 3,
         "growthSpeed": 1.6,
         "growthCost": 0.6,
         "upkeep": 1,
@@ -41,8 +39,6 @@
       "motto": "Produire",
       "rules": {
         "sugarProduction": 1.2,
-        "mineralTrade": 0.3,
-        "tradeRatio": 5,
         "growthSpeed": 1,
         "growthCost": 1,
         "upkeep": 1.1,
@@ -74,8 +70,6 @@
       "motto": "Fructifier",
       "rules": {
         "sugarProduction": 0.5,
-        "mineralTrade": 0.1,
-        "tradeRatio": 3,
         "growthSpeed": 0.7,
         "growthCost": 1.2,
         "upkeep": 1,
@@ -107,8 +101,6 @@
       "motto": "Survivre",
       "rules": {
         "sugarProduction": 0,
-        "mineralTrade": 0,
-        "tradeRatio": 0,
         "growthSpeed": 0.25,
         "growthCost": 2,
         "upkeep": 0.1,

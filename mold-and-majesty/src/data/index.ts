@@ -1,20 +1,36 @@
+import alliesJson from './allies.json';
 import eventsJson from './events.json';
 import forestsJson from './forests.json';
 import networkJson from './network.json';
 import seasonsJson from './seasons.json';
 import soilJson from './soil.json';
 import speciesJson from './species.json';
-import type { EventDef, ForestDef, NetworkDef, SeasonsDef, SoilDef, SpeciesDef } from './types';
-import { FLUX_IDS, LAYERS, NODE_KINDS, RESOURCE_IDS, THICKNESS_IDS } from './types';
+import threatsJson from './threats.json';
+import type {
+  AlliesDef,
+  EventDef,
+  EventsDef,
+  ForestDef,
+  NetworkDef,
+  SeasonsDef,
+  SoilDef,
+  SpeciesDef,
+  ThreatsDef,
+} from './types';
+import { ALLY_SPECIES, CLIMATE_KINDS, FLUX_IDS, LAYERS, NODE_KINDS, PERSONALITY_TRAITS, THICKNESS_IDS } from './types';
 import { hexToInt } from '../ui/color';
 
 export interface GameData {
   species: ReadonlyMap<string, SpeciesDef>;
   events: ReadonlyMap<string, EventDef>;
+  /** Probabilité par tick qu'un événement climatique se déclenche. */
+  eventChance: number;
   forests: ReadonlyMap<string, ForestDef>;
   network: NetworkDef;
   seasons: SeasonsDef;
   soil: SoilDef;
+  allies: AlliesDef;
+  threats: ThreatsDef;
 }
 
 function indexById<T extends { id: string }>(items: T[], kind: string): Map<string, T> {
@@ -32,26 +48,36 @@ function indexById<T extends { id: string }>(items: T[], kind: string): Map<stri
  */
 export function buildGameData(raw: {
   species: SpeciesDef[];
-  events: EventDef[];
+  events: EventsDef;
   forests: ForestDef[];
   network: NetworkDef;
   seasons: SeasonsDef;
   soil: SoilDef;
+  allies: AlliesDef;
+  threats: ThreatsDef;
 }): GameData {
   const species = indexById(raw.species, 'Espèce');
-  const events = indexById(raw.events, 'Événement');
+  const events = indexById(raw.events.events, 'Événement');
   const forests = indexById(raw.forests, 'Forêt');
 
   for (const s of species.values()) {
     if (s.cost < 0 || s.yield < 0) throw new Error(`Espèce "${s.id}" : coût ou rendement négatif`);
   }
-  for (const e of events.values()) {
-    if (e.weight <= 0) throw new Error(`Événement "${e.id}" : poids doit être > 0`);
-    for (const key of Object.keys(e.effects)) {
-      if (!RESOURCE_IDS.includes(key as never)) {
-        throw new Error(`Événement "${e.id}" : ressource inconnue "${key}"`);
-      }
+  const seasonIds = new Set(raw.seasons.seasons.map((s) => s.id));
+  const checkSeasons = (weights: Record<string, number>, label: string) => {
+    for (const [id, w] of Object.entries(weights)) {
+      if (!seasonIds.has(id)) throw new Error(`${label} : saison inconnue "${id}"`);
+      if (!(w >= 0)) throw new Error(`${label} : poids négatif pour "${id}"`);
     }
+  };
+  inRange(raw.events.chancePerTick, 0, 1, 'events.chancePerTick');
+  for (const e of events.values()) {
+    const label = `Événement "${e.id}"`;
+    if (!CLIMATE_KINDS.includes(e.kind)) throw new Error(`${label} : nature inconnue "${e.kind}"`);
+    const [min, max] = e.duration;
+    if (!(min >= 1 && max >= min)) throw new Error(`${label} : durée invalide`);
+    if (!(e.intensity >= 0)) throw new Error(`${label} : intensité négative`);
+    checkSeasons(e.seasons, label);
   }
   for (const f of forests.values()) {
     for (const id of f.species) {
@@ -60,11 +86,26 @@ export function buildGameData(raw: {
     for (const id of f.events) {
       if (!events.has(id)) throw new Error(`Forêt "${f.id}" : événement inconnu "${id}"`);
     }
+    for (const id of ALLY_SPECIES) {
+      if (!(f.allies?.[id] >= 0)) throw new Error(`Forêt "${f.id}" : nombre d'alliés "${id}" invalide`);
+    }
   }
   validateNetwork(raw.network);
   validateSeasons(raw.seasons);
   validateSoil(raw.soil);
-  return { species, events, forests, network: raw.network, seasons: raw.seasons, soil: raw.soil };
+  validateAllies(raw.allies, checkSeasons);
+  validateThreats(raw.threats, checkSeasons);
+  return {
+    species,
+    events,
+    eventChance: raw.events.chancePerTick,
+    forests,
+    network: raw.network,
+    seasons: raw.seasons,
+    soil: raw.soil,
+    allies: raw.allies,
+    threats: raw.threats,
+  };
 }
 
 function inRange(value: number, min: number, max: number, label: string): void {
@@ -131,13 +172,56 @@ export function validateSoil(soil: SoilDef): void {
   inRange(soil.mineralRate, 0, 1e3, 'soil.mineralRate');
 }
 
+type SeasonCheck = (weights: Record<string, number>, label: string) => void;
+
+/** Vérifie les espèces alliées : traits dans [0, 1], habitats connus, accords positifs. */
+export function validateAllies(def: AlliesDef, checkSeasons: SeasonCheck): void {
+  const { trust } = def;
+  for (const key of ['initial', 'gain', 'loss', 'drift', 'leave'] as const) inRange(trust[key], 0, 1, `allies.trust.${key}`);
+  for (const id of ALLY_SPECIES) {
+    const sp = def.species[id];
+    if (!sp) throw new Error(`Alliés : espèce "${id}" manquante`);
+    const label = `allié ${id}`;
+    for (const trait of PERSONALITY_TRAITS) inRange(sp.personality[trait], 0, 1, `${label}.personality.${trait}`);
+    inRange(sp.variation, 0, 0.5, `${label}.variation`);
+    for (const layer of [...sp.habitat, ...(sp.winterHabitat ?? [])]) {
+      if (!LAYERS.includes(layer)) throw new Error(`Alliés : ${label} habite une couche inconnue "${layer}"`);
+    }
+    for (const amount of [...Object.values(sp.deal.wants), ...Object.values(sp.deal.gives)]) {
+      inRange(amount ?? NaN, 0, 100, `${label}.deal`);
+    }
+    inRange(sp.betrayal.threshold, 0, 1, `${label}.betrayal.threshold`);
+    inRange(sp.betrayal.chance, 0, 1, `${label}.betrayal.chance`);
+    checkSeasons(sp.activity, `Alliés : ${label}`);
+  }
+}
+
+/** Vérifie les menaces : probabilités dans [0, 1], couleurs valides. */
+export function validateThreats(def: ThreatsDef, checkSeasons: SeasonCheck): void {
+  inRange(def.rivals.chancePerTick, 0, 1, 'rivals.chancePerTick');
+  inRange(def.rivals.cellSize, 1, 32, 'rivals.cellSize');
+  checkSeasons(def.rivals.seasons, 'Moisissures');
+  for (const [id, kind] of Object.entries(def.rivals.kinds)) {
+    hexToInt(kind.color);
+    inRange(kind.growthChance, 0, 1, `rivals.${id}.growthChance`);
+    inRange(kind.hp, 0.001, 1e3, `rivals.${id}.hp`);
+  }
+  if (Object.keys(def.rivals.kinds).length === 0) throw new Error('Moisissures : aucune espèce définie');
+  const p = def.parasites;
+  for (const key of ['chancePerTick', 'seedLoad', 'growth', 'spread', 'cure'] as const) inRange(p[key], 0, 1, `parasites.${key}`);
+  checkSeasons(p.seasons, 'Parasites');
+  inRange(def.defense.minSignal, 0, 1, 'defense.minSignal');
+}
+
 /** Données du jeu, chargées depuis les fichiers JSON de src/data. */
 export const gameData: GameData = buildGameData({
   species: speciesJson as SpeciesDef[],
-  events: eventsJson as EventDef[],
+  events: eventsJson as unknown as EventsDef,
   forests: forestsJson as ForestDef[],
   network: networkJson as NetworkDef,
   // Les objets de météo ont des clés différentes selon la saison : TypeScript exige un passage par unknown.
   seasons: seasonsJson as unknown as SeasonsDef,
   soil: soilJson as SoilDef,
+  allies: alliesJson as unknown as AlliesDef,
+  threats: threatsJson as ThreatsDef,
 });

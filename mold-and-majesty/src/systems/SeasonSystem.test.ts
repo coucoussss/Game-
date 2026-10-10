@@ -31,10 +31,8 @@ describe('règles', () => {
     // Le printemps étend : la pousse y est la plus rapide et la moins chère.
     expect(rules('spring').growthSpeed).toBe(Math.max(...defs.seasons.map((s) => s.rules.growthSpeed)));
     expect(rules('spring').growthCost).toBe(Math.min(...defs.seasons.map((s) => s.rules.growthCost)));
-    // L'été produit : production et échange de sucre maximaux.
-    const sugar = (r: { sugarProduction: number; mineralTrade: number; tradeRatio: number }) =>
-      r.sugarProduction + r.mineralTrade * r.tradeRatio;
-    expect(sugar(rules('summer'))).toBe(Math.max(...defs.seasons.map((s) => sugar(s.rules))));
+    // L'été produit : production de sucre maximale (et arbres au plus actif, cf. allies.json).
+    expect(rules('summer').sugarProduction).toBe(Math.max(...defs.seasons.map((s) => s.rules.sugarProduction)));
     // L'automne fructifie.
     expect(rules('autumn').fruiting).toBe(Math.max(...defs.seasons.map((s) => s.rules.fruiting)));
     // L'hiver : plus de sucre, entretien réduit, gel.

@@ -26,10 +26,6 @@ import type { NetNode, NetSegment, Network } from '../entities/Network';
 /** Multiplicateurs appliqués à la simulation (saison, mémoire). */
 export interface FlowModifiers {
   sugarProduction: number;
-  /** Minéraux échangés aux arbres par le cœur, par tick. */
-  mineralTrade: number;
-  /** Sucre rendu par minéral échangé. */
-  tradeRatio: number;
   growthSpeed: number;
   growthCost: number;
   upkeep: number;
@@ -41,8 +37,6 @@ export interface FlowModifiers {
 /** Aucune modification : les valeurs de network.json s'appliquent telles quelles. */
 export const NEUTRAL_MODIFIERS: Readonly<FlowModifiers> = {
   sugarProduction: 1,
-  mineralTrade: 0,
-  tradeRatio: 0,
   growthSpeed: 1,
   growthCost: 1,
   upkeep: 1,
@@ -69,8 +63,8 @@ export function stepNetwork(net: Network, defs: NetworkDef, mods: FlowModifiers 
 }
 
 /**
- * Production du cœur et échange minéraux → sucre avec les arbres, atténuation et relais
- * du signal, fructification, conversion des nœuds.
+ * Production du cœur, atténuation et relais du signal, fructification, conversion des nœuds.
+ * (L'échange minéraux → sucre avec les arbres est géré par AllySystem.)
  */
 export function updateNodes(net: Network, defs: NetworkDef, mods: FlowModifiers = NEUTRAL_MODIFIERS): void {
   const { signal, fruiting } = defs;
@@ -88,9 +82,6 @@ export function updateNodes(net: Network, defs: NetworkDef, mods: FlowModifiers 
       const prod = defs.nodes.heart.production ?? {};
       s.sugar += (prod.sugar ?? 0) * mods.sugarProduction;
       s.water += prod.water ?? 0;
-      const traded = Math.min(s.minerals, mods.mineralTrade);
-      s.minerals -= traded;
-      s.sugar += traded * mods.tradeRatio;
       s.signal = cap;
     } else if (node.kind === 'relay') {
       if (s.signal >= signal.relayThreshold * cap && s.sugar >= signal.relayCost) {

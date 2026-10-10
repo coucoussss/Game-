@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Network } from '../entities/Network';
-import { StrokeBuilder, convertNode, snapToGrid } from './NetworkBuilder';
+import { StrokeBuilder, convertNode, cutAt, snapToGrid } from './NetworkBuilder';
 
 const options = { grid: 4, step: 10, snapRadius: 6, bounds: { minX: 0, maxX: 200, minY: 50, maxY: 150 } };
 
@@ -73,5 +73,28 @@ describe('convertNode', () => {
     const node = net.addNode('junction', 10, 0);
     expect(convertNode(net, heart.id, 'storage')).toBe(false);
     expect(convertNode(net, node.id, 'heart')).toBe(false);
+  });
+});
+
+describe('cutAt', () => {
+  it('coupe le segment le plus proche du geste', () => {
+    const net = new Network();
+    const a = net.addNode('junction', 0, 0);
+    const b = net.addNode('junction', 20, 0);
+    const c = net.addNode('junction', 20, 20);
+    const ab = net.addSegment(a.id, b.id, 'thin', true)!;
+    const bc = net.addSegment(b.id, c.id, 'thin', true)!;
+    expect(cutAt(net, 10, 2, 3)).toBe(true);
+    expect(net.segments.has(ab.id)).toBe(false);
+    expect(net.segments.has(bc.id)).toBe(true);
+  });
+
+  it('ne coupe rien si aucun segment n\'est à portée', () => {
+    const net = new Network();
+    const a = net.addNode('junction', 0, 0);
+    const b = net.addNode('junction', 20, 0);
+    net.addSegment(a.id, b.id, 'thin', true);
+    expect(cutAt(net, 10, 10, 3)).toBe(false);
+    expect(net.segments.size).toBe(1);
   });
 });

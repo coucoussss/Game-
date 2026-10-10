@@ -31,8 +31,6 @@ export function seasonAt(tick: number, defs: SeasonsDef): SeasonInfo {
 export function seasonModifiers(rules: SeasonRules, memory: number, defs: SeasonsDef): FlowModifiers {
   return {
     sugarProduction: rules.sugarProduction,
-    mineralTrade: rules.mineralTrade,
-    tradeRatio: rules.tradeRatio,
     growthSpeed: rules.growthSpeed,
     growthCost: rules.growthCost,
     upkeep: rules.upkeep,

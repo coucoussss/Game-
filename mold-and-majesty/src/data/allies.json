@@ -1,0 +1,179 @@
+{
+  "trust": {
+    "initial": 0.5,
+    "gain": 0.0004,
+    "loss": 0.0006,
+    "drift": 5e-05,
+    "leave": 0.05
+  },
+  "species": {
+    "tree": {
+      "name": "Arbre",
+      "personality": {
+        "warmth": 0.4,
+        "patience": 0.9,
+        "greed": 0.5,
+        "generosity": 0.8,
+        "loyalty": 0.9
+      },
+      "variation": 0.1,
+      "habitat": [
+        "surface"
+      ],
+      "speed": 0,
+      "contactRadius": 12,
+      "activity": {
+        "spring": 0.5,
+        "summer": 1,
+        "autumn": 0.4,
+        "winter": 0
+      },
+      "deal": {
+        "wants": {
+          "minerals": 0.1
+        },
+        "gives": {
+          "sugar": 0.6
+        }
+      },
+      "betrayal": {
+        "kind": "hoard",
+        "threshold": 0.25,
+        "chance": 0.004,
+        "amount": 30,
+        "cooldownTicks": 1800
+      },
+      "leaves": false
+    },
+    "ant": {
+      "name": "Fourmis",
+      "personality": {
+        "warmth": 0.7,
+        "patience": 0.4,
+        "greed": 0.6,
+        "generosity": 0.6,
+        "loyalty": 0.5
+      },
+      "variation": 0.2,
+      "habitat": [
+        "surface"
+      ],
+      "winterHabitat": [
+        "humus"
+      ],
+      "speed": 0.35,
+      "contactRadius": 8,
+      "activity": {
+        "spring": 1,
+        "summer": 1,
+        "autumn": 0.7,
+        "winter": 0
+      },
+      "deal": {
+        "wants": {
+          "sugar": 0.01
+        },
+        "gives": {
+          "minerals": 0.015
+        }
+      },
+      "service": {
+        "kind": "guard",
+        "strength": 0.02
+      },
+      "betrayal": {
+        "kind": "raid",
+        "threshold": 0.3,
+        "chance": 0.006,
+        "amount": 25,
+        "cooldownTicks": 1200
+      },
+      "leaves": true
+    },
+    "worm": {
+      "name": "Ver de terre",
+      "personality": {
+        "warmth": 0.5,
+        "patience": 0.8,
+        "greed": 0.3,
+        "generosity": 0.7,
+        "loyalty": 0.7
+      },
+      "variation": 0.15,
+      "habitat": [
+        "humus"
+      ],
+      "winterHabitat": [
+        "deep"
+      ],
+      "speed": 0.08,
+      "contactRadius": 8,
+      "activity": {
+        "spring": 1,
+        "summer": 0.6,
+        "autumn": 1,
+        "winter": 0.2
+      },
+      "deal": {
+        "wants": {
+          "sugar": 0.005
+        },
+        "gives": {
+          "water": 0.03
+        }
+      },
+      "service": {
+        "kind": "aerate",
+        "strength": 0.02
+      },
+      "betrayal": {
+        "kind": "gnaw",
+        "threshold": 0.3,
+        "chance": 0.004,
+        "amount": 0.4,
+        "cooldownTicks": 1500
+      },
+      "leaves": true
+    },
+    "beetle": {
+      "name": "Scarabée",
+      "personality": {
+        "warmth": 0.3,
+        "patience": 0.3,
+        "greed": 0.8,
+        "generosity": 0.5,
+        "loyalty": 0.3
+      },
+      "variation": 0.25,
+      "habitat": [
+        "surface"
+      ],
+      "speed": 0.25,
+      "contactRadius": 8,
+      "activity": {
+        "spring": 0.6,
+        "summer": 1,
+        "autumn": 1,
+        "winter": 0
+      },
+      "deal": {
+        "wants": {
+          "sugar": 0.015
+        },
+        "gives": {}
+      },
+      "service": {
+        "kind": "disperse",
+        "strength": 0.002
+      },
+      "betrayal": {
+        "kind": "infest",
+        "threshold": 0.35,
+        "chance": 0.008,
+        "amount": 0.4,
+        "cooldownTicks": 2400
+      },
+      "leaves": true
+    }
+  }
+}

@@ -59,6 +59,9 @@ Le contenu du jeu vit dans des **fichiers JSON séparés du code**, dans `src/da
 - `network.json` : les paramètres du réseau (`NetworkDef`) : flux, épaisseurs, rôles des nœuds, signal, fructification
 - `seasons.json` : la durée des saisons, leurs règles, leurs palettes, leurs météos, et les gains de mémoire (`SeasonsDef`)
 - `soil.json` : l'absorption d'eau et de minéraux, et l'inertie hydrique des couches (`SoilDef`)
+- `allies.json` : les espèces alliées (personnalité, habitat, accord, service, trahison) et la dynamique de confiance (`AlliesDef`)
+- `threats.json` : les moisissures rivales, les parasites et la défense chimique du réseau (`ThreatsDef`)
+- `events.json` : les événements climatiques et leurs probabilités par saison (`EventsDef`)
 
 Les types sont définis dans `src/data/types.ts`. Au chargement, `src/data/index.ts` indexe les données
 et les **valide** : identifiants uniques, valeurs cohérentes, références croisées. Pour ajouter du
@@ -117,6 +120,52 @@ avec un test.
 - **Équilibrage** : `World.test.ts` simule une année entière avec un réseau type. S'il casse après un
   réglage des JSON, c'est que l'équilibre du jeu a changé : vérifier que c'est voulu.
 
+## Alliés et menaces (étape 4)
+
+- **Alliés** (`entities/Ally.ts`, `systems/AllySystem.ts`) : arbres, fourmis, vers, scarabées.
+  - **Personnalité** : 5 traits (chaleur, patience, avidité, générosité, loyauté) définis par espèce
+    dans le JSON, avec une variation individuelle.
+  - **Confiance** (0..1) : elle monte quand l'accord est honoré (× chaleur) et baisse à proportion du
+    manque (× (1 − patience)). Sans contact avec le réseau, elle revient doucement vers sa valeur initiale.
+  - **Accords** : chaque tick, l'allié prend au nœud en contact ce qu'il réclame, puis donne en proportion
+    de ce qu'il a reçu et de sa confiance. Les arbres échangent minéraux → sucre par leurs racines (il
+    n'y a plus d'échange abstrait au cœur). L'arbre-mère plonge une racine vers le cœur.
+  - **Services** : les fourmis nettoient les parasites, les vers regarnissent les gisements, les
+    scarabées font avancer les ruches.
+  - **Trahisons** (sous un seuil de confiance, d'autant plus probables que l'allié est peu loyal) :
+    - l'arbre aspire du sucre puis boude (il prend sans rien donner) ;
+    - les fourmis pillent le nœud le plus sucré ;
+    - le ver ronge un filament ;
+    - le scarabée dépose des parasites.
+  - **Départs et arrivées** : à bout de confiance, une bête quitte la forêt (pas les arbres). De nouvelles
+    arrivent à chaque saison. Les bêtes dorment l'hiver.
+  - **Lisibilité** : aucune jauge. L'humeur (`moodOf` : dévoué, amical, méfiant, hostile) se traduit
+    en animations :
+    - ramure d'arbre qui s'affaisse ou tremble, sève dorée qui descend ou grise qui remonte ;
+    - colonne de fourmis ordonnée ou grouillante ;
+    - ver qui ondule ou se rétracte ;
+    - carapace de scarabée irisée, ou élytres qui frémissent.
+- **Moisissures rivales** (`systems/RivalSystem.ts`) : colonies de cellules sur une grille de 4 px.
+  Elles grandissent, sécrètent des toxines (dégâts × `decay`, comme le gel) et dévorent les gisements.
+  **Guerre chimique** : chaque nœud riche en signal détruit les cellules à sa portée en payant du sucre,
+  ce qui fait des relais l'arme du réseau. Anéantir une colonie donne de la mémoire.
+- **Parasites** (`systems/ParasiteSystem.ts`) : une épidémie qui court sur le graphe. La charge monte,
+  le parasite vole du sucre et contamine par les segments. Le signal soigne, les fourmis nettoient,
+  et l'outil **Couper** (touche 7) tranche un filament pour arrêter la contagion.
+- **Climat** (`systems/ClimateSystem.ts`), un événement à la fois :
+  - **sécheresse** : le sol s'assèche vite ;
+  - **inondation** : l'eau monte des profondeurs et noie les filaments ;
+  - **feu** : deux fronts courent en surface, brûlent arbres et filaments affleurants, puis laissent des
+    cendres riches ; un arbre brûlé repousse en deux saisons ;
+  - **gel tardif** : la surface gèle hors saison ;
+  - **chêne abattu** : un gisement riche apparaît en surface.
+  Seules les catastrophes sont nommées par un bandeau éphémère.
+- **Rendu** : `ForestView` (arbres), `AllyView` (bêtes), `ThreatView` (menaces, climat),
+  `EffectsView` (consomme `world.events` : trahisons, contagions, apparitions).
+- **Développement** : `?event=fire|flood|drought|cold-snap|fallen-oak`, `?rival=verdigris|black-rot`,
+  `?parasite`. `new World(data, forêt, graine, { threats: false })` désactive les menaces, comme dans le
+  test d'équilibrage.
+
 ## Conventions de code
 
 - Le code et les identifiants sont en **anglais**. Les commentaires, les textes affichés et les messages
@@ -147,8 +196,9 @@ avec un test.
       nœuds (réserve, relais, ruche), flux sucre/eau/signal, dépérissement, tests de simulation
 - [x] 3. Ressources (sucre, eau, minéraux, mémoire), cycle de 4 saisons de 15 min, météo,
       interface par le décor
-- [ ] 4. Espèces de champignons constructibles par couche (depuis `species.json`)
-- [ ] 5. Événements de forêt aléatoires et pondérés (depuis `events.json`)
+- [x] 4. Alliés (arbres, fourmis, vers, scarabées : confiance, personnalité, échanges, trahisons)
+      et menaces (moisissures rivales, parasites, sécheresse, inondation, feu, gel), lisibles par l'animation
+- [ ] 5. Espèces de champignons constructibles par couche (depuis `species.json`)
 - [ ] 6. HUD et interface : ressources, menu de construction, info-bulles, police bitmap
 - [ ] 7. Sauvegarde et chargement complets, menu principal
 - [ ] 8. Plusieurs forêts et progression (depuis `forests.json`)

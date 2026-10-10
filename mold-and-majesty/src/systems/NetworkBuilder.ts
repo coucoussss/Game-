@@ -88,3 +88,14 @@ export function convertNode(net: Network, nodeId: number, kind: NodeKind): boole
   node.fruiting = 0;
   return true;
 }
+
+/**
+ * Coupe le segment le plus proche du point (x, y), s'il passe à moins de `radius` pixels.
+ * Les nœuds isolés seront retirés par la simulation. Couper arrête une contagion.
+ */
+export function cutAt(net: Network, x: number, y: number, radius: number): boolean {
+  const seg = net.findSegmentNear(x, y, radius);
+  if (!seg) return false;
+  net.removeSegment(seg.id);
+  return true;
+}

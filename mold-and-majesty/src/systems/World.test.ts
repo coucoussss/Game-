@@ -49,7 +49,7 @@ describe('World', () => {
  * Si ce test casse après un réglage des JSON, c'est que l'équilibre du jeu a changé.
  */
 describe('une année dans le Bosquet des Murmures', () => {
-  const world = new World(gameData, 'whispering-grove', 7);
+  const world = new World(gameData, 'whispering-grove', 7, { threats: false });
   const heart = heartOf(world);
   const branches: [number, number, ThicknessId][] = [
     [1, 0, 'thick'],

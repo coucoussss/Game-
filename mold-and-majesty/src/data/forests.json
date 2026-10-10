@@ -30,14 +30,22 @@
         "amount": 120
       }
     },
+    "allies": {
+      "tree": 5,
+      "ant": 3,
+      "worm": 3,
+      "beetle": 2
+    },
     "species": [
       "puffball",
       "chanterelle",
       "deep-truffle"
     ],
     "events": [
-      "spring-rain",
       "drought",
+      "flood",
+      "fire",
+      "cold-snap",
       "fallen-oak"
     ]
   }

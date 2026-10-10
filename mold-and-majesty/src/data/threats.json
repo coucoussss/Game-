@@ -1,0 +1,63 @@
+{
+  "rivals": {
+    "chancePerTick": 4e-05,
+    "seasons": {
+      "spring": 1,
+      "summer": 1.2,
+      "autumn": 1.5,
+      "winter": 0.2
+    },
+    "maxColonies": 3,
+    "minDistance": 70,
+    "startCells": 4,
+    "cellSize": 4,
+    "victoryMemory": 2,
+    "kinds": {
+      "verdigris": {
+        "name": "Moisissure vert-de-gris",
+        "color": "#5fae8e",
+        "growthChance": 0.05,
+        "maxCells": 90,
+        "hp": 1,
+        "toxin": {
+          "radius": 8,
+          "intensity": 1.5
+        },
+        "appetite": 0.002
+      },
+      "black-rot": {
+        "name": "Pourriture noire",
+        "color": "#3a2f3f",
+        "growthChance": 0.02,
+        "maxCells": 60,
+        "hp": 3,
+        "toxin": {
+          "radius": 12,
+          "intensity": 3
+        },
+        "appetite": 0.004
+      }
+    }
+  },
+  "parasites": {
+    "chancePerTick": 3e-05,
+    "seasons": {
+      "spring": 1,
+      "summer": 1.5,
+      "autumn": 1,
+      "winter": 0.1
+    },
+    "seedLoad": 0.15,
+    "growth": 0.0015,
+    "spread": 0.004,
+    "drain": 0.03,
+    "damage": 0.002,
+    "cure": 0.005
+  },
+  "defense": {
+    "radius": 12,
+    "damage": 0.02,
+    "sugarCost": 0.01,
+    "minSignal": 0.1
+  }
+}

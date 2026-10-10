@@ -1,24 +1,29 @@
 import Phaser from 'phaser';
-import { GROUND_Y, NATIVE_WIDTH, TICK_MS } from '../config';
+import { GROUND_Y, NATIVE_WIDTH, PLAY_BOTTOM, TICK_MS } from '../config';
 import { gameData } from '../data';
 import type { NodeKind, ThicknessId } from '../data/types';
 import { FixedStep } from '../systems/FixedStep';
-import { StrokeBuilder, convertNode } from '../systems/NetworkBuilder';
+import { StrokeBuilder, convertNode, cutAt } from '../systems/NetworkBuilder';
 import { World } from '../systems/World';
 import { PALETTE, TEXT_STYLE } from '../ui/text';
 import { TOOLBAR_Y, Toolbar } from '../ui/Toolbar';
+import { AllyView } from './AllyView';
+import { EffectsView } from './EffectsView';
 import { ForestView } from './ForestView';
+import { ThreatView } from './ThreatView';
 import { type FluxOverlay, NetworkView } from './NetworkView';
 
-type ToolId = ThicknessId | Exclude<NodeKind, 'heart' | 'junction'> | 'overlay' | 'speed';
+type ToolId = ThicknessId | Exclude<NodeKind, 'heart' | 'junction'> | 'cut' | 'overlay' | 'speed';
+type BuildTool = Exclude<ToolId, 'overlay' | 'speed'>;
 
-const TOOL_HINTS: Record<Exclude<ToolId, 'overlay' | 'speed'>, string> = {
+const TOOL_HINTS: Record<BuildTool, string> = {
   thin: 'Fin : pousse vite, peu cher, fragile',
   medium: 'Moyen : compromis',
   thick: 'Épais : lent et cher, gros débit, résistant',
   storage: 'Réserve : touche une jonction (grand stock)',
   relay: 'Relais : touche une jonction (réémet le signal)',
   fruiting: 'Ruche : touche une jonction (spores)',
+  cut: 'Couper : tranche un filament (stoppe une contagion)',
 };
 
 const OVERLAYS: readonly FluxOverlay[] = [null, 'sugar', 'water', 'minerals', 'signal'];
@@ -34,13 +39,16 @@ export class GameScene extends Phaser.Scene {
   private world!: World;
   private forestView!: ForestView;
   private networkView!: NetworkView;
+  private allyView!: AllyView;
+  private threatView!: ThreatView;
+  private effectsView!: EffectsView;
   private stroke!: StrokeBuilder;
   private toolbar!: Toolbar<ToolId>;
   private hint!: Phaser.GameObjects.Text;
   private banner!: Phaser.GameObjects.Text;
   private debug!: Phaser.GameObjects.Text;
   private readonly clock = new FixedStep(TICK_MS, 64);
-  private tool: Exclude<ToolId, 'overlay' | 'speed'> = 'thin';
+  private tool: BuildTool = 'thin';
   private overlay: FluxOverlay = null;
   private speed = 1;
   private hintAge = 0;
@@ -52,7 +60,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   create(): void {
-    // Paramètres de développement : ?seed=1&speed=60&tick=20000
+    // Paramètres de développement : ?seed=1&speed=60&tick=20000&event=fire&rival=black-rot&parasite
     const params = new URLSearchParams(window.location.search);
     const seed = Number(params.get('seed')) || Math.floor(Math.random() * 2 ** 31);
     this.speed = Number(params.get('speed')) || 1;
@@ -60,12 +68,19 @@ export class GameScene extends Phaser.Scene {
     this.world.tick = Number(params.get('tick')) || 0;
 
     this.forestView = new ForestView(this, this.world);
+    this.threatView = new ThreatView(this, this.world);
     this.networkView = new NetworkView(this, this.world.net, gameData.network);
+    this.allyView = new AllyView(this, this.world);
+    this.effectsView = new EffectsView(this, this.world, (text) => this.showBanner(text));
+    const event = params.get('event');
+    if (event) this.world.startClimate(event);
+    const rival = params.get('rival');
+    if (rival !== null) this.world.spawnRival(rival || undefined);
     this.stroke = new StrokeBuilder(this.world.net, {
       grid: 4,
       step: 10,
       snapRadius: 6,
-      bounds: { minX: 4, maxX: this.world.widthPx - 4, minY: GROUND_Y + 4, maxY: TOOLBAR_Y - 6 },
+      bounds: { minX: 4, maxX: this.world.widthPx - 4, minY: GROUND_Y + 4, maxY: PLAY_BOTTOM },
     });
 
     this.add.graphics().setDepth(9).fillStyle(PALETTE.ink).fillRect(0, TOOLBAR_Y, NATIVE_WIDTH, 216 - TOOLBAR_Y);
@@ -88,8 +103,9 @@ export class GameScene extends Phaser.Scene {
         { id: 'storage', label: 'Stock', key: 'FOUR' },
         { id: 'relay', label: 'Relais', key: 'FIVE' },
         { id: 'fruiting', label: 'Ruche', key: 'SIX' },
-        { id: 'overlay', label: 'Vue', key: 'SEVEN', action: true },
-        { id: 'speed', label: `×${this.speed}`, key: 'EIGHT', action: true },
+        { id: 'cut', label: 'Coupe', key: 'SEVEN' },
+        { id: 'overlay', label: 'Vue', key: 'EIGHT', action: true },
+        { id: 'speed', label: `×${this.speed}`, key: 'NINE', action: true },
       ],
       this.tool,
       (id) => this.selectTool(id),
@@ -102,18 +118,27 @@ export class GameScene extends Phaser.Scene {
     const steps = this.clock.advance(delta * this.speed);
     for (let i = 0; i < steps; i++) this.world.step();
 
-    this.forestView.draw(delta * Math.min(this.speed, 4));
+    const visualDelta = delta * Math.min(this.speed, 4);
+    this.forestView.draw(visualDelta);
+    this.threatView.draw(visualDelta);
     this.networkView.draw(this.overlay, this.world.memory, time);
+    this.allyView.draw(visualDelta);
+    this.effectsView.draw(visualDelta);
     this.updateMessages(delta);
+    if (this.pendingParasite && this.world.net.nodes.size > 3) {
+      this.pendingParasite = !this.world.seedParasites();
+    }
   }
+
+  /** Débogage : infecter un nœud dès que le réseau en compte quelques-uns. */
+  private pendingParasite = new URLSearchParams(window.location.search).has('parasite');
 
   private updateMessages(delta: number): void {
     const season = this.world.season;
     const key = `${season.year}-${season.index}`;
     if (key !== this.lastSeasonKey) {
       this.lastSeasonKey = key;
-      this.banner.setText(`${season.def.name} · an ${season.year}\n${season.def.motto}`);
-      this.bannerAge = 0;
+      this.showBanner(`${season.def.name} · an ${season.year}\n${season.def.motto}`);
     }
     // Les messages apparaissent puis s'effacent d'eux-mêmes : pas d'interface permanente.
     this.bannerAge += delta;
@@ -123,11 +148,12 @@ export class GameScene extends Phaser.Scene {
 
     if (this.debug.visible) {
       const t = this.world.net.totals();
+      const trust = this.world.allies.map((a) => a.species.charAt(0) + Math.round(a.trust * 9)).join(' ');
       this.debug.setText(
         `S ${t.sugar.toFixed(0)} E ${t.water.toFixed(0)} M ${t.minerals.toFixed(1)} ` +
           `Mém ${this.world.memory.toFixed(1)} Sp ${this.world.net.spores}\n` +
           `${season.def.id} ${(season.progress * 100).toFixed(0)}% ${this.world.weather.id} ` +
-          `hum ${this.world.moisture.toFixed(2)}`,
+          `hum ${this.world.moisture.toFixed(2)} ${this.world.climate?.id ?? ''}\n${trust}`,
       );
     }
   }
@@ -148,6 +174,11 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private showBanner(text: string): void {
+    this.banner.setText(text);
+    this.bannerAge = 0;
+  }
+
   private showHint(text: string): void {
     this.hint.setText(text);
     this.hintAge = 0;
@@ -160,15 +191,18 @@ export class GameScene extends Phaser.Scene {
       if (over.length > 0) return; // clic sur la barre d'outils
       if (isThickness(this.tool)) {
         this.stroke.begin(p.worldX, p.worldY);
+      } else if (this.tool === 'cut') {
+        cutAt(this.world.net, p.worldX, p.worldY, 3);
       } else {
         const node = this.world.net.findNodeNear(p.worldX, p.worldY, 6);
-        if (node) convertNode(this.world.net, node.id, this.tool);
+        if (node) convertNode(this.world.net, node.id, this.tool as Exclude<BuildTool, ThicknessId | 'cut'>);
       }
     });
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
-      if (p.isDown && this.stroke.active && isThickness(this.tool)) {
-        this.stroke.move(p.worldX, p.worldY, this.tool);
-      }
+      if (!p.isDown) return;
+      if (this.stroke.active && isThickness(this.tool)) this.stroke.move(p.worldX, p.worldY, this.tool);
+      // Couper au glissé : on tranche tout ce que le geste traverse.
+      else if (this.tool === 'cut') cutAt(this.world.net, p.worldX, p.worldY, 3);
     });
     const end = () => this.stroke.end();
     this.input.on('pointerup', end);

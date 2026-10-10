@@ -1,23 +1,83 @@
-[
-  {
-    "id": "spring-rain",
-    "name": "Pluie de printemps",
-    "description": "La terre boit. Le réseau aussi.",
-    "weight": 3,
-    "effects": { "water": 20 }
-  },
-  {
-    "id": "drought",
-    "name": "Sécheresse",
-    "description": "Les filaments se rétractent sous la chaleur.",
-    "weight": 1,
-    "effects": { "water": -15 }
-  },
-  {
-    "id": "fallen-oak",
-    "name": "Chêne abattu",
-    "description": "Un vieux chêne s'effondre : un festin de bois mort.",
-    "weight": 1,
-    "effects": { "sugar": 40 }
-  }
-]
+{
+  "chancePerTick": 0.00012,
+  "events": [
+    {
+      "id": "drought",
+      "name": "Sécheresse",
+      "description": "Le ciel brûle, la terre se fend. Seules les racines profondes boivent encore.",
+      "kind": "drought",
+      "seasons": {
+        "summer": 3,
+        "spring": 0.5,
+        "autumn": 0.7
+      },
+      "duration": [
+        2400,
+        4800
+      ],
+      "intensity": 1
+    },
+    {
+      "id": "flood",
+      "name": "Inondation",
+      "description": "L'eau monte des profondeurs et noie les filaments qui ne sont pas assez épais.",
+      "kind": "flood",
+      "seasons": {
+        "spring": 2,
+        "autumn": 2,
+        "winter": 0.5
+      },
+      "duration": [
+        1200,
+        2400
+      ],
+      "intensity": 3
+    },
+    {
+      "id": "fire",
+      "name": "Feu de forêt",
+      "description": "Un incendie court en surface. Il brûle les arbres et tout filament affleurant, puis laisse des cendres riches.",
+      "kind": "fire",
+      "seasons": {
+        "summer": 2,
+        "autumn": 0.5
+      },
+      "duration": [
+        600,
+        1200
+      ],
+      "intensity": 0.05
+    },
+    {
+      "id": "cold-snap",
+      "name": "Gel tardif",
+      "description": "Une nuit de glace hors saison : la surface gèle.",
+      "kind": "frost",
+      "seasons": {
+        "spring": 1.5,
+        "autumn": 1.5
+      },
+      "duration": [
+        900,
+        1800
+      ],
+      "intensity": 4
+    },
+    {
+      "id": "fallen-oak",
+      "name": "Chêne abattu",
+      "description": "Un vieux chêne s'effondre : un festin de bois mort et de minéraux.",
+      "kind": "windfall",
+      "seasons": {
+        "autumn": 2,
+        "winter": 1,
+        "spring": 1
+      },
+      "duration": [
+        3600,
+        3600
+      ],
+      "intensity": 150
+    }
+  ]
+}

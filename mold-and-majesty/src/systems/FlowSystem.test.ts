@@ -322,21 +322,6 @@ describe('modificateurs de saison', () => {
     expect(heart.stock.sugar).toBe(0);
   });
 
-  it('le cœur échange des minéraux contre du sucre avec les arbres', () => {
-    const net = new Network();
-    const heart = net.addNode('heart', 0, 0, { minerals: 1 });
-    updateNodes(net, defs(), mods({ sugarProduction: 0, mineralTrade: 0.4, tradeRatio: 5 }));
-    expect(heart.stock.minerals).toBeCloseTo(0.6);
-    expect(heart.stock.sugar).toBeCloseTo(2);
-  });
-
-  it('pas d\'échange sans minéraux', () => {
-    const net = new Network();
-    const heart = net.addNode('heart', 0, 0);
-    updateNodes(net, defs(), mods({ sugarProduction: 0, mineralTrade: 0.4, tradeRatio: 5 }));
-    expect(heart.stock.sugar).toBe(0);
-  });
-
   it('la pousse accélère au printemps et coûte moins', () => {
     const growth = (m: typeof NEUTRAL_MODIFIERS) => {
       const net = new Network();

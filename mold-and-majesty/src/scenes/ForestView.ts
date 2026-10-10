@@ -1,5 +1,7 @@
 import type Phaser from 'phaser';
 import { GROUND_Y, NATIVE_HEIGHT } from '../config';
+import { type Ally, moodOf } from '../entities/Ally';
+import { TREE_REGROWTH } from '../systems/ClimateSystem';
 import type { Layer } from '../data/types';
 import { Random } from '../systems/Random';
 import { type ResolvedPalette, paletteAt } from '../systems/SeasonSystem';
@@ -17,12 +19,10 @@ interface Leaf {
   tint: number;
 }
 
-interface Tree {
-  x: number;
-  trunkHeight: number;
+/** Apparence d'un arbre (générée une fois), associée à l'allié correspondant. */
+interface TreeLook {
   trunkWidth: number;
   leaves: Leaf[];
-  roots: [number, number][][];
 }
 
 interface Particle {
@@ -47,7 +47,7 @@ const MAX_LITTER = 220;
 export class ForestView {
   private readonly back: Phaser.GameObjects.Graphics;
   private readonly front: Phaser.GameObjects.Graphics;
-  private readonly trees: Tree[] = [];
+  private readonly looks = new Map<number, TreeLook>();
   private readonly cracks: [number, number, number, number][] = [];
   private readonly falling: Particle[] = [];
   private readonly litter: { x: number; color: number; age: number }[] = [];
@@ -67,7 +67,17 @@ export class ForestView {
   private generate(): void {
     const rng = new Random(this.world.rng.state ^ 0x5eed);
     const bounds = layerBounds(this.world.forest);
-    for (let x = 20 + rng.int(0, 16); x < this.world.widthPx - 10; x += 62 + rng.int(0, 24)) {
+    for (let i = 0; i < 40; i++) {
+      const x = rng.int(0, this.world.widthPx);
+      const y = rng.int(bounds.surface[0] + 2, bounds.surface[1] - 2);
+      this.cracks.push([x, y, x + rng.int(-4, 4), y + rng.int(1, 4)]);
+    }
+  }
+
+  private lookOf(tree: Ally): TreeLook {
+    let look = this.looks.get(tree.id);
+    if (!look) {
+      const rng = new Random(tree.id * 7919);
       const leaves: Leaf[] = [];
       const rx = 13 + rng.int(0, 5);
       const ry = 11 + rng.int(0, 4);
@@ -81,39 +91,33 @@ export class ForestView {
           tint: rng.next(),
         });
       }
-      const roots: [number, number][][] = [];
-      for (let i = 0; i < 3; i++) {
-        const path: [number, number][] = [[x + 3, GROUND_Y]];
-        let rxp = x + 3;
-        let ryp = GROUND_Y;
-        for (let s = 0; s < 4; s++) {
-          rxp += rng.int(-6, 6);
-          ryp += rng.int(3, 7);
-          if (ryp >= bounds.humus[0] + 10) break;
-          path.push([rxp, ryp]);
-        }
-        roots.push(path);
-      }
-      this.trees.push({ x, trunkHeight: 34 + rng.int(0, 12), trunkWidth: 5 + rng.int(0, 2), leaves, roots });
+      look = { trunkWidth: 5 + rng.int(0, 2), leaves };
+      this.looks.set(tree.id, look);
     }
-    for (let i = 0; i < 40; i++) {
-      const x = rng.int(0, this.world.widthPx);
-      const y = rng.int(bounds.surface[0] + 2, bounds.surface[1] - 2);
-      this.cracks.push([x, y, x + rng.int(-4, 4), y + rng.int(1, 4)]);
-    }
+    return look;
   }
 
+  private get trees(): Ally[] {
+    return this.world.allies.filter((a) => a.species === 'tree');
+  }
+
+  private timeMs = 0;
+
   draw(deltaMs: number): void {
+    this.timeMs += deltaMs;
     const p = paletteAt(this.world.season, this.world.data.seasons);
     const weather = this.world.data.seasons.weather[this.world.weather.id]!;
-    const sky = weather.skyTint ? lerpColor(p.sky, hexToInt(weather.skyTint), weather.tintStrength ?? 0) : p.sky;
+    let sky = weather.skyTint ? lerpColor(p.sky, hexToInt(weather.skyTint), weather.tintStrength ?? 0) : p.sky;
+    // Ciel de braise pendant une sécheresse ou un incendie.
+    const climate = this.world.climate?.kind;
+    if (climate === 'drought' || climate === 'fire') sky = lerpColor(sky, 0xc8743a, climate === 'fire' ? 0.5 : 0.35);
     const g = this.back.clear();
     const width = this.world.widthPx;
 
     g.fillStyle(sky).fillRect(0, 0, width, GROUND_Y);
     this.drawSoil(g, p);
     this.drawDeposits(g);
-    this.drawTrees(g, p);
+    this.drawTrees(g, p, this.timeMs);
     this.updateFallingLeaves(p, deltaMs);
     for (const leaf of this.falling) g.fillStyle(leaf.color).fillRect(Math.round(leaf.x), Math.round(leaf.y), 1, 1);
     for (const l of this.litter) g.fillStyle(l.color, Math.max(0, 1 - l.age / 60000)).fillRect(l.x, GROUND_Y - 1, 1, 1);
@@ -160,26 +164,67 @@ export class ForestView {
     }
   }
 
-  private drawTrees(g: Phaser.GameObjects.Graphics, p: ResolvedPalette): void {
+  /**
+   * Les arbres disent leur humeur sans un chiffre : ramure qui s'affaisse quand ils se
+   * méfient, qui tremble quand ils sont hostiles ; sève dorée qui descend les racines
+   * quand ils donnent, sève grise qui remonte quand ils boudent ; souche calcinée après
+   * un feu, puis jeune pousse.
+   */
+  private drawTrees(g: Phaser.GameObjects.Graphics, p: ResolvedPalette, timeMs: number): void {
     // Feuilles qui flétrissent quand le sol de surface s'assèche.
     const drought = Math.max(0, Math.min(1, (0.3 - this.world.moisture) / 0.3));
+    const tick = this.world.tick;
     for (const tree of this.trees) {
-      g.lineStyle(1, shade(p.trunk, 0.8), 0.6);
-      for (const root of tree.roots) {
-        for (let i = 1; i < root.length; i++) g.lineBetween(root[i - 1]![0], root[i - 1]![1], root[i]![0], root[i]![1]);
+      const look = this.lookOf(tree);
+      const mood = moodOf(tree);
+      const burnt = tree.state === 'burnt';
+      const rootColor = mood === 'hostile' ? lerpColor(shade(p.trunk, 0.8), 0x7a2a22, 0.5) : shade(p.trunk, 0.8);
+      g.lineStyle(1, rootColor, burnt ? 0.25 : 0.6);
+      const path = [{ x: tree.x + 3, y: GROUND_Y }, ...tree.roots];
+      for (let i = 1; i < path.length; i++) g.lineBetween(path[i - 1]!.x, path[i - 1]!.y, path[i]!.x, path[i]!.y);
+
+      if (burnt) {
+        // Souche noircie, puis jeune pousse qui grandit à mesure que la repousse avance.
+        g.fillStyle(0x1a1412).fillRect(tree.x, GROUND_Y - 8, look.trunkWidth, 8);
+        const growth = 1 - tree.cooldown / TREE_REGROWTH;
+        if (growth > 0.3) {
+          const h = Math.round((growth - 0.3) * 14);
+          g.fillStyle(p.trunk).fillRect(tree.x + 2, GROUND_Y - 8 - h, 1, h);
+          g.fillStyle(p.leaf).fillRect(tree.x + 1, GROUND_Y - 9 - h, 3, 2);
+        }
+        continue;
       }
-      const top = GROUND_Y - tree.trunkHeight;
-      g.fillStyle(p.trunk).fillRect(tree.x, top, tree.trunkWidth, tree.trunkHeight);
-      g.fillStyle(shade(p.trunk, 0.7)).fillRect(tree.x + tree.trunkWidth - 1, top, 1, tree.trunkHeight);
-      const cx = tree.x + Math.floor(tree.trunkWidth / 2);
-      const cy = top - 4;
-      for (const leaf of tree.leaves) {
-        if (leaf.threshold > p.leafDensity) continue;
+
+      // Sève : descend vers le réseau quand l'arbre donne, remonte quand il boude.
+      const trading = tick - tree.lastTrade < 15;
+      if (trading || tree.sulk > 0) {
+        const up = tree.sulk > 0;
+        const color = up ? 0x8a8a8a : PALETTE.sugar;
+        for (let k = 0; k < 3; k++) {
+          const phase = (timeMs / 900 + k / 3) % 1;
+          const point = alongPath(path, up ? 1 - phase : phase);
+          g.fillStyle(color, 0.9).fillRect(Math.round(point.x), Math.round(point.y), 1, 1);
+        }
+      }
+
+      const top = GROUND_Y - tree.height;
+      g.fillStyle(p.trunk).fillRect(tree.x, top, look.trunkWidth, tree.height);
+      g.fillStyle(shade(p.trunk, 0.7)).fillRect(tree.x + look.trunkWidth - 1, top, 1, tree.height);
+      const droop = mood === 'wary' ? 1 : mood === 'hostile' ? 2 : 0;
+      const shiver = mood === 'hostile' && Math.sin(timeMs / 60) > 0.6 ? 1 : 0;
+      const cx = tree.x + Math.floor(look.trunkWidth / 2) + shiver;
+      const cy = top - 4 + droop;
+      const density = mood === 'devoted' ? Math.min(1, p.leafDensity * 1.1) : p.leafDensity;
+      for (const leaf of look.leaves) {
+        if (leaf.threshold > density) continue;
         let color = lerpColor(p.leaf, p.leafAlt, leaf.tint);
         if (drought > 0) color = lerpColor(color, DRY_LEAF, drought * (0.4 + leaf.tint * 0.6));
-        g.fillStyle(color).fillRect(cx + leaf.dx, cy + leaf.dy, 1, 1);
+        if (mood === 'hostile') color = lerpColor(color, 0x6a5040, 0.35);
+        // Les feuilles basses pendent davantage quand l'arbre se méfie.
+        const sag = droop > 0 && leaf.dy > 0 ? droop : 0;
+        g.fillStyle(color).fillRect(cx + leaf.dx, cy + leaf.dy + sag, 1, 1);
       }
-      if (p.snow > 0.3) g.fillStyle(SNOW, p.snow).fillRect(tree.x, top - 1, tree.trunkWidth, 1);
+      if (p.snow > 0.3) g.fillStyle(SNOW, p.snow).fillRect(tree.x, top - 1, look.trunkWidth, 1);
     }
   }
 
@@ -187,11 +232,12 @@ export class ForestView {
     // Quand le feuillage s'éclaircit, les feuilles concernées tombent vraiment.
     if (this.previousDensity >= 0 && p.leafDensity < this.previousDensity) {
       for (const tree of this.trees) {
-        for (const leaf of tree.leaves) {
+        if (tree.state === 'burnt') continue;
+        for (const leaf of this.lookOf(tree).leaves) {
           if (leaf.threshold <= this.previousDensity && leaf.threshold > p.leafDensity) {
             this.falling.push({
               x: tree.x + 3 + leaf.dx,
-              y: GROUND_Y - tree.trunkHeight - 4 + leaf.dy,
+              y: GROUND_Y - tree.height - 4 + leaf.dy,
               vx: 0,
               vy: 0.004 + this.fx.next() * 0.006,
               color: lerpColor(p.leaf, p.leafAlt, leaf.tint),
@@ -252,4 +298,18 @@ export class ForestView {
       }
     }
   }
+}
+
+/** Point situé à la fraction t (0..1) de la longueur d'une ligne brisée. */
+export function alongPath(path: readonly { x: number; y: number }[], t: number): { x: number; y: number } {
+  const lengths = path.slice(1).map((p, i) => Math.hypot(p.x - path[i]!.x, p.y - path[i]!.y));
+  let remaining = t * lengths.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < lengths.length; i++) {
+    if (remaining <= lengths[i]! || i === lengths.length - 1) {
+      const k = lengths[i]! === 0 ? 0 : Math.min(1, remaining / lengths[i]!);
+      return { x: path[i]!.x + (path[i + 1]!.x - path[i]!.x) * k, y: path[i]!.y + (path[i + 1]!.y - path[i]!.y) * k };
+    }
+    remaining -= lengths[i]!;
+  }
+  return path[0]!;
 }

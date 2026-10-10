@@ -11,15 +11,29 @@ export interface SpeciesDef {
   layer: Layer;
 }
 
-/** Événement aléatoire qui touche la forêt. */
+/** Nature d'un événement climatique. */
+export type ClimateKind = 'drought' | 'flood' | 'fire' | 'frost' | 'windfall';
+export const CLIMATE_KINDS: readonly ClimateKind[] = ['drought', 'flood', 'fire', 'frost', 'windfall'];
+
+/** Événement climatique qui frappe la forêt. */
 export interface EventDef {
   id: string;
   name: string;
   description: string;
-  /** Poids relatif de tirage (> 0). */
-  weight: number;
-  /** Variation immédiate des ressources. */
-  effects: Partial<Record<ResourceId, number>>;
+  kind: ClimateKind;
+  /** Poids de tirage selon la saison (saison absente = impossible). */
+  seasons: Record<string, number>;
+  /** Durée [min, max] en ticks. */
+  duration: [number, number];
+  /** Force de l'événement (dégâts, minéraux apportés…). */
+  intensity: number;
+}
+
+/** Contenu de events.json. */
+export interface EventsDef {
+  /** Probabilité, à chaque tick sans événement en cours, qu'un événement se déclenche. */
+  chancePerTick: number;
+  events: EventDef[];
 }
 
 /** Forêt jouable (carte / niveau). */
@@ -34,9 +48,11 @@ export interface ForestDef {
   startingResources: Record<ResourceId, number>;
   /** Gisements de minéraux générés dans chaque couche. */
   deposits: Record<Layer, { count: number; amount: number }>;
+  /** Nombre d'alliés de chaque espèce présents dans la forêt. */
+  allies: Record<AllySpeciesId, number>;
   /** Identifiants d'espèces disponibles dans cette forêt. */
   species: string[];
-  /** Identifiants d'événements possibles dans cette forêt. */
+  /** Identifiants d'événements climatiques possibles dans cette forêt. */
   events: string[];
 }
 
@@ -125,10 +141,6 @@ export interface NetworkDef {
 export interface SeasonRules {
   /** Multiplicateur de la production de sucre du cœur. */
   sugarProduction: number;
-  /** Minéraux que les arbres échangent au cœur, par tick. */
-  mineralTrade: number;
-  /** Sucre rendu par les arbres pour chaque minéral. */
-  tradeRatio: number;
   growthSpeed: number;
   growthCost: number;
   upkeep: number;
@@ -216,4 +228,125 @@ export interface SoilDef {
   mineralRadius: number;
   /** Vitesse à laquelle l'humidité du sol suit la météo (0..1 par tick). */
   moistureRate: number;
+}
+
+// ─── Alliés ───────────────────────────────────────────────────────────────
+
+export type AllySpeciesId = 'tree' | 'ant' | 'worm' | 'beetle';
+export const ALLY_SPECIES: readonly AllySpeciesId[] = ['tree', 'ant', 'worm', 'beetle'];
+
+/** Traits de caractère (0..1) qui pilotent le comportement d'un allié. */
+export interface Personality {
+  /** Vitesse à laquelle la confiance grandit quand l'allié est satisfait. */
+  warmth: number;
+  /** Tolérance aux manques : un allié patient perd confiance lentement. */
+  patience: number;
+  /** Ce que l'allié réclame (multiplie ses exigences). */
+  greed: number;
+  /** Ce que l'allié donne (multiplie ses dons). */
+  generosity: number;
+  /** Résistance à la tentation de trahir. */
+  loyalty: number;
+}
+export const PERSONALITY_TRAITS: readonly (keyof Personality)[] = ['warmth', 'patience', 'greed', 'generosity', 'loyalty'];
+
+export type TradeResource = 'sugar' | 'water' | 'minerals';
+export type AllyService = 'guard' | 'aerate' | 'disperse';
+export type BetrayalKind = 'hoard' | 'raid' | 'gnaw' | 'infest';
+
+export interface AllySpeciesDef {
+  name: string;
+  personality: Personality;
+  /** Écart aléatoire maximal de chaque trait d'un individu à l'autre. */
+  variation: number;
+  /** Couches où l'allié vit (et, en hiver, où il se retire). */
+  habitat: Layer[];
+  winterHabitat?: Layer[];
+  /** Vitesse de déplacement, en pixels par tick (0 = immobile). */
+  speed: number;
+  /** Distance à laquelle l'allié peut commercer avec un nœud. */
+  contactRadius: number;
+  /** Activité selon la saison (0 = en sommeil). */
+  activity: Record<string, number>;
+  /** Échange par tick : ce que l'allié prend au nœud en contact, et ce qu'il y dépose. */
+  deal: { wants: Partial<Record<TradeResource, number>>; gives: Partial<Record<TradeResource, number>> };
+  /** Service rendu au réseau quand l'allié est en contact. */
+  service?: { kind: AllyService; strength: number };
+  betrayal: {
+    kind: BetrayalKind;
+    /** Confiance sous laquelle la trahison devient possible. */
+    threshold: number;
+    /** Probabilité par tick, au pire de la défiance, pour un allié sans loyauté. */
+    chance: number;
+    amount: number;
+    cooldownTicks: number;
+  };
+  /** L'allié peut-il quitter la forêt quand la confiance s'effondre ? */
+  leaves: boolean;
+}
+
+export interface AlliesDef {
+  trust: {
+    /** Confiance d'un nouvel arrivant. */
+    initial: number;
+    /** Gain maximal par tick (× warmth) quand l'accord est honoré. */
+    gain: number;
+    /** Perte maximale par tick (× manque × (1 − patience)). */
+    loss: number;
+    /** Retour vers la confiance initiale, par tick, sans contact. */
+    drift: number;
+    /** Sous ce seuil, un allié qui peut partir s'en va. */
+    leave: number;
+  };
+  species: Record<AllySpeciesId, AllySpeciesDef>;
+}
+
+// ─── Menaces ──────────────────────────────────────────────────────────────
+
+export interface RivalKindDef {
+  name: string;
+  color: string;
+  /** Probabilité de croissance par tick. */
+  growthChance: number;
+  maxCells: number;
+  /** Résistance de chaque cellule. */
+  hp: number;
+  /** Toxines : dégâts sur les segments à portée (proportionnels à leur `decay`, comme le gel). */
+  toxin: { radius: number; intensity: number };
+  /** Minéraux pris par cellule et par tick aux gisements recouverts. */
+  appetite: number;
+}
+
+export interface ThreatsDef {
+  rivals: {
+    chancePerTick: number;
+    seasons: Record<string, number>;
+    maxColonies: number;
+    /** Distance minimale au cœur pour apparaître. */
+    minDistance: number;
+    startCells: number;
+    /** Taille d'une cellule, en pixels. */
+    cellSize: number;
+    /** Mémoire gagnée en anéantissant une colonie. */
+    victoryMemory: number;
+    kinds: Record<string, RivalKindDef>;
+  };
+  parasites: {
+    chancePerTick: number;
+    seasons: Record<string, number>;
+    /** Charge initiale d'un nœud infecté. */
+    seedLoad: number;
+    /** Croissance de la charge par tick. */
+    growth: number;
+    /** Probabilité de contagion par segment, par tick, à charge 1. */
+    spread: number;
+    /** Sucre volé par tick, à charge 1. */
+    drain: number;
+    /** Dégâts aux segments d'un nœud saturé, par tick. */
+    damage: number;
+    /** Guérison par tick, à remplissage de signal 1. */
+    cure: number;
+  };
+  /** Guerre chimique : les nœuds riches en signal sécrètent des antifongiques. */
+  defense: { radius: number; damage: number; sugarCost: number; minSignal: number };
 }

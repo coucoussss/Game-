@@ -13,6 +13,8 @@ export interface NetNode {
   build: number;
   /** Avancement de la prochaine spore (ruche uniquement). */
   fruiting: number;
+  /** Charge parasitaire (0 = sain, 1 = saturé). */
+  infection: number;
 }
 
 export interface NetSegment {
@@ -54,6 +56,7 @@ export class Network {
       stock: { ...emptyStock(), ...stock },
       build: 1,
       fruiting: 0,
+      infection: 0,
     };
     this.nodes.set(node.id, node);
     this.adjacency.set(node.id, new Set());
@@ -102,6 +105,29 @@ export class Network {
     return this.segmentsOf(a).find((s) => s.a === b || s.b === b);
   }
 
+  /** Segment le plus proche du point (x, y), à moins de `radius` pixels de son tracé. */
+  findSegmentNear(x: number, y: number, radius: number): NetSegment | undefined {
+    let best: NetSegment | undefined;
+    let bestDist = radius;
+    for (const seg of this.segments.values()) {
+      const a = this.nodes.get(seg.a)!;
+      const b = this.nodes.get(seg.b)!;
+      const d = distanceToSegment(x, y, a.x, a.y, b.x, b.y);
+      if (d <= bestDist) {
+        best = seg;
+        bestDist = d;
+      }
+    }
+    return best;
+  }
+
+  /** Point milieu d'un segment. */
+  midpoint(seg: NetSegment): { x: number; y: number } {
+    const a = this.nodes.get(seg.a)!;
+    const b = this.nodes.get(seg.b)!;
+    return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  }
+
   /** Nœud le plus proche de (x, y) dans le rayon donné. */
   findNodeNear(x: number, y: number, radius: number): NetNode | undefined {
     let best: NetNode | undefined;
@@ -124,4 +150,13 @@ export class Network {
     }
     return total;
   }
+}
+
+/** Distance d'un point à un segment [a, b]. */
+export function distanceToSegment(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const len2 = dx * dx + dy * dy;
+  const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / len2));
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
 }

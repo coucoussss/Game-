@@ -13,3 +13,5 @@ export const TILE = 8;
 export const GROUND_Y = 80;
 /** Durée d'un tick de simulation, en millisecondes (10 ticks/s). */
 export const TICK_MS = 100;
+/** Limite basse de la zone jouable (au-dessus de la barre d'outils), en pixels. */
+export const PLAY_BOTTOM = NATIVE_HEIGHT - 20;
