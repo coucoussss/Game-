@@ -68,6 +68,8 @@ npm run check      # types + tests
 
 Le dossier `dist/` est un site statique, à déposer sur n'importe quel hébergeur (`base: './'`).
 
+`npm run build:single` produit **un seul fichier HTML autonome** (`dist-single/index.html`, environ 1,4 Mo) : jeu, police et icône inclus. Il s'ouvre par un double-clic, hors ligne, sans serveur.
+
 ### Architecture
 
 ```
