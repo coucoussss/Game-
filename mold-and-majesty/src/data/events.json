@@ -1,0 +1,23 @@
+[
+  {
+    "id": "spring-rain",
+    "name": "Pluie de printemps",
+    "description": "La terre boit. Le réseau aussi.",
+    "weight": 3,
+    "effects": { "water": 20 }
+  },
+  {
+    "id": "drought",
+    "name": "Sécheresse",
+    "description": "Les filaments se rétractent sous la chaleur.",
+    "weight": 1,
+    "effects": { "water": -15 }
+  },
+  {
+    "id": "fallen-oak",
+    "name": "Chêne abattu",
+    "description": "Un vieux chêne s'effondre : un festin de bois mort.",
+    "weight": 1,
+    "effects": { "nutrients": 40 }
+  }
+]

@@ -1,0 +1,26 @@
+[
+  {
+    "id": "puffball",
+    "name": "Vesse-de-loup",
+    "description": "Une boule pâle qui récolte les nutriments de la litière.",
+    "cost": 10,
+    "yield": 1,
+    "layer": "surface"
+  },
+  {
+    "id": "chanterelle",
+    "name": "Girolle",
+    "description": "Échange des sucres avec les racines voisines.",
+    "cost": 25,
+    "yield": 3,
+    "layer": "humus"
+  },
+  {
+    "id": "deep-truffle",
+    "name": "Truffe des profondeurs",
+    "description": "Lente à pousser, mais d'une richesse royale.",
+    "cost": 60,
+    "yield": 8,
+    "layer": "deep"
+  }
+]
