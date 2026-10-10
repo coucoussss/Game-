@@ -5,7 +5,7 @@
     "description": "Une forêt de chênes paisible, idéale pour une première colonie.",
     "widthTiles": 96,
     "layers": { "surface": 4, "humus": 8, "deep": 10 },
-    "startingResources": { "nutrients": 30, "water": 50, "spores": 0 },
+    "startingResources": { "sugar": 120, "water": 120, "spores": 0 },
     "species": ["puffball", "chanterelle", "deep-truffle"],
     "events": ["spring-rain", "drought", "fallen-oak"]
   }

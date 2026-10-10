@@ -18,6 +18,6 @@
     "name": "Chêne abattu",
     "description": "Un vieux chêne s'effondre : un festin de bois mort.",
     "weight": 1,
-    "effects": { "nutrients": 40 }
+    "effects": { "sugar": 40 }
   }
 ]

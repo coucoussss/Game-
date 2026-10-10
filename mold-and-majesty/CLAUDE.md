@@ -56,11 +56,29 @@ Le contenu du jeu vit dans des **fichiers JSON séparés du code**, dans `src/da
 - `species.json` : les espèces de champignons (`SpeciesDef`)
 - `events.json` : les événements de forêt (`EventDef`)
 - `forests.json` : les forêts jouables (`ForestDef`)
+- `network.json` : les paramètres du réseau (`NetworkDef`) : flux, épaisseurs, rôles des nœuds, signal, fructification
 
 Les types sont définis dans `src/data/types.ts`. Au chargement, `src/data/index.ts` indexe les données
 et les **valide** : identifiants uniques, valeurs cohérentes, références croisées. Pour ajouter du
 contenu, on édite le JSON, pas le code. Chaque nouvelle règle de cohérence va dans `buildGameData`,
 avec un test.
+
+## Réseau de mycélium (étape 2)
+
+- **Modèle** : `entities/Network.ts` est un graphe pur (nœuds, segments, adjacence), sans règles.
+  `systems/FlowSystem.ts` simule un tick ; `systems/NetworkBuilder.ts` convertit les gestes en filaments.
+- **Tracé** : on part d'un nœud existant et on glisse (souris ou doigt). Un point est posé tous les 10 px,
+  aimanté sur une grille de 4 px, ou sur un nœud existant à moins de 6 px (ce qui ferme des boucles).
+- **Épaisseurs** : *fin* pousse vite et coûte peu, mais conduit peu et meurt vite quand il est affamé ;
+  *épais* pousse lentement et coûte cher, mais a un gros débit et résiste longtemps.
+- **Nœuds** : cœur (produit sucre et eau, émet le signal), jonction (simple point de passage), réserve
+  (gros stock), relais (réémet le signal), ruche (consomme sucre, eau et signal pour produire des spores).
+  Une jonction se convertit en investissant progressivement du sucre (`build`).
+- **Flux** : sucre, eau et signal diffusent selon le taux de remplissage des nœuds (pression). Le
+  transport conserve la matière et ne rend jamais un stock négatif. Le signal s'atténue à chaque tick.
+- **Santé** : chaque segment actif paie un entretien en sucre et en eau à ses extrémités. Sous-alimenté,
+  il pâlit (perte de santé proportionnelle au manque), puis meurt à 0 ; les nœuds isolés disparaissent.
+- **Ordre d'un tick** : nœuds → transport → entretien → pousse → nettoyage. Tick = 100 ms.
 
 ## Conventions de code
 
@@ -88,8 +106,9 @@ avec un test.
 - [x] 0. Fondations : Vite + TS + Phaser 3, rendu 384×216 pixel-perfect à l'échelle entière,
       données JSON validées, `SaveSystem` sur localStorage, Vitest
 - [ ] 1. Vue en coupe de la forêt : grille de tuiles par couche, caméra, défilement horizontal
-- [ ] 2. Réseau de mycélium : nœuds et filaments, croissance au clic, coûts
-- [ ] 3. Économie : ressources (nutriments, eau, spores), simulation à tick fixe
+- [x] 2. Réseau de mycélium : tracé à la souris ou au doigt sur une grille souple, épaisseurs,
+      nœuds (réserve, relais, ruche), flux sucre/eau/signal, dépérissement, tests de simulation
+- [ ] 3. Économie : sources de sucre et d'eau dans la forêt (racines, pluie), spores comme monnaie
 - [ ] 4. Espèces de champignons constructibles par couche (depuis `species.json`)
 - [ ] 5. Événements de forêt aléatoires et pondérés (depuis `events.json`)
 - [ ] 6. HUD et interface : ressources, menu de construction, info-bulles, police bitmap

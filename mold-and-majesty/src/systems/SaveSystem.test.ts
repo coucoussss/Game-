@@ -14,7 +14,7 @@ function memoryStorage(): KeyValueStorage & { data: Map<string, string> } {
 
 const sample = {
   forestId: 'whispering-grove',
-  resources: { nutrients: 12, water: 40, spores: 3 },
+  resources: { sugar: 12, water: 40, spores: 3 },
   tick: 42,
 };
 
