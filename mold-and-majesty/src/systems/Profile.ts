@@ -39,6 +39,8 @@ export interface Profile {
   /** Partie en cours, reprise depuis l'écran de sélection. */
   run: { mode: 'campaign' | 'endless'; snapshot: WorldSnapshot } | null;
   settings: Settings;
+  /** Le tutoriel a été mené à son terme. */
+  tutorialDone: boolean;
 }
 
 export const PROFILE_KEY = 'mold-and-majesty/profile';
@@ -60,6 +62,7 @@ export function newProfile(data: GameData, seed = Date.now() % 2 ** 31): Profile
     endless: { seed, depth: 0, best: 0 },
     run: null,
     settings: { ...DEFAULT_SETTINGS },
+    tutorialDone: false,
   };
 }
 

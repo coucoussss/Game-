@@ -54,6 +54,8 @@ export class Network {
   spores = 0;
   private readonly adjacency = new Map<number, Set<number>>();
   private nextId = 1;
+  /** Grille spatiale (cases de 16 px) pour retrouver vite les nœuds proches d'un point. */
+  private grid: Map<number, NetNode[]> | null = null;
 
   addNode(kind: NodeKind, x: number, y: number, stock: Partial<Stock> = {}): NetNode {
     const node: NetNode = {
@@ -68,6 +70,7 @@ export class Network {
     };
     this.nodes.set(node.id, node);
     this.adjacency.set(node.id, new Set());
+    this.grid = null;
     return node;
   }
 
@@ -103,6 +106,7 @@ export class Network {
     for (const segId of [...(this.adjacency.get(id) ?? [])]) this.removeSegment(segId);
     this.adjacency.delete(id);
     this.nodes.delete(id);
+    this.grid = null;
   }
 
   segmentsOf(nodeId: number): NetSegment[] {
@@ -136,15 +140,52 @@ export class Network {
     return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
   }
 
+  /** Appelle `visit` pour chaque nœud à moins de `radius` pixels de (x, y). */
+  forEachNodeNear(x: number, y: number, radius: number, visit: (node: NetNode) => void): void {
+    const grid = this.spatialGrid();
+    const r = Math.ceil(radius / 16);
+    const cx = Math.floor(x / 16);
+    const cy = Math.floor(y / 16);
+    for (let gx = cx - r; gx <= cx + r; gx++) {
+      for (let gy = cy - r; gy <= cy + r; gy++) {
+        for (const node of grid.get(gx * 4096 + gy) ?? []) {
+          if (Math.hypot(node.x - x, node.y - y) <= radius) visit(node);
+        }
+      }
+    }
+  }
+
+  private spatialGrid(): Map<number, NetNode[]> {
+    if (!this.grid) {
+      // Les nœuds ne bougent pas : la grille n'est reconstruite qu'après un ajout ou un retrait.
+      this.grid = new Map();
+      for (const node of this.nodes.values()) {
+        const key = Math.floor(node.x / 16) * 4096 + Math.floor(node.y / 16);
+        const bucket = this.grid.get(key);
+        if (bucket) bucket.push(node);
+        else this.grid.set(key, [node]);
+      }
+    }
+    return this.grid;
+  }
+
   /** Nœud le plus proche de (x, y) dans le rayon donné. */
   findNodeNear(x: number, y: number, radius: number): NetNode | undefined {
+    const grid = this.spatialGrid();
     let best: NetNode | undefined;
     let bestDist = radius;
-    for (const node of this.nodes.values()) {
-      const d = Math.hypot(node.x - x, node.y - y);
-      if (d <= bestDist) {
-        best = node;
-        bestDist = d;
+    const r = Math.ceil(radius / 16);
+    const cx = Math.floor(x / 16);
+    const cy = Math.floor(y / 16);
+    for (let gx = cx - r; gx <= cx + r; gx++) {
+      for (let gy = cy - r; gy <= cy + r; gy++) {
+        for (const node of grid.get(gx * 4096 + gy) ?? []) {
+          const d = Math.hypot(node.x - x, node.y - y);
+          if (d < bestDist || (d === bestDist && (!best || node.id < best.id))) {
+            best = node;
+            bestDist = d;
+          }
+        }
       }
     }
     return best;

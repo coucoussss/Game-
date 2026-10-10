@@ -27,7 +27,7 @@ export class AllyView {
   private time = 0;
 
   constructor(
-    scene: Phaser.Scene,
+    private readonly scene: Phaser.Scene,
     private readonly world: World,
   ) {
     this.graphics = scene.add.graphics().setDepth(6);
@@ -41,6 +41,8 @@ export class AllyView {
       if (ally.species === 'tree') continue;
       alive.add(ally.id);
       const trail = this.trailOf(ally);
+      const left = this.scene.cameras.main.scrollX;
+      if (ally.x < left - 20 || ally.x > left + 404) continue;
       const mood = moodOf(ally);
       if (ally.species === 'ant') this.drawAnts(g, ally, trail, mood);
       else if (ally.species === 'worm') this.drawWorm(g, ally, trail, mood, deltaMs);

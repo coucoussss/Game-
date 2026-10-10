@@ -70,7 +70,7 @@ export function generateForest(seed: number, depth: number, data: GameData): For
     description: `Profondeur ${depth} : une forêt jamais vue, dans le style « ${template.name} ».`,
     biome: template.biome,
     rules,
-    goal: { reach: Math.round(70 + 12 * (depth - 1)) },
+    goal: { reach: Math.round(70 + 8 * (depth - 1)) },
     rivals: [...rivals],
     widthTiles: template.widthTiles,
     layers,

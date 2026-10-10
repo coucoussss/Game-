@@ -416,7 +416,7 @@ export interface SporulationDef {
   patterns: number[][];
   /** Portée de base, en mètres. */
   baseReach: number;
-  /** Portée ajoutée par spore libérée. */
+  /** Portée ajoutée par la racine carrée du nombre de spores libérées. */
   perSpore: number;
   /** Part de la portée obtenue même avec un rythme raté. */
   minScoreFactor: number;

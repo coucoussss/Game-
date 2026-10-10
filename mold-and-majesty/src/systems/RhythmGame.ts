@@ -88,8 +88,11 @@ export class RhythmGame {
   }
 }
 
-/** Portée de la sporée, en mètres : plus de spores et un meilleur rythme portent plus loin. */
+/**
+ * Portée de la sporée, en mètres. Les spores comptent avec un rendement décroissant
+ * (racine carrée) : multiplier les ruches ne suffit pas, il faut aussi le rythme.
+ */
 export function sporeReach(def: SporulationDef, spores: number, score: number): number {
   const rhythm = def.minScoreFactor + (1 - def.minScoreFactor) * score;
-  return Math.round((def.baseReach + def.perSpore * spores) * rhythm);
+  return Math.round((def.baseReach + def.perSpore * Math.sqrt(spores)) * rhythm);
 }

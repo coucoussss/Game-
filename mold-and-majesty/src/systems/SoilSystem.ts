@@ -72,17 +72,18 @@ export function absorb(
 ): void {
   for (const node of net.nodes.values()) {
     const layer = layerAt(node.y, forest);
-    if (!layer) continue;
-    if (!(frozenSurface && layer === 'surface')) {
-      node.stock.water += soil.waterRate * layerMoisture(layer, moisture, soil) * soil.layerWater[layer];
-    }
-    for (const deposit of deposits) {
-      if (deposit.amount <= 0) continue;
-      if (Math.hypot(deposit.x - node.x, deposit.y - node.y) > soil.mineralRadius) continue;
+    if (!layer || (frozenSurface && layer === 'surface')) continue;
+    node.stock.water += soil.waterRate * layerMoisture(layer, moisture, soil) * soil.layerWater[layer];
+  }
+  // Chaque gisement nourrit les nœuds à sa portée (recherche par la grille spatiale du réseau).
+  for (const deposit of deposits) {
+    if (deposit.amount <= 0) continue;
+    net.forEachNodeNear(deposit.x, deposit.y, soil.mineralRadius, (node) => {
+      if (deposit.amount <= 0 || !layerAt(node.y, forest)) return;
       const taken = Math.min(deposit.amount, soil.mineralRate);
       deposit.amount -= taken;
       node.stock.minerals += taken;
-    }
+    });
   }
 }
 

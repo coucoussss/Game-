@@ -8,6 +8,7 @@ import { unlockStatus } from '../systems/Skills';
 import { hexToInt, lerpColor } from '../ui/color';
 import { TEXT_STYLE } from '../ui/text';
 import { MEMORIES } from './MemoryScene';
+import type { OptionsSceneData } from './OptionsScene';
 import { type GameStart, nextEndlessForest, profile, saveProfile } from './session';
 import type { SkillSceneData } from './SkillScene';
 
@@ -89,6 +90,7 @@ export class ForestSelectScene extends Phaser.Scene {
       { label: 'Infini', action: () => this.endless(), enabled: () => true },
       { label: 'Mémoire', action: () => this.openSkills(), enabled: () => true },
       { label: 'Souvenirs', action: () => this.openGallery(), enabled: () => profile().seenMemories.length > 0 },
+      { label: 'Options', action: () => this.openOptions(), enabled: () => true },
     ];
     const w = Math.floor(NATIVE_WIDTH / buttons.length);
     buttons.forEach((button, i) => {
@@ -186,6 +188,12 @@ export class ForestSelectScene extends Phaser.Scene {
     p.run = null;
     saveProfile();
     this.start({ mode: 'endless', forest: nextEndlessForest() });
+  }
+
+  private openOptions(): void {
+    this.scene.pause();
+    const data: OptionsSceneData = { onClose: () => this.scene.resume() };
+    this.scene.launch('Options', data);
   }
 
   /** Galerie des souvenirs déjà vus, à revoir à volonté. */

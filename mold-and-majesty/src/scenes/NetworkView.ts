@@ -25,12 +25,21 @@ const NODE_SPRITE: Record<Exclude<NodeKind, 'junction'>, string> = {
 export class NetworkView {
   private readonly graphics: Phaser.GameObjects.Graphics;
 
+  private readonly camera: Phaser.Cameras.Scene2D.Camera;
+
   constructor(
     scene: Phaser.Scene,
     private readonly getNet: () => Network,
     private readonly defs: () => NetworkDef,
   ) {
     this.graphics = scene.add.graphics().setDepth(5);
+    this.camera = scene.cameras.main;
+  }
+
+  /** Ne dessine que ce qui est (presque) à l'écran. */
+  private visible(x1: number, x2 = x1): boolean {
+    const left = this.camera.scrollX - 8;
+    return Math.max(x1, x2) >= left && Math.min(x1, x2) <= left + 400;
   }
 
   draw(overlay: FluxOverlay, memory: number, timeMs: number, highContrast = false): void {
@@ -46,6 +55,7 @@ export class NetworkView {
     for (const seg of net.segments.values()) {
       const a = net.nodes.get(seg.a)!;
       const b = net.nodes.get(seg.b)!;
+      if (!this.visible(a.x, b.x)) continue;
       const width = defs.thickness[seg.thickness].width;
       if (seg.growth < 1) {
         // Filament en pousse : seule la partie déjà poussée est visible, pointe lumineuse.
@@ -71,7 +81,7 @@ export class NetworkView {
       this.drawPulse(g, seg, a, b, fill, timeMs);
     }
 
-    for (const node of net.nodes.values()) this.drawNode(g, node, timeMs);
+    for (const node of net.nodes.values()) if (this.visible(node.x)) this.drawNode(g, node, timeMs);
   }
 
   /** Une pulsation de lumière glisse le long du segment, du nœud le plus « signalé » vers l'autre. */

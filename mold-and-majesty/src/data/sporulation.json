@@ -68,8 +68,8 @@
       0
     ]
   ],
-  "baseReach": 40,
-  "perSpore": 6,
+  "baseReach": 30,
+  "perSpore": 18,
   "minScoreFactor": 0.2,
   "memoryPerMeter": 0.02,
   "minSpores": 1

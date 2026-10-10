@@ -1,0 +1,10 @@
+[
+  { "id": "grow", "text": "Glisse depuis le cœur doré pour faire pousser un filament." },
+  { "id": "minerals", "text": "Touche un cristal turquoise : ton réseau y puise des minéraux." },
+  { "id": "tree", "text": "Les racines de l'arbre échangent tes minéraux contre du sucre. Vois la sève dorée descendre." },
+  { "id": "thick", "text": "Les filaments affamés pâlissent. Les épais (3) portent plus loin et résistent mieux." },
+  { "id": "storage", "text": "Outil Réserve (4) : touche une jonction pour stocker le sucre de l'hiver." },
+  { "id": "relay", "text": "Outil Relais (5) : le signal porte plus loin, soigne les parasites, repousse les moisissures." },
+  { "id": "hive", "text": "Outil Ruche (6) près de la surface : en automne, elle fera tes spores." },
+  { "id": "sporee", "text": "En automne, touche le champignon en haut à droite : la sporée ! Frappe en rythme." }
+]

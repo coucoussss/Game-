@@ -144,7 +144,7 @@ export class MemoryScene extends Phaser.Scene {
         this.time.delayedCall(duration, () => emitter.stop());
       }
     }
-    if (cue.shake !== undefined) this.cameras.main.shake(400, cue.shake * 0.004);
+    if (cue.shake !== undefined && !profile().settings.reducedMotion) this.cameras.main.shake(400, cue.shake * 0.004);
     if (cue.sfx) audio.sfx(cue.sfx as SfxName);
     if (cue.music) audio.setChord(cue.music.chord);
     if (cue.title) {

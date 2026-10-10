@@ -1,5 +1,5 @@
 import type Phaser from 'phaser';
-import { GROUND_Y, NATIVE_HEIGHT } from '../config';
+import { GROUND_Y, NATIVE_HEIGHT, NATIVE_WIDTH } from '../config';
 import { type Ally, moodOf } from '../entities/Ally';
 import { TREE_REGROWTH } from '../systems/ClimateSystem';
 import { LAYERS, type Layer } from '../data/types';
@@ -59,10 +59,13 @@ export class ForestView {
   private readonly fx = new Random(12345);
   private previousDensity = -1;
 
+  private readonly camera: Phaser.Cameras.Scene2D.Camera;
+
   constructor(
     scene: Phaser.Scene,
     private readonly world: World,
   ) {
+    this.camera = scene.cameras.main;
     this.back = scene.add.graphics().setDepth(0);
     this.front = scene.add.graphics().setDepth(8);
     this.generate();
@@ -113,6 +116,12 @@ export class ForestView {
       this.looks.set(tree.id, look);
     }
     return look;
+  }
+
+  /** L'abscisse x (± marge) est-elle à l'écran ? On ne dessine que le visible. */
+  private visible(x: number, margin = 40): boolean {
+    const left = this.camera.scrollX;
+    return x >= left - margin && x <= left + NATIVE_WIDTH + margin;
   }
 
   private get trees(): Ally[] {
@@ -213,6 +222,7 @@ export class ForestView {
       }
     }
     for (const pb of this.pebbles) {
+      if (!this.visible(pb.x, 4)) continue;
       const base = layerColor[pb.layer]!;
       g.fillStyle(shade(base, pb.light ? 1.35 : 0.65)).fillRect(pb.x, pb.y, pb.size, pb.size === 2 ? 1 : 1);
     }
@@ -221,6 +231,7 @@ export class ForestView {
     if (!this.world.forest.rules.noSky) {
       const grass = lerpColor(p.leaf, p.leafAlt, 0.3);
       for (const tuft of this.tufts) {
+        if (!this.visible(tuft.x, 4)) continue;
         const sway = Math.round(Math.sin(this.timeMs / 900 + tuft.phase) * 0.7);
         g.fillStyle(shade(grass, 0.8)).fillRect(tuft.x, GROUND_Y - tuft.h, 1, tuft.h);
         g.fillStyle(grass).fillRect(tuft.x + sway, GROUND_Y - tuft.h, 1, 1);
@@ -237,6 +248,7 @@ export class ForestView {
   private drawDeposits(g: Phaser.GameObjects.Graphics): void {
     const t = this.world.tick;
     for (const [i, d] of this.world.deposits.entries()) {
+      if (!this.visible(d.x, 6)) continue;
       const fill = d.amount / d.max;
       if (fill <= 0) {
         g.fillStyle(PALETTE.ink, 0.5).fillRect(d.x, d.y, 1, 1);
@@ -260,6 +272,7 @@ export class ForestView {
     const drought = Math.max(0, Math.min(1, (0.3 - this.world.moisture) / 0.3));
     const tick = this.world.tick;
     for (const tree of this.trees) {
+      if (!this.visible(tree.x, 60)) continue;
       const look = this.lookOf(tree);
       const mood = moodOf(tree);
       const burnt = tree.state === 'burnt';

@@ -1,5 +1,5 @@
 import { TILE } from '../config';
-import { FLUX_IDS, type FluxId, type NetworkDef } from '../data/types';
+import { FLUX_IDS, type NetworkDef } from '../data/types';
 import type { NetNode, NetSegment, Network } from '../entities/Network';
 
 /*
@@ -106,42 +106,57 @@ export function updateNodes(net: Network, defs: NetworkDef, mods: FlowModifiers 
   }
 }
 
-/** Diffusion des trois flux le long des segments actifs. Conserve la matière. */
+/** Diffusion des flux le long des segments actifs. Conserve la matière. */
 export function transport(net: Network, defs: NetworkDef): void {
-  for (const flux of FLUX_IDS) transportFlux(net, defs, flux);
-}
-
-function transportFlux(net: Network, defs: NetworkDef, flux: FluxId): void {
-  const mobility = defs.flux[flux].mobility;
-  const flows: { from: NetNode; to: NetNode; amount: number }[] = [];
-  const outflow = new Map<number, number>();
-
+  // Ce qui ne dépend pas du flux est calculé une fois par segment.
+  const as: NetNode[] = [];
+  const bs: NetNode[] = [];
+  const capAs: number[] = [];
+  const capBs: number[] = [];
+  const gs: number[] = [];
   for (const seg of net.segments.values()) {
     if (!isActive(seg)) continue;
     const a = net.nodes.get(seg.a)!;
     const b = net.nodes.get(seg.b)!;
-    const capA = capacityOf(a, defs);
-    const capB = capacityOf(b, defs);
-    const delta = a.stock[flux] / capA - b.stock[flux] / capB;
-    if (delta === 0) continue;
-    const g = (mobility * defs.thickness[seg.thickness].conductance * seg.health) / lengthInTiles(seg);
-    const amount = (g * Math.abs(delta) * Math.min(capA, capB)) / 2;
-    const [from, to] = delta > 0 ? [a, b] : [b, a];
-    flows.push({ from, to, amount });
-    outflow.set(from.id, (outflow.get(from.id) ?? 0) + amount);
+    as.push(a);
+    bs.push(b);
+    capAs.push(capacityOf(a, defs));
+    capBs.push(capacityOf(b, defs));
+    gs.push((defs.thickness[seg.thickness].conductance * seg.health) / lengthInTiles(seg));
   }
-
-  // Facteur de rationnement par nœud source, calculé avant d'appliquer quoi que ce soit.
-  const ratio = new Map<number, number>();
-  for (const [id, out] of outflow) {
-    const available = net.nodes.get(id)!.stock[flux];
-    ratio.set(id, out > available ? available / out : 1);
-  }
-  for (const { from, to, amount } of flows) {
-    const moved = amount * ratio.get(from.id)!;
-    // max(0, …) absorbe les erreurs d'arrondi en virgule flottante.
-    from.stock[flux] = Math.max(0, from.stock[flux] - moved);
-    to.stock[flux] += moved;
+  const amounts = new Float64Array(as.length);
+  const outflow = new Map<number, number>();
+  for (const flux of FLUX_IDS) {
+    const mobility = defs.flux[flux].mobility;
+    outflow.clear();
+    for (let i = 0; i < as.length; i++) {
+      const a = as[i]!;
+      const b = bs[i]!;
+      const capA = capAs[i]!;
+      const capB = capBs[i]!;
+      const delta = a.stock[flux] / capA - b.stock[flux] / capB;
+      // Montant signé : positif de a vers b.
+      const amount = (mobility * gs[i]! * delta * Math.min(capA, capB)) / 2;
+      amounts[i] = amount;
+      if (amount === 0) continue;
+      const from = amount > 0 ? a : b;
+      outflow.set(from.id, (outflow.get(from.id) ?? 0) + Math.abs(amount));
+    }
+    // Facteur de rationnement par nœud source, calculé avant d'appliquer quoi que ce soit.
+    const ratio = new Map<number, number>();
+    for (const [id, out] of outflow) {
+      const available = net.nodes.get(id)!.stock[flux];
+      ratio.set(id, out > available ? available / out : 1);
+    }
+    for (let i = 0; i < as.length; i++) {
+      const amount = amounts[i]!;
+      if (amount === 0) continue;
+      const [from, to] = amount > 0 ? [as[i]!, bs[i]!] : [bs[i]!, as[i]!];
+      const moved = Math.abs(amount) * ratio.get(from.id)!;
+      // max(0, …) absorbe les erreurs d'arrondi en virgule flottante.
+      from.stock[flux] = Math.max(0, from.stock[flux] - moved);
+      to.stock[flux] += moved;
+    }
   }
 }
 

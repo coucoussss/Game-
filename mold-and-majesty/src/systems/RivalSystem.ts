@@ -81,8 +81,15 @@ const DIRS = [
 function grow(colony: RivalColony, colonies: RivalColony[], ctx: RivalContext, chance: number): void {
   const kind = ctx.threats.rivals.kinds[colony.kind]!;
   if (colony.cells.size >= kind.maxCells || ctx.rng.next() >= chance) return;
-  const cells = [...colony.cells.values()];
-  const from = cells[ctx.rng.int(0, cells.length - 1)]!;
+  // Cellule au hasard, sans recopier toute la colonie.
+  let skip = ctx.rng.int(0, colony.cells.size - 1);
+  let from = colony.cells.values().next().value!;
+  for (const cell of colony.cells.values()) {
+    if (skip-- === 0) {
+      from = cell;
+      break;
+    }
+  }
   const [dx, dy] = DIRS[ctx.rng.int(0, 3)]!;
   const gx = from.gx + dx;
   const gy = from.gy + dy;
@@ -101,41 +108,68 @@ export function growColonies(colonies: RivalColony[], ctx: RivalContext): void {
   }
 }
 
+/** Boîte englobante (en cases) d'une colonie, pour écarter vite celles qui sont loin. */
+interface Bounds {
+  minGx: number;
+  maxGx: number;
+  minGy: number;
+  maxGy: number;
+}
+
+function colonyBounds(colony: RivalColony): Bounds {
+  const b = { minGx: Infinity, maxGx: -Infinity, minGy: Infinity, maxGy: -Infinity };
+  for (const c of colony.cells.values()) {
+    if (c.gx < b.minGx) b.minGx = c.gx;
+    if (c.gx > b.maxGx) b.maxGx = c.gx;
+    if (c.gy < b.minGy) b.minGy = c.gy;
+    if (c.gy > b.maxGy) b.maxGy = c.gy;
+  }
+  return b;
+}
+
 /** Parcourt les cellules de toutes les colonies à moins de `radius` pixels de (x, y). */
 function forEachCellNear(
-  colonies: RivalColony[],
+  colonies: readonly RivalColony[],
   cs: number,
   x: number,
   y: number,
   radius: number,
-  visit: (colony: RivalColony, key: string) => void,
+  visit: (colony: RivalColony, key: number) => void,
+  bounds?: readonly Bounds[],
 ): void {
   const r = Math.ceil(radius / cs);
   const cx = Math.floor(x / cs);
   const cy = Math.floor(y / cs);
-  for (let gx = cx - r; gx <= cx + r; gx++) {
-    for (let gy = cy - r; gy <= cy + r; gy++) {
-      if (Math.hypot(cellCenter(gx, cs) - x, cellCenter(gy, cs) - y) > radius) continue;
-      const key = cellKey(gx, gy);
-      for (const colony of colonies) if (colony.cells.has(key)) visit(colony, key);
+  colonies.forEach((colony, i) => {
+    const b = bounds?.[i];
+    if (b && (cx + r < b.minGx || cx - r > b.maxGx || cy + r < b.minGy || cy - r > b.maxGy)) return;
+    for (let gx = cx - r; gx <= cx + r; gx++) {
+      const dx = cellCenter(gx, cs) - x;
+      for (let gy = cy - r; gy <= cy + r; gy++) {
+        const dy = cellCenter(gy, cs) - y;
+        if (dx * dx + dy * dy > radius * radius) continue;
+        const key = cellKey(gx, gy);
+        if (colony.cells.has(key)) visit(colony, key);
+      }
     }
-  }
+  });
 }
 
 /** Les toxines abîment les segments actifs proches des colonies. */
 export function applyToxins(colonies: RivalColony[], ctx: RivalContext): void {
   if (colonies.length === 0) return;
   const cs = ctx.threats.rivals.cellSize;
+  const bounds = colonies.map(colonyBounds);
   for (const seg of ctx.net.segments.values()) {
     if (seg.growth < 1) continue;
     const m = ctx.net.midpoint(seg);
     let exposure = 0;
-    for (const colony of colonies) {
+    colonies.forEach((colony, i) => {
       const kind = ctx.threats.rivals.kinds[colony.kind]!;
       let count = 0;
-      forEachCellNear([colony], cs, m.x, m.y, kind.toxin.radius, () => count++);
+      forEachCellNear([colony], cs, m.x, m.y, kind.toxin.radius, () => count++, [bounds[i]!]);
       exposure = Math.max(exposure, kind.toxin.intensity * Math.min(1, count / 3));
-    }
+    });
     if (exposure > 0) seg.health -= ctx.netDefs.thickness[seg.thickness].decay * exposure * ctx.decay;
   }
 }
@@ -144,6 +178,7 @@ export function applyToxins(colonies: RivalColony[], ctx: RivalContext): void {
 export function chemicalDefense(colonies: RivalColony[], ctx: RivalContext): void {
   if (colonies.length === 0) return;
   const { defense, rivals } = ctx.threats;
+  const bounds = colonies.map(colonyBounds);
   for (const node of ctx.net.nodes.values()) {
     const fill = node.stock.signal / ctx.netDefs.nodes[node.kind].capacity;
     if (fill < defense.minSignal) continue;
@@ -153,17 +188,18 @@ export function chemicalDefense(colonies: RivalColony[], ctx: RivalContext): voi
       const cell = colony.cells.get(key)!;
       cell.hp -= defense.damage * fill;
       if (cell.hp <= 0) colony.cells.delete(key);
-    });
+    }, bounds);
   }
 }
 
 /** Les colonies dévorent les minéraux des gisements qu'elles recouvrent. */
 export function feedColonies(colonies: RivalColony[], ctx: RivalContext): void {
   const cs = ctx.threats.rivals.cellSize;
+  const bounds = colonies.map(colonyBounds);
   for (const d of ctx.deposits) {
     forEachCellNear(colonies, cs, d.x, d.y, cs * 1.5, (colony) => {
       d.amount = Math.max(0, d.amount - ctx.threats.rivals.kinds[colony.kind]!.appetite);
-    });
+    }, bounds);
   }
 }
 

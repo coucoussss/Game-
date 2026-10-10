@@ -2,16 +2,24 @@
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="description" content="Mold &amp; Majesty : un jeu de gestion en pixel art où un réseau de mycélium rebâtit un royaume dans la forêt." />
+    <meta name="theme-color" content="#0e0b12" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <title>Mold &amp; Majesty</title>
     <style>
       html, body { margin: 0; height: 100%; background: #0e0b12; overflow: hidden; }
+      body { overscroll-behavior: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
       #game { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
-      canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
+      /* Tactile : le jeu gère lui-même les gestes (pas de zoom ni de défilement de page). */
+      canvas { image-rendering: pixelated; image-rendering: crisp-edges; touch-action: none; }
+      noscript { color: #e8dcc0; font-family: monospace; }
     </style>
   </head>
   <body>
     <div id="game"></div>
+    <noscript>Mold &amp; Majesty a besoin de JavaScript.</noscript>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

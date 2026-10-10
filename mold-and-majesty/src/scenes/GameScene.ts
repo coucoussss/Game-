@@ -17,7 +17,11 @@ import { AmbientView } from './AmbientView';
 import { SoundView } from './SoundView';
 import { FruitView } from './FruitView';
 import { type GameStart, profile, saveProfile } from './session';
-import { recordReach } from '../systems/Profile';
+import { campaignOrder, recordReach } from '../systems/Profile';
+import { Tutorial } from '../systems/Tutorial';
+import { AutoPlayer } from '../systems/AutoPlayer';
+import tutorialSteps from '../data/tutorial.json';
+import type { PauseSceneData } from './PauseScene';
 import type { RhythmSceneData } from './RhythmScene';
 import type { SkillSceneData } from './SkillScene';
 import { ThreatView } from './ThreatView';
@@ -75,6 +79,8 @@ export class GameScene extends Phaser.Scene {
   private start!: GameStart;
   /** La forêt a été conquise pendant cette partie. */
   private conquered = false;
+  private tutorial: Tutorial | null = null;
+  private tutorialUi: { panel: Phaser.GameObjects.Graphics; text: Phaser.GameObjects.Text; close: Phaser.GameObjects.Text } | null = null;
 
   constructor() {
     super('Game');
@@ -83,6 +89,8 @@ export class GameScene extends Phaser.Scene {
   init(data: GameStart): void {
     this.start = data;
     this.conquered = false;
+    this.tutorial = null;
+    this.tutorialUi = null;
     this.lastSeasonKey = '';
     this.speed = 1;
     this.overlay = null;
@@ -112,7 +120,7 @@ export class GameScene extends Phaser.Scene {
     this.fruitView = new FruitView(this, this.world);
     this.allyView = new AllyView(this, this.world);
     this.lighting = new LightingView(this, this.world);
-    this.ambient = new AmbientView(this, this.world, false);
+    this.ambient = new AmbientView(this, this.world, p.settings.reducedMotion);
     this.events.once('shutdown', () => this.soundscape.stop());
     this.soundscape = new SoundView(this.world);
     this.effectsView = new EffectsView(this, this.world, (text) => this.showBanner(text), (e) => this.soundscape.onEvent(e));
@@ -120,6 +128,13 @@ export class GameScene extends Phaser.Scene {
     if (event) this.world.startClimate(event);
     this.world.net.spores = Number(params.get('spores')) || 0;
     this.world.memory = Number(params.get('memory')) || this.world.memory;
+    // ?auto=N : le joueur automatique construit N vagues de réseau (mesures de performance).
+    const auto = Number(params.get('auto')) || 0;
+    if (auto > 0) {
+      const bot = new AutoPlayer(this.world);
+      for (let i = 0; i < auto; i++) bot.build();
+      for (const seg of this.world.net.segments.values()) seg.growth = 1;
+    }
     const rival = params.get('rival');
     if (rival !== null) this.world.spawnRival(rival || undefined);
     this.stroke = new StrokeBuilder(this.world.net, {
@@ -163,7 +178,8 @@ export class GameScene extends Phaser.Scene {
     this.createCornerButtons();
 
     // Échap : sauvegarder et revenir au royaume. Sauvegarde aussi quand l'onglet est masqué.
-    this.input.keyboard?.on('keydown-ESC', () => this.leave());
+    this.input.keyboard?.on('keydown-ESC', () => this.openPause());
+    this.setupTutorial();
     const onHidden = () => document.visibilityState === 'hidden' && this.saveRun();
     document.addEventListener('visibilitychange', onHidden);
     this.events.once('shutdown', () => document.removeEventListener('visibilitychange', onHidden));
@@ -182,6 +198,73 @@ export class GameScene extends Phaser.Scene {
     p.skills = [...this.world.skills];
     p.run = { mode: this.start.mode, snapshot: this.world.snapshot() };
     saveProfile();
+  }
+
+  /** Tutoriel : seulement dans la première forêt, tant qu'il n'a pas été mené à terme. */
+  private setupTutorial(): void {
+    const p = profile();
+    const first = campaignOrder(gameData)[0];
+    if (this.start.mode !== 'campaign' || this.world.forest.id !== first || !p.settings.tutorial || p.tutorialDone) return;
+    this.tutorial = new Tutorial(tutorialSteps);
+    const panel = this.add.graphics().setDepth(10).setScrollFactor(0);
+    const text = this.add
+      .text(NATIVE_WIDTH / 2, 38, '', { ...TEXT_STYLE, align: 'center', wordWrap: { width: NATIVE_WIDTH - 60 } })
+      .setOrigin(0.5, 0)
+      .setResolution(1)
+      .setDepth(11)
+      .setScrollFactor(0);
+    const close = this.add
+      .text(NATIVE_WIDTH - 30, 35, '×', { ...TEXT_STYLE, color: '#8a7a70' })
+      .setResolution(1)
+      .setDepth(11)
+      .setScrollFactor(0)
+      .setInteractive()
+      .on('pointerdown', () => {
+        p.settings.tutorial = false;
+        saveProfile();
+        this.tutorial = null;
+        panel.destroy();
+        text.destroy();
+        close.destroy();
+      });
+    this.tutorialUi = { panel, text, close };
+  }
+
+  private updateTutorial(time: number): void {
+    const t = this.tutorial;
+    const ui = this.tutorialUi;
+    if (!t || !ui) return;
+    if (t.update(this.world)) audio.sfx('chime', 0.5);
+    if (t.finished) {
+      const p = profile();
+      p.tutorialDone = true;
+      saveProfile();
+      this.tutorial = null;
+      ui.panel.destroy();
+      ui.text.destroy();
+      ui.close.destroy();
+      this.showBanner('Le réseau sait respirer.\nÀ toi de jouer.');
+      return;
+    }
+    ui.text.setText(`${t.index + 1}/${t.steps.length} · ${t.current!.text}`);
+    const h = ui.text.height + 6;
+    ui.panel.clear().fillStyle(0x0e0b12, 0.75).fillRect(24, 35, NATIVE_WIDTH - 48, h);
+    ui.panel.lineStyle(1, 0x4fe0d0, 0.4 + 0.3 * Math.sin(time / 400)).strokeRect(24.5, 35.5, NATIVE_WIDTH - 49, h - 1);
+  }
+
+  /** Pause (Échap ou bouton ≡) : reprendre, options, retour au royaume. */
+  private openPause(): void {
+    if (!this.scene.isActive()) return;
+    this.saveRun();
+    this.scene.pause();
+    const data: PauseSceneData = {
+      onResume: () => this.scene.resume(),
+      onQuit: () => {
+        this.scene.resume();
+        this.leave();
+      },
+    };
+    this.scene.launch('Pause', data);
   }
 
   private leave(): void {
@@ -216,6 +299,16 @@ export class GameScene extends Phaser.Scene {
    * et, en automne quand c'est possible, le champignon de la sporée (F).
    */
   private createCornerButtons(): void {
+    // Bouton de pause (indispensable sur écran tactile, sans touche Échap).
+    const pause = this.add.graphics().setDepth(10).setScrollFactor(0);
+    pause.fillStyle(0xe8dcc0, 0.7).fillRect(25, 7, 7, 1).fillRect(25, 10, 7, 1).fillRect(25, 13, 7, 1);
+    this.add
+      .zone(21, 2, 16, 18)
+      .setOrigin(0)
+      .setDepth(10)
+      .setScrollFactor(0)
+      .setInteractive()
+      .on('pointerdown', () => this.openPause());
     this.memoryButton = this.add.graphics().setDepth(10).setScrollFactor(0);
     this.add
       .zone(2, 2, 18, 18)
@@ -274,7 +367,15 @@ export class GameScene extends Phaser.Scene {
     audio.unlock();
     this.scene.pause();
     const data: RhythmSceneData = {
-      def: this.world.data.sporulation,
+      def: profile().settings.rhythmAssist
+        ? {
+            ...this.world.data.sporulation,
+            windows: {
+              perfect: this.world.data.sporulation.windows.perfect * 1.5,
+              good: this.world.data.sporulation.windows.good * 1.5,
+            },
+          }
+        : this.world.data.sporulation,
       seed: this.world.tick,
       spores: this.world.net.spores,
       onDone: (score) => {
@@ -296,11 +397,13 @@ export class GameScene extends Phaser.Scene {
     this.forestView.draw(visualDelta);
     if (this.forestView.current) this.parallax.draw({ ...this.forestView.current, sky: this.forestView.skyColor }, time);
     this.threatView.draw(visualDelta);
-    this.networkView.draw(this.overlay, this.world.memory, time);
+    const settings = profile().settings;
+    this.networkView.draw(this.overlay, this.world.memory, time, settings.highContrast);
     this.fruitView.draw(visualDelta);
     this.allyView.draw(visualDelta);
     this.effectsView.draw(visualDelta);
-    this.lighting.draw(time);
+    this.lighting.draw(time, true, settings.highContrast ? 0.5 : 1);
+    this.updateTutorial(time);
     this.ambient.update();
     this.soundscape.update(delta, time);
     this.updateMessages(delta);

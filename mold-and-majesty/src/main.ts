@@ -6,6 +6,8 @@ import { BootScene } from './scenes/BootScene';
 import { ForestSelectScene } from './scenes/ForestSelectScene';
 import { GameScene } from './scenes/GameScene';
 import { MemoryScene } from './scenes/MemoryScene';
+import { OptionsScene } from './scenes/OptionsScene';
+import { PauseScene } from './scenes/PauseScene';
 import { RhythmScene } from './scenes/RhythmScene';
 import { SkillScene } from './scenes/SkillScene';
 import { computeIntegerZoom } from './ui/integerScale';
@@ -35,8 +37,11 @@ const game = new Phaser.Game({
     autoCenter: Phaser.Scale.CENTER_BOTH,
     zoom: computeIntegerZoom(window.innerWidth, window.innerHeight),
   },
-  scene: [BootScene, ForestSelectScene, GameScene, RhythmScene, SkillScene, MemoryScene],
+  scene: [BootScene, ForestSelectScene, GameScene, RhythmScene, SkillScene, MemoryScene, PauseScene, OptionsScene],
 });
+
+// Débogage : ?debug expose le jeu dans la console (window.__mm).
+if (new URLSearchParams(window.location.search).has('debug')) (window as unknown as { __mm: Phaser.Game }).__mm = game;
 
 // Mise à l'échelle entière uniquement : on recalcule le zoom à chaque redimensionnement.
 window.addEventListener('resize', () => {

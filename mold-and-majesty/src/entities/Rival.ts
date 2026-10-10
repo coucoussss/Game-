@@ -9,8 +9,9 @@ export interface RivalCell {
 export interface RivalColony {
   readonly id: number;
   readonly kind: string;
-  /** Cellules indexées par « gx,gy ». */
-  readonly cells: Map<string, RivalCell>;
+  /** Cellules indexées par `cellKey(gx, gy)`. */
+  readonly cells: Map<number, RivalCell>;
 }
 
-export const cellKey = (gx: number, gy: number) => `${gx},${gy}`;
+/** Clé numérique d'une case (pas de chaîne : la grille est parcourue à chaque tick). */
+export const cellKey = (gx: number, gy: number) => gx * 4096 + gy;

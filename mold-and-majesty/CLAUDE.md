@@ -67,6 +67,7 @@ Le contenu du jeu vit dans des **fichiers JSON séparés du code**, dans `src/da
 - `forests.json` : les 8 forêts de la campagne, dans l'ordre, chacune avec son biome, sa règle spéciale (`ForestRules`), son objectif de portée, ses rivaux et son souvenir
 - `biomes.json` : la teinte d'ambiance de chaque biome
 - `memories.json` : les 8 souvenirs (séquences scriptées : décor, musique, acteurs, repères)
+- `tutorial.json` : les étapes du tutoriel de la première forêt
 
 Les types sont définis dans `src/data/types.ts`. Au chargement, `src/data/index.ts` indexe les données
 et les **valide** : identifiants uniques, valeurs cohérentes, références croisées. Pour ajouter du
@@ -251,6 +252,32 @@ avec un test.
   et le danger. Les sons organiques suivent la simulation : pousse, filament qui meurt, gouttes selon
   l'humidité, pluie, feu, trahisons, contagions, catastrophes, sporée.
 
+## Finitions (étape 9)
+
+- **Équilibrage** : `systems/AutoPlayer.ts` joue une stratégie raisonnable (axes vers les gisements,
+  réserve, relais, deux ruches, sporée en fin d'automne) pour mesurer la portée atteignable.
+  `Balance.test.ts` vérifie trois choses : les objectifs croissent ; la première forêt se conquiert dès
+  la première année avec un rythme moyen ; l'Arbre-Mère exige mieux. La portée croît avec la **racine
+  carrée** du nombre de spores, pour que multiplier les ruches ne suffise pas. Objectifs : 70, 85, 100,
+  110, 120, 130, 140 et 160 m (infini : 70 + 8 × (profondeur − 1)).
+- **Tutoriel** (`systems/Tutorial.ts`, première forêt) : 8 étapes, chacune validée par l'état du monde
+  (et non par « suivant »). Il peut être fermé, et désactivé dans les options.
+- **Options** (`OptionsScene`, depuis le royaume ou la pause) : volumes musique et effets, plein écran,
+  mouvements réduits (moins de particules, pas de secousses), contraste élevé (filaments opaques,
+  obscurité atténuée), aide au rythme (fenêtres × 1,5), tutoriel, effacement de la progression.
+- **Pause** (`PauseScene`) : Échap ou le bouton ≡ ; reprendre, options, retour au royaume.
+- **Tactile** : tout passe par les pointeurs ; deux doigts font défiler ; la page bloque le zoom et le
+  défilement natifs (`touch-action: none`, viewport non zoomable) et le menu contextuel.
+- **Performances** :
+  - grille spatiale dans `Network` (`findNodeNear`, `forEachNodeNear`) ;
+  - clés numériques et boîtes englobantes pour les moisissures ;
+  - transport des flux sans allocations superflues : environ 0,27 ms par tick ;
+  - rendu limité à ce qui est visible ;
+  - éclairage peint dans un canvas 2D (un `RenderTexture` redessiné à chaque image se dégradait) ;
+  - Phaser isolé dans son propre fichier au build.
+- `npm run check` = types + tests. `?auto=N` (réseau construit par le joueur automatique) et `?debug`
+  (`window.__mm`) servent aux mesures.
+
 ## Conventions de code
 
 - Le code et les identifiants sont en **anglais**. Les commentaires, les textes affichés et les messages
@@ -286,5 +313,5 @@ avec un test.
 - [x] 7. Souvenirs : séquences scriptées en JSON (caméra, sprites, musique), 8 scènes sans dialogue
 - [x] 8. Vrai pixel art (palette limitée), parallaxe, particules, éclairage dynamique, animations,
       musique ambient évolutive et sons organiques en WebAudio
-- [ ] 9. Équilibrage, tutoriel, options (volume, plein écran, accessibilité), tactile, performances,
+- [x] 9. Équilibrage, tutoriel, options (volume, plein écran, accessibilité), tactile, performances,
       README, build de production

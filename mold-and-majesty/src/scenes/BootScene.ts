@@ -2,6 +2,8 @@ import Phaser from 'phaser';
 import { createBaseTextures, createSpriteTextures, createWaterTexture } from '../art/textures';
 import { gameData } from '../data';
 import { generateForest } from '../systems/ForestGenerator';
+import { applySettings } from './OptionsScene';
+import { profile } from './session';
 
 /** Génère les textures communes puis ouvre le royaume (ou, en développement, une forêt). */
 export class BootScene extends Phaser.Scene {
@@ -11,6 +13,7 @@ export class BootScene extends Phaser.Scene {
 
   create(): void {
     createBaseTextures(this);
+    applySettings(profile().settings);
     createSpriteTextures(this);
     createWaterTexture(this);
     // Développement : ?forest=mist-marsh (ou ?forest=endless-3) lance directement une forêt ;
