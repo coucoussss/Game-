@@ -7,6 +7,8 @@ Les sprites sont dessinés pixel par pixel dans le code. Les musiques sont des c
 
 Ouvrez `sans/index.html` dans un navigateur récent et mettez le son. Sur téléphone, une croix directionnelle et des boutons Z / X apparaissent.
 
+Pour partager le jeu (par e-mail, clé USB…), utilisez `sans/jugement-final.html` : c'est le jeu complet en un seul fichier. Il suffit de l'ouvrir d'un double-clic. `sans/jugement-final.zip` contient le même fichier compressé, pour les messageries qui bloquent les pièces jointes `.html`.
+
 ## Commandes
 
 | Touche | Action |
