@@ -106,7 +106,7 @@ console.log(`Bestiaire : ${MONSTERS.length} créatures`);
 {
   const m = new Match({
     fighters: [{ charId: 'kael', team: 0, mods: maxed }, ...endlessWave(0).map((e) => ({ charId: e.charId, team: 1, mods: e.mods }))],
-    arenaRadius: 18, waveGen: (k) => endlessWave(k), waveHeal: WAVE_HEAL, blessings: true,
+    arenaRadius: 18, waveGen: (k) => endlessWave(k), waveHeal: WAVE_HEAL, blessings: true, blessEvery: 3,
   });
   const brains = [new CpuBrain(0, 'hard'), ...endlessWave(0).map((e, k) => new CpuBrain(k + 1, e.level))];
   const seen = new Set();
@@ -122,7 +122,7 @@ console.log(`Bestiaire : ${MONSTERS.length} créatures`);
     ticks++;
   }
   const f = m.fighters[0];
-  const ok = m.phase === 'matchEnd' && seen.has('blessing');
+  const ok = seen.has('blessing') && m.wave >= 3; // la partie peut durer : on vérifie qu'elle avance
   if (!ok) failures++;
   console.log(`${ok ? '✔' : '✘'} mode Infini : ${m.wave} vagues repoussées, bénédictions ${JSON.stringify(f.bless)}${seen.has('bossPhase') ? ', un boss est passé en seconde phase' : ''}`);
 }

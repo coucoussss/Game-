@@ -247,7 +247,8 @@ export class Match {
           // Vague repoussée : courte pause (et choix d'une bénédiction), puis la suivante surgit
           if (this.waveBreak <= 0) {
             this.waveBreak = 2.4;
-            if (this.cfg.blessings) this.awaitChoice = true;
+            // Bénédiction : à chaque vague d'un niveau, une vague sur trois en mode Infini
+            if (this.cfg.blessings && (this.wave + 1) % (this.cfg.blessEvery || 1) === 0) this.awaitChoice = true;
             this.emit('waveClear', this.waveInfo);
           }
           if (!this.awaitChoice || this.waveBreak > 1.2) this.waveBreak -= dt;

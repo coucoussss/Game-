@@ -66,6 +66,7 @@ export class Battle {
         waveGen: cfg.endless ? (k) => (k === 0 ? cfg.firstWave : endlessWave(k).map((e) => withDifficulty(e, cfg.difficultyId))) : undefined,
         waveHeal: cfg.waveHeal ?? WAVE_HEAL,
         blessings: !!(cfg.waves || cfg.endless),
+        blessEvery: cfg.endless ? 3 : 1,
       });
       this.state = this.match;
       this.brains = cfg.fighters.map((f, i) => {
