@@ -344,6 +344,17 @@ export class Match {
     att.comboT = 1.2;
     const scale = Math.max(0.35, 1 - (att.combo - 1) * 0.07);
     dmg *= scale;
+    // Anti-boucle infinie : l'étourdissement diminue au fil du combo, et au 7e coup la victime
+    // est projetée au sol (elle se relève invulnérable et peut répliquer).
+    let comboStun = stun * Math.max(0.45, 1 - (att.combo - 1) * 0.09);
+    let comboKd = kd;
+    let comboKb = kb;
+    let comboUp = up;
+    if (att.combo >= 7 && !h.hold) {
+      comboKd = true;
+      comboKb = Math.max(kb, 9);
+      comboUp = Math.max(up, 5);
+    }
     tgt.hp -= dmg;
     tgt.lastHurt = 0;
     tgt.flash = 0.12;
@@ -358,16 +369,16 @@ export class Match {
     if (!armor) {
       if (tgt.move) { tgt.move = null; tgt.moveId = ''; }
       tgt.setState('hitstun');
-      tgt.stun = stun;
+      tgt.stun = h.hold ? stun : comboStun;
       if (h.hold) {
         tgt.vx = dx * kb; tgt.vz = dz * kb;
         if (!tgt.onGround) tgt.vy = Math.max(tgt.vy, 1.5);
       } else {
-        tgt.vx = dx * kb; tgt.vz = dz * kb;
-        if (up > 0) { tgt.vy = up; tgt.onGround = false; tgt.y = Math.max(tgt.y, 0.01); }
+        tgt.vx = dx * comboKb; tgt.vz = dz * comboKb;
+        if (comboUp > 0) { tgt.vy = comboUp; tgt.onGround = false; tgt.y = Math.max(tgt.y, 0.01); }
         else if (!tgt.onGround) tgt.vy = Math.max(tgt.vy, 3.5); // jongle
       }
-      tgt.kdOnLand = !!kd || up > 0 || (!tgt.onGround && tgt.kdOnLand);
+      tgt.kdOnLand = !!comboKd || comboUp > 0 || (!tgt.onGround && tgt.kdOnLand);
     }
 
     const ht = HIT_TYPES[h.type || h.hit || 'light'];

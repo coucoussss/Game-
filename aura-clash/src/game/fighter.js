@@ -320,6 +320,8 @@ export class Fighter {
   }
 
   endMove() {
+    // Fin d'un enchaînement léger : courte recharge avant de pouvoir en relancer un
+    if (/^light/.test(this.moveId)) this.cd.light = Math.max(this.cd.light, 0.55);
     this.move = null;
     this.moveId = '';
     this.setState(this.onGround ? 'idle' : 'air');
