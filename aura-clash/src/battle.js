@@ -4,7 +4,7 @@
 //   'client' : affichage des instantanés reçus de l'hôte + envoi de nos entrées
 import { Match } from './game/match.js';
 import { CpuBrain } from './game/ai.js';
-import { CHAR_BY_ID, SLOTS } from './game/characters.js';
+import { CHAR_BY_ID, SLOTS, withLoadout } from './game/characters.js';
 import { keyLabel } from './core/input.js';
 import { PAD_NAMES } from './core/settings.js';
 import { TICK } from './game/constants.js';
@@ -43,6 +43,14 @@ export class Battle {
 
     const stage = app.stage;
     stage.setArena(cfg.arena);
+    // Joueurs de cette machine (hors réseau local) : techniques choisies et tenue
+    if (this.role === 'local') {
+      for (const f of cfg.fighters) {
+        if (f.ctrl.type !== 'human') continue;
+        f.loadout = f.loadout || app.profile.loadoutFor(f.charId);
+        f.costume = f.costume === undefined ? app.profile.outfitFor(f.charId) : f.costume;
+      }
+    }
     app.view.attach(cfg.fighters);
     app.view.localIds = new Set(cfg.fighters.map((f, i) => (f.ctrl.type === 'human' ? i : -1)).filter((i) => i >= 0));
     app.view.onMatchEnd = (team) => this.onMatchEnd(team);
@@ -57,6 +65,7 @@ export class Battle {
         fighters: cfg.fighters.map((f) => ({
           charId: f.charId, team: f.team,
           mods: f.mods || (this.role === 'local' && f.ctrl.type === 'human' ? app.profile.modsFor(f.charId) : undefined),
+          loadout: f.loadout,
         })),
         arenaRadius: ARENA_RADIUS,
         roundTime: cfg.roundTime || 99,
@@ -94,7 +103,7 @@ export class Battle {
     // Un boss dès le début (histoire, première vague) : son thème
     const boss0 = cfg.fighters.find((f) => CHAR_BY_ID[f.charId].boss);
     app.audio.music(boss0 ? `boss:${boss0.charId}` : this.arenaMusic);
-    this.specialCost = cfg.fighters.map((f) => CHAR_BY_ID[f.charId].moves.special.cost);
+    this.specialCost = cfg.fighters.map((f) => withLoadout(CHAR_BY_ID[f.charId], f.loadout).moves.special.cost);
 
     if (this.role === 'host') {
       cfg.net.on('in', (msg) => {
@@ -132,7 +141,7 @@ export class Battle {
     if (this.match) for (const f of this.match.fighters) if (f.team === 0 && Object.keys(f.bless).length) app.hud.setBlessings(f.id, f.bless);
     // Barre des attaques : une par joueur de cette machine
     const sides = this.barOwners.length > 1 ? ['left', 'right'] : ['mid'];
-    app.hud.setupBars(this.barOwners.map(({ i, f }, k) => ({ id: i, def: CHAR_BY_ID[f.charId], side: sides[k] || 'right' })));
+    app.hud.setupBars(this.barOwners.map(({ i, f }, k) => ({ id: i, def: withLoadout(CHAR_BY_ID[f.charId], f.loadout), side: sides[k] || 'right' })));
     this.labelT = 0;
   }
 

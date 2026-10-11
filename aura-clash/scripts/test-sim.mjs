@@ -58,6 +58,45 @@ for (let k = 0; k < 60 * 60; k++) { tr.step(TICK, [b.think(tr, TICK), null]); tr
 if (!tr.fighters.every((f) => f.alive)) { failures++; console.log('✘ entraînement : un KO a eu lieu'); }
 else console.log('✔ entraînement sans KO');
 
+// Techniques alternatives (spécial et ultime « B ») : chaque combattant les utilise sans erreur
+{
+  const seenB = new Set();
+  for (let i = 0; i < ids.length; i++) {
+    const m = new Match({ fighters: [{ charId: ids[i], team: 0, loadout: { special: 'B', ultimate: 'B' } }, { charId: ids[(i + 1) % ids.length], team: 1, loadout: { special: 'B', ultimate: 'B' } }], arenaRadius: 18 });
+    const br = [new CpuBrain(0, 'hard'), new CpuBrain(1, 'hard')];
+    let t = 0;
+    while (m.phase !== 'matchEnd' && t < 60 * 60 * 6) {
+      if (t % 600 === 0) m.fighters.forEach((f) => { f.energy = 100; });
+      m.step(TICK, br.map((b) => b.think(m, TICK)));
+      for (const e of m.events) {
+        if (e.type === 'cine') seenB.add(e.text);
+        if (e.type === 'special') seenB.add(e.name);
+      }
+      m.events.length = 0;
+      t++;
+    }
+    if (m.phase !== 'matchEnd') { failures++; console.log(`✘ techniques B : ${ids[i]} ne termine pas`); }
+  }
+  // Déclenchement direct de chaque spécial et ultime B (l'IA peut ne pas les avoir tous utilisés)
+  for (const c of CHARACTERS) {
+    for (const [btn, slot] of [[16, 'special'], [32, 'ultimate']]) {
+      const m = new Match({ fighters: [{ charId: c.id, team: 0, loadout: { special: 'B', ultimate: 'B' } }, { charId: 'kage', team: 1 }], arenaRadius: 18 });
+      m.phase = 'fight';
+      m.fighters[0].energy = 100;
+      m.fighters[0].x = -2; m.fighters[1].x = 2;
+      for (let k = 0; k < 200; k++) {
+        m.step(TICK, [k === 2 ? { mx: 0, mz: 0, held: btn, pressed: btn } : null, null]);
+        for (const e of m.events) { if (e.type === 'cine') seenB.add(e.text); if (e.type === 'special') seenB.add(e.name); }
+        m.events.length = 0;
+      }
+    }
+  }
+  const expected = CHARACTERS.flatMap((c) => [c.moves.specialB, c.moves.ultimateB]).filter(Boolean).map((mv) => (mv.cine ? mv.cine.text : mv.name));
+  const missing = expected.filter((x) => !seenB.has(x));
+  console.log(`${missing.length === 0 ? '✔' : '✘'} techniques B vues : ${expected.length - missing.length} / ${expected.length}${missing.length ? ` (pas vues : ${missing.join(', ')})` : ''}`);
+  if (missing.length) failures++;
+}
+
 // Mode Vagues : composition des 30 niveaux, puis quelques niveaux joués par une IA difficile
 for (let n = 1; n <= WAVE_LEVELS; n++) {
   const lv = buildLevel(n);

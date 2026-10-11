@@ -6,6 +6,7 @@ import { BeamVisual, flameMaterial, Trail } from './fx.js';
 import { CineDirector } from './cinematic.js';
 import { glowMat, toonMat, toonPart } from './toon.js';
 import { CHAR_BY_ID } from '../game/characters.js';
+import { dressed } from '../game/techniques.js';
 
 const tmp = new THREE.Vector3();
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -35,12 +36,12 @@ export class MatchView {
   /** Crée les modèles des combattants. `fighters` : [{ charId, team }] */
   attach(fighters) {
     this.detach();
-    for (const f of fighters) this.addFighter(f.charId);
+    for (const f of fighters) this.addFighter(f.charId, f.costume);
   }
 
   /** Ajoute le modèle d'un combattant (mode Vagues : les ennemis arrivent en cours de combat). */
-  addFighter(charId) {
-    const def = CHAR_BY_ID[charId];
+  addFighter(charId, costume = null) {
+    const def = dressed(CHAR_BY_ID[charId], costume);
     const model = new CharacterModel(def);
     this.stage.scene.add(model.root);
     this.models.push({ model, def, prevMt: 0, prevMove: '', trailT: 0 });
@@ -723,7 +724,7 @@ export class MatchView {
           break;
         case 'cine': {
           const f = state.fighters[ev.id];
-          const def = CHAR_BY_ID[ev.charId];
+          const def = this.models[ev.id] ? this.models[ev.id].def : CHAR_BY_ID[ev.charId];
           const col = f.transformed ? def.auraAlt || def.aura : def.aura;
           this.cineChar = ev.charId;
           this.director.start(this.models[ev.id].model, f, col, ev.dur);

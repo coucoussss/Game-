@@ -37,6 +37,12 @@ export class Profile {
           waves: Array.isArray(saved.waves) ? saved.waves.filter((x) => Number.isInteger(x) && x >= 1) : [],
           difficulty: ['facile', 'normal', 'cauchemar'].includes(saved.difficulty) ? saved.difficulty : 'normal',
           tutorialDone: !!saved.tutorialDone,
+          tech: saved.tech && typeof saved.tech === 'object' ? saved.tech : {},
+          loadout: saved.loadout && typeof saved.loadout === 'object' ? saved.loadout : {},
+          costumes: saved.costumes && typeof saved.costumes === 'object' ? saved.costumes : {},
+          outfit: saved.outfit && typeof saved.outfit === 'object' ? saved.outfit : {},
+          stats: saved.stats && typeof saved.stats === 'object' ? saved.stats : {},
+          claimed: Array.isArray(saved.claimed) ? saved.claimed : [],
           seen: Array.isArray(saved.seen) ? saved.seen.filter((x) => typeof x === 'string') : [],
           endless: Array.isArray(saved.endless) ? saved.endless.filter((r) => r && Number.isFinite(r.score)).slice(0, 5) : [],
         };
@@ -98,6 +104,61 @@ export class Profile {
   /** Niveau le plus haut accessible : le suivant du plus haut réussi. */
   levelUnlocked() {
     return this.data.waves.reduce((m, n) => Math.max(m, n), 0) + 1;
+  }
+
+  // --- Techniques alternatives et tenues ---
+
+  hasTech(charId, slot) {
+    return !!(this.data.tech && this.data.tech[charId] && this.data.tech[charId].includes(slot));
+  }
+
+  /** Achète une technique ('special' ou 'ultimate'). Renvoie 'ok', 'owned', 'poor' ou 'locked'. */
+  buyTech(charId, slot, price) {
+    if (!this.owns(charId)) return 'locked';
+    if (this.hasTech(charId, slot)) return 'owned';
+    if (this.data.ryo < price) return 'poor';
+    this.data.ryo -= price;
+    this.data.tech = this.data.tech || {};
+    this.data.tech[charId] = [...(this.data.tech[charId] || []), slot];
+    this.setLoadout(charId, slot, 'B');
+    return 'ok';
+  }
+
+  loadoutFor(charId) {
+    const l = (this.data.loadout && this.data.loadout[charId]) || {};
+    return { special: this.hasTech(charId, 'special') && l.special === 'B' ? 'B' : 'A', ultimate: this.hasTech(charId, 'ultimate') && l.ultimate === 'B' ? 'B' : 'A' };
+  }
+
+  setLoadout(charId, slot, v) {
+    this.data.loadout = this.data.loadout || {};
+    this.data.loadout[charId] = { ...(this.data.loadout[charId] || {}), [slot]: v };
+    this.save();
+  }
+
+  hasCostume(charId, id) {
+    return !!(this.data.costumes && this.data.costumes[charId] && this.data.costumes[charId].includes(id));
+  }
+
+  buyCostume(charId, id, price) {
+    if (!this.owns(charId)) return 'locked';
+    if (this.hasCostume(charId, id)) return 'owned';
+    if (this.data.ryo < price) return 'poor';
+    this.data.ryo -= price;
+    this.data.costumes = this.data.costumes || {};
+    this.data.costumes[charId] = [...(this.data.costumes[charId] || []), id];
+    this.setOutfit(charId, id);
+    return 'ok';
+  }
+
+  outfitFor(charId) {
+    const o = this.data.outfit && this.data.outfit[charId];
+    return o && this.hasCostume(charId, o) ? o : null;
+  }
+
+  setOutfit(charId, id) {
+    this.data.outfit = this.data.outfit || {};
+    this.data.outfit[charId] = id;
+    this.save();
   }
 
   /** Créatures rencontrées (pour la galerie). */

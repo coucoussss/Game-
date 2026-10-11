@@ -24,7 +24,7 @@ export class Match {
     this.roundTime = cfg.roundTime || 99;
     this.fighters = cfg.fighters.map((f, i) => {
       const slot = cfg.fighters.slice(0, i).filter((o) => o.team === f.team).length;
-      return new Fighter(i, CHAR_BY_ID[f.charId], f.team, slot, f.mods);
+      return new Fighter(i, CHAR_BY_ID[f.charId], f.team, slot, f.mods, f.loadout);
     });
     this.entities = [];
     this.events = [];

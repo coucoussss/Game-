@@ -17,6 +17,7 @@ import { TouchControls } from './ui/touch.js';
 import { Battle } from './battle.js';
 import { CpuBrain } from './game/ai.js';
 import { CHARACTERS, CHAR_BY_ID } from './game/characters.js';
+import { dressed } from './game/techniques.js';
 
 class App {
   constructor() {
@@ -72,7 +73,7 @@ class App {
       this.backdrop.models = [];
     };
     const addModel = (id, x, z, yaw) => {
-      const model = new CharacterModel(CHAR_BY_ID[id]);
+      const model = new CharacterModel(dressed(CHAR_BY_ID[id], this.profile.outfitFor(id)));
       this.stage.scene.add(model.root);
       const f = { x, y: 0, z, yaw, vx: 0, vy: 0, vz: 0, state: 'idle', st: 0, moveId: '', mt: 0, onGround: true, flash: 0, transformed: false };
       this.backdrop.models.push({ model, f, id });

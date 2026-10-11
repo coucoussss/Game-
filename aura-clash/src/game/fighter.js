@@ -15,7 +15,7 @@ export class Fighter {
    * @param mods multiplicateurs (améliorations achetées, boss du mode histoire) :
    *   { dmg, hp, speed, energy, cd }
    */
-  constructor(id, def, team, slot, mods = {}) {
+  constructor(id, def, team, slot, mods = {}, loadout = null) {
     this.id = id;
     this.def = def;
     this.charId = def.id;
@@ -24,6 +24,7 @@ export class Fighter {
     this.mods = { dmg: 1, hp: 1, speed: 1, energy: 1, cd: 1, ...mods };
     this.maxHp = Math.round(def.hp * this.mods.hp);
     this.buf = {};
+    this.loadout = loadout || {}; // techniques choisies : { special: 'A'|'B', ultimate: 'A'|'B' }
     this.bless = {}; // bénédictions du mode Vagues : { identifiant: nombre de fois }
     this.shield = 0;
     this.phase2 = false; // boss du mode Vagues entré dans sa seconde phase
@@ -113,6 +114,7 @@ export class Fighter {
   moveDef(id) {
     // Seconde phase d'un boss : certains coups sont remplacés par des versions plus puissantes
     const p2 = this.phase2 && this.def.phase2 && this.def.phase2.moves;
+    if ((id === 'special' || id === 'ultimate') && this.loadout[id] === 'B' && this.def.moves[`${id}B`]) id = `${id}B`;
     let mv = (p2 && p2[id]) || this.def.moves[id];
     if (!mv) return null;
     if (mv.alt && this.transformed) { id = mv.alt; mv = this.def.moves[id]; }

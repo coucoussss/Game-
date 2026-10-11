@@ -508,3 +508,7 @@ body.touch-on .aslot { width: 7vw; }
 .btn.small.on { background: linear-gradient(90deg, #ffd23f, #ff8a3a); color: #1a1020; }
 .gal-hint { font-size: 1.3vh; color: var(--muted); text-shadow: 0 0 4px #000; }
 @media (orientation: portrait) { .gal-list { width: 30vw; } .gal-info { width: 60vw; } .gal-controls { transform: translateX(-30%); } }
+.up-sub { margin: 1.4vh 0 0.4vh; font: italic 900 1.9vh var(--display); color: #ffd23f; letter-spacing: 0.08em; }
+.up-row.tech { grid-template-columns: 1fr auto; }
+.up-toggle { display: flex; gap: 0.4vw; flex-wrap: wrap; }
+.up-toggle.wide { grid-column: 1 / -1; }

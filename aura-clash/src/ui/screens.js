@@ -9,6 +9,7 @@ import { REWARDS, UPGRADES, UPGRADE_COSTS, UPGRADE_MAX } from '../core/profile.j
 import { CHAPTERS, STORY_TITLE } from '../story/chapters.js';
 import { StoryScene } from '../story/scene.js';
 import { Tutorial, TUTORIAL_REWARD } from './tutorial.js';
+import { TECH_PRICES, COSTUMES, COSTUME_PRICE } from '../game/techniques.js';
 import { WAVE_LEVELS, WAVE_HEAL, buildLevel, levelReward, isBossLevel, regionOf, DIFFICULTIES, withDifficulty, endlessWave, endlessReward, BLESSINGS } from '../game/waves.js';
 import { MONSTERS, TIERS } from '../game/monsters.js';
 
@@ -756,6 +757,27 @@ export class UI {
         <div class="char-info up-panel">
           <h3 style="color:${c.aura}">${esc(c.name)}</h3><div class="ititle">${esc(c.title)} — rang ${prof.rank(cur)} / ${UPGRADES.length * UPGRADE_MAX}</div>
           ${rows}
+          <h4 class="up-sub">Techniques</h4>
+          ${['special', 'ultimate'].map((slot) => {
+            const a = c.moves[slot];
+            const b = c.moves[`${slot}B`];
+            if (!b) return '';
+            const has = prof.hasTech(cur, slot);
+            const eq = prof.loadoutFor(cur)[slot];
+            return `<div class="up-row tech">
+              <div class="up-name"><b>${slot === 'special' ? 'Spécial' : 'Ultime'}</b><small>A : ${esc(a.name)} · B : ${esc(b.name)}</small></div>
+              ${has
+    ? `<div class="up-toggle"><button class="btn small ${eq === 'A' ? 'on' : ''}" data-nav data-equip="${slot}:A">A</button><button class="btn small ${eq === 'B' ? 'on' : ''}" data-nav data-equip="${slot}:B">B</button></div>`
+    : `<button class="btn small up-tech" data-nav data-tech="${slot}">Débloquer B — ${TECH_PRICES[slot]} Ryō</button>`}
+            </div>`;
+          }).join('')}
+          <h4 class="up-sub">Tenues</h4>
+          <div class="up-row tech"><div class="up-toggle wide">
+            <button class="btn small ${!prof.outfitFor(cur) ? 'on' : ''}" data-nav data-outfit="">Classique</button>
+            ${COSTUMES.map((k) => prof.hasCostume(cur, k.id)
+    ? `<button class="btn small ${prof.outfitFor(cur) === k.id ? 'on' : ''}" data-nav data-outfit="${k.id}">${esc(k.name)}</button>`
+    : `<button class="btn small" data-nav data-buyoutfit="${k.id}">${esc(k.name)} — ${COSTUME_PRICE} Ryō</button>`).join('')}
+          </div></div>
           <p class="muted">Les améliorations s'appliquent dans tous les modes joués sur cette machine : versus, 2 contre 2, entraînement, histoire. En réseau local, tout le monde se bat à égalité, sans amélioration.</p>
         </div>
       </div>
@@ -774,6 +796,33 @@ export class UI {
         this.app.audio.play('denied');
         this.toast(`Il te manque ${UPGRADE_COSTS[prof.level(cur, b.dataset.track)] - prof.ryo} Ryō.`);
       }
+    }));
+    const refocus = (q) => { this.upgrades(cur); const f = this.screen.el.querySelector(q); if (f) this.focus(f, false); };
+    const result = (res, what, q) => {
+      if (res === 'ok') { this.app.audio.play('transform'); this.toast(`${c.name} : ${what} !`); refocus(q); }
+      else if (res === 'poor') { this.app.audio.play('denied'); this.toast('Pas assez de Ryō.'); }
+    };
+    el.querySelectorAll('[data-tech]').forEach((b) => b.addEventListener('click', () => {
+      const slot = b.dataset.tech;
+      result(prof.buyTech(cur, slot, TECH_PRICES[slot]), `${c.moves[`${slot}B`].name} débloqué et équipé`, `[data-equip="${slot}:B"]`);
+    }));
+    el.querySelectorAll('[data-equip]').forEach((b) => b.addEventListener('click', () => {
+      const [slot, v] = b.dataset.equip.split(':');
+      prof.setLoadout(cur, slot, v);
+      this.app.audio.play('ui_ok');
+      refocus(`[data-equip="${b.dataset.equip}"]`);
+    }));
+    el.querySelectorAll('[data-buyoutfit]').forEach((b) => b.addEventListener('click', () => {
+      const id = b.dataset.buyoutfit;
+      const res = prof.buyCostume(cur, id, COSTUME_PRICE);
+      if (res === 'ok') this.app.backdrop.key = null; // recharge le modèle avec la nouvelle tenue
+      result(res, `${COSTUMES.find((k) => k.id === id).name} achetée`, `[data-outfit="${id}"]`);
+    }));
+    el.querySelectorAll('[data-outfit]').forEach((b) => b.addEventListener('click', () => {
+      prof.setOutfit(cur, b.dataset.outfit || null);
+      this.app.backdrop.key = null;
+      this.app.audio.play('ui_ok');
+      refocus(`[data-outfit="${b.dataset.outfit}"]`);
     }));
     el.querySelector('[data-act=back]').addEventListener('click', () => this.mainMenu());
     this.show({ el, back: () => this.mainMenu() });

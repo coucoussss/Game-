@@ -14,6 +14,7 @@
 //     warp    téléportation        fx / sfx / shake    effets purement visuels ou sonores
 import { HIT_TYPES } from './constants.js';
 import { MONSTERS } from './monsters.js';
+import { TECHNIQUES } from './techniques.js';
 
 const hit = (t, dmg, type = 'light', o = {}) => ({
   t, a: 'hit', dmg, type, reach: 1.05, radius: 0.85, ...HIT_TYPES[type], ...o,
@@ -432,6 +433,9 @@ function weaponOf(c) {
 }
 for (const c of [...CHARACTERS, ...MONSTERS]) {
   if (!c.moves.airslam) c.moves.airslam = AIR_SLAM;
+  // Techniques alternatives (spécial « B » et ultime « B »)
+  const t = TECHNIQUES[c.id];
+  if (t) { c.moves.specialB = t.special; c.moves.ultimateB = t.ultimate; }
   c.weapon = weaponOf(c);
 }
 
@@ -441,6 +445,15 @@ export const CHAR_BY_ID = Object.fromEntries([...CHARACTERS, ...MONSTERS].map((c
 /** Les « coups normaux » peuvent s'annuler les uns dans les autres. */
 export function isNormalMove(id) {
   return /^light\d$/.test(id) || id === 'heavy' || id === 'ranged';
+}
+
+/** Définition vue à travers l'équipement choisi : `special` et `ultimate` pointent vers les versions B. */
+export function withLoadout(def, loadout) {
+  if (!loadout || (loadout.special !== 'B' && loadout.ultimate !== 'B')) return def;
+  const moves = { ...def.moves };
+  if (loadout.special === 'B' && moves.specialB) moves.special = moves.specialB;
+  if (loadout.ultimate === 'B' && moves.ultimateB) moves.ultimate = moves.ultimateB;
+  return { ...def, moves };
 }
 
 /** Description lisible de la liste de coups (écran pause / entraînement). */
@@ -476,6 +489,7 @@ export const SLOT_IDS = SLOTS.map((s) => s[0]);
 export function slotOf(moveId) {
   if (/^light/.test(moveId)) return 'light';
   if (moveId === 'airslam') return 'heavy';
+  if (moveId.startsWith('ultimate')) return 'ultimate';
   if (moveId.startsWith('special')) return 'special';
   return moveId;
 }
