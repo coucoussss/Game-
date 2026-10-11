@@ -128,6 +128,28 @@ export const TECHNIQUES = {
       actions: [aoe(0.2, 'darkblast', 0.4, 2, 70, 'heavy'), aoe(0.2, 'darkblast', 0.75, 2.6, 80, 'heavy', { offset: [1.5, 0] }), aoe(0.2, 'darkblast', 1.15, 4, 200, 'kd', { chip: 0.3, impact: '月!!' })],
     },
   },
+  akane: {
+    special: {
+      name: 'Pluie de braises', cost: 40, anim: 'cast', dur: 0.66, cancel: 0.52,
+      actions: [proj(0.15, { kind: 'fireball', speed: 18, dmg: 30, hit: 'heavy', r: 0.42, life: 1.4, explode: { r: 1.4, dmg: 8 } }, { spread: [-18, 0, 18] })],
+    },
+    ultimate: {
+      name: 'Couronne Solaire', cost: 100, anim: 'powerup', dur: 1.9, armor: 'full',
+      cine: { text: 'COURONNE SOLAIRE', dur: 1.3 },
+      actions: [...[0, 60, 120, 180, 240, 300].map((deg, i) => aoe(0.3, 'firepillar', 0.4 + i * 0.1, 1.5, 40, 'launch', { offset: ring(deg, 2.6) })), aoe(0.3, 'meteor', 1.3, 3, 150, 'kd', { chip: 0.3, impact: '陽!!' })],
+    },
+  },
+  jin: {
+    special: {
+      name: 'Mille paumes', cost: 40, anim: 'rush', dur: 0.85, cancel: 0.7, lunge: [[0, 0.5, 4]],
+      actions: [hit(0.08, 12, 'light', { dur: 0.5, every: 0.06, radius: 1.1, stun: 0.45, kb: 1 }), hit(0.62, 40, 'kd', { radius: 1.2 })],
+    },
+    ultimate: {
+      name: 'Bouddha de Fer', cost: 100, anim: 'slam', dur: 1.8, armor: 'full',
+      cine: { text: 'BOUDDHA DE FER', dur: 1.3 },
+      actions: [{ t: 0.45, a: 'ring', maxR: 10, speed: 16, dmg: 90, type: 'launch', fxColor: '#ffd8a0' }, aoe(0.45, 'rockblast', 0.6, 4, 170, 'kd', { chip: 0.3, impact: '仏!!' })],
+    },
+  },
 };
 
 // --- Tenues -------------------------------------------------------------------------------------

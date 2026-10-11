@@ -44,6 +44,8 @@ const VICTORY_BY_CHAR = {
   raiden: { torso: [-0.05, -0.3, 0], head: [-0.2, 0.3, 0], shR: [-0.5, 0, 0.35], elR: [-1.5, 0, 0], shL: [-0.85, 0, -0.35], elL: [-2.0, 0, 0], hipL: [-0.1, 0, -0.2], hipR: [0.1, 0, 0.2] },
   hana: { hy: 0.02, torso: [-0.1, 0.3, 0.1], head: [-0.1, -0.3, 0.2], shL: [-1.6, 0, -1.25], elL: [-0.2, 0, 0], shR: [-1.6, 0, 1.25], elR: [-0.2, 0, 0], hipL: [0.1, 0, -0.05], knL: [0.1, 0, 0], hipR: [0.5, 0, 0.1], knR: [1.8, 0, 0] },
   garo: { hy: -0.12, torso: [0.05, 0, 0], head: [-0.15, 0, 0], shL: [-0.1, 0, -1.45], elL: [-2.2, 0, 0], shR: [-0.1, 0, 1.45], elR: [-2.2, 0, 0], hipL: [-0.2, 0, -0.3], knL: [0.4, 0, 0], hipR: [-0.2, 0, 0.3], knR: [0.4, 0, 0] },
+  akane: { torso: [0, 0.4, 0], head: [-0.1, -0.4, 0], shR: [-2.7, 0, 0.3], elR: [-0.2, 0, 0], shL: [-0.3, 0, -0.5], elL: [-1.4, 0, 0], hipL: [-0.05, 0, -0.1], hipR: [0.2, 0, 0.1], knR: [0.4, 0, 0] },
+  jin: { hy: -0.05, torso: [0.1, 0, 0], head: [0.15, 0, 0], shL: [-1.2, 0.3, 0.1], elL: [-1.9, 0, 0], shR: [-1.2, -0.3, -0.1], elR: [-1.9, 0, 0], hipL: [0, 0, -0.15], hipR: [0, 0, 0.15] },
   yami: { torso: [0.1, 0.15, 0], head: [0.3, -0.2, 0], shL: [-0.9, 0, -0.45], elL: [-2.1, 0, 0], shR: [-0.8, 0, -0.45], elR: [-2.0, 0, 0], hipL: [0, 0, -0.06], hipR: [0, 0, 0.06] },
 };
 
@@ -51,7 +53,7 @@ const VICTORY_BY_CHAR = {
 const INTRO_BY_CHAR = {
   kael: ['powerup', 'strike'], kage: ['summon', 'wind'], ren: ['iai', 'wind'], lyra: ['cast', 'wind'],
   goro: ['charge', 'wind'], sora: ['summon', 'strike'], raiden: ['rising', 'wind'], hana: ['cast', 'strike'],
-  garo: ['slam', 'wind'], yami: ['iai', 'wind'],
+  garo: ['slam', 'wind'], yami: ['iai', 'wind'], akane: ['rising', 'wind'], jin: ['palm', 'strike'],
 };
 
 const VICTORY = {

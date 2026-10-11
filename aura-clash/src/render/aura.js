@@ -27,7 +27,7 @@ export const AURA_STYLES = {
 
 const BY_CHAR = {
   kael: 'flame', kage: 'shadow', ren: 'blade', lyra: 'frost', goro: 'flame', sora: 'spirit',
-  raiden: 'storm', hana: 'petal', garo: 'stone', yami: 'blood',
+  raiden: 'storm', hana: 'petal', garo: 'stone', yami: 'blood', akane: 'flame', jin: 'spirit',
 };
 
 export function auraStyleOf(def) {

@@ -414,6 +414,68 @@ export const CHARACTERS = [
       },
     },
   },
+  {
+    id: 'akane',
+    name: 'Akane Hinomura',
+    title: 'Prêtresse du soleil',
+    price: 1500,
+    blurb: 'Gardienne du temple du Soleil. Sa naginata de feu tient l’adversaire à distance et fait pleuvoir les braises.',
+    hp: 940, speed: 7.0, weight: 0.95,
+    aura: '#ff9a2a', auraAlt: '#fff0a0',
+    stance: 'staff', aiRange: 2.5, aiZoning: 0.45,
+    look: {
+      skin: '#f6d6c0', hair: '#c8301e', hairStyle: 'ponytail', eyes: '#ff8a1a',
+      top: '#ffffff', arms: '#ffffff', pants: '#c8201e', belt: '#ffb030', boots: '#2a1a14', accent: '#ffb030',
+      extras: ['spear', 'kimono', 'sleeves', 'hakama', 'ribbons'], body: 'f', emblem: '陽', emblemColor: '#e05a10',
+    },
+    moves: {
+      light1: { name: 'Estoc ardent', anim: 'thrust', dur: 0.28, cancel: 0.15, chain: 'light2', air: true, lunge: [[0, 0.1, 4]], actions: [hit(0.09, 26, 'light', { reach: 1.6 })] },
+      light2: { name: 'Fauche', anim: 'staff1', dur: 0.3, cancel: 0.16, chain: 'light3', air: true, lunge: [[0, 0.1, 4]], actions: [hit(0.1, 28, 'light', { reach: 1.55 })] },
+      light3: { name: 'Roue de flammes', anim: 'staff2', dur: 0.48, cancel: 0.3, lunge: [[0, 0.12, 5]], actions: [fx(0.1, 'flameburst'), hit(0.15, 46, 'heavy', { reach: 1.4, radius: 1.3 })] },
+      heavy: { name: 'Lame solaire', anim: 'rising', dur: 0.62, cancel: 0.42, actions: [fx(0.02, 'kiCharge'), hit(0.18, 70, 'launch', { reach: 1.55, hy: 1.4 })] },
+      ranged: { name: 'Braise', anim: 'cast2', dur: 0.5, cancel: 0.38, air: true, actions: [proj(0.13, P.fireball)] },
+      special: {
+        name: 'Colonnes du soleil', cost: 40, anim: 'summon', dur: 0.8, cancel: 0.62,
+        actions: [{ t: 0.15, a: 'aoe', type: 'firepillar', delay: 0.35, r: 1.5, dmg: 36, hit: 'launch' }, { t: 0.15, a: 'aoe', type: 'firepillar', delay: 0.55, r: 1.5, dmg: 36, hit: 'launch', offset: [1.8, 0] }],
+      },
+      ultimate: {
+        name: 'Soleil Levant', cost: 100, anim: 'summon', dur: 1.9, armor: 'full',
+        cine: { text: 'SOLEIL LEVANT', dur: 1.3 },
+        actions: [{ t: 0.2, a: 'aoe', type: 'meteor', delay: 1.2, r: 4.6, dmg: 280, hit: 'kd', chip: 0.3, impact: '陽!!', zone: { type: 'firezone', dur: 2, tick: 0.25, dmg: 8 } }],
+      },
+    },
+  },
+  {
+    id: 'jin',
+    name: 'Jin Takeda',
+    title: 'Moine de fer',
+    price: 2000,
+    blurb: 'Un moine au corps d’acier. Ses paumes projettent des ondes spirituelles et sa cloche fait trembler la terre.',
+    hp: 1080, speed: 6.4, weight: 1.15,
+    aura: '#ffd8a0',
+    stance: 'fists', aiRange: 2.2, aiZoning: 0.3,
+    look: {
+      skin: '#d8a882', hair: '#1a1410', hairStyle: 'short', eyes: '#c88a3a',
+      top: '#e08a1a', arms: '#d8a882', pants: '#e08a1a', belt: '#7a3a10', boots: '#5a3a20', accent: '#ffd23f',
+      extras: ['gi', 'bandages', 'barefoot', 'sash', 'wristbands'], build: 1.08, body: 'm', emblem: '鉄', emblemColor: '#7a3a10',
+    },
+    moves: {
+      light1: { name: 'Paume', anim: 'palm', dur: 0.3, cancel: 0.16, chain: 'light2', air: true, lunge: [[0, 0.1, 3]], actions: [hit(0.1, 30)] },
+      light2: { name: 'Coude de fer', anim: 'cross', dur: 0.32, cancel: 0.17, chain: 'light3', air: true, lunge: [[0, 0.1, 3]], actions: [hit(0.1, 33)] },
+      light3: { name: 'Genou du moine', anim: 'kick', dur: 0.48, cancel: 0.3, lunge: [[0, 0.15, 4]], actions: [hit(0.15, 50, 'heavy', { radius: 1.05 })] },
+      heavy: { name: 'Paume du ciel', anim: 'uppercut', dur: 0.62, cancel: 0.42, lunge: [[0.08, 0.22, 5]], actions: [hit(0.2, 74, 'launch', { radius: 1, hy: 1.3 })] },
+      ranged: { name: 'Onde spirituelle', anim: 'palm', dur: 0.55, cancel: 0.42, actions: [proj(0.18, P.palmwave)] },
+      special: {
+        name: 'Cloche de fer', cost: 40, anim: 'powerup', dur: 0.85, cancel: 0.7, armor: 'light',
+        actions: [{ t: 0.4, a: 'ring', maxR: 6, speed: 16, dmg: 60, type: 'kd', fxColor: '#ffd8a0' }, { t: 0.4, a: 'shake', amt: 0.4 }],
+      },
+      ultimate: {
+        name: 'Cloche du Nirvana', cost: 100, anim: 'palm', dur: 1.9, armor: 'full',
+        cine: { text: 'CLOCHE DU NIRVANA', dur: 1.3 },
+        actions: [proj(0.3, { kind: 'palmwave', speed: 18, dmg: 120, hit: 'kd', r: 2, life: 0.7 }), { t: 0.9, a: 'ring', maxR: 9, speed: 18, dmg: 120, type: 'kd', fxColor: '#ffffff' }, { t: 0.9, a: 'shake', amt: 0.8 }],
+      },
+    },
+  },
 ];
 
 /** Coup commun à tous : Lourd en l'air = frappe plongeante qui rabat l'adversaire au sol. */
