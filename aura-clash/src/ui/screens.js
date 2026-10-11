@@ -10,6 +10,7 @@ import { CHAPTERS, STORY_TITLE } from '../story/chapters.js';
 import { StoryScene } from '../story/scene.js';
 import { Tutorial, TUTORIAL_REWARD } from './tutorial.js';
 import { TECH_PRICES, COSTUMES, COSTUME_PRICE } from '../game/techniques.js';
+import { CHALLENGES, challengeState, pendingChallenges } from '../core/challenges.js';
 import { WAVE_LEVELS, WAVE_HEAL, buildLevel, levelReward, isBossLevel, regionOf, DIFFICULTIES, withDifficulty, endlessWave, endlessReward, BLESSINGS } from '../game/waves.js';
 import { MONSTERS, TIERS } from '../game/monsters.js';
 
@@ -190,14 +191,11 @@ export class UI {
     const el = this.menu('', [
       { label: 'Mode Histoire', hint: `${STORY_TITLE} — ${done} / ${CHAPTERS.length} chapitres`, cls: 'story-btn', action: () => this.storyMenu() },
       { label: 'Mode Vagues', hint: `fléaux, démons et boss — niveau ${Math.min(WAVE_LEVELS, this.app.profile.levelUnlocked())} / ${WAVE_LEVELS}`, cls: 'story-btn', action: () => this.wavesMenu() },
-      { label: 'Versus contre l’IA', hint: '1 joueur, best of 3', action: () => this.setupVersus('cpu') },
-      { label: 'Versus local', hint: '2 joueurs sur le même PC', action: () => this.setupVersus('local2') },
-      { label: '2 contre 2', hint: 'avec ou sans partenaire humain', action: () => this.setup2v2() },
-      { label: 'Réseau local (LAN)', hint: WEB_ONLY ? 'disponible dans la version PC (.exe)' : 'créer ou rejoindre une partie', disabled: WEB_ONLY, action: () => this.lanMenu() },
+      { label: 'Combat libre', hint: 'versus contre l’IA, à deux, 2 contre 2, réseau local', action: () => this.freeMenu() },
       { label: 'Tutoriel', hint: this.app.profile.data.tutorialDone ? 'revoir les bases et les techniques avancées' : `apprends les bases — +${TUTORIAL_REWARD} Ryō`, cls: this.app.profile.data.tutorialDone ? '' : 'new', action: () => this.charSelect([{ label: 'TUTORIEL', team: 0, ctrl: { type: 'human', player: 0 } }], (fs) => new Tutorial(this.app, fs[0].charId).start(), () => this.mainMenu()) },
-      { label: 'Entraînement', hint: 'mannequin configurable', action: () => this.setupTraining() },
       { label: 'Améliorations', hint: 'renforce tes combattants (force, vie, vitesse, ki, maîtrise)', action: () => this.upgrades() },
       { label: 'Boutique', hint: `${this.app.profile.ryo} Ryō — débloque de nouveaux combattants`, action: () => this.shop() },
+      { label: `Défis${pendingChallenges(this.app.profile).length ? ` <span class="badge">${pendingChallenges(this.app.profile).length}</span>` : ''}`, hint: `${CHALLENGES.filter((c) => challengeState(this.app.profile, c).claimed).length} / ${CHALLENGES.length} réclamés — des Ryō à gagner`, action: () => this.challenges() },
       { label: 'Galerie', hint: 'modèles 3D, poses, expressions, auras et ultimes', action: () => this.gallery() },
       { label: 'Options', hint: 'son, graphismes, commandes', action: () => this.options(() => this.mainMenu()) },
       ...(electron ? [{ label: 'Quitter', action: () => window.auraNative.quit() }] : []),
@@ -207,6 +205,18 @@ export class UI {
 
   // --- Préparation des combats --------------------------------------------------------------
 
+  freeMenu() {
+    const el = this.menu('COMBAT LIBRE', [
+      { label: 'Versus contre l’IA', hint: '1 joueur, best of 3', action: () => this.setupVersus('cpu') },
+      { label: 'Versus local', hint: '2 joueurs sur le même appareil', action: () => this.setupVersus('local2') },
+      { label: '2 contre 2', hint: 'avec ou sans partenaire humain', action: () => this.setup2v2() },
+      { label: 'Réseau local (LAN)', hint: WEB_ONLY ? 'disponible dans la version PC (.exe)' : 'créer ou rejoindre une partie', disabled: WEB_ONLY, action: () => this.lanMenu() },
+      { label: 'Entraînement', hint: 'mannequin configurable', action: () => this.setupTraining() },
+      { label: 'Retour', cls: 'ghost', action: () => this.mainMenu() },
+    ]);
+    this.show({ el, back: () => this.mainMenu() });
+  }
+
   setupVersus(kind) {
     const diff = this.app.settings.data.game.difficulty;
     const slots = kind === 'cpu'
@@ -214,7 +224,7 @@ export class UI {
       : [{ label: 'JOUEUR 1', team: 0, ctrl: { type: 'human', player: 0 } }, { label: 'JOUEUR 2', team: 1, ctrl: { type: 'human', player: 1 } }];
     this.charSelect(slots, (fighters) => {
       this.arenaSelect((arena) => this.app.startBattle({ role: 'local', arena, fighters, difficulty: diff }), () => this.setupVersus(kind));
-    }, () => this.mainMenu());
+    }, () => this.freeMenu());
   }
 
   setup2v2() {
@@ -227,9 +237,9 @@ export class UI {
       { label: 'Toi + une IA contre deux IA', action: () => go([{ label: 'JOUEUR 1', team: 0, ctrl: { type: 'human', player: 0 } }, { label: 'ALLIÉ (IA)', ...cpu(0) }, { label: 'ADVERSAIRE 1 (IA)', ...cpu(1) }, { label: 'ADVERSAIRE 2 (IA)', ...cpu(1) }]) },
       { label: 'Deux joueurs ensemble contre deux IA', action: () => go([{ label: 'JOUEUR 1', team: 0, ctrl: { type: 'human', player: 0 } }, { label: 'JOUEUR 2', team: 0, ctrl: { type: 'human', player: 1 } }, { label: 'ADVERSAIRE 1 (IA)', ...cpu(1) }, { label: 'ADVERSAIRE 2 (IA)', ...cpu(1) }]) },
       { label: 'Joueur 1 + IA contre Joueur 2 + IA', action: () => go([{ label: 'JOUEUR 1', team: 0, ctrl: { type: 'human', player: 0 } }, { label: 'ALLIÉ DE J1 (IA)', ...cpu(0) }, { label: 'JOUEUR 2', team: 1, ctrl: { type: 'human', player: 1 } }, { label: 'ALLIÉ DE J2 (IA)', ...cpu(1) }]) },
-      { label: 'Retour', cls: 'ghost', action: () => this.mainMenu() },
+      { label: 'Retour', cls: 'ghost', action: () => this.freeMenu() },
     ], { subtitle: 'Chaque équipe gagne la manche quand ses deux adversaires sont K.O.' });
-    this.show({ el, back: () => this.mainMenu() });
+    this.show({ el, back: () => this.freeMenu() });
   }
 
   setupTraining() {
@@ -238,7 +248,7 @@ export class UI {
       { label: 'MANNEQUIN', team: 1, ctrl: { type: 'dummy', mode: 'stand' } },
     ], (fighters) => {
       this.arenaSelect((arena) => this.app.startBattle({ role: 'local', arena, fighters, training: true }), () => this.setupTraining());
-    }, () => this.mainMenu());
+    }, () => this.freeMenu());
   }
 
   /**
@@ -426,6 +436,7 @@ export class UI {
     const app = this.app;
     const ch = CHAPTERS.find((c) => c.id === battle.cfg.story);
     if (team === 0) {
+      app.profile.bumpStat('wins');
       app.endBattle(false);
       const scene = new StoryScene(app, ch, ch.outro, {
         allies: (ch.fight.allies || []).map((a) => a.charId),
@@ -620,7 +631,7 @@ export class UI {
       battle.rewarded = true;
       reward = Math.round(levelReward(lv, won, cleared, first) * DIFFICULTIES[battle.cfg.difficultyId || 'normal'].reward);
       prof.earn(reward);
-      if (won) prof.clearLevel(n);
+      if (won) { prof.clearLevel(n); prof.bumpStat('wins'); }
     }
     const charId = battle.cfg.fighters[0].charId;
     const def = CHAR_BY_ID[charId];
@@ -671,6 +682,40 @@ export class UI {
     </div>`);
     el.querySelector('.btn').addEventListener('click', onBack);
     this.show({ el, back: onBack });
+  }
+
+  // --- Défis ---------------------------------------------------------------------------------
+
+  challenges() {
+    const prof = this.app.profile;
+    const el = h(`<div class="screen menu challenges">
+      <h2 class="menu-title">DÉFIS</h2>
+      <p class="menu-sub">Des objectifs à accomplir dans tous les modes. Réclame tes récompenses ! <span class="wallet inline">${prof.ryo} <small>Ryō</small></span></p>
+      <div class="ch-list">${CHALLENGES.map((c) => {
+        const s = challengeState(prof, c);
+        return `<div class="ch-row ${s.claimed ? 'claimed' : s.done ? 'done' : ''}">
+          <div class="ch-txt"><b>${esc(c[1])}</b><small>${esc(c[2])}</small>
+            <div class="ch-bar"><i style="width:${Math.round((s.value / s.goal) * 100)}%"></i></div></div>
+          <div class="ch-val">${s.value} / ${s.goal}</div>
+          ${s.claimed ? '<div class="ch-ok">✔</div>' : `<button class="btn small" data-nav data-claim="${c[0]}" ${s.done ? '' : 'disabled'}>${c[5]} Ryō</button>`}
+        </div>`;
+      }).join('')}</div>
+      <button class="btn ghost" data-nav data-act="back">Retour</button>
+    </div>`);
+    el.querySelectorAll('[data-claim]').forEach((b) => b.addEventListener('click', () => {
+      const c = CHALLENGES.find((x) => x[0] === b.dataset.claim);
+      if (prof.claim(c[0], c[5])) {
+        this.app.audio.play('roundWin');
+        this.toast(`${c[1]} : +${c[5]} Ryō !`);
+        this.challenges();
+        const next = this.screen.el.querySelector('[data-claim]:not([disabled])') || this.screen.el.querySelector('[data-act=back]');
+        if (next) this.focus(next, false);
+      }
+    }));
+    el.querySelector('[data-act=back]').addEventListener('click', () => this.mainMenu());
+    this.show({ el, back: () => this.mainMenu() });
+    const first = el.querySelector('[data-claim]:not([disabled])');
+    if (first) this.focus(first, false);
   }
 
   // --- Galerie -------------------------------------------------------------------------------
@@ -910,6 +955,7 @@ export class UI {
       const rounds = [...myTeams].reduce((n, t) => Math.max(n, wins[t] || 0), 0);
       reward = REWARDS[res] + rounds * REWARDS.perRound + (role !== 'local' ? REWARDS.lanBonus : 0);
       this.app.profile.earn(reward);
+      if (res === 'win') this.app.profile.bumpStat('wins');
     }
     let buttons;
     if (role === 'local') {
@@ -1071,8 +1117,8 @@ export class UI {
     nameInput.addEventListener('change', saveName);
     el.querySelector('[data-act=host]').addEventListener('click', () => { saveName(); this.hostGame(); });
     el.querySelector('[data-act=join]').addEventListener('click', () => { saveName(); this.joinScreen(); });
-    el.querySelector('[data-act=back]').addEventListener('click', () => this.mainMenu());
-    this.show({ el, back: () => this.mainMenu() });
+    el.querySelector('[data-act=back]').addEventListener('click', () => this.freeMenu());
+    this.show({ el, back: () => this.freeMenu() });
   }
 
   async hostGame() {

@@ -11,6 +11,7 @@ import { TICK } from './game/constants.js';
 import { ARENA_RADIUS, ARENAS } from './render/arenas.js';
 import { encodeSnapshot, RemoteState } from './net/session.js';
 import { TIERS } from './game/monsters.js';
+import { trackEvents, pendingChallenges, CHALLENGES } from './core/challenges.js';
 import { WAVE_HEAL, endlessWave, withDifficulty, blessingChoices } from './game/waves.js';
 
 const SNAP_EVERY = 2; // un instantané tous les 2 ticks = 30 par seconde
@@ -40,6 +41,7 @@ export class Battle {
     this.comboHits = 0;
     this.lastComboDmg = 0;
     this.humans = cfg.fighters.filter((f) => f.ctrl.type === 'human').length;
+    this.pendingBefore = new Set(pendingChallenges(app.profile).map((c) => c[0]));
 
     const stage = app.stage;
     stage.setArena(cfg.arena);
@@ -227,6 +229,7 @@ export class Battle {
       }
     }
     this.trackCombo(events);
+    if (this.role !== 'client' && !this.cfg.training) trackEvents(app.profile, events, this.match, this.app.view.localIds);
     if (this.cfg.tutorial && app.tutorial) app.tutorial.update(this.paused ? 0 : dt, events, this.match);
     app.view.handleEvents(events, this.match);
     app.view.update(this.paused ? 0 : dt, this.match);
@@ -366,7 +369,17 @@ export class Battle {
     return this.cfg.fighters.filter((f) => f.team === team).map((f) => CHAR_BY_ID[f.charId].name);
   }
 
+  /** Défis accomplis pendant ce combat : sauvegarde et notification. */
+  announceChallenges() {
+    const prof = this.app.profile;
+    prof.save();
+    const fresh = pendingChallenges(prof).filter((c) => !this.pendingBefore.has(c[0]));
+    for (const c of fresh) this.pendingBefore.add(c[0]);
+    if (fresh.length) this.app.ui.toast(`🏆 Défi accompli : ${fresh.map((c) => c[1]).join(', ')} — réclame ta récompense dans « Défis »`, 5);
+  }
+
   dispose() {
+    this.announceChallenges();
     if (this.cfg.tutorial && this.app.tutorial) this.app.tutorial.dispose();
     this.app.view.detach();
     this.app.view.onMatchEnd = null;

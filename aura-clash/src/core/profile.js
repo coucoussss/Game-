@@ -161,6 +161,20 @@ export class Profile {
     this.save();
   }
 
+  bumpStat(k, n = 1) {
+    this.data.stats = this.data.stats || {};
+    this.data.stats[k] = (this.data.stats[k] || 0) + n;
+    this.save();
+  }
+
+  claim(id, reward) {
+    this.data.claimed = this.data.claimed || [];
+    if (this.data.claimed.includes(id)) return false;
+    this.data.claimed.push(id);
+    this.earn(reward);
+    return true;
+  }
+
   /** Créatures rencontrées (pour la galerie). */
   markSeen(id) {
     if (!this.data.seen) this.data.seen = [];

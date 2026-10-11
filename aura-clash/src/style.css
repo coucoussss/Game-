@@ -512,3 +512,15 @@ body.touch-on .aslot { width: 7vw; }
 .up-row.tech { grid-template-columns: 1fr auto; }
 .up-toggle { display: flex; gap: 0.4vw; flex-wrap: wrap; }
 .up-toggle.wide { grid-column: 1 / -1; }
+.ch-list { width: min(86vw, 900px); max-height: 66vh; overflow-y: auto; display: flex; flex-direction: column; gap: 0.6vh; margin-bottom: 1.6vh; }
+.ch-row { display: grid; grid-template-columns: 1fr auto auto; gap: 1.2vw; align-items: center; background: rgba(14, 10, 28, 0.88); border-left: 4px solid #5a4aaa; padding: 0.9vh 1vw; }
+.ch-row.done { border-left-color: #ffd23f; box-shadow: inset 0 0 2vh rgba(255, 210, 63, 0.15); }
+.ch-row.claimed { opacity: 0.6; border-left-color: #7fffb0; }
+.ch-txt b { font: italic 900 1.9vh var(--display); display: block; }
+.ch-txt small { color: var(--muted); font-size: 1.4vh; }
+.ch-bar { height: 0.6vh; background: rgba(255, 255, 255, 0.1); margin-top: 0.6vh; }
+.ch-bar i { display: block; height: 100%; background: linear-gradient(90deg, #6fc8ff, #ffd23f); }
+.ch-val { font: 900 1.7vh var(--display); min-width: 5em; text-align: right; }
+.ch-ok { color: #7fffb0; font: 900 2.4vh var(--display); width: 6em; text-align: center; }
+.badge { display: inline-block; background: #ff3a3a; color: #fff; border-radius: 1em; padding: 0 0.5em; font-size: 0.8em; margin-left: 0.4em; vertical-align: middle; }
+.wallet.inline { margin-left: 1em; color: var(--gold); font-weight: 900; }
