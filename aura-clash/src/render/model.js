@@ -2,7 +2,8 @@
 // procédurale : squelette de groupes (hanches → torse → tête, épaules → coudes…), poses-clés
 // interpolées, et chaînes à ressort pour les cheveux et les vêtements (écharpe, cape, jupe…).
 import * as THREE from 'three';
-import { toonMat, toonPart, glowMat, GLSL_NOISE } from './toon.js';
+import { toonMat, toonPart, toonPartSmooth, glowMat, GLSL_NOISE } from './toon.js';
+import { limbGeo, flareGeo, torsoGeo, headGeo, faceZ, shoeGeo } from './anatomy.js';
 
 const TAU = Math.PI * 2;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -181,106 +182,148 @@ export class CharacterModel {
     return m;
   }
 
-  part(geo, mat, parent, pos = [0, 0, 0], rot = null, outline = 0.02) {
-    const mesh = toonPart(geo, mat, { outline: this.ghost ? 0 : outline });
+  part(geo, mat, parent, pos = [0, 0, 0], rot = null, outline = 0.016) {
+    const mesh = toonPartSmooth(geo, mat, { outline: this.ghost ? 0 : outline });
     mesh.position.set(...pos);
     if (rot) mesh.rotation.set(...rot);
     parent.add(mesh);
     return mesh;
   }
 
+  /** Matériau sans éclairage (yeux, traits du visage). */
+  flat(color) {
+    const m = new THREE.MeshBasicMaterial({ color: new THREE.Color(color), polygonOffset: true, polygonOffsetFactor: -2 });
+    this.flatMats.push(m);
+    return m;
+  }
+
   build() {
     const L = this.def.look;
+    const x = L.extras;
     const b = L.build || 1;
     this.scale = b;
+    this.flatMats = [];
+    const kind = L.body || 'm';
     const skin = this.mat(L.skin);
     const top = this.mat(L.top || L.skin);
     this.topMats.push(top);
-    const arms = this.mat(L.arms || L.skin);
+    const arms = L.arms && L.arms !== L.skin ? this.mat(L.arms) : skin;
     if (L.arms && L.arms === L.top) this.topMats.push(arms);
     const pants = this.mat(L.pants);
     const boots = this.mat(L.boots || L.pants);
     const beltM = this.mat(L.belt || L.pants);
     const hair = this.mat(L.hair);
+    const accent = this.mat(L.accent || L.belt || '#888888');
+    const dark = this.mat('#1c1a26');
     this.hairMats.push(hair);
     this.matSkin = skin;
+    const armorM = this.mat(L.armor || '#5a6272');
+    const m = { skin, top, arms, pants, boots, beltM, hair, accent, dark, armorM, b };
 
-    // Squelette
+    // --- Bassin et torse ---
     const hips = new THREE.Group();
     hips.position.y = 0.95 * b;
     this.body.add(hips);
     this.hips = hips;
     this.hipsBaseY = hips.position.y;
-    this.part(new THREE.BoxGeometry(0.34 * b, 0.2, 0.22 * b), pants, hips, [0, 0, 0]);
+    const pelvis = this.part(new THREE.SphereGeometry(0.17 * b, 14, 10), pants, hips, [0, -0.02, 0]);
+    pelvis.scale.set(1, 0.62, 0.74);
 
     const torso = new THREE.Group();
     torso.position.y = 0.06;
     hips.add(torso);
     this.torso = torso;
-    const chestGeo = new THREE.CylinderGeometry(0.21 * b, 0.15 * b, 0.52, 7);
-    const chest = this.part(chestGeo, top, torso, [0, 0.27, 0]);
-    chest.scale.z = 0.72;
-    if (!L.top) {
-      // Torse nu : pectoraux et abdominaux suggérés
-      this.part(new THREE.BoxGeometry(0.14 * b, 0.1, 0.06), skin, torso, [0.075 * b, 0.4, 0.11 * b], null, 0.012);
-      this.part(new THREE.BoxGeometry(0.14 * b, 0.1, 0.06), skin, torso, [-0.075 * b, 0.4, 0.11 * b], null, 0.012);
+    const chest = this.part(torsoGeo(kind, b), top, torso, [0, -0.06, 0]);
+    chest.scale.z = kind === 'f' ? 0.72 : 0.68;
+    if (!L.top) this.bareChest(torso, skin, b);
+    else if (kind === 'f') {
+      for (const s of [-1, 1]) {
+        const c = this.part(new THREE.SphereGeometry(0.062, 12, 8), top, torso, [s * 0.062, 0.33, 0.075], null, 0.012);
+        c.scale.set(1, 0.85, 0.75);
+      }
     }
 
+    // --- Cou et tête ---
     const neck = new THREE.Group();
     neck.position.y = 0.55;
     torso.add(neck);
-    this.part(new THREE.CylinderGeometry(0.06, 0.07, 0.12, 6), skin, neck, [0, 0.04, 0], null, 0.012);
+    this.part(limbGeo(0.055, 0.062, 0.12, { seg: 10 }), skin, neck, [0, 0.1, 0], null, 0.012);
     const head = new THREE.Group();
     head.position.y = 0.1;
     neck.add(head);
     this.head = head;
-    const headMesh = this.part(new THREE.IcosahedronGeometry(0.19, 1), skin, head, [0, 0.13, 0]);
-    headMesh.scale.set(0.95, 1.05, 1);
+    this.part(headGeo(0.2), skin, head, [0, 0.13, 0], null, 0.016);
+    for (const s of [-1, 1]) {
+      const ear = this.part(new THREE.SphereGeometry(0.04, 8, 6), skin, head, [s * 0.178, 0.12, -0.01], null, 0.01);
+      ear.scale.set(0.45, 1, 0.75);
+    }
     this.buildFace(head, L);
     this.buildHair(head, L, hair);
 
-    // Bras
+    // --- Bras ---
     const arm = (side) => {
       const sh = new THREE.Group();
-      sh.position.set(side * 0.25 * b, 0.46, 0);
+      sh.position.set(side * (kind === 'f' ? 0.205 : 0.235) * b, 0.46, 0);
       torso.add(sh);
-      this.part(new THREE.IcosahedronGeometry(0.085 * b, 0), arms, sh, [0, -0.01, 0], null, 0.015);
-      this.part(new THREE.CylinderGeometry(0.068 * b, 0.06 * b, 0.3, 6), arms, sh, [0, -0.15, 0]);
+      const ab = kind === 'f' ? 0.85 : 1;
+      this.part(new THREE.SphereGeometry(0.088 * b * ab, 12, 10), x.includes('armor') && side > 0 ? armorM : arms, sh, [0, -0.015, 0]);
+      this.part(limbGeo(0.068 * b * ab, 0.052 * b * ab, 0.29, { bulge: 0.014 * b * ab, at: 0.45 }), arms, sh, [0, -0.02, 0]);
       const el = new THREE.Group();
       el.position.y = -0.3;
       sh.add(el);
-      this.part(new THREE.CylinderGeometry(0.058 * b, 0.05 * b, 0.27, 6), L.extras.includes('bandages') ? this.mat('#f2efe6') : arms, el, [0, -0.13, 0]);
+      this.part(new THREE.SphereGeometry(0.052 * b * ab, 10, 8), arms, el, [0, 0, 0], null, 0.012);
+      const fore = x.includes('bandages') ? this.mat('#f2efe6') : x.includes('armor') ? armorM : arms;
+      this.part(limbGeo(0.056 * b * ab, 0.042 * b * ab, 0.26, { bulge: 0.01 * b * ab, at: 0.25 }), fore, el, [0, -0.01, 0]);
       const hand = new THREE.Group();
       hand.position.y = -0.29;
       el.add(hand);
-      if (L.extras.includes('gloves')) {
-        this.part(new THREE.IcosahedronGeometry(0.1 * b, 1), this.mat('#d8262f'), hand, [0, -0.02, 0]);
+      if (x.includes('gloves')) {
+        const g = this.part(new THREE.SphereGeometry(0.1 * b, 14, 10), this.mat('#d8262f'), hand, [0, -0.03, 0.01]);
+        g.scale.set(0.9, 1, 1.05);
+        this.part(limbGeo(0.07 * b, 0.075 * b, 0.07), this.mat('#f2f2f2'), hand, [0, 0.05, 0], null, 0.01);
       } else {
-        this.part(new THREE.BoxGeometry(0.08, 0.09, 0.09), skin, hand, [0, -0.02, 0], null, 0.012);
+        this.buildHand(hand, skin, side, b * ab);
       }
-      if (L.extras.includes('wristbands')) this.part(new THREE.CylinderGeometry(0.065, 0.065, 0.07, 7), beltM, el, [0, -0.24, 0], null, 0.012);
+      if (x.includes('wristbands')) this.part(limbGeo(0.058, 0.058, 0.06, { seg: 10 }), beltM, el, [0, -0.2, 0], null, 0.012);
+      if (x.includes('sleeves')) {
+        // Manche large de kimono / de robe, qui flotte sous le bras
+        const sl = this.part(flareGeo(0.085 * b, 0.15 * b, 0.36), L.arms ? arms : top, sh, [0, -0.02, 0], null, 0.012);
+        sl.material = sl.material.clone();
+        sl.material.side = THREE.DoubleSide;
+        this.mats.push(sl.material);
+      }
       return { sh, el, hand };
     };
-    const A = arm(1); // bras « gauche » (+X)
-    const B = arm(-1); // bras « droit » (−X)
+    const A = arm(1);
+    const B = arm(-1);
     this.shL = A.sh; this.elL = A.el; this.handL = A.hand;
     this.shR = B.sh; this.elR = B.el; this.handR = B.hand;
 
-    // Jambes
+    // --- Jambes ---
+    const baggy = x.includes('gi') || x.includes('hakama');
     const leg = (side) => {
       const hp = new THREE.Group();
       hp.position.set(side * 0.1 * b, -0.06, 0);
       hips.add(hp);
-      this.part(new THREE.CylinderGeometry(0.095 * b, 0.075 * b, 0.46, 6), pants, hp, [0, -0.22, 0]);
+      this.part(new THREE.SphereGeometry(0.1 * b, 10, 8), pants, hp, [0, 0, 0], null, 0.012);
+      const tr = baggy ? 1.3 : 1;
+      this.part(limbGeo(0.105 * b * tr, 0.07 * b * tr, 0.45, { bulge: 0.012 * b, at: 0.3 }), pants, hp, [0, 0, 0]);
       const kn = new THREE.Group();
       kn.position.y = -0.45;
       hp.add(kn);
-      this.part(new THREE.CylinderGeometry(0.075 * b, 0.06 * b, 0.42, 6), pants, kn, [0, -0.2, 0]);
+      this.part(new THREE.SphereGeometry(0.068 * b * tr, 10, 8), pants, kn, [0, 0, 0], null, 0.012);
+      if (baggy) this.part(flareGeo(0.085 * b, 0.12 * b, 0.32), pants, kn, [0, 0, 0], null, 0.014);
+      else this.part(limbGeo(0.072 * b, 0.048 * b, 0.42, { bulge: 0.016 * b, at: 0.3 }), pants, kn, [0, 0, 0]);
+      // Botte (ou pied nu) et chaussure
+      const bare = x.includes('barefoot');
+      const bootM = bare ? skin : boots;
+      this.part(limbGeo(0.068 * b, 0.058 * b, 0.17), bootM, kn, [0, -0.25, 0], null, 0.014);
+      if (x.includes('armor')) this.part(new THREE.BoxGeometry(0.1, 0.22, 0.06), armorM, kn, [0, -0.2, 0.06], [0.08, 0, 0], 0.012);
       const ft = new THREE.Group();
       ft.position.y = -0.43;
       kn.add(ft);
-      this.part(new THREE.BoxGeometry(0.11 * b, 0.08, 0.25), boots, ft, [0, -0.01, 0.05]);
-      this.part(new THREE.CylinderGeometry(0.07 * b, 0.065 * b, 0.12, 6), boots, kn, [0, -0.37, 0], null, 0.012);
+      this.part(shoeGeo(), bootM, ft, [0, -0.005, 0]);
+      if (!bare) this.part(new THREE.BoxGeometry(0.13, 0.025, 0.28), dark, ft, [0, -0.04, 0.045], null, 0.01);
       return { hp, kn };
     };
     const LL = leg(1);
@@ -288,181 +331,274 @@ export class CharacterModel {
     this.hipL = LL.hp; this.knL = LL.kn;
     this.hipR = LR.hp; this.knR = LR.kn;
 
-    this.buildExtras(L, { top, pants, beltM, hair, skin, b });
+    this.buildExtras(L, m);
+  }
+
+  /** Torse nu musclé : pectoraux, abdominaux, trapèzes. */
+  bareChest(torso, skin, b) {
+    for (const s of [-1, 1]) {
+      const pec = this.part(new THREE.SphereGeometry(0.105 * b, 14, 10), skin, torso, [s * 0.085 * b, 0.36, 0.07 * b], [0, 0, s * 0.15], 0.012);
+      pec.scale.set(1, 0.68, 0.5);
+      const trap = this.part(new THREE.SphereGeometry(0.09 * b, 10, 8), skin, torso, [s * 0.1 * b, 0.5, -0.02], null, 0.01);
+      trap.scale.set(1.1, 0.6, 0.8);
+    }
+    for (let r = 0; r < 3; r++) {
+      for (const s of [-1, 1]) {
+        const ab = this.part(new THREE.SphereGeometry(0.04 * b, 8, 6), skin, torso, [s * 0.042 * b, 0.09 + r * 0.07, 0.1 * b], null, 0.008);
+        ab.scale.set(1, 0.8, 0.45);
+      }
+    }
+  }
+
+  /** Main en poing : paume, doigts repliés, pouce. */
+  buildHand(hand, skin, side, b) {
+    this.part(new THREE.BoxGeometry(0.085 * b, 0.075 * b, 0.07 * b), skin, hand, [0, -0.01, 0], null, 0.01);
+    this.part(new THREE.BoxGeometry(0.088 * b, 0.05 * b, 0.075 * b), skin, hand, [0, -0.06, 0.012], [0.3, 0, 0], 0.01);
+    this.part(new THREE.BoxGeometry(0.028 * b, 0.06 * b, 0.032 * b), skin, hand, [side * -0.04 * b, -0.03, 0.035], [0, 0, side * 0.4], 0.008);
   }
 
   buildFace(head, L) {
+    const R = 0.2;
+    const cy = 0.13; // centre de la sphère de la tête
     if (this.ghost) {
       const eye = glowMat('#ff2a5a', 2.5);
       for (const s of [-1, 1]) {
-        const e = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.02, 0.01), eye);
-        e.position.set(s * 0.065, 0.15, 0.18);
+        const e = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.022, 0.01), eye);
+        e.position.set(s * 0.07, cy - 0.01, faceZ(R, 0.07, -0.01) + 0.004);
         head.add(e);
       }
       return;
     }
-    const white = new THREE.MeshBasicMaterial({ color: '#ffffff' });
-    const iris = new THREE.MeshBasicMaterial({ color: new THREE.Color(L.eyes || '#222') });
-    const dark = new THREE.MeshBasicMaterial({ color: '#121018' });
+    const white = this.flat('#e9e8f0'); // sous le seuil du bloom : les yeux ne « brillent » pas
+    const iris = this.flat(L.eyes || '#333344');
     this.irisMat = iris;
+    const pupil = this.flat('#120e1a');
+    const ink = this.flat('#16121e');
+    const blush = new THREE.MeshBasicMaterial({ color: new THREE.Color('#ff8a8a'), transparent: true, opacity: 0.35, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
+    this.flatMats.push(blush);
+    const fem = L.body === 'f';
     for (const s of [-1, 1]) {
-      const w = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.05, 0.01), white);
-      w.position.set(s * 0.068, 0.14, 0.172);
-      w.rotation.y = s * 0.25;
-      head.add(w);
-      const i = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.045, 0.01), iris);
-      i.position.set(s * 0.066, 0.137, 0.178);
-      i.rotation.y = s * 0.25;
-      head.add(i);
-      const brow = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.014, 0.012), dark);
-      brow.position.set(s * 0.07, 0.185, 0.17);
-      brow.rotation.set(0, s * 0.25, s * -0.25);
-      head.add(brow);
+      const ex = s * 0.074;
+      const ey = -0.012;
+      const g = new THREE.Group();
+      g.position.set(ex, cy + ey, faceZ(R, ex, ey) + 0.003);
+      g.rotation.set(-0.06, s * 0.38, 0);
+      head.add(g);
+      const disc = (r, mat, px, py, pz, sx = 1, sy = 1) => {
+        const d = new THREE.Mesh(new THREE.CircleGeometry(r, 18), mat);
+        d.position.set(px, py, pz);
+        d.scale.set(sx, sy, 1);
+        g.add(d);
+        return d;
+      };
+      disc(0.04, white, 0, 0, 0, 1.05, fem ? 1.05 : 0.9);
+      disc(0.03, iris, -s * 0.004, -0.004, 0.002, 0.82, 1.1);
+      disc(0.016, pupil, -s * 0.004, -0.006, 0.004, 0.8, 1.1);
+      disc(0.0085, white, s * 0.008, 0.012, 0.006);
+      disc(0.004, white, -s * 0.01, -0.016, 0.006);
+      // Paupière supérieure épaisse (trait d'anime) et cils au coin extérieur
+      const lid = new THREE.Mesh(new THREE.BoxGeometry(0.094, fem ? 0.014 : 0.011, 0.004), ink);
+      lid.position.set(0, 0.035, 0.007);
+      lid.rotation.z = s * -0.12;
+      g.add(lid);
+      const lash = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.008, 0.004), ink);
+      lash.position.set(s * 0.048, 0.03, 0.007);
+      lash.rotation.z = s * (fem ? 0.6 : 0.3);
+      g.add(lash);
+      // Sourcil
+      const brow = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.012, 0.004), this.flat(L.hair));
+      brow.position.set(-s * 0.004, 0.068, 0.006);
+      brow.rotation.z = s * (fem ? -0.05 : -0.22);
+      g.add(brow);
+      if (fem) disc(0.02, blush, s * 0.012, -0.055, 0.004, 1.3, 0.6);
     }
-    const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.008, 0.01), dark);
-    mouth.position.set(0, 0.04, 0.176);
+    // Nez (petit trait) et bouche
+    const nose = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.022, 0.012), this.flat('#c9917a'));
+    nose.position.set(0, cy - 0.06, faceZ(R, 0, -0.06) + 0.012);
+    head.add(nose);
+    const mouth = new THREE.Mesh(new THREE.BoxGeometry(fem ? 0.035 : 0.045, 0.008, 0.006), ink);
+    mouth.position.set(0, cy - 0.118, 0.172);
     head.add(mouth);
   }
 
-  /** Mèche pointue (cône) orientée selon (pitch, yaw) depuis le centre de la tête. */
+  /** Mèche pointue (cône aplati, façon anime) orientée selon (pitch, yaw) depuis le centre de la tête. */
   spike(head, mat, pitch, yaw, len, r = 0.075, dist = 0.13) {
     const g = new THREE.Group();
     g.position.set(0, 0.15, 0);
     g.rotation.set(pitch, yaw, 0, 'YXZ');
     head.add(g);
-    const cone = this.part(new THREE.ConeGeometry(r, len, 5), mat, g, [0, dist + len / 2, 0], null, 0.015);
+    const cone = this.part(new THREE.ConeGeometry(r, len, 7), mat, g, [0, dist + len / 2, 0], null, 0.012);
+    cone.scale.z = 0.62;
     this.spikes.push({ group: g, cone, len, pitch, yaw });
     return g;
   }
 
+  /** Frange : mèches qui tombent sur le front. */
+  bangs(head, mat, list, r = 0.05) {
+    for (const [xx, len, tilt] of list) {
+      const c = this.part(new THREE.ConeGeometry(r, len, 6), mat, head, [xx, 0.24 - len / 2, 0.15], [Math.PI - 0.35, 0, tilt], 0.01);
+      c.scale.z = 0.5;
+    }
+  }
+
   buildHair(head, L, hair) {
     const style = L.hairStyle;
-    const cap = (r = 0.205, mat = hair, theta = 0.55) => {
-      const m = this.part(new THREE.SphereGeometry(r, 8, 5, 0, TAU, 0, Math.PI * theta), mat, head, [0, 0.15, -0.015]);
-      m.rotation.x = -0.25;
+    const cap = (r = 0.212, mat = hair, theta = 0.56) => {
+      const m = this.part(new THREE.SphereGeometry(r, 18, 10, 0, TAU, 0, Math.PI * theta), mat, head, [0, 0.15, -0.012]);
+      m.rotation.x = -0.28;
       return m;
     };
     if (style === 'spiky') {
       cap();
       const spikes = [
-        [-0.2, 0, 0.3], [-0.6, 0, 0.32], [-1.0, 0, 0.3], [-1.4, 0, 0.26],
-        [-0.5, 0.9, 0.26], [-0.5, -0.9, 0.26], [-1.0, 0.7, 0.24], [-1.0, -0.7, 0.24],
-        [0.4, 0.5, 0.16], [0.4, -0.5, 0.16], [0.6, 0, 0.14], [-1.7, 0, 0.22],
+        [-0.15, 0, 0.32], [-0.55, 0, 0.36], [-0.95, 0, 0.34], [-1.35, 0, 0.3], [-1.75, 0, 0.24],
+        [-0.45, 0.85, 0.3], [-0.45, -0.85, 0.3], [-0.95, 0.65, 0.3], [-0.95, -0.65, 0.3], [-1.4, 0.45, 0.26], [-1.4, -0.45, 0.26],
+        [0.25, 0.9, 0.2], [0.25, -0.9, 0.2], [-0.15, 0.5, 0.3], [-0.15, -0.5, 0.3],
       ];
-      for (const [p, y, len] of spikes) this.spike(head, hair, p, y, len);
+      for (const [p, y, len] of spikes) this.spike(head, hair, p, y, len, 0.08);
+      this.bangs(head, hair, [[-0.07, 0.15, 0.25], [0.0, 0.17, 0], [0.07, 0.14, -0.3], [-0.12, 0.11, 0.5]]);
     } else if (style === 'ninja') {
       cap();
-      for (const [p, y, len] of [[-0.9, 0, 0.26], [-1.3, 0.4, 0.24], [-1.3, -0.4, 0.24], [-1.7, 0, 0.22], [-0.5, 0.7, 0.18], [-0.5, -0.7, 0.18], [0.5, 0.3, 0.12], [0.5, -0.3, 0.12]]) {
-        this.spike(head, hair, p, y, len, 0.07);
+      for (const [p, y, len] of [[-0.9, 0, 0.28], [-1.3, 0.4, 0.26], [-1.3, -0.4, 0.26], [-1.7, 0, 0.24], [-0.5, 0.75, 0.22], [-0.5, -0.75, 0.22], [-0.15, 0.3, 0.2], [-0.15, -0.3, 0.2], [-1.0, 0.8, 0.2], [-1.0, -0.8, 0.2]]) {
+        this.spike(head, hair, p, y, len, 0.072);
       }
+      this.bangs(head, hair, [[-0.08, 0.13, 0.3], [0.03, 0.15, -0.1], [0.1, 0.12, -0.4]]);
     } else if (style === 'ponytail') {
-      cap(0.21);
-      for (const [p, y, len] of [[0.7, 0.4, 0.14], [0.75, -0.3, 0.15], [0.6, 0, 0.12], [0.3, 0.9, 0.16], [0.3, -0.9, 0.16]]) this.spike(head, hair, p, y, len, 0.06, 0.12);
-      this.part(new THREE.CylinderGeometry(0.05, 0.05, 0.06, 6), this.mat('#c0262f'), head, [0, 0.2, -0.2], [1.2, 0, 0], 0.01);
-      this.chain(head, { pos: [0, 0.2, -0.22], segs: 5, len: 0.15, w: 0.1, t: 0.08, mat: hair, rest: [0.35, 0], drag: 0.09, stiff: 40 });
+      cap(0.214);
+      for (const [p, y, len] of [[0.3, 0.95, 0.17], [0.3, -0.95, 0.17], [-0.2, 0.6, 0.15], [-0.2, -0.6, 0.15]]) this.spike(head, hair, p, y, len, 0.06, 0.12);
+      this.bangs(head, hair, [[-0.1, 0.16, 0.35], [-0.03, 0.19, 0.1], [0.05, 0.17, -0.15], [0.12, 0.14, -0.4]]);
+      this.part(new THREE.CylinderGeometry(0.05, 0.05, 0.06, 8), this.mat('#c0262f'), head, [0, 0.2, -0.2], [1.2, 0, 0], 0.01);
+      this.chain(head, { pos: [0, 0.2, -0.22], segs: 6, len: 0.14, w: 0.12, t: 0.09, mat: hair, rest: [0.35, 0], drag: 0.09, stiff: 40 });
     } else if (style === 'long') {
       const alt = this.mat(L.hairAlt || L.hair);
       this.hairMats.push(alt);
       cap();
-      const half = this.part(new THREE.SphereGeometry(0.212, 8, 5, 0, Math.PI, 0, Math.PI * 0.5), alt, head, [0, 0.15, -0.015]);
-      half.rotation.x = -0.25;
-      for (const [p, y, len, m] of [[0.8, 0.35, 0.14, hair], [0.8, -0.35, 0.14, alt], [0.6, 0, 0.12, hair]]) this.spike(head, m, p, y, len, 0.06, 0.12);
-      this.chain(head, { pos: [0.06, 0.12, -0.16], segs: 4, len: 0.16, w: 0.14, t: 0.06, mat: hair, rest: [0.15, 0.05], drag: 0.07, stiff: 35 });
-      this.chain(head, { pos: [-0.06, 0.12, -0.16], segs: 4, len: 0.16, w: 0.14, t: 0.06, mat: alt, rest: [0.15, -0.05], drag: 0.07, stiff: 35 });
-      this.chain(head, { pos: [0.17, 0.1, 0.02], segs: 2, len: 0.13, w: 0.05, t: 0.05, mat: hair, rest: [0, 0.1], drag: 0.05, stiff: 45 });
-      this.chain(head, { pos: [-0.17, 0.1, 0.02], segs: 2, len: 0.13, w: 0.05, t: 0.05, mat: alt, rest: [0, -0.1], drag: 0.05, stiff: 45 });
+      const half = this.part(new THREE.SphereGeometry(0.215, 18, 10, 0, Math.PI, 0, Math.PI * 0.52), alt, head, [0, 0.15, -0.012]);
+      half.rotation.x = -0.28;
+      this.bangs(head, hair, [[-0.1, 0.17, 0.3], [-0.03, 0.2, 0.08]]);
+      this.bangs(head, alt, [[0.04, 0.19, -0.08], [0.11, 0.16, -0.3]]);
+      this.chain(head, { pos: [0.06, 0.12, -0.16], segs: 5, len: 0.15, w: 0.15, t: 0.06, mat: hair, rest: [0.15, 0.05], drag: 0.07, stiff: 35 });
+      this.chain(head, { pos: [-0.06, 0.12, -0.16], segs: 5, len: 0.15, w: 0.15, t: 0.06, mat: alt, rest: [0.15, -0.05], drag: 0.07, stiff: 35 });
+      this.chain(head, { pos: [0.17, 0.1, 0.03], segs: 3, len: 0.13, w: 0.06, t: 0.05, mat: hair, rest: [0, 0.1], drag: 0.05, stiff: 45 });
+      this.chain(head, { pos: [-0.17, 0.1, 0.03], segs: 3, len: 0.13, w: 0.06, t: 0.05, mat: alt, rest: [0, -0.1], drag: 0.05, stiff: 45 });
     } else if (style === 'short') {
-      cap(0.2, hair, 0.45);
-      for (const [p, y, len] of [[-0.3, 0, 0.08], [-0.8, 0.4, 0.08], [-0.8, -0.4, 0.08], [0.2, 0.3, 0.07], [0.2, -0.3, 0.07]]) this.spike(head, hair, p, y, len, 0.06, 0.13);
+      cap(0.206, hair, 0.46);
+      for (const [p, y, len] of [[-0.3, 0, 0.1], [-0.75, 0.4, 0.1], [-0.75, -0.4, 0.1], [-1.2, 0, 0.09], [0.15, 0.4, 0.08], [0.15, -0.4, 0.08], [-0.3, 0.7, 0.09], [-0.3, -0.7, 0.09]]) this.spike(head, hair, p, y, len, 0.065, 0.13);
     } else if (style === 'priestess') {
-      cap(0.212, hair, 0.58);
-      for (const [p, y, len] of [[0.85, 0.25, 0.13], [0.85, -0.25, 0.13], [0.85, 0, 0.12], [0.6, 0.55, 0.12], [0.6, -0.55, 0.12]]) this.spike(head, hair, p, y, len, 0.055, 0.12);
-      this.chain(head, { pos: [0, 0.1, -0.17], segs: 5, len: 0.16, w: 0.3, t: 0.05, mat: hair, rest: [0.1, 0], drag: 0.06, stiff: 30 });
-      this.chain(head, { pos: [0.18, 0.08, 0.0], segs: 3, len: 0.14, w: 0.06, t: 0.05, mat: hair, rest: [0, 0.08], drag: 0.05, stiff: 40 });
-      this.chain(head, { pos: [-0.18, 0.08, 0.0], segs: 3, len: 0.14, w: 0.06, t: 0.05, mat: hair, rest: [0, -0.08], drag: 0.05, stiff: 40 });
+      cap(0.216, hair, 0.6);
+      this.bangs(head, hair, [[-0.11, 0.15, 0.1], [-0.055, 0.17, 0.05], [0, 0.17, 0], [0.055, 0.17, -0.05], [0.11, 0.15, -0.1]], 0.045);
+      this.chain(head, { pos: [0, 0.1, -0.17], segs: 6, len: 0.15, w: 0.32, t: 0.05, mat: hair, rest: [0.1, 0], drag: 0.06, stiff: 30 });
+      this.chain(head, { pos: [0.18, 0.08, 0.02], segs: 4, len: 0.13, w: 0.06, t: 0.05, mat: hair, rest: [0, 0.08], drag: 0.05, stiff: 40 });
+      this.chain(head, { pos: [-0.18, 0.08, 0.02], segs: 4, len: 0.13, w: 0.06, t: 0.05, mat: hair, rest: [0, -0.08], drag: 0.05, stiff: 40 });
     }
   }
 
   buildExtras(L, m) {
     const x = L.extras;
-    const accent = L.accent ? this.mat(L.accent) : m.beltM;
+    const { accent, top, pants, beltM, armorM, b } = m;
     const torso = this.torso;
-    const b = m.b;
-    if (x.includes('belt') || x.includes('sash')) {
-      this.part(new THREE.CylinderGeometry(0.19 * b, 0.19 * b, 0.07, 8), m.beltM, this.hips, [0, 0.06, 0], null, 0.012).scale.z = 0.75;
-      this.chain(this.hips, { pos: [0.08, 0.04, 0.16 * b], segs: 2, len: 0.14, w: 0.06, t: 0.02, mat: m.beltM, rest: [-0.1, 0.1], drag: 0.05, stiff: 50 });
-      this.chain(this.hips, { pos: [-0.04, 0.04, 0.16 * b], segs: x.includes('sash') ? 4 : 2, len: 0.14, w: 0.06, t: 0.02, mat: m.beltM, rest: [-0.1, -0.05], drag: 0.06, stiff: 45 });
+    const kind = L.body || 'm';
+    const tw = kind === 'big' ? 1.18 : kind === 'f' ? 0.78 : 1; // largeur relative du torse
+    if (x.includes('gi')) {
+      // Kimono de combat : tee-shirt visible dans l'encolure en V, revers, ceinture nouée
+      this.part(new THREE.BoxGeometry(0.11, 0.2, 0.03), this.mat(L.topAlt || '#1d2bb0'), torso, [0, 0.43, 0.115], [-0.25, 0, 0], 0.008);
+      for (const s of [-1, 1]) {
+        this.part(new THREE.BoxGeometry(0.04, 0.3, 0.02), this.mat('#e05a00'), torso, [s * 0.05, 0.38, 0.125], [-0.15, 0, s * -0.35], 0.008);
+      }
+    }
+    if (x.includes('kimono')) {
+      for (const s of [-1, 1]) {
+        this.part(new THREE.BoxGeometry(0.045, 0.34, 0.02), accent, torso, [s * 0.045, 0.36, 0.118 * tw], [-0.1, 0, s * -0.3], 0.008);
+      }
+    }
+    if (x.includes('armor')) {
+      this.part(new THREE.BoxGeometry(0.28, 0.2, 0.06), armorM, torso, [0, 0.35, 0.1], [-0.08, 0, 0], 0.012);
+      this.part(new THREE.BoxGeometry(0.22, 0.05, 0.05), armorM, torso, [0, 0.2, 0.1], null, 0.01);
+    }
+    if (x.includes('mantle')) {
+      const mt = this.part(new THREE.SphereGeometry(0.26 * tw, 16, 8, 0, TAU, 0, Math.PI * 0.35), accent, torso, [0, 0.42, 0], null, 0.012);
+      mt.scale.z = 0.8;
+      this.part(new THREE.TorusGeometry(0.2 * tw, 0.018, 6, 20), this.mat('#ffb43a'), torso, [0, 0.47, 0], [Math.PI / 2, 0, 0], 0.008).scale.y = 0.75;
+    }
+    if (x.includes('belt') || x.includes('sash') || x.includes('gi')) {
+      this.part(new THREE.TorusGeometry(0.155 * tw * b, 0.032, 6, 20), beltM, this.hips, [0, 0.06, 0], [Math.PI / 2, 0, 0], 0.01).scale.y = 0.74;
+      this.part(new THREE.SphereGeometry(0.035, 8, 6), beltM, this.hips, [0.03, 0.06, 0.125 * tw * b], null, 0.008);
+      this.chain(this.hips, { pos: [0.04, 0.04, 0.13 * tw * b], segs: 2, len: 0.14, w: 0.05, t: 0.02, mat: beltM, rest: [-0.1, 0.12], drag: 0.05, stiff: 50 });
+      this.chain(this.hips, { pos: [0.0, 0.04, 0.13 * tw * b], segs: x.includes('sash') ? 4 : 2, len: 0.14, w: 0.05, t: 0.02, mat: beltM, rest: [-0.1, -0.05], drag: 0.06, stiff: 45 });
     }
     if (x.includes('scarf')) {
       const sc = this.mat(L.accent || '#c0262f');
-      this.part(new THREE.CylinderGeometry(0.11, 0.12, 0.1, 8), sc, torso, [0, 0.56, 0], null, 0.015);
-      this.chain(torso, { pos: [0.05, 0.56, -0.1], segs: 6, len: 0.16, w: 0.1, t: 0.02, mat: sc, rest: [0.6, 0.05], drag: 0.1, stiff: 25 });
-      this.chain(torso, { pos: [-0.05, 0.55, -0.1], segs: 5, len: 0.15, w: 0.09, t: 0.02, mat: sc, rest: [0.55, -0.05], drag: 0.1, stiff: 25 });
+      this.part(new THREE.TorusGeometry(0.085, 0.045, 8, 16), sc, torso, [0, 0.56, 0], [Math.PI / 2, 0, 0], 0.012);
+      this.chain(torso, { pos: [0.05, 0.56, -0.1], segs: 7, len: 0.15, w: 0.1, t: 0.025, mat: sc, rest: [0.6, 0.05], drag: 0.1, stiff: 25 });
+      this.chain(torso, { pos: [-0.05, 0.55, -0.1], segs: 6, len: 0.14, w: 0.09, t: 0.025, mat: sc, rest: [0.55, -0.05], drag: 0.1, stiff: 25 });
     }
     if (x.includes('mask')) {
-      this.part(new THREE.BoxGeometry(0.3, 0.12, 0.08), m.top, this.head, [0, 0.05, 0.13], null, 0.012);
+      const mk = this.part(new THREE.SphereGeometry(0.192, 16, 8, 0, Math.PI, Math.PI * 0.55, Math.PI * 0.3), top, this.head, [0, 0.13, 0.008], [0, -Math.PI / 2, 0], 0.01);
+      mk.scale.set(0.95, 1.1, 1.06);
     }
     if (x.includes('headband')) {
       const band = this.mat('#2a2f4a');
-      this.part(new THREE.CylinderGeometry(0.2, 0.2, 0.05, 9), band, this.head, [0, 0.22, 0], [-0.2, 0, 0], 0.012);
-      this.part(new THREE.BoxGeometry(0.12, 0.05, 0.02), this.mat('#b8c0d8'), this.head, [0, 0.225, 0.2], [-0.2, 0, 0], 0.01);
-      this.chain(this.head, { pos: [0.04, 0.24, -0.19], segs: 4, len: 0.12, w: 0.05, t: 0.015, mat: band, rest: [0.9, 0.2], drag: 0.1, stiff: 30 });
-      this.chain(this.head, { pos: [-0.04, 0.24, -0.19], segs: 4, len: 0.11, w: 0.05, t: 0.015, mat: band, rest: [0.8, -0.2], drag: 0.1, stiff: 30 });
+      this.part(new THREE.TorusGeometry(0.2, 0.026, 6, 22), band, this.head, [0, 0.215, 0], [Math.PI / 2 - 0.2, 0, 0], 0.01);
+      this.part(new THREE.BoxGeometry(0.13, 0.055, 0.02), this.mat('#b8c0d8'), this.head, [0, 0.225, 0.205], [-0.2, 0, 0], 0.008);
+      this.chain(this.head, { pos: [0.04, 0.24, -0.19], segs: 5, len: 0.11, w: 0.05, t: 0.015, mat: band, rest: [0.9, 0.2], drag: 0.1, stiff: 30 });
+      this.chain(this.head, { pos: [-0.04, 0.24, -0.19], segs: 5, len: 0.1, w: 0.05, t: 0.015, mat: band, rest: [0.8, -0.2], drag: 0.1, stiff: 30 });
+    }
+    if (x.includes('redband')) {
+      const band = this.mat('#d8262f');
+      this.part(new THREE.TorusGeometry(0.198, 0.022, 6, 22), band, this.head, [0, 0.2, 0], [Math.PI / 2 - 0.15, 0, 0], 0.01);
+      this.chain(this.head, { pos: [0, 0.2, -0.2], segs: 4, len: 0.11, w: 0.045, t: 0.015, mat: band, rest: [0.7, 0.1], drag: 0.1, stiff: 30 });
     }
     if (x.includes('kunai')) {
       const g = new THREE.Group();
       g.position.set(0, -0.05, 0.02);
       g.rotation.x = Math.PI / 2 - 0.4;
       this.handR.add(g);
-      this.part(new THREE.ConeGeometry(0.035, 0.24, 4), this.mat('#c8d0e0'), g, [0, 0.16, 0], null, 0.01);
-      this.part(new THREE.CylinderGeometry(0.015, 0.015, 0.1, 5), this.mat('#2a2f4a'), g, [0, 0, 0], null, 0.008);
+      this.part(new THREE.ConeGeometry(0.035, 0.26, 4), this.mat('#c8d0e0'), g, [0, 0.17, 0], null, 0.01);
+      this.part(new THREE.CylinderGeometry(0.015, 0.015, 0.1, 6), this.mat('#2a2f4a'), g, [0, 0, 0], null, 0.008);
+      this.part(new THREE.TorusGeometry(0.025, 0.007, 4, 10), this.mat('#c8d0e0'), g, [0, -0.06, 0], null, 0.004);
     }
     if (x.includes('haori')) {
       const h = accent;
-      this.chain(torso, { pos: [0.12, 0.5, -0.12], segs: 4, len: 0.2, w: 0.2, t: 0.03, mat: h, rest: [0.12, 0.08], drag: 0.06, stiff: 32 });
-      this.chain(torso, { pos: [-0.12, 0.5, -0.12], segs: 4, len: 0.2, w: 0.2, t: 0.03, mat: h, rest: [0.12, -0.08], drag: 0.06, stiff: 32 });
-      for (const s of [-1, 1]) {
-        this.part(new THREE.BoxGeometry(0.08, 0.45, 0.06), h, torso, [s * 0.13, 0.32, 0.12], [0, 0, s * 0.08], 0.012);
-      }
+      this.chain(torso, { pos: [0.12, 0.5, -0.12], segs: 5, len: 0.17, w: 0.22, t: 0.03, mat: h, rest: [0.12, 0.08], drag: 0.06, stiff: 32 });
+      this.chain(torso, { pos: [-0.12, 0.5, -0.12], segs: 5, len: 0.17, w: 0.22, t: 0.03, mat: h, rest: [0.12, -0.08], drag: 0.06, stiff: 32 });
     }
     if (x.includes('katana')) {
       const g = new THREE.Group();
       g.position.set(0, -0.05, 0);
       g.rotation.x = Math.PI / 2 - 0.9;
       this.handR.add(g);
-      this.part(new THREE.CylinderGeometry(0.022, 0.022, 0.22, 6), this.mat('#2a1e3a'), g, [0, 0.0, 0], null, 0.01);
-      this.part(new THREE.CylinderGeometry(0.06, 0.06, 0.02, 8), this.mat('#d8b040'), g, [0, 0.12, 0], null, 0.01);
-      const blade = this.part(new THREE.BoxGeometry(0.03, 0.85, 0.012), this.mat('#e8f4ff', { emissive: new THREE.Color('#5fa8ff'), emissiveIntensity: 0.25 }), g, [0, 0.55, 0], null, 0.01);
+      this.part(new THREE.CylinderGeometry(0.022, 0.022, 0.24, 8), this.mat('#2a1e3a'), g, [0, 0.0, 0], null, 0.01);
+      this.part(new THREE.CylinderGeometry(0.065, 0.065, 0.022, 10), this.mat('#d8b040'), g, [0, 0.13, 0], null, 0.01);
+      const blade = this.part(new THREE.BoxGeometry(0.032, 0.88, 0.012), this.mat('#e8f4ff', { emissive: new THREE.Color('#5fa8ff'), emissiveIntensity: 0.25 }), g, [0, 0.58, 0], null, 0.008);
       this.blade = blade;
-      // Fourreau à la ceinture
-      this.part(new THREE.CylinderGeometry(0.03, 0.03, 0.8, 6), this.mat('#1a1a28'), this.hips, [0.2, 0.05, -0.05], [1.9, 0, 0.3], 0.012);
+      this.part(new THREE.CylinderGeometry(0.032, 0.03, 0.82, 8), this.mat('#1a1a28'), this.hips, [0.21, 0.05, -0.05], [1.9, 0, 0.3], 0.01);
     }
     if (x.includes('robe') || x.includes('hakama')) {
-      const mat = x.includes('robe') ? m.top : m.pants;
-      const n = 6;
+      const mat = x.includes('robe') ? top : pants;
+      const n = 8;
       for (let i = 0; i < n; i++) {
         const a = (i / n) * TAU;
-        const px = Math.sin(a) * 0.17 * b;
-        const pz = Math.cos(a) * 0.13 * b;
-        // panneau de jupe : il pend et s'écarte légèrement vers l'extérieur
+        const px = Math.sin(a) * 0.165 * b * tw;
+        const pz = Math.cos(a) * 0.125 * b * tw;
         this.chain(this.hips, {
-          pos: [px, 0.02, pz], segs: 2, len: x.includes('robe') ? 0.36 : 0.3, w: 0.17, t: 0.03, mat,
-          rest: [-Math.cos(a) * 0.18, Math.sin(a) * 0.18], drag: 0.045, stiff: 55, yaw: a,
+          pos: [px, 0.02, pz], segs: 3, len: x.includes('robe') ? 0.26 : 0.2, w: 0.14, t: 0.025, mat,
+          rest: [-Math.cos(a) * 0.2, Math.sin(a) * 0.2], drag: 0.045, stiff: 55, yaw: a,
         });
       }
       if (x.includes('robe')) {
-        this.part(new THREE.CylinderGeometry(0.2 * b, 0.2 * b, 0.06, 8), this.mat(L.belt), this.hips, [0, 0.08, 0], null, 0.012).scale.z = 0.75;
+        this.part(new THREE.TorusGeometry(0.16 * b * tw, 0.028, 6, 20), this.mat(L.belt), this.hips, [0, 0.08, 0], [Math.PI / 2, 0, 0], 0.01).scale.y = 0.75;
       }
     }
     if (x.includes('staff')) {
       const g = new THREE.Group();
       g.position.set(0, -0.04, 0);
       this.handR.add(g);
-      this.part(new THREE.CylinderGeometry(0.025, 0.03, 1.6, 6), this.mat('#5a3a22'), g, [0, 0.25, 0], null, 0.012);
-      const orb = new THREE.Mesh(new THREE.IcosahedronGeometry(0.09, 1), glowMat(this.def.aura, 2.2));
+      this.part(new THREE.CylinderGeometry(0.025, 0.032, 1.6, 8), this.mat('#5a3a22'), g, [0, 0.25, 0], null, 0.012);
+      const orb = new THREE.Mesh(new THREE.IcosahedronGeometry(0.09, 2), glowMat(this.def.aura, 2.2));
       orb.position.y = 1.1;
       g.add(orb);
-      this.part(new THREE.TorusGeometry(0.12, 0.02, 4, 10, Math.PI * 1.4), this.mat('#d8b040'), g, [0, 1.1, 0], [0, 0, -0.6], 0.008);
+      this.part(new THREE.TorusGeometry(0.13, 0.02, 6, 16, Math.PI * 1.4), this.mat('#d8b040'), g, [0, 1.1, 0], [0, 0, -0.6], 0.008);
+      this.part(new THREE.ConeGeometry(0.04, 0.16, 6), this.mat('#d8b040'), g, [0, -0.6, 0], [Math.PI, 0, 0], 0.008);
       this.orb = orb;
     }
     if (x.includes('talismans')) {
@@ -477,6 +613,7 @@ export class CharacterModel {
     }
     if (x.includes('ribbons')) {
       const r = this.mat('#d8262f');
+      this.part(new THREE.SphereGeometry(0.045, 8, 6), r, this.head, [0, 0.2, -0.2], null, 0.008).scale.set(1.6, 0.8, 0.6);
       this.chain(this.head, { pos: [0.08, 0.2, -0.2], segs: 3, len: 0.12, w: 0.05, t: 0.015, mat: r, rest: [0.6, 0.3], drag: 0.08, stiff: 30 });
       this.chain(this.head, { pos: [-0.08, 0.2, -0.2], segs: 3, len: 0.12, w: 0.05, t: 0.015, mat: r, rest: [0.6, -0.3], drag: 0.08, stiff: 30 });
     }
@@ -807,6 +944,7 @@ export class CharacterModel {
       if (o.geometry) o.geometry.dispose();
     });
     for (const m of this.mats) m.dispose();
+    for (const m of this.flatMats || []) m.dispose();
     for (const m of this.auraMats) m.dispose();
   }
 }

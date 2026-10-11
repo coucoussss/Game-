@@ -46,7 +46,7 @@ export const CHARACTERS = [
     look: {
       skin: '#f2c8a0', hair: '#1b1b2a', hairAlt: '#ffd84a', hairStyle: 'spiky', eyes: '#2a7bff',
       top: '#ff7a1a', topAlt: '#2a4cff', pants: '#ff7a1a', belt: '#1d2bb0', boots: '#1d2bb0',
-      extras: ['wristbands', 'belt'],
+      extras: ['wristbands', 'gi'], body: 'm',
     },
     moves: {
       light1: { name: 'Direct', anim: 'jab', dur: 0.3, cancel: 0.16, chain: 'light2', air: true, lunge: [[0, 0.1, 3]], actions: [hit(0.09, 30)] },
@@ -86,7 +86,7 @@ export const CHARACTERS = [
     look: {
       skin: '#e8c09a', hair: '#e8ecf5', hairStyle: 'ninja', eyes: '#c0262f',
       top: '#1d2340', arms: '#1d2340', pants: '#1d2340', belt: '#5a2d8c', boots: '#11131f', accent: '#c0262f',
-      extras: ['scarf', 'mask', 'headband', 'kunai'],
+      extras: ['scarf', 'mask', 'headband', 'kunai', 'armor', 'sash'], body: 'm',
     },
     moves: {
       light1: { name: 'Taille de kunaï', anim: 'slash1', dur: 0.26, cancel: 0.14, chain: 'light2', air: true, lunge: [[0, 0.1, 4]], actions: [hit(0.08, 27)] },
@@ -128,7 +128,7 @@ export const CHARACTERS = [
     look: {
       skin: '#f0caa6', hair: '#3a3f7a', hairStyle: 'ponytail', eyes: '#3fd0ff',
       top: '#f2f2f5', arms: '#f2f2f5', pants: '#2b3050', belt: '#7a1f2b', boots: '#1a1a22', accent: '#3a6fd8',
-      extras: ['haori', 'katana'],
+      extras: ['haori', 'katana', 'kimono', 'sleeves', 'hakama'], body: 'm',
     },
     moves: {
       light1: { name: 'Taille', anim: 'slash1', dur: 0.24, cancel: 0.13, chain: 'light2', air: true, lunge: [[0, 0.08, 4]], actions: [hit(0.07, 25, 'light', { reach: 1.3 })] },
@@ -163,7 +163,7 @@ export const CHARACTERS = [
     look: {
       skin: '#f6d2b5', hair: '#ff5a3a', hairAlt: '#bfefff', hairStyle: 'long', eyes: '#ff7a2a',
       top: '#3a2a6e', arms: '#3a2a6e', pants: '#22183f', belt: '#ffb43a', boots: '#2a1b3a', accent: '#56c8ff',
-      extras: ['robe', 'staff'],
+      extras: ['robe', 'staff', 'sleeves', 'mantle'], body: 'f',
     },
     moves: {
       light1: { name: 'Coup de bâton', anim: 'staff1', dur: 0.28, cancel: 0.15, chain: 'light2', air: true, lunge: [[0, 0.1, 3]], actions: [hit(0.09, 27, 'light', { reach: 1.25 })] },
@@ -207,7 +207,7 @@ export const CHARACTERS = [
     look: {
       skin: '#c98f62', hair: '#2a1a12', hairStyle: 'short', eyes: '#3a2210',
       top: null, pants: '#2f2f3a', belt: '#c0262f', boots: '#1d1d24', accent: '#f2f2f2',
-      extras: ['gloves', 'bandages', 'sash'], build: 1.14,
+      extras: ['gloves', 'bandages', 'sash', 'redband', 'barefoot'], build: 1.08, body: 'big',
     },
     moves: {
       light1: { name: 'Jab', anim: 'jab', dur: 0.22, cancel: 0.12, chain: 'light2', air: true, lunge: [[0, 0.08, 3]], actions: [hit(0.07, 24)] },
@@ -245,7 +245,7 @@ export const CHARACTERS = [
     look: {
       skin: '#f7d8c0', hair: '#14121c', hairStyle: 'priestess', eyes: '#3fffc0',
       top: '#f4f2ee', arms: '#f4f2ee', pants: '#c0262f', belt: '#c0262f', boots: '#f4f2ee', accent: '#5fffc8',
-      extras: ['hakama', 'talismans', 'ribbons'],
+      extras: ['hakama', 'talismans', 'ribbons', 'kimono', 'sleeves'], body: 'f',
     },
     moves: {
       light1: { name: 'Talisman', anim: 'palm', dur: 0.28, cancel: 0.15, chain: 'light2', air: true, lunge: [[0, 0.1, 3]], actions: [hit(0.09, 26)] },
