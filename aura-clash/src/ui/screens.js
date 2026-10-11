@@ -8,6 +8,8 @@ import { NetClient, parseAddress, LAN_PORT } from '../net/session.js';
 import { REWARDS, UPGRADES, UPGRADE_COSTS, UPGRADE_MAX } from '../core/profile.js';
 import { CHAPTERS, STORY_TITLE } from '../story/chapters.js';
 import { StoryScene } from '../story/scene.js';
+import { WAVE_LEVELS, WAVE_HEAL, buildLevel, levelReward, isBossLevel, regionOf } from '../game/waves.js';
+import { MONSTERS, TIERS } from '../game/monsters.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const h = (html) => {
@@ -165,7 +167,7 @@ export class UI {
       <div class="logo"><span class="logo-a">AURA</span><span class="logo-b">CLASH</span></div>
       <div class="logo-jp">オーラ・クラッシュ</div>
       <button class="btn press" data-nav data-autofocus>${matchMedia('(pointer: coarse)').matches ? 'Touche l’écran pour commencer' : 'Appuie sur une touche'}</button>
-      <div class="credits">Jeu de combat 3D — 6 combattants, 5 arènes, multijoueur en réseau local</div>
+      <div class="credits">Jeu de combat 3D — 10 combattants, 15 créatures, 5 arènes, multijoueur en réseau local</div>
     </div>`);
     el.querySelector('.press').addEventListener('click', () => {
       this.app.audio.play('ui_start');
@@ -185,6 +187,7 @@ export class UI {
     const done = CHAPTERS.filter((c) => this.app.profile.hasCleared(c.id)).length;
     const el = this.menu('', [
       { label: 'Mode Histoire', hint: `${STORY_TITLE} — ${done} / ${CHAPTERS.length} chapitres`, cls: 'story-btn', action: () => this.storyMenu() },
+      { label: 'Mode Vagues', hint: `fléaux, démons et boss — niveau ${Math.min(WAVE_LEVELS, this.app.profile.levelUnlocked())} / ${WAVE_LEVELS}`, cls: 'story-btn', action: () => this.wavesMenu() },
       { label: 'Versus contre l’IA', hint: '1 joueur, best of 3', action: () => this.setupVersus('cpu') },
       { label: 'Versus local', hint: '2 joueurs sur le même PC', action: () => this.setupVersus('local2') },
       { label: '2 contre 2', hint: 'avec ou sans partenaire humain', action: () => this.setup2v2() },
@@ -462,6 +465,116 @@ export class UI {
     this.app.setBackdrop('menu');
   }
 
+  // --- Mode Vagues ------------------------------------------------------------------------
+
+  wavesMenu(sel = null) {
+    this.app.setBackdrop('menu');
+    const prof = this.app.profile;
+    const open = Math.min(WAVE_LEVELS, prof.levelUnlocked());
+    const levels = Array.from({ length: WAVE_LEVELS }, (_, i) => i + 1);
+    const regionColors = ['#7aff9a', '#ff9a5a', '#c87aff', '#7ad8ff', '#ff5a3a', '#ff1a4a'];
+    const el = h(`<div class="screen menu wave-menu">
+      <h2 class="menu-title">MODE VAGUES</h2>
+      <p class="menu-sub">Repousse les vagues de fléaux, de démons et de monstres. Un boss attend tous les 5 niveaux. Entre deux vagues, tu récupères ${Math.round(WAVE_HEAL * 100)} % de ta vie.</p>
+      <div class="wave-info"></div>
+      <div class="levels">${levels.map((n) => `<button class="lvl ${isBossLevel(n) ? 'boss' : ''} ${prof.hasClearedLevel(n) ? 'cleared' : ''}" data-nav data-n="${n}" style="--rc:${regionColors[Math.floor((n - 1) / 5)]}" ${n <= open ? '' : 'disabled'}>
+        <small>NIVEAU</small><b>${n}</b></button>`).join('')}</div>
+      <div class="menu-list row"><button class="btn" data-nav data-act="beasts">Bestiaire</button><button class="btn ghost" data-nav data-act="back">Retour</button></div>
+    </div>`);
+    const info = el.querySelector('.wave-info');
+    const showInfo = (n) => {
+      if (!n) return;
+      const lv = buildLevel(n);
+      const foes = [...new Set(lv.waves.flat().map((e) => e.charId))];
+      const bossId = lv.boss;
+      const cleared = prof.hasClearedLevel(n);
+      info.innerHTML = `<div class="wi-txt"><h3>Niveau ${n} — ${esc(lv.region)}</h3>
+        <p>${lv.waves.length} vagues${bossId ? ` · boss : <b style="color:${CHAR_BY_ID[bossId].aura}">${esc(CHAR_BY_ID[bossId].name)}</b>` : ''}</p>
+        <p>Récompense : ${cleared ? `${Math.round(lv.reward * 0.3)} Ryō (déjà réussi)` : `${lv.reward} Ryō`}</p></div>
+        <div class="foes">${foes.map((id) => `<div class="foe ${id === bossId ? 'boss' : ''}">${this.portrait(id)}<span>${esc(CHAR_BY_ID[id].name)}</span></div>`).join('')}</div>`;
+    };
+    el.querySelectorAll('.lvl').forEach((b) => b.addEventListener('click', () => this.wavePick(Number(b.dataset.n))));
+    el.querySelector('[data-act=beasts]').addEventListener('click', () => this.bestiary(() => this.wavesMenu(sel)));
+    el.querySelector('[data-act=back]').addEventListener('click', () => this.mainMenu());
+    this.show({ el, back: () => this.mainMenu(), onFocus: (f) => showInfo(Number(f.dataset.n) || 0) });
+    const start = el.querySelector(`.lvl[data-n="${sel && sel <= open ? sel : open}"]`);
+    if (start) this.focus(start, false);
+    showInfo(sel && sel <= open ? sel : open);
+  }
+
+  /** Choix du combattant pour un niveau (parmi ceux que l'on possède). */
+  wavePick(n, charId = null) {
+    if (charId) { this.startWaves(n, charId); return; }
+    this.charSelect([{ label: `NIVEAU ${n}`, team: 0, ctrl: { type: 'human', player: 0 } }],
+      (fighters) => this.startWaves(n, fighters[0].charId), () => this.wavesMenu(n));
+  }
+
+  startWaves(n, charId) {
+    const app = this.app;
+    const lv = buildLevel(n);
+    const foe = (e) => ({ charId: e.charId, team: 1, ctrl: { type: 'cpu', level: e.level }, mods: e.mods, boss: !!e.boss, elite: !!e.elite });
+    app.startBattle({
+      role: 'local',
+      arena: lv.arena,
+      fighters: [
+        { charId, team: 0, ctrl: { type: 'human', player: 0 }, mods: app.profile.modsFor(charId) },
+        ...lv.waves[0].map(foe),
+      ],
+      waves: lv.waves,
+      waveLevel: n,
+    });
+  }
+
+  /** Fin d'un niveau du mode Vagues (à la place de l'écran de résultats). */
+  wavesEnd(battle, team) {
+    const app = this.app;
+    const prof = app.profile;
+    const n = battle.cfg.waveLevel;
+    const lv = buildLevel(n);
+    const won = team === 0;
+    const cleared = won ? lv.waves.length : battle.match.wave;
+    const first = won && !prof.hasClearedLevel(n);
+    let reward = 0;
+    if (!battle.rewarded) {
+      battle.rewarded = true;
+      reward = levelReward(lv, won, cleared, first);
+      prof.earn(reward);
+      if (won) prof.clearLevel(n);
+    }
+    const charId = battle.cfg.fighters[0].charId;
+    const def = CHAR_BY_ID[charId];
+    const buttons = [];
+    if (won && n < WAVE_LEVELS) buttons.push({ label: `Niveau ${n + 1}`, hint: regionOf(n + 1).name, action: () => this.startWaves(n + 1, charId) });
+    if (!won) buttons.push({ label: 'Réessayer', action: () => app.restartBattle() });
+    buttons.push(
+      { label: `Améliorer ${esc(def.name)}`, hint: 'force, vie, vitesse, ki, maîtrise', action: () => { app.endBattle(false); this.upgrades(charId); } },
+      { label: 'Choisir un niveau', action: () => { app.endBattle(false); this.wavesMenu(won ? Math.min(WAVE_LEVELS, n + 1) : n); } },
+      { label: 'Menu principal', cls: 'ghost', action: () => app.endBattle() },
+    );
+    const el = this.menu('', buttons, { cls: 'results' });
+    const final = won && n === WAVE_LEVELS;
+    el.prepend(h(`<div class="result-head">
+      <div class="result-big ${won ? 'win' : ''}">${won ? `NIVEAU ${n} RÉUSSI` : 'DÉFAITE'}</div>
+      <div class="result-portraits">${this.portrait(charId, 'big')}${lv.boss && won ? this.portrait(lv.boss, 'big') : ''}</div>
+      <div class="result-sub">${esc(lv.region)} — vagues repoussées : ${cleared} / ${lv.waves.length}</div>
+      ${reward ? `<div class="reward">+${reward} Ryō <small>(total : ${prof.ryo})</small></div>` : ''}
+      ${final ? '<div class="the-end">L’ÉCLIPSE EST VAINCUE</div>' : ''}</div>`));
+    this.show({ el });
+    if (won) this.app.audio.play('roundWin');
+  }
+
+  bestiary(onBack) {
+    const el = h(`<div class="screen menu">
+      <h2 class="menu-title">BESTIAIRE</h2>
+      <div class="bestiary">${MONSTERS.map((m) => `<div class="beast" style="--c:${TIERS[m.tier].color}">
+        ${this.portrait(m.id, 'big')}<b>${esc(m.name)}</b><em>${esc(m.boss ? m.title : TIERS[m.tier].label)}</em>
+        <p>${esc(m.blurb)}</p><p>Pouvoir : ${esc(m.moves.special.name)} · Ultime : ${esc(m.moves.ultimate.name)}</p></div>`).join('')}</div>
+      <button class="btn" data-nav data-autofocus>Retour</button>
+    </div>`);
+    el.querySelector('.btn').addEventListener('click', onBack);
+    this.show({ el, back: onBack });
+  }
+
   // --- Améliorations ----------------------------------------------------------------------
 
   upgrades(sel = null) {
@@ -576,6 +689,7 @@ export class UI {
   showResults(battle, team) {
     if (this.app.battle !== battle) return;
     if (battle.cfg.story) { this.storyFightEnd(battle, team); return; }
+    if (battle.cfg.waveLevel) { this.wavesEnd(battle, team); return; }
     const names = battle.winnerNames(team);
     const role = battle.role;
     const winner = team < 0 ? 'MATCH NUL' : `VICTOIRE`;

@@ -26,11 +26,12 @@ export class Hud {
   /** fighters : [{ id, name, team, color, label }] */
   setup(fighters, opts = {}) {
     this.training = !!opts.training;
+    this.waves = !!opts.waves;
     this.panels = [];
     const sides = [fighters.filter((f) => f.team === 0), fighters.filter((f) => f.team === 1)];
     this.teamNames = sides.map((list) => (list.length === 1 ? list[0].name.split(' ')[0].toUpperCase() : list === sides[0] ? 'ÉQUIPE BLEUE' : 'ÉQUIPE ROUGE'));
     const side = (list, cls) => `<div class="side ${cls}">${list.map((f, i) => `
-      <div class="panel ${i > 0 ? 'small' : ''}" data-id="${f.id}" style="--c:${f.color}">
+      <div class="panel ${i > 0 ? 'small' : ''} ${f.boss ? 'boss' : ''}" data-id="${f.id}" style="--c:${f.color}">
         <div class="pname"><span class="tag">${esc(f.label || '')}</span>${esc(f.name)}</div>
         <div class="hp"><div class="hp-lag"></div><div class="hp-fill"></div></div>
         <div class="row2"><div class="energy"><div class="en-fill"></div><div class="en-mark" style="left:40%"></div></div><div class="en-num">0</div></div>
@@ -41,8 +42,9 @@ export class Hud {
     this.root.innerHTML = `
       <div class="topbar">
         ${side(sides[0], 'left')}
-        <div class="center">
+        <div class="center ${this.waves ? 'waves' : ''}">
           <div class="pips left"></div>
+          ${this.waves ? '<div class="wave-label">VAGUE</div>' : ''}
           <div class="timer">${this.training ? '∞' : '99'}</div>
           <div class="pips right"></div>
           <div class="ping"></div>
@@ -102,10 +104,12 @@ export class Hud {
       if (p.comboT > 0) { p.comboT -= dt; if (p.comboT <= 0) p.combo.classList.remove('on'); }
       if (p.moveT > 0) { p.moveT -= dt; if (p.moveT <= 0) p.move.classList.remove('on'); }
     }
-    if (!this.training) this.timerEl.textContent = Math.ceil(state.timer ?? 99);
-    this.timerEl.classList.toggle('urgent', !this.training && (state.timer ?? 99) <= 10);
+    const wv = state.waveInfo;
+    if (wv) this.timerEl.textContent = `${wv.n}/${wv.total}`;
+    else if (!this.training) this.timerEl.textContent = Math.ceil(state.timer ?? 99);
+    this.timerEl.classList.toggle('urgent', !this.training && !wv && (state.timer ?? 99) <= 10);
     const wins = (state.wins || [0, 0]).join('-');
-    if (wins !== this.lastWins) {
+    if (wins !== this.lastWins && !this.waves) {
       this.lastWins = wins;
       const pip = (n) => [0, 1].map((i) => `<span class="pip ${i < n ? 'won' : ''}"></span>`).join('');
       this.pipsL.innerHTML = pip(state.wins ? state.wins[0] : 0);

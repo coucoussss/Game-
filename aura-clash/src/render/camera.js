@@ -98,8 +98,9 @@ export class CameraRig {
         wantLook.set(f.x, f.y + 1.35, f.z);
         wantFov = 42;
       } else if (f.mode === 'ko') {
-        wantPos.set(f.x + this.side.x * 6 + fx * 2, f.y + 2.2, f.z + this.side.z * 6 + fz * 2);
-        wantLook.set(f.x, f.y + 0.8, f.z);
+        const k = f.k || 1; // les géants sont filmés de plus loin
+        wantPos.set(f.x + this.side.x * 6 * k + fx * 2 * k, f.y + 2.2 * k, f.z + this.side.z * 6 * k + fz * 2 * k);
+        wantLook.set(f.x, f.y + 0.8 * k, f.z);
         wantFov = 40;
       } else if (f.mode === 'showcase') {
         const a = this.time * 0.25;

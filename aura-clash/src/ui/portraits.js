@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { CharacterModel } from '../render/model.js';
 import { CHARACTERS } from '../game/characters.js';
+import { MONSTERS } from '../game/monsters.js';
 
 export function renderPortraits() {
   const out = {};
@@ -18,7 +19,7 @@ export function renderPortraits() {
   renderer.setSize(size, size, false);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
-  for (const def of CHARACTERS) {
+  for (const def of [...CHARACTERS, ...MONSTERS]) {
     const scene = new THREE.Scene();
     scene.add(new THREE.HemisphereLight('#ffffff', '#3a3050', 1.6));
     const sun = new THREE.DirectionalLight('#ffffff', 2.4);
@@ -34,8 +35,9 @@ export function renderPortraits() {
     model.aura.visible = false;
     const head = new THREE.Vector3();
     model.head.getWorldPosition(head);
-    camera.position.set(head.x + 0.25, head.y + 0.05, head.z + 1.9);
-    camera.lookAt(head.x, head.y - 0.12, head.z);
+    const k = def.look.size || 1; // les géants sont cadrés de plus loin
+    camera.position.set(head.x + 0.25 * k, head.y + 0.05 * k, head.z + 1.9 * k);
+    camera.lookAt(head.x, head.y - 0.12 * k, head.z);
     renderer.setClearColor(0x000000, 0);
     renderer.render(scene, camera);
     out[def.id] = renderer.domElement.toDataURL('image/png');

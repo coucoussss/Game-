@@ -129,12 +129,13 @@ export class CineDirector {
       this.audio.play(shot === 0 ? 'teleport' : 'dash');
     }
     c.model.head.getWorldPosition(tmp);
-    const hx = tmp.x; const hy = tmp.y + 0.12; const hz = tmp.z;
+    const sc = c.model.root.scale.x; // géants (boss du mode Vagues) : plans élargis
+    const hx = tmp.x; const hy = tmp.y + 0.12 * sc; const hz = tmp.z;
     if (shot === 0) {
       // Gros plan sur le regard, qui avance lentement
       const p = k / 0.3;
-      const d = 0.62 - p * 0.14;
-      focus.pos.set(hx + fx * d + rx * 0.04, hy + 0.01, hz + fz * d + rz * 0.04);
+      const d = (0.62 - p * 0.14) * sc;
+      focus.pos.set(hx + fx * d + rx * 0.04 * sc, hy + 0.01, hz + fz * d + rz * 0.04 * sc);
       focus.look.set(hx, hy - 0.01, hz);
       focus.fov = 26 - p * 4;
     } else if (shot === 1) {
@@ -143,14 +144,14 @@ export class CineDirector {
       const ang = 0.7 - p * 0.9;
       const ox = fx * Math.cos(ang) - rx * Math.sin(ang);
       const oz = fz * Math.cos(ang) - rz * Math.sin(ang);
-      focus.pos.set(f.x + ox * 2.2, f.y + 0.25, f.z + oz * 2.2);
-      focus.look.set(f.x, f.y + 1.25, f.z);
+      focus.pos.set(f.x + ox * 2.2 * sc, f.y + 0.25, f.z + oz * 2.2 * sc);
+      focus.look.set(f.x, f.y + 1.25 * sc, f.z);
       focus.fov = 46;
       focus.roll = 0.14;
     } else {
       // Par-dessus l'épaule, vers la cible
       const p = (k - 0.64) / 0.36;
-      focus.pos.set(f.x - fx * (2.5 - p * 0.5) + rx * 1.1, f.y + 1.65, f.z - fz * (2.5 - p * 0.5) + rz * 1.1);
+      focus.pos.set(f.x - fx * (2.5 - p * 0.5) * sc + rx * 1.1 * sc, f.y + 1.65 * sc, f.z - fz * (2.5 - p * 0.5) * sc + rz * 1.1 * sc);
       focus.look.set(f.x + fx * 6, f.y + 1.0, f.z + fz * 6);
       focus.fov = 54 - p * 6;
       focus.roll = -0.09;

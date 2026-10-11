@@ -14,6 +14,8 @@ export class Match {
    * @param {object} cfg
    *   fighters : [{ charId, team }] (1v1 : 2 entrées, 2v2 : 4)
    *   arenaRadius, roundTime (s), training (bool)
+   *   waves : mode Vagues — liste des vagues [[{ charId, mods }]] ; `fighters` contient alors les
+   *           joueurs et la première vague. Une seule manche, sans minuteur.
    */
   constructor(cfg) {
     this.cfg = cfg;
@@ -38,7 +40,55 @@ export class Match {
     this.phaseT = 0;
     this.winner = -1;
     this.infiniteEnergy = false;
+    this.waveList = cfg.waves || null;
+    this.wave = 0; // indice de la vague en cours
+    this.waveBreak = 0; // pause entre deux vagues (s)
     this.startRound();
+  }
+
+  /** Mode Vagues : { n, total, boss } de la vague en cours (null sinon). */
+  get waveInfo() {
+    if (!this.waveList) return null;
+    return { n: this.wave + 1, total: this.waveList.length, boss: this.waveList[this.wave].some((e) => e.boss) };
+  }
+
+  /** Points d'apparition des ennemis : en arc de cercle face au joueur, vers le centre de l'arène. */
+  spawnPoints(count) {
+    const p = this.fighters.find((f) => f.team === 0 && f.alive) || this.fighters[0];
+    const base = Math.hypot(p.x, p.z) > 1 ? Math.atan2(-p.x, -p.z) : Math.PI / 2;
+    const pts = [];
+    for (let i = 0; i < count; i++) {
+      const a = base + (i - (count - 1) / 2) * 0.75;
+      const [x, z] = this.clampToArena(p.x + Math.sin(a) * 6.5, p.z + Math.cos(a) * 6.5, 1.5);
+      pts.push({ x, z, yaw: Math.atan2(p.x - x, p.z - z) });
+    }
+    return pts;
+  }
+
+  /** Fait entrer la vague suivante (les vaincus de la précédente disparaissent). */
+  spawnWave() {
+    this.wave += 1;
+    const list = this.waveList[this.wave];
+    for (const f of this.fighters) if (f.team === 1) f.gone = true;
+    const pts = this.spawnPoints(list.length);
+    const ids = [];
+    list.forEach((e, k) => {
+      const slot = this.fighters.filter((o) => o.team === 1 && !o.gone).length;
+      const f = new Fighter(this.fighters.length, CHAR_BY_ID[e.charId], 1, slot, e.mods);
+      f.reset(pts[k].x, pts[k].z, pts[k].yaw);
+      f.invuln = 1.0; // le temps d'apparaître
+      this.fighters.push(f);
+      ids.push(f.id);
+      this.emit('fx', { fx: 'summonBurst', x: f.x, y: 1, z: f.z, color: f.def.aura });
+    });
+    // Répit : les joueurs récupèrent un peu de vie, d'énergie et leurs temps de recharge
+    for (const f of this.fighters) {
+      if (f.team !== 0 || !f.alive) continue;
+      f.hp = Math.min(f.maxHp, f.hp + f.maxHp * (this.cfg.waveHeal || 0));
+      f.energy = Math.min(MAX_ENERGY, f.energy + 25);
+      for (const k in f.cd) f.cd[k] = 0;
+    }
+    this.emit('waveSpawn', { ...this.waveInfo, ids });
   }
 
   emit(type, data = {}) {
@@ -103,6 +153,11 @@ export class Match {
       f.energy = this.round === 1 ? 0 : energy;
       perTeam[f.team] += 1;
     }
+    if (this.waveList) {
+      // Mode Vagues : la première vague se déploie en arc face aux joueurs
+      const foes = this.fighters.filter((f) => f.team === 1);
+      this.spawnPoints(foes.length).forEach((p, k) => foes[k].reset(p.x, p.z, p.yaw));
+    }
     if (this.training) {
       this.phase = 'fight';
       this.phaseT = 0;
@@ -110,7 +165,7 @@ export class Match {
     }
     this.phase = 'intro';
     this.phaseT = 0;
-    this.emit('round', { n: this.round });
+    this.emit('round', { n: this.round, wave: this.waveInfo });
   }
 
   teamAlive(team) {
@@ -136,6 +191,13 @@ export class Match {
         if (this.training) break;
         const a0 = this.teamAlive(0);
         const a1 = this.teamAlive(1);
+        if (this.waveList && a0 && !a1 && this.wave + 1 < this.waveList.length) {
+          // Vague repoussée : courte pause, puis la suivante surgit
+          if (this.waveBreak <= 0) { this.waveBreak = 2.4; this.emit('waveClear', this.waveInfo); }
+          this.waveBreak -= dt;
+          if (this.waveBreak <= 0) { this.waveBreak = 0; this.spawnWave(); }
+          break;
+        }
         if (!a0 || !a1) {
           this.phase = 'ko';
           this.phaseT = 0;
@@ -143,7 +205,7 @@ export class Match {
           this.roundWinner = a0 ? 0 : a1 ? 1 : -1;
           break;
         }
-        this.timer -= dt;
+        if (!this.waveList) this.timer -= dt;
         if (this.timer <= 0) {
           this.timer = 0;
           this.phase = 'timeup';
@@ -163,6 +225,14 @@ export class Match {
         if (this.phaseT > 1.6) this.endRound();
         break;
       case 'roundEnd':
+        if (this.waveList && this.phaseT > 2.6) {
+          // Mode Vagues : une seule manche décide du niveau
+          this.winner = this.roundWinner === 0 ? 0 : 1;
+          this.phase = 'matchEnd';
+          this.phaseT = 0;
+          this.emit('matchEnd', { team: this.winner, wave: this.wave + 1 });
+          break;
+        }
         if (this.phaseT > 2.6) {
           const champ = this.wins.findIndex((w) => w >= ROUNDS_TO_WIN);
           if (champ >= 0 || (this.wins[0] >= ROUNDS_TO_WIN && this.wins[1] >= ROUNDS_TO_WIN)) {
@@ -183,7 +253,9 @@ export class Match {
 
   endRound() {
     const w = this.roundWinner;
-    if (w >= 0) this.wins[w] += 1;
+    if (this.waveList) {
+      // Mode Vagues : pas de manches à compter
+    } else if (w >= 0) this.wins[w] += 1;
     else { this.wins[0] += 1; this.wins[1] += 1; } // match nul : un point chacun
     this.timeScale = 1;
     this.phase = 'roundEnd';
@@ -405,6 +477,14 @@ export class Match {
     if (h && h.impact) this.emit('impact', { text: h.impact, x: px, y: py, z: pz });
     this.emit('ko', { id: tgt.id, x: tgt.x, y: tgt.y + 1, z: tgt.z });
     this.emit('shake', { amt: 0.8 });
+    if (this.waveList && tgt.team === 1) {
+      // Mode Vagues : chaque ennemi abattu ravive les joueurs (vie et énergie)
+      for (const f of this.fighters) {
+        if (f.team !== 0 || !f.alive) continue;
+        f.hp = Math.min(f.maxHp, f.hp + f.maxHp * (tgt.def.boss ? 0.15 : 0.05));
+        f.energy = Math.min(MAX_ENERGY, f.energy + 10);
+      }
+    }
     return 'hit';
   }
 

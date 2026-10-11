@@ -1,4 +1,5 @@
-// Profil du joueur : porte-monnaie en Ryō (la monnaie du jeu) et personnages débloqués.
+// Profil du joueur : porte-monnaie en Ryō (la monnaie du jeu), personnages débloqués,
+// améliorations, progression du mode histoire et du mode Vagues.
 // Sauvegardé dans le navigateur ou la fenêtre du jeu (localStorage), sur cette machine.
 import { CHAR_BY_ID, CHARACTERS } from '../game/characters.js';
 
@@ -24,7 +25,7 @@ export const UPGRADE_COSTS = [200, 350, 550, 800, 1100];
 
 export class Profile {
   constructor() {
-    this.data = { ryo: START_RYO, owned: [], upgrades: {}, story: [] };
+    this.data = { ryo: START_RYO, owned: [], upgrades: {}, story: [], waves: [] };
     try {
       const saved = JSON.parse(localStorage.getItem(KEY) || 'null');
       if (saved && Number.isFinite(saved.ryo) && Array.isArray(saved.owned)) {
@@ -33,6 +34,7 @@ export class Profile {
           owned: saved.owned.filter((id) => CHAR_BY_ID[id]),
           upgrades: saved.upgrades && typeof saved.upgrades === 'object' ? saved.upgrades : {},
           story: Array.isArray(saved.story) ? saved.story.filter((x) => typeof x === 'string') : [],
+          waves: Array.isArray(saved.waves) ? saved.waves.filter((x) => Number.isInteger(x) && x >= 1) : [],
         };
       }
     } catch { /* stockage indisponible : profil de départ */ }
@@ -76,6 +78,22 @@ export class Profile {
 
   hasCleared(id) {
     return this.data.story.includes(id);
+  }
+
+  // --- Mode Vagues : niveaux réussis ---
+
+  hasClearedLevel(n) {
+    return this.data.waves.includes(n);
+  }
+
+  clearLevel(n) {
+    if (!this.data.waves.includes(n)) this.data.waves.push(n);
+    this.save();
+  }
+
+  /** Niveau le plus haut accessible : le suivant du plus haut réussi. */
+  levelUnlocked() {
+    return this.data.waves.reduce((m, n) => Math.max(m, n), 0) + 1;
   }
 
   /** Débloque gratuitement un personnage (récompense du mode histoire). */

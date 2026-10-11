@@ -35,12 +35,15 @@ export class MatchView {
   /** Crée les modèles des combattants. `fighters` : [{ charId, team }] */
   attach(fighters) {
     this.detach();
-    for (const f of fighters) {
-      const def = CHAR_BY_ID[f.charId];
-      const model = new CharacterModel(def);
-      this.stage.scene.add(model.root);
-      this.models.push({ model, def, prevMt: 0, prevMove: '', trailT: 0 });
-    }
+    for (const f of fighters) this.addFighter(f.charId);
+  }
+
+  /** Ajoute le modèle d'un combattant (mode Vagues : les ennemis arrivent en cours de combat). */
+  addFighter(charId) {
+    const def = CHAR_BY_ID[charId];
+    const model = new CharacterModel(def);
+    this.stage.scene.add(model.root);
+    this.models.push({ model, def, prevMt: 0, prevMove: '', trailT: 0 });
   }
 
   detach() {
@@ -68,6 +71,15 @@ export class MatchView {
     state.fighters.forEach((f, i) => {
       const vm = this.models[i];
       if (!vm) return;
+      if (f.gone) {
+        // Vaincu d'une vague précédente : il se dissout en cendres
+        if (vm.model.root.visible) {
+          vm.model.root.visible = false;
+          p.emit({ x: f.x, y: 0.6, z: f.z, count: 40, speed: 3, spread: 0.8, color: '#2a1a3a', size: 0.6, sizeEnd: 1.1, life: 0.6, hdr: 0.6, up: 2, drag: 2 });
+          p.emit({ x: f.x, y: 0.6, z: f.z, count: 24, speed: 4, color: vm.def.aura, size: 0.2, life: 0.6, up: 3 });
+        }
+        return;
+      }
       // Pendant une cinématique, les autres combattants sont figés (on n'avance pas leur animation)
       const frozen = (cineId >= 0 && cineId !== f.id) || state.hitstop > 0;
       vm.model.update(frozen ? 0 : dt, f, { cine: cineId === f.id, cineShot: cineId === f.id && this.director.active ? this.director.active.shot : -1, react: f.state === 'hitstun' ? vm.react : null });
@@ -603,8 +615,18 @@ export class MatchView {
           break;
         }
         case 'round':
-          this.hud.announce(`MANCHE ${ev.n}`, { dur: 1.3 });
+          if (ev.wave) this.announceWave(ev.wave, state);
+          else this.hud.announce(`MANCHE ${ev.n}`, { dur: 1.3 });
           a.play('round');
+          break;
+        case 'waveClear':
+          this.hud.announce('VAGUE REPOUSSÉE !', { dur: 1.8, color: '#7fffb0' });
+          this.overlay.speedLines(0.6, 0.8);
+          a.play('roundWin');
+          break;
+        case 'waveSpawn':
+          this.announceWave(ev, state);
+          a.play(ev.boss ? 'ultCharge' : 'round');
           break;
         case 'fight':
           this.hud.announce('COMBATTEZ !', { dur: 0.9, color: '#ffd23f' });
@@ -612,10 +634,17 @@ export class MatchView {
           break;
         case 'ko': {
           const f = state.fighters[ev.id];
-          const allDown = state.fighters.filter((o) => o.team === f.team).every((o) => o.hp <= 0 || o.state === 'ko' || o.id === ev.id);
+          const allDown = state.fighters.filter((o) => o.team === f.team && !o.gone).every((o) => o.hp <= 0 || o.state === 'ko' || o.id === ev.id);
+          const wv = state.waveInfo;
+          if (wv && f.team === 1 && (!allDown || wv.n < wv.total)) {
+            // Mode Vagues : un ennemi tombe (la fin de vague est annoncée à part)
+            this.stage.effects.burstRing(f.x, f.y + 1, f.z, 0.3, 2.2, 0.25, CHAR_BY_ID[f.charId].aura, cam);
+            a.play('impact');
+            break;
+          }
           if (allDown) {
             this.hud.announce('K.O.', { dur: 2.2, big: true, color: '#ff3a3a' });
-            this.stage.rig.setFocus({ mode: 'ko', x: f.x, y: f.y, z: f.z, yaw: f.yaw, t: 0, dur: 2.4 });
+            this.stage.rig.setFocus({ mode: 'ko', x: f.x, y: f.y, z: f.z, yaw: f.yaw, t: 0, dur: 2.4, k: CHAR_BY_ID[f.charId].look.size || 1 });
             this.overlay.flash('#ffffff', 0.35);
             this.overlay.speedLines(1.2, 1);
             a.play('ko');
@@ -630,6 +659,12 @@ export class MatchView {
           a.play('round');
           break;
         case 'roundWin': {
+          if (state.waveInfo) {
+            if (ev.team === 0) this.hud.announce('NIVEAU TERMINÉ !', { dur: 2.4, color: '#ffd23f' });
+            else this.hud.announce('DÉFAITE…', { dur: 2.4, color: '#ff5a6a' });
+            a.play('roundWin');
+            break;
+          }
           if (ev.team < 0) this.hud.announce('MANCHE NULLE', { dur: 2.2 });
           else this.hud.announce(`${this.hud.teamName(ev.team)} GAGNE LA MANCHE`, { dur: 2.2, color: ev.team === 0 ? '#5ab4ff' : '#ff5a6a' });
           a.play('roundWin');
@@ -666,6 +701,26 @@ export class MatchView {
         default:
           break;
       }
+    }
+  }
+
+  /** Annonce d'une vague ; l'arrivée d'un boss a droit à sa mise en scène. */
+  announceWave(w, state) {
+    if (!w.boss) {
+      this.hud.announce(`VAGUE ${w.n} / ${w.total}`, { dur: 1.6, color: w.n === w.total ? '#ff8a5a' : '#ffffff' });
+      return;
+    }
+    const boss = state.fighters.filter((f) => f.team === 1 && !f.gone).find((f) => f.def && f.def.boss) || null;
+    const def = boss ? CHAR_BY_ID[boss.charId] : null;
+    this.hud.announce(def ? def.name.toUpperCase() : 'BOSS', { dur: 2.6, color: def ? def.aura : '#ff2a3a' });
+    this.overlay.flash('#1a0008', 0.45);
+    this.overlay.speedLines(1.2, 1.6);
+    this.overlay.manga('ボス!!', 50, 30);
+    this.stage.rig.addShake(0.8);
+    if (boss) {
+      this.stage.effects.shockSphere(boss.x, 1.5, boss.z, 0.5, 6, 0.8, def.aura);
+      this.stage.effects.groundRing(boss.x, 0, boss.z, 0.5, 9, 0.9, def.aura);
+      this.stage.effects.light(boss.x, 2, boss.z, def.aura, 10, 1.2, 16);
     }
   }
 

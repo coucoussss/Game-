@@ -1,4 +1,4 @@
-// Les 6 combattants : statistiques, apparence et liste des coups.
+// Les combattants : statistiques, apparence et liste des coups.
 //
 // Un coup est une petite chronologie (en secondes) :
 //   dur       durée totale
@@ -13,6 +13,7 @@
 //     ring    onde de choc         summon invocation   buff transformation
 //     warp    téléportation        fx / sfx / shake    effets purement visuels ou sonores
 import { HIT_TYPES } from './constants.js';
+import { MONSTERS } from './monsters.js';
 
 const hit = (t, dmg, type = 'light', o = {}) => ({
   t, a: 'hit', dmg, type, reach: 1.05, radius: 0.85, ...HIT_TYPES[type], ...o,
@@ -414,7 +415,8 @@ export const CHARACTERS = [
   },
 ];
 
-export const CHAR_BY_ID = Object.fromEntries(CHARACTERS.map((c) => [c.id, c]));
+// Les créatures du mode Vagues sont indexées avec les combattants (même moteur), sans être jouables.
+export const CHAR_BY_ID = Object.fromEntries([...CHARACTERS, ...MONSTERS].map((c) => [c.id, c]));
 
 /** Les « coups normaux » peuvent s'annuler les uns dans les autres. */
 export function isNormalMove(id) {

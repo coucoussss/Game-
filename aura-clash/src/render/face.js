@@ -312,6 +312,7 @@ export function faceTexture(def, expr = 'neutral') {
   const key = `${def.id}|${expr}`;
   if (cache.has(key)) return cache.get(key);
   const look = def.look;
+  if (look.face === 'demon') return demonFace(look, expr, key);
   const fem = look.body === 'f';
   const c = document.createElement('canvas');
   c.width = c.height = SIZE;
@@ -367,6 +368,137 @@ export function faceTexture(def, expr = 'neutral') {
     g.stroke();
   });
   at(g, 0, -0.112, () => mouth(g, expr, fem));
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  cache.set(key, tex);
+  return tex;
+}
+
+/**
+ * Visage de démon ou de fléau : yeux en fente qui luisent (sans blanc ni pupille ronde),
+ * sourcils en pointe, marques sur les joues et gueule garnie de crocs.
+ */
+function demonFace(look, expr, key) {
+  const c = document.createElement('canvas');
+  c.width = c.height = SIZE;
+  const g = c.getContext('2d');
+  const ink = '#0c0610';
+  const glow = look.eyes || '#ff2a3a';
+  const lw = (px) => px / SX;
+  const closed = expr === 'blink' || expr === 'ko';
+  // Marques rituelles sur les joues
+  for (const o of [-1, 1]) {
+    at(g, o * 0.105, -0.06, () => {
+      g.strokeStyle = look.marks || shade(glow, 0.55);
+      g.lineWidth = lw(5);
+      g.lineCap = 'round';
+      for (let i = 0; i < 2; i++) {
+        g.beginPath();
+        g.moveTo(-o * 0.012, -0.01 + i * 0.016);
+        g.lineTo(o * 0.02, 0.0 + i * 0.016);
+        g.stroke();
+      }
+    });
+  }
+  for (const o of [-1, 1]) {
+    at(g, o * 0.074, -0.008, () => {
+      const w = 0.1;
+      const h = expr === 'fierce' ? 0.034 : expr === 'hurt' ? 0.028 : 0.042;
+      if (closed) {
+        g.beginPath();
+        if (expr === 'ko') {
+          g.moveTo(-w * 0.3, -h * 0.6); g.lineTo(w * 0.3, h * 0.6);
+          g.moveTo(w * 0.3, -h * 0.6); g.lineTo(-w * 0.3, h * 0.6);
+        } else {
+          g.moveTo(-o * w * 0.45, 0); g.quadraticCurveTo(0, h * 0.5, o * w * 0.5, -h * 0.4);
+        }
+        g.strokeStyle = ink;
+        g.lineWidth = lw(8);
+        g.lineCap = 'round';
+        g.stroke();
+        return;
+      }
+      // Fente inclinée vers le haut à l'extérieur
+      const shape = () => {
+        g.beginPath();
+        g.moveTo(-o * w * 0.5, h * 0.35);
+        g.quadraticCurveTo(-o * w * 0.05, -h * 1.1, o * w * 0.55, -h * 0.9);
+        g.quadraticCurveTo(o * w * 0.1, h * 0.9, -o * w * 0.5, h * 0.35);
+        g.closePath();
+      };
+      // Halo lumineux
+      g.save();
+      g.shadowColor = glow;
+      g.shadowBlur = 40;
+      shape();
+      g.fillStyle = glow;
+      g.fill();
+      g.restore();
+      g.save();
+      shape();
+      g.clip();
+      const grd = g.createRadialGradient(0, 0, 0, 0, 0, w * 0.6);
+      grd.addColorStop(0, '#ffffff');
+      grd.addColorStop(0.25, shade(glow, 1.5));
+      grd.addColorStop(1, glow);
+      g.fillStyle = grd;
+      g.fillRect(-w, -h * 2, w * 2, h * 4);
+      // Pupille fendue verticale
+      g.beginPath();
+      g.ellipse(o * w * 0.04, 0, w * 0.035, h * 0.95, 0, 0, Math.PI * 2);
+      g.fillStyle = ink;
+      g.fill();
+      g.restore();
+      shape();
+      g.strokeStyle = ink;
+      g.lineWidth = lw(7);
+      g.lineJoin = 'round';
+      g.stroke();
+    });
+    // Sourcil en pointe, très incliné
+    at(g, o * 0.072, 0.05, () => {
+      const tilt = expr === 'fierce' ? 0.024 : expr === 'hurt' ? -0.006 : 0.014;
+      g.beginPath();
+      g.moveTo(-o * 0.045, tilt);
+      g.lineTo(o * 0.06, -0.02);
+      g.lineTo(-o * 0.04, tilt + 0.016);
+      g.closePath();
+      g.fillStyle = ink;
+      g.fill();
+    });
+  }
+  // Gueule : sourire carnassier, crocs blancs
+  at(g, 0, -0.112, () => {
+    const open = expr === 'fierce' || expr === 'hurt' ? 1 : expr === 'smile' ? 0.8 : 0.45;
+    const w = 0.075;
+    const hh = 0.03 * open;
+    g.beginPath();
+    g.moveTo(-w, -0.012);
+    g.quadraticCurveTo(0, hh * 2.2, w, -0.012);
+    g.quadraticCurveTo(0, hh * 0.4, -w, -0.012);
+    g.closePath();
+    g.fillStyle = '#3a0612';
+    g.fill();
+    g.fillStyle = '#f4f0e8';
+    for (let i = -3; i <= 3; i++) {
+      const x = (i / 3.4) * w;
+      const top = -0.008 + Math.abs(i / 3.4) * 0.002;
+      const len = (Math.abs(i) === 2 ? 0.024 : 0.012) * (0.6 + open * 0.4);
+      g.beginPath();
+      g.moveTo(x - 0.007, top);
+      g.lineTo(x + 0.007, top);
+      g.lineTo(x, top + len);
+      g.closePath();
+      g.fill();
+    }
+    g.beginPath();
+    g.moveTo(-w, -0.012);
+    g.quadraticCurveTo(0, hh * 2.2, w, -0.012);
+    g.strokeStyle = ink;
+    g.lineWidth = lw(5);
+    g.stroke();
+  });
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 4;

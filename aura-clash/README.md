@@ -57,6 +57,8 @@ Le `.exe` Windows peut aussi être construit depuis Linux ou macOS. Il faut alor
   plans de caméra, dialogues, effets), chacun suivi d'un combat. Certains chapitres se jouent en 2v2
   avec un allié, le dernier oppose le héros à un boss renforcé. Récompenses : Ryō, et le déblocage
   de Raiden (chap. 3), Garo (chap. 5), Hana (chap. 6) et Yami (chap. 8). On peut rejouer un chapitre.
+- **Mode Vagues** : 30 niveaux de 3 à 10 vagues de fléaux, de démons et de monstres, de plus en plus
+  forts (voir plus bas). Un boss tous les 5 niveaux.
 - **Versus contre l'IA**, en 3 niveaux (facile, normal, difficile), et **Versus local** à deux joueurs.
 - **2 contre 2** : toi + une IA contre deux IA, deux joueurs ensemble, ou J1 + IA contre J2 + IA.
 - **Réseau local (LAN)** : de 2 à 4 joueurs, en 1v1 ou en 2v2. L'IA prend les places libres.
@@ -127,6 +129,24 @@ match nul +180, défaite +120, plus 40 par manche gagnée et 50 de bonus en rés
 (menu principal) montre chaque personnage en 3D avec sa liste de coups. Un personnage acheté est
 jouable dans tous les modes. Les personnages verrouillés restent des adversaires possibles pour l'IA.
 Le solde et les achats sont enregistrés sur la machine (ou dans le navigateur pour la version web).
+
+### Mode Vagues
+On choisit un niveau (débloqué en réussissant le précédent) et un de ses combattants, puis on repousse
+les vagues une à une, avec une seule barre de vie. Entre deux vagues, on récupère 35 % de sa vie, un peu
+d'énergie et ses temps de recharge ; chaque ennemi abattu rend aussi 5 % de vie (15 % pour un boss).
+
+| Rang | Créatures | Pouvoirs |
+|---|---|---|
+| Fléau mineur | Larve du Fléau, Goule affamée, Diablotin | faibles, utilisés rarement |
+| Démon (dès le niveau 4) | Oni rouge, Démon-lame, Sorcière maudite | séismes, ruées d'ombre, foudre, orbes chercheurs |
+| Monstre (dès le niveau 11) | Golem d'ombre, Bête hurlante, Chevalier déchu | piliers de roche, tornades, orages, ultimes |
+| Boss (niveaux 5, 10, 15, 20, 25, 30) | Roi des Goules, Shōgun Oni, Impératrice du Fléau, Seigneur Dragon Noir, Titan des Abysses, Roi Fléau | géants, pouvoirs dévastateurs, ultime cinématique |
+
+Chaque niveau a plus de vagues que le précédent, des ennemis plus nombreux, plus résistants et plus
+agressifs. À partir du niveau 16, les anciens boss reviennent en élites. Deux ennemis au plus
+attaquent en même temps (un seul s'il s'agit d'un démon ou d'un monstre) ; les autres tournent autour et
+harcèlent à distance. Le **Bestiaire** décrit chaque créature. Récompense : 100 + 30 × niveau Ryō
+(+250 pour un boss), 30 % en rejouant un niveau réussi, 25 Ryō par vague repoussée en cas d'échec.
 
 ### Améliorations
 Le menu **Améliorations** permet de renforcer chaque personnage possédé sur 5 axes, de 5 niveaux chacun :
@@ -207,7 +227,9 @@ aura-clash/
 │   │   ├── constants.js  pas de simulation, boutons, types de coups
 │   │   ├── characters.js les 10 personnages : stats, apparence, coups (données)
 │   │   ├── fighter.js    états, physique, exécution des coups, esquive, garde
-│   │   ├── match.js      manches, coups, projectiles, rayons, zones, invocations, K.O.
+│   │   ├── match.js      manches, vagues, coups, projectiles, rayons, zones, invocations, K.O.
+│   │   ├── monsters.js   bestiaire du mode Vagues (15 créatures, même format que les combattants)
+│   │   ├── waves.js      composition des 30 niveaux, progression de la difficulté, récompenses
 │   │   └── ai.js         IA (3 niveaux) et mannequin d'entraînement
 │   ├── render/           affichage Three.js
 │   │   ├── toon.js       matériaux cel-shading, contours, bruit GLSL

@@ -10,6 +10,8 @@ import { PAD_NAMES } from './core/settings.js';
 import { TICK } from './game/constants.js';
 import { ARENA_RADIUS, ARENAS } from './render/arenas.js';
 import { encodeSnapshot, RemoteState } from './net/session.js';
+import { TIERS } from './game/monsters.js';
+import { WAVE_HEAL } from './game/waves.js';
 
 const SNAP_EVERY = 2; // un instantané tous les 2 ticks = 30 par seconde
 
@@ -59,6 +61,8 @@ export class Battle {
         arenaRadius: ARENA_RADIUS,
         roundTime: cfg.roundTime || 99,
         training: !!cfg.training,
+        waves: cfg.waves ? cfg.waves.map((w) => w.map((e) => ({ charId: e.charId, mods: e.mods, boss: !!e.boss }))) : undefined,
+        waveHeal: cfg.waveHeal ?? WAVE_HEAL,
       });
       this.state = this.match;
       this.brains = cfg.fighters.map((f, i) => {
@@ -70,22 +74,10 @@ export class Battle {
       this.netEvents.push(...this.match.events);
     }
 
-    const labels = cfg.fighters.map((f) => {
-      if (f.name) return f.name;
-      if (f.ctrl.type === 'human') return `J${f.ctrl.player + 1}`;
-      if (f.ctrl.type === 'dummy') return 'MANNEQUIN';
-      return 'IA';
-    });
-    app.hud.setup(cfg.fighters.map((f, i) => ({
-      id: i, name: CHAR_BY_ID[f.charId].name, team: f.team, color: CHAR_BY_ID[f.charId].aura, label: labels[i],
-    })), { training: cfg.training });
-    // Barre des attaques : une par joueur de cette machine
     this.barOwners = cfg.fighters
       .map((f, i) => ({ i, f }))
       .filter(({ i, f }) => (this.role === 'client' ? i === cfg.localFighter : f.ctrl.type === 'human'));
-    const sides = this.barOwners.length > 1 ? ['left', 'right'] : ['mid'];
-    app.hud.setupBars(this.barOwners.map(({ i, f }, k) => ({ id: i, def: CHAR_BY_ID[f.charId], side: sides[k] || 'right' })));
-    this.labelT = 0;
+    this.setupHud();
     app.hud.show(true);
     app.overlay.clear();
     app.input.resetEdges();
@@ -108,6 +100,44 @@ export class Battle {
     } else if (this.role === 'client') {
       cfg.net.on('snap', (msg) => this.state.push(msg));
     }
+  }
+
+  /** Panneaux de vie (les vaincus des vagues précédentes n'y figurent plus) et barres d'attaques. */
+  setupHud() {
+    const app = this.app;
+    const cfg = this.cfg;
+    const label = (f) => {
+      if (f.name) return f.name;
+      if (f.ctrl.type === 'human') return `J${f.ctrl.player + 1}`;
+      if (f.ctrl.type === 'dummy') return 'MANNEQUIN';
+      const def = CHAR_BY_ID[f.charId];
+      if (def.monster) return f.elite ? 'ÉLITE' : TIERS[def.tier].label.toUpperCase();
+      return 'IA';
+    };
+    const gone = (i) => this.match && this.match.fighters[i] && this.match.fighters[i].gone;
+    const list = cfg.fighters.map((f, i) => ({ f, i })).filter(({ i }) => !gone(i));
+    // Le boss passe en tête de son camp (grande barre de vie)
+    list.sort((a, b) => (a.f.team - b.f.team) || ((b.f.boss ? 1 : 0) - (a.f.boss ? 1 : 0)));
+    app.hud.setup(list.map(({ f, i }) => ({
+      id: i, name: CHAR_BY_ID[f.charId].name, team: f.team, color: CHAR_BY_ID[f.charId].aura, label: label(f), boss: !!f.boss,
+    })), { training: cfg.training, waves: !!cfg.waves });
+    // Barre des attaques : une par joueur de cette machine
+    const sides = this.barOwners.length > 1 ? ['left', 'right'] : ['mid'];
+    app.hud.setupBars(this.barOwners.map(({ i, f }, k) => ({ id: i, def: CHAR_BY_ID[f.charId], side: sides[k] || 'right' })));
+    this.labelT = 0;
+  }
+
+  /** Mode Vagues : une nouvelle vague est apparue dans la simulation → modèles, IA et interface. */
+  onWaveSpawn(ev) {
+    const wave = this.cfg.waves[ev.n - 1];
+    ev.ids.forEach((id, k) => {
+      const e = wave[k];
+      this.cfg.fighters[id] = { charId: e.charId, team: 1, ctrl: { type: 'cpu', level: e.level }, boss: !!e.boss, elite: !!e.elite };
+      this.brains[id] = new CpuBrain(id, e.level);
+      this.specialCost[id] = CHAR_BY_ID[e.charId].moves.special.cost;
+      this.app.view.addFighter(e.charId);
+    });
+    this.setupHud();
   }
 
   /** Convertit une entrée écran (x : droite, y : fond) en direction au sol. */
@@ -139,6 +169,7 @@ export class Battle {
       if (steps === 5) this.acc = 0;
     }
     const events = this.match.events.splice(0);
+    for (const ev of events) if (ev.type === 'waveSpawn') this.onWaveSpawn(ev);
     this.trackCombo(events);
     app.view.handleEvents(events, this.match);
     app.view.update(this.paused ? 0 : dt, this.match);
@@ -156,6 +187,7 @@ export class Battle {
   stepSim() {
     const m = this.match;
     const inputs = this.cfg.fighters.map((f, i) => {
+      if (m.fighters[i] && m.fighters[i].gone) return null;
       if (f.ctrl.type === 'human') return this.humanInput(f, i);
       if (f.ctrl.type === 'remote') {
         const r = this.remoteInputs.get(f.ctrl.peer);

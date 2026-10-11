@@ -66,7 +66,8 @@ export class CpuBrain {
       const threat = this.detectThreat(me, m);
       if (threat) {
         this.reactT = L.react;
-        if (Math.random() < L.block) {
+        // Les créatures (hors boss) se protègent moins : elles submergent plutôt qu'elles ne parent
+        if (Math.random() < L.block * (!def.monster ? 1 : def.boss ? 0.7 : 0.45)) {
           const r = Math.random();
           if (r < 0.55) { this.hold = BTN.GUARD; this.holdT = 0.45; }
           else if (r < 0.85) {
@@ -86,7 +87,15 @@ export class CpuBrain {
       const r = Math.random();
       const tVuln = t.state !== 'knockdown' && t.state !== 'getup';
       const specialCost = me.moveDef('special')?.mv.cost ?? 40;
-      if (me.energy >= MAX_ENERGY && tVuln && d < 11 && r < L.special * 0.45) {
+      if (m.waveList && def.monster && !this.isAssailant(me, t, m)) {
+        // Mode Vagues : deux assaillants au plus à la fois ; les autres tournent autour
+        // à distance et harcèlent de temps en temps (le joueur n'est pas pris en étau)
+        if (d < 4.8) { this.mx = -ux - uz * this.strafe * 0.6; this.mz = -uz + ux * this.strafe * 0.6; }
+        else if (d > 7.5) { this.mx = ux * 0.6 - uz * this.strafe; this.mz = uz * 0.6 + ux * this.strafe; }
+        else { this.mx = -uz * this.strafe; this.mz = ux * this.strafe; }
+        if (Math.random() < 0.1) this.strafe *= -1;
+        if (Math.random() < 0.03 + def.aiZoning * 0.04) this.press(BTN.RANGED);
+      } else if (me.energy >= MAX_ENERGY && tVuln && d < 11 && r < L.special * 0.45) {
         this.press(BTN.ULT);
       } else if (me.energy >= specialCost + 10 && tVuln && r < L.special * 0.25 && d < 10) {
         this.press(BTN.SPECIAL);
@@ -145,6 +154,22 @@ export class CpuBrain {
       out.mz = l > 1 ? this.mz / l : this.mz;
     }
     return out;
+  }
+
+  /**
+   * Mode Vagues : a-t-on le droit d'attaquer maintenant ? Un boss attaque toujours ; un démon ou un
+   * monstre seulement s'il est le plus proche de la cible ; les fléaux mineurs, à deux.
+   */
+  isAssailant(me, t, m) {
+    if (me.def.boss) return true;
+    const d = (f) => (f.x - t.x) ** 2 + (f.z - t.z) ** 2;
+    const mine = d(me);
+    let closer = 0;
+    for (const f of m.fighters) {
+      if (f === me || f.team !== me.team || !f.alive || f.gone) continue;
+      if (f.def.boss || d(f) < mine) closer++;
+    }
+    return closer < (me.def.tier === 1 ? 2 : 1);
   }
 
   /** Un coup ou un projectile adverse arrive-t-il sur nous ? */

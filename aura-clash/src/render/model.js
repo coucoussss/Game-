@@ -171,6 +171,7 @@ export class CharacterModel {
     this.transformed = false;
     this.build();
     this.buildAura();
+    if (def.look.size) this.root.scale.setScalar(def.look.size); // démons géants et boss
   }
 
   mat(color, extra) {
@@ -671,6 +672,89 @@ export class CharacterModel {
         this.part(new THREE.ConeGeometry(0.035, 0.2, 6), this.mat('#1a0a10'), this.head, [sd * 0.11, 0.31, 0.03], [-0.35, 0, -sd * 0.45], 0.008);
       }
     }
+    // --- Attributs des démons et monstres (mode Vagues) ---
+    const hornM = () => this.mat(L.horn || '#1a0a10');
+    if (x.includes('bigHorns')) {
+      // Grandes cornes recourbées : segments de plus en plus fins qui s'enroulent vers l'arrière
+      const hm = hornM();
+      for (const sd of [-1, 1]) {
+        let g = new THREE.Group();
+        g.position.set(sd * 0.12, 0.27, 0.04);
+        g.rotation.set(-0.2, 0, -sd * 0.7);
+        this.head.add(g);
+        const segs = 4;
+        for (let i = 0; i < segs; i++) {
+          const r0 = 0.05 * (1 - i / segs);
+          const r1 = 0.05 * (1 - (i + 1) / segs) + 0.004;
+          const len = 0.11;
+          this.part(new THREE.CylinderGeometry(r1, r0, len, 7), hm, g, [0, len / 2, 0], null, 0.008);
+          const n = new THREE.Group();
+          n.position.y = len;
+          n.rotation.set(-0.45, 0, sd * 0.25);
+          g.add(n);
+          g = n;
+        }
+      }
+    }
+    if (x.includes('crown')) {
+      // Couronne de pointes d'os au sommet du crâne
+      const cm = this.mat(L.accent || '#d8b040');
+      const ring = this.part(new THREE.TorusGeometry(0.15, 0.022, 6, 18), cm, this.head, [0, 0.31, -0.02], [Math.PI / 2 - 0.25, 0, 0], 0.008);
+      ring.receiveShadow = false;
+      for (let i = 0; i < 7; i++) {
+        const a = (i / 7) * TAU;
+        const tall = i === 0 ? 0.16 : 0.09;
+        this.part(new THREE.ConeGeometry(0.025, tall, 5), cm, this.head, [Math.sin(a) * 0.15, 0.33 + tall / 2 + Math.cos(a) * 0.035, Math.cos(a) * 0.15 - 0.02], [Math.cos(a) * 0.25 - 0.25, 0, -Math.sin(a) * 0.25], 0.006);
+      }
+    }
+    if (x.includes('claws')) {
+      const cm = hornM();
+      for (const hand of [this.handL, this.handR]) {
+        for (let i = -1; i <= 1; i++) {
+          this.part(new THREE.ConeGeometry(0.014, 0.11, 5), cm, hand, [i * 0.028, -0.11, 0.04], [0.5, 0, 0], 0.005);
+        }
+      }
+    }
+    if (x.includes('spikes')) {
+      // Piques osseuses sur les épaules et le long du dos
+      const sm = hornM();
+      for (const sh of [this.shL, this.shR]) {
+        for (let i = 0; i < 3; i++) this.part(new THREE.ConeGeometry(0.03, 0.15 - i * 0.03, 5), sm, sh, [(i - 1) * 0.045, 0.07, -0.02], [-0.2, 0, (i - 1) * 0.3], 0.006);
+      }
+      for (let i = 0; i < 4; i++) this.part(new THREE.ConeGeometry(0.028, 0.13, 5), sm, torso, [0, 0.48 - i * 0.12, -0.14 * b - 0.02], [-1.9, 0, 0], 0.006);
+    }
+    if (x.includes('tail')) {
+      const tm = L.tail ? this.mat(L.tail) : this.matSkin;
+      this.chain(this.hips, { pos: [0, -0.02, -0.15], segs: 6, len: 0.13, w: 0.07, t: 0.07, mat: tm, rest: [1.25, 0], drag: 0.05, stiff: 25 });
+    }
+    if (x.includes('wings')) {
+      // Ailes membraneuses : une armature d'os et trois voiles, qui battent lentement
+      const wm = this.mat(L.wing || '#2a0a1a');
+      wm.side = THREE.DoubleSide;
+      const bone = hornM();
+      const span = L.wingSpan || 0.9;
+      this.wings = [];
+      for (const sd of [-1, 1]) {
+        const root = new THREE.Group();
+        root.position.set(sd * 0.1 * b, 0.42, -0.13 * b);
+        torso.add(root);
+        const arm = new THREE.Group();
+        root.add(arm);
+        this.part(new THREE.CylinderGeometry(0.018, 0.03, span, 6), bone, arm, [sd * span * 0.5, span * 0.25, 0], [0, 0, -sd * 1.1], 0.006);
+        const shape = new THREE.Shape();
+        shape.moveTo(0, 0);
+        shape.lineTo(span, span * 0.55);
+        shape.quadraticCurveTo(span * 0.85, span * 0.05, span * 0.95, -span * 0.35);
+        shape.quadraticCurveTo(span * 0.65, -span * 0.15, span * 0.6, -span * 0.6);
+        shape.quadraticCurveTo(span * 0.35, -span * 0.25, span * 0.2, -span * 0.55);
+        shape.quadraticCurveTo(span * 0.1, -span * 0.2, 0, 0);
+        const memb = new THREE.Mesh(new THREE.ShapeGeometry(shape, 8), wm);
+        memb.scale.x = sd;
+        memb.castShadow = true;
+        arm.add(memb);
+        this.wings.push({ root, sd });
+      }
+    }
     if (x.includes('talismans')) {
       this.talismans = [];
       const paper = this.mat('#f8f0d8');
@@ -1053,6 +1137,10 @@ export class CharacterModel {
         tl.position.set(Math.sin(a) * 0.75, 1.15 + Math.sin(this.time * 2 + i) * 0.15, Math.cos(a) * 0.75);
         tl.rotation.set(0.2, a + Math.PI / 2, Math.sin(this.time * 3 + i) * 0.3);
       });
+    }
+    if (this.wings) {
+      const flap = Math.sin(this.time * (f.onGround === false ? 9 : 2.4));
+      for (const w of this.wings) w.root.rotation.set(0.15, -w.sd * (0.55 + flap * 0.35), 0);
     }
     if (this.orb) this.orb.scale.setScalar(1 + Math.sin(this.time * 6) * 0.15 + this.auraLevel * 0.5);
     this.setTransformed(!!f.transformed);
