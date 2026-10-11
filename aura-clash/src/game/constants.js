@@ -29,8 +29,8 @@ export const NO_INPUT = Object.freeze({ mx: 0, mz: 0, held: 0, pressed: 0 });
 
 /** Valeurs par défaut des types de coups. */
 export const HIT_TYPES = {
-  light: { stun: 0.34, kb: 2.4, up: 0, hitstop: 0.05, shake: 0.08 },
-  heavy: { stun: 0.52, kb: 7, up: 0, hitstop: 0.08, shake: 0.18 },
+  light: { stun: 0.34, kb: 2.4, up: 0, hitstop: 0.065, shake: 0.1 },
+  heavy: { stun: 0.52, kb: 7, up: 0, hitstop: 0.11, shake: 0.22 },
   launch: { stun: 0.8, kb: 2.5, up: 11, hitstop: 0.1, shake: 0.25 },
   kd: { stun: 0.9, kb: 13, up: 5.5, kd: true, hitstop: 0.12, shake: 0.35 },
 };

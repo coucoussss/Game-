@@ -1,6 +1,6 @@
 # ⚡ Aura Clash
 
-Jeu de combat 3D en **cel-shading**, style anime, pour Windows : 6 combattants originaux, 5 arènes,
+Jeu de combat 3D en **cel-shading**, style anime, pour Windows : 10 combattants originaux (6 de base, 4 à débloquer), 5 arènes,
 combats 1 contre 1 ou 2 contre 2, IA, entraînement, et **multijoueur en réseau local** (le serveur est
 dans le `.exe`). Tout est généré par code : modèles low-poly, animations, effets, musique et bruitages.
 Aucun fichier sous licence, aucune ressource à télécharger.
@@ -107,6 +107,22 @@ utilise la première manette branchée, le joueur 2 la seconde. F11 bascule en p
 | **Lyra Vel**, mage de glace et de feu | Boule de feu et éclat de glace en alternance, pic de glace | Tempête élémentaire (zones) | Météore Primordial |
 | **Goro Tetsuda**, pugiliste martial | Jabs rapides, charge du taureau (encaisse les coups légers) | Onde de choc au sol | Cent Poings du Dragon |
 | **Sora Mikage**, invocatrice | Orbe spirituel à tête chercheuse | Renards-esprits alliés | Dragon Céleste |
+
+**À débloquer dans la boutique :**
+
+| Personnage | Style | Spécial | Ultime | Prix |
+|---|---|---|---|---|
+| **Raiden Kurogane**, lancier du tonnerre | Lance à longue portée, éclair rapide | Tempête de foudre | Jugement du Tonnerre | 1200 Ryō |
+| **Hana Kazemiya**, danseuse du vent | Éventails, lames de vent en éventail | Tornade | Typhon Céleste | 1200 Ryō |
+| **Garo le Colosse**, géant de pierre | Poings de roche, rocher lancé, encaisse les coups légers | Séisme | Éruption Titanesque | 1800 Ryō |
+| **Yami Kurosaki**, épéiste démoniaque | Lame maudite, orbe à tête chercheuse | Frappe d'ombre | Éclipse Infernale | 2500 Ryō |
+
+### Boutique et Ryō
+La monnaie du jeu est le **Ryō**. On démarre avec 500 Ryō. Chaque match rapporte : victoire +300,
+match nul +180, défaite +120, plus 40 par manche gagnée et 50 de bonus en réseau local. La **Boutique**
+(menu principal) montre chaque personnage en 3D avec sa liste de coups. Un personnage acheté est
+jouable dans tous les modes. Les personnages verrouillés restent des adversaires possibles pour l'IA.
+Le solde et les achats sont enregistrés sur la machine (ou dans le navigateur pour la version web).
 
 Arènes : Plateau des Falaises, Temple du Crépuscule, Toits de Néo-Kyoto, Glacier Éternel, Cœur du Volcan.
 

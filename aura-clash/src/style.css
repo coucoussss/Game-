@@ -142,7 +142,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); c
 .select-head { font: italic 900 3vh var(--display); margin-bottom: 2vh; text-shadow: 0 2px 0 #000; }
 .select-head .step { color: var(--gold); margin-right: 1vw; }
 .select-body { display: flex; justify-content: space-between; flex: 1; gap: 2vw; min-height: 0; }
-.char-grid { display: grid; grid-template-columns: repeat(2, 13vw); grid-auto-rows: 17vh; gap: 1vh 0.8vw; align-content: start; }
+.char-grid { display: grid; grid-template-columns: repeat(3, 11.5vw); grid-auto-rows: 15.5vh; gap: 1vh 0.8vw; align-content: start; }
 .char-card { position: relative; border: 3px solid rgba(255, 255, 255, 0.25); background: linear-gradient(160deg, color-mix(in srgb, var(--c, #888) 45%, #000), #0a0a16); cursor: pointer;
   overflow: hidden; padding: 0; transform: skewX(-6deg); color: #fff; text-align: left; transition: transform 0.08s, border-color 0.08s; }
 .char-card .portrait { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
@@ -320,3 +320,18 @@ body.touch-on .aslot { width: 7vw; }
   animation: slashIn 0.9s cubic-bezier(.2, .9, .2, 1) forwards; }
 @keyframes slashIn { 0% { transform: rotate(var(--a)) scaleX(0); opacity: 1; } 18% { transform: rotate(var(--a)) scaleX(1); opacity: 1; }
   70% { transform: rotate(var(--a)) scaleX(1) scaleY(0.6); opacity: 1; } 100% { transform: rotate(var(--a)) scaleX(1) scaleY(0); opacity: 0; } }
+
+/* --- Boutique et personnages verrouillés --- */
+.char-card .lock { position: absolute; top: 0.6vh; right: 0.5vw; font: 800 1.3vh var(--font); background: rgba(10, 8, 26, 0.85); color: var(--gold); padding: 0.2vh 0.5vw; border: 1px solid var(--gold); }
+.char-card.locked .portrait { filter: grayscale(0.85) brightness(0.55); }
+.char-card.owned .lock { color: #5aff8a; border-color: #5aff8a; }
+.wallet { position: absolute; right: 5vw; top: 4vh; font: italic 900 3.4vh var(--display); color: var(--gold); text-shadow: 0 2px 0 #000, 0 0 12px rgba(255, 200, 60, 0.5); }
+.wallet small { font-size: 0.55em; color: #fff; }
+.wallet.inline { position: static; margin-left: 2vw; font-size: 2.6vh; }
+.shop-grid { grid-template-columns: repeat(2, 13vw); grid-auto-rows: 20vh; }
+.shop-foot { display: flex; align-items: center; justify-content: space-between; gap: 2vw; color: var(--muted); font-size: 1.5vh; margin-top: 1vh; }
+.buy-line { margin-top: 1.2vh; font-size: 1.8vh; }
+.buy-line b { color: var(--gold); } .buy-line .ok { color: #5aff8a; } .buy-line .miss { color: #ff8a9a; }
+.reward { margin-top: 1vh; font: italic 900 3.2vh var(--display); color: var(--gold); text-shadow: 0 2px 0 #000; }
+.reward small { font: 600 1.6vh var(--font); color: #fff; }
+@media (orientation: portrait) { .shop-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

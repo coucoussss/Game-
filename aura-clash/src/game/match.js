@@ -710,11 +710,12 @@ export class Match {
   updateAoe(e, owner, dt) {
     if (!e.done && e.t >= e.delay) {
       e.done = true;
-      const h = e.type === 'meteor' ? 5 : 2.6;
+      const h = e.type === 'meteor' || e.type === 'tornado' || e.r >= 4 ? 5 : 2.6;
       this.areaHit(owner, e.x, e.z, e.r, e.hit, h);
       this.emit('fx', { fx: 'aoeBoom', type: e.type, x: e.x, y: 0, z: e.z, r: e.r });
-      this.emit('sfx', { name: e.type === 'meteor' ? 'bigExplosion' : e.type === 'icepillar' ? 'ice' : 'fire' });
-      this.emit('shake', { amt: e.type === 'meteor' ? 1.0 : 0.25 });
+      const snd = { meteor: 'bigExplosion', icepillar: 'ice', thunder: 'thunder', tornado: 'dash', windburst: 'bigExplosion', darkblast: 'bigExplosion', rockpillar: 'shockwave', rockblast: 'bigExplosion' };
+      this.emit('sfx', { name: snd[e.type] || 'fire' });
+      this.emit('shake', { amt: e.r >= 4 ? 1.0 : 0.25 });
       if (e.impact) this.emit('impact', { text: e.impact, x: e.x, y: 2, z: e.z });
     }
     if (e.done && e.zone) {

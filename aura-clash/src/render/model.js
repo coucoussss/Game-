@@ -162,6 +162,8 @@ export class CharacterModel {
     this.topMats = [];
     this.spikes = [];
     this.walkPhase = 0;
+    this.loco = { phase: 0, m: 0 };
+    this.dispYaw = null;
     this.time = Math.random() * 10;
     this.cur = mergePose(STANCES[def.stance]);
     this.lastVel = new THREE.Vector3();
@@ -279,7 +281,7 @@ export class CharacterModel {
       hand.position.y = -0.29;
       el.add(hand);
       if (x.includes('gloves')) {
-        const g = this.part(new THREE.SphereGeometry(0.1 * b, 14, 10), this.mat('#d8262f'), hand, [0, -0.03, 0.01]);
+        const g = this.part(new THREE.SphereGeometry(0.1 * b, 14, 10), this.mat(L.gloves || '#d8262f'), hand, [0, -0.03, 0.01]);
         g.scale.set(0.9, 1, 1.05);
         this.part(limbGeo(0.07 * b, 0.075 * b, 0.07), this.mat('#f2f2f2'), hand, [0, 0.05, 0], null, 0.01);
       } else {
@@ -585,7 +587,7 @@ export class CharacterModel {
       this.handR.add(g);
       this.part(new THREE.CylinderGeometry(0.022, 0.022, 0.24, 8), this.mat('#2a1e3a'), g, [0, 0.0, 0], null, 0.01);
       this.part(new THREE.CylinderGeometry(0.065, 0.065, 0.022, 10), this.mat('#d8b040'), g, [0, 0.13, 0], null, 0.01);
-      const blade = this.part(new THREE.BoxGeometry(0.032, 0.88, 0.012), this.mat('#e8f4ff', { emissive: new THREE.Color('#5fa8ff'), emissiveIntensity: 0.25 }), g, [0, 0.58, 0], null, 0.008);
+      const blade = this.part(new THREE.BoxGeometry(0.032, 0.88, 0.012), this.mat(L.blade ? '#2a0a12' : '#e8f4ff', { emissive: new THREE.Color(L.blade || '#5fa8ff'), emissiveIntensity: L.blade ? 0.9 : 0.25 }), g, [0, 0.58, 0], null, 0.008);
       this.blade = blade;
       this.tip = new THREE.Object3D();
       this.tip.position.y = 1.0;
@@ -620,6 +622,30 @@ export class CharacterModel {
       this.part(new THREE.ConeGeometry(0.04, 0.16, 6), this.mat('#d8b040'), g, [0, -0.6, 0], [Math.PI, 0, 0], 0.008);
       this.orb = orb;
       this.tip = orb;
+    }
+    if (x.includes('spear')) {
+      // Lance : hampe longue, lame en pointe, anneau doré
+      const g = new THREE.Group();
+      g.position.set(0, -0.04, 0);
+      this.handR.add(g);
+      this.part(new THREE.CylinderGeometry(0.022, 0.026, 2.0, 8), this.mat('#3a2a22'), g, [0, 0.3, 0], null, 0.012);
+      this.part(new THREE.ConeGeometry(0.06, 0.38, 4), this.mat('#e8eef8', { emissive: new THREE.Color(this.def.aura), emissiveIntensity: 0.35 }), g, [0, 1.48, 0], null, 0.01).scale.z = 0.35;
+      this.part(new THREE.TorusGeometry(0.045, 0.014, 6, 12), this.mat('#d8b040'), g, [0, 1.28, 0], [Math.PI / 2, 0, 0], 0.006);
+      this.tip = new THREE.Object3D();
+      this.tip.position.y = 1.6;
+      g.add(this.tip);
+    }
+    if (x.includes('fans')) {
+      // Éventails ouverts dans chaque main
+      for (const hand of [this.handL, this.handR]) {
+        const fan = this.part(new THREE.CircleGeometry(0.24, 14, 0, Math.PI), this.mat(L.accent), hand, [0, -0.06, 0.05], [0, Math.PI / 2, Math.PI / 2], 0.008);
+        fan.material.side = THREE.DoubleSide;
+      }
+    }
+    if (x.includes('horns')) {
+      for (const sd of [-1, 1]) {
+        this.part(new THREE.ConeGeometry(0.035, 0.2, 6), this.mat('#1a0a10'), this.head, [sd * 0.11, 0.31, 0.03], [-0.35, 0, -sd * 0.45], 0.008);
+      }
     }
     if (x.includes('talismans')) {
       this.talismans = [];
@@ -728,21 +754,6 @@ export class CharacterModel {
     }
 
     switch (f.state) {
-      case 'walk': {
-        const p = mergePose(stance);
-        this.walkPhase += speed * 0.035;
-        const s = Math.sin(this.walkPhase * 4);
-        const c = Math.cos(this.walkPhase * 4);
-        const fw = Math.sign(vF) * Math.min(1, Math.abs(vF) / 5);
-        const sd = Math.min(1, Math.abs(vS) / 5);
-        p.hipL[0] += s * 0.6 * fw; p.hipR[0] -= s * 0.6 * fw;
-        p.hipL[2] += s * 0.25 * sd; p.hipR[2] += s * 0.25 * sd;
-        p.knL[0] += Math.max(0, c) * 0.8; p.knR[0] += Math.max(0, -c) * 0.8;
-        p.hy += Math.abs(c) * 0.04 - 0.02;
-        p.torso[0] += fw * 0.12;
-        p.shL[0] -= s * 0.15; p.shR[0] += s * 0.15;
-        return p;
-      }
       case 'air':
       case 'land': {
         if (f.state === 'land') return mergePose(stance, { hy: -0.22, knL: [1.0, 0, 0], knR: [1.0, 0, 0], hipL: [-0.6, 0, -0.1], hipR: [-0.5, 0, 0.1] });
@@ -774,6 +785,30 @@ export class CharacterModel {
       }
       case 'hitstun': {
         const air = !f.onGround;
+        const r = this.react;
+        if (r && !air) {
+          const sd = r.side;
+          if (r.kind === 'heavy') {
+            // Plié en deux par un coup au ventre
+            return mergePose(stance, {
+              hy: -0.2, torso: [0.8, sd * 0.25, 0], head: [0.45, -sd * 0.2, 0], shL: [-0.7, 0, 0.1], elL: [-1.6, 0, 0],
+              shR: [-0.6, 0, -0.1], elR: [-1.5, 0, 0], hipL: [-0.5, 0, -0.1], knL: [0.9, 0, 0], hipR: [0.2, 0, 0.1], knR: [0.7, 0, 0],
+            });
+          }
+          // Tête qui part sur le côté, épaule qui suit
+          return mergePose(stance, {
+            hy: -0.06, torso: [-0.35, sd * 0.55, sd * 0.18], head: [-0.4, sd * 0.6, sd * 0.35],
+            shL: [-0.2, 0, -0.9 - sd * 0.2], elL: [-0.5, 0, 0], shR: [-0.3, 0, 0.9 - sd * 0.2], elR: [-0.6, 0, 0],
+            hipL: [-0.2, 0, -0.12], knL: [0.35, 0, 0], hipR: [0.25, 0, 0.12], knR: [0.4, 0, 0],
+          });
+        }
+        if (air) {
+          // Projeté en l'air : dos cambré, bras et jambes qui traînent
+          return mergePose(stance, {
+            torso: [-0.75, 0, 0], head: [-0.6, 0, 0], shL: [-2.4, 0, -0.6], shR: [-2.2, 0, 0.7], elL: [-0.3, 0, 0], elR: [-0.4, 0, 0],
+            hipL: [0.3, 0, -0.15], knL: [0.6, 0, 0], hipR: [0.1, 0, 0.15], knR: [0.9, 0, 0], body: [-0.7 - Math.min(0.8, f.st * 1.5), 0, 0],
+          });
+        }
         return mergePose(stance, {
           hy: -0.05, torso: [-0.55, 0.25, 0], head: [-0.45, 0, 0], shL: [-0.3, 0, -1.0], shR: [-0.5, 0, 0.9],
           elL: [-0.4, 0, 0], elR: [-0.6, 0, 0], body: air ? [-0.7 - Math.min(0.6, f.st), 0, 0] : [0, 0, 0],
@@ -802,14 +837,56 @@ export class CharacterModel {
       }
       case 'move':
         return this.movePose(f, stance);
+      case 'walk':
       case 'idle':
       default: {
         const p = mergePose(stance);
         p.hy += breathe;
         p.shL[0] += breathe; p.shR[0] -= breathe;
+        this.locomotion(p, f);
         return p;
       }
     }
+  }
+
+  /**
+   * Marche et pas chassés : cycle de jambes calé sur la distance parcourue (les pieds ne glissent
+   * pas), direction prise en compte (avant, arrière, côté), buste penché dans le mouvement, bras qui
+   * se balancent, et transition progressive entre arrêt et marche.
+   */
+  locomotion(p, f) {
+    const L = this.loco;
+    const m = L.m;
+    if (m < 0.01) return;
+    const yaw = f.yaw;
+    const vF = f.vx * Math.sin(yaw) + f.vz * Math.cos(yaw);
+    const vS = f.vx * Math.cos(yaw) - f.vz * Math.sin(yaw);
+    const sp = Math.hypot(vF, vS) || 1;
+    const dF = vF / sp;
+    const dS = vS / sp;
+    const s = Math.sin(L.phase);
+    const c = Math.cos(L.phase);
+    const run = clamp((sp - 5.5) / 2, 0, 1);
+    const amp = (0.5 + run * 0.25) * m;
+    // Les jambes quittent la garde écartée pour marcher
+    for (const k of ['hipL', 'hipR', 'knL', 'knR']) {
+      const tgt = k.startsWith('kn') ? [0.15, 0, 0] : [-0.05, 0, k === 'hipL' ? -0.06 : 0.06];
+      for (let i = 0; i < 3; i++) p[k][i] += (tgt[i] - p[k][i]) * m * 0.75;
+    }
+    const dir = dF >= -0.2 ? 1 : -1;
+    p.hipL[0] += -s * amp * dF * 1.1;
+    p.hipR[0] += s * amp * dF * 1.1;
+    p.hipL[2] += Math.max(0, s) * 0.32 * Math.abs(dS) * m;
+    p.hipR[2] += Math.max(0, -s) * 0.32 * Math.abs(dS) * m;
+    p.knL[0] += Math.max(0, c * dir) * (0.85 + run * 0.4) * m + 0.12 * m;
+    p.knR[0] += Math.max(0, -c * dir) * (0.85 + run * 0.4) * m + 0.12 * m;
+    p.hy += (-0.035 + Math.abs(c) * 0.045) * m;
+    p.torso[0] += (dF * (0.14 + run * 0.18)) * m;
+    p.body[2] -= dS * 0.08 * m;
+    p.hips[1] += s * 0.12 * m;
+    p.torso[1] -= s * 0.09 * m;
+    p.shL[0] += s * 0.22 * dF * m;
+    p.shR[0] -= s * 0.22 * dF * m;
   }
 
   movePose(f, stance) {
@@ -824,7 +901,9 @@ export class CharacterModel {
     const strike = mergePose(stance, anim.strike);
     let p;
     let impact = 0; // 1 au moment de la frappe, décroît ensuite (pour le transfert de poids)
+    let commit = 0; // engagement du corps dans le coup (pas en avant)
     if (t < s) {
+      commit = (t / s) * 0.35;
       // Anticipation : on arme lentement puis on se « charge » juste avant de frapper
       const k = clamp(t / (s * 0.85), 0, 1);
       p = lerpPose(base, wind, k * k * (3 - 2 * k) * 1.04);
@@ -834,10 +913,19 @@ export class CharacterModel {
       const over = 1 + 2.2 * (k - 1) ** 3 + 1.2 * (k - 1) ** 2; // « back out » : dépasse puis revient
       p = lerpPose(wind, strike, over);
       impact = 1 - clamp((t - s) / 0.18, 0, 1);
+      commit = 1;
     } else {
       // Retour en garde : décélération douce (le poids du corps revient)
       const k = clamp((t - holdEnd) / Math.max(0.05, mv.dur - holdEnd), 0, 1);
       p = lerpPose(strike, base, 1 - (1 - k) ** 3);
+      commit = (1 - k) ** 2;
+    }
+    // Coups de poing et de lame : le pied avant glisse en avant, le corps s'engage dans la frappe
+    if (!anim.strike.hipL && !anim.strike.hipR && !anim.spin && !anim.rush) {
+      const lunge = { hipL: [-0.7, 0, -0.16], knL: [0.6, 0, 0], hipR: [0.42, 0, 0.12], knR: [0.4, 0, 0] };
+      for (const key in lunge) for (let i = 0; i < 3; i++) p[key][i] += (lunge[key][i] - p[key][i]) * commit * 0.85;
+      p.hy -= 0.08 * commit;
+      p.torso[0] += 0.1 * commit;
     }
     // Le coup part des hanches : une partie de la rotation du torse passe dans le bassin,
     // le corps s'abaisse à l'impact, et la tête reste tournée vers l'adversaire.
@@ -875,7 +963,19 @@ export class CharacterModel {
   update(dt, f, extra = {}) {
     this.time += dt;
     this.root.position.set(f.x, f.y, f.z);
-    this.root.rotation.y = f.yaw;
+    // Orientation lissée : le personnage pivote au lieu de sauter d'un angle à l'autre
+    if (this.dispYaw === null) this.dispYaw = f.yaw;
+    let dy = Math.atan2(Math.sin(f.yaw - this.dispYaw), Math.cos(f.yaw - this.dispYaw));
+    if (Math.abs(dy) > 2.6 && f.state === 'move') this.dispYaw = f.yaw; // demi-tour instantané (téléportation)
+    else this.dispYaw += dy * Math.min(1, dt * 16);
+    this.root.rotation.y = this.dispYaw;
+    // Locomotion : vitesse au sol → amplitude et phase du cycle de marche
+    const gsp = Math.hypot(f.vx, f.vz);
+    const walking = (f.state === 'walk' || f.state === 'idle') && f.onGround !== false && gsp > 0.3;
+    const wantM = walking ? Math.min(1, gsp / 4) : 0;
+    this.loco.m += (wantM - this.loco.m) * Math.min(1, dt * 9);
+    if (walking) this.loco.phase += dt * (gsp / 1.6) * Math.PI;
+    this.react = extra.react || null;
 
     const target = this.targetPose(f, extra);
     const rate = f.state === 'move' ? 48 : f.state === 'hitstun' || f.state === 'ko' ? 26 : 14;

@@ -1,6 +1,7 @@
 // Point d'entrée du jeu (fenêtre Electron ou navigateur) : assemble le rendu, le son, les entrées,
 // les menus et la boucle principale.
 import { Settings } from './core/settings.js';
+import { Profile } from './core/profile.js';
 import { Input } from './core/input.js';
 import { AudioEngine } from './core/audio.js';
 import { Stage } from './render/stage.js';
@@ -18,6 +19,7 @@ import { CHARACTERS, CHAR_BY_ID } from './game/characters.js';
 class App {
   constructor() {
     this.settings = new Settings();
+    this.profile = new Profile();
     this.input = new Input(this.settings);
     this.audio = new AudioEngine(this.settings);
     const canvas = document.getElementById('game');

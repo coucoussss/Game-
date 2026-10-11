@@ -5,6 +5,7 @@ import { ARENAS } from '../render/arenas.js';
 import { ACTIONS, PAD_NAMES } from '../core/settings.js';
 import { keyLabel } from '../core/input.js';
 import { NetClient, parseAddress, LAN_PORT } from '../net/session.js';
+import { REWARDS } from '../core/profile.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const h = (html) => {
@@ -16,6 +17,8 @@ const lastIp = () => { try { return localStorage.getItem('auraclash.lastIp') || 
 // Version « page web » (artefact, iPad) : pas de réseau local, le navigateur ne peut ni héberger ni joindre.
 const WEB_ONLY = typeof window !== 'undefined' && !!window.AURA_WEB_ONLY;
 const randomChar = () => CHARACTERS[Math.floor(Math.random() * CHARACTERS.length)].id;
+const randomOf = (ids) => ids[Math.floor(Math.random() * ids.length)];
+const baseChars = () => CHARACTERS.filter((c) => !c.price).map((c) => c.id);
 const randomArena = () => ARENAS[Math.floor(Math.random() * ARENAS.length)].id;
 
 const FIREWALL_HELP = `
@@ -183,9 +186,10 @@ export class UI {
       { label: '2 contre 2', hint: 'avec ou sans partenaire humain', action: () => this.setup2v2() },
       { label: 'Réseau local (LAN)', hint: WEB_ONLY ? 'disponible dans la version PC (.exe)' : 'créer ou rejoindre une partie', disabled: WEB_ONLY, action: () => this.lanMenu() },
       { label: 'Entraînement', hint: 'mannequin configurable', action: () => this.setupTraining() },
+      { label: 'Boutique', hint: `${this.app.profile.ryo} Ryō — débloque de nouveaux combattants`, action: () => this.shop() },
       { label: 'Options', hint: 'son, graphismes, commandes', action: () => this.options(() => this.mainMenu()) },
       ...(electron ? [{ label: 'Quitter', action: () => window.auraNative.quit() }] : []),
-    ], { cls: 'main-menu', footer: '<div class="menu-logo"><span class="logo-a">AURA</span><span class="logo-b">CLASH</span></div><div class="controls-hint">Flèches / manette : naviguer — Entrée / A : valider — Échap / B : retour</div>' });
+    ], { cls: 'main-menu', footer: `<div class="wallet">${this.app.profile.ryo} <small>Ryō</small></div>` + '<div class="menu-logo"><span class="logo-a">AURA</span><span class="logo-b">CLASH</span></div><div class="controls-hint">Flèches / manette : naviguer — Entrée / A : valider — Échap / B : retour</div>' });
     this.show({ el, back: () => this.title() });
   }
 
@@ -232,11 +236,13 @@ export class UI {
   charSelect(slots, onDone, onBack, startIndex = 0, picks = []) {
     const idx = startIndex;
     const slot = slots[idx];
+    const human = slot.ctrl.type === 'human';
+    const locked = (id) => human && !this.app.profile.owns(id);
     const el = h(`<div class="screen select">
       <div class="select-head"><span class="step">${idx + 1} / ${slots.length}</span> <b>${esc(slot.label)}</b> — choisis un combattant</div>
       <div class="select-body">
         <div class="char-grid">
-          ${CHARACTERS.map((c) => `<button class="char-card" data-nav data-id="${c.id}" style="--c:${c.aura}">${this.portrait(c.id)}<span class="cname">${esc(c.name)}</span><span class="ctitle">${esc(c.title)}</span></button>`).join('')}
+          ${CHARACTERS.map((c) => `<button class="char-card ${locked(c.id) ? 'locked' : ''}" data-nav data-id="${c.id}" style="--c:${c.aura}">${this.portrait(c.id)}<span class="cname">${esc(c.name)}</span><span class="ctitle">${esc(c.title)}</span>${locked(c.id) ? `<span class="lock">🔒 ${c.price} Ryō</span>` : ''}</button>`).join('')}
           <button class="char-card random" data-nav data-id="random"><div class="portrait fallback">?</div><span class="cname">Aléatoire</span><span class="ctitle">Laisse le destin choisir</span></button>
         </div>
         <div class="char-info"></div>
@@ -260,7 +266,13 @@ export class UI {
     };
     el.querySelectorAll('.char-card').forEach((card) => {
       card.addEventListener('click', () => {
-        const id = card.dataset.id === 'random' ? randomChar() : card.dataset.id;
+        if (card.dataset.id !== 'random' && locked(card.dataset.id)) {
+          const c = CHAR_BY_ID[card.dataset.id];
+          this.app.audio.play('denied');
+          this.toast(`${c.name} est verrouillé : débloque-le dans la Boutique (${c.price} Ryō).`, 3.5);
+          return;
+        }
+        const id = card.dataset.id === 'random' ? (human ? randomOf(this.app.profile.ownedIds()) : randomChar()) : card.dataset.id;
         const next = picks.slice();
         next[idx] = id;
         this.app.audio.play('ui_ok');
@@ -289,6 +301,59 @@ export class UI {
     el.querySelectorAll('.arena-card').forEach((c) => c.addEventListener('click', () => onDone(c.dataset.id === 'random' ? randomArena() : c.dataset.id)));
     this.show({ el, back: onBack, onFocus: (f) => { if (f.dataset.id !== 'random') this.app.setBackdrop('arena', f.dataset.id); } });
     this.app.setBackdrop('arena', ARENAS[0].id);
+  }
+
+  // --- Boutique ---------------------------------------------------------------------------
+
+  shop() {
+    const prof = this.app.profile;
+    const items = CHARACTERS.filter((c) => c.price);
+    const el = h(`<div class="screen select shop">
+      <div class="select-head"><b>BOUTIQUE</b> — débloque de nouveaux combattants <span class="wallet inline">${prof.ryo} <small>Ryō</small></span></div>
+      <div class="select-body">
+        <div class="char-grid shop-grid">
+          ${items.map((c) => `<button class="char-card ${prof.owns(c.id) ? 'owned' : 'locked'}" data-nav data-id="${c.id}" style="--c:${c.aura}">${this.portrait(c.id)}<span class="cname">${esc(c.name)}</span><span class="ctitle">${esc(c.title)}</span>
+            <span class="lock">${prof.owns(c.id) ? '✔ Débloqué' : `${c.price} Ryō`}</span></button>`).join('')}
+        </div>
+        <div class="char-info"></div>
+      </div>
+      <div class="shop-foot">Gagne des Ryō en combattant : victoire +${REWARDS.win}, défaite +${REWARDS.loss}, +${REWARDS.perRound} par manche gagnée, +${REWARDS.lanBonus} en réseau local.
+        <button class="btn small" data-nav data-act="back">Retour</button></div>
+    </div>`);
+    const info = el.querySelector('.char-info');
+    const showInfo = (id) => {
+      const c = CHAR_BY_ID[id];
+      if (!c) return;
+      const owned = prof.owns(id);
+      const stat = (label, v) => `<div class="stat"><span>${label}</span><div class="sbar"><i style="width:${Math.round(Math.max(0, Math.min(1, v)) * 100)}%"></i></div></div>`;
+      info.innerHTML = `<h3 style="color:${c.aura}">${esc(c.name)}</h3><div class="ititle">${esc(c.title)}</div>
+        <p>${esc(c.blurb)}</p>
+        ${stat('Vie', (c.hp - 800) / 600)}${stat('Vitesse', (c.speed - 5) / 3)}${stat('Portée', c.aiZoning)}
+        <table class="moves">${moveList(c).map(([k, v]) => `<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join('')}</table>
+        <div class="buy-line">${owned ? '<b class="ok">Déjà débloqué</b>' : `Prix : <b>${c.price} Ryō</b> ${prof.ryo < c.price ? `<span class="miss">(il te manque ${c.price - prof.ryo})</span>` : '— Entrée / A pour acheter'}`}</div>`;
+      this.app.setBackdrop('select', id);
+    };
+    el.querySelectorAll('.char-card').forEach((card) => card.addEventListener('click', () => {
+      const c = CHAR_BY_ID[card.dataset.id];
+      const res = prof.buy(c.id);
+      if (res === 'ok') {
+        this.app.audio.play('roundWin');
+        this.toast(`${c.name} est débloqué ! Il est jouable dans tous les modes.`, 3.5);
+        this.shop();
+        const again = this.screen.el.querySelector(`[data-id="${c.id}"]`);
+        if (again) this.focus(again, false);
+        showInfoAfter(c.id);
+      } else if (res === 'owned') {
+        this.toast(`${c.name} est déjà débloqué.`);
+      } else {
+        this.app.audio.play('denied');
+        this.toast(`Il te manque ${c.price - prof.ryo} Ryō pour ${c.name}.`);
+      }
+    }));
+    const showInfoAfter = (id) => { const s2 = this.screen; if (s2 && s2.onFocus) s2.onFocus({ dataset: { id } }); };
+    el.querySelector('[data-act=back]').addEventListener('click', () => this.mainMenu());
+    this.show({ el, back: () => this.mainMenu(), onFocus: (f) => showInfo(f.dataset.id) });
+    showInfo(this.focused && this.focused.dataset.id ? this.focused.dataset.id : items[0].id);
   }
 
   // --- Pause, résultats ------------------------------------------------------------------------
@@ -355,6 +420,17 @@ export class UI {
     const winner = team < 0 ? 'MATCH NUL' : `VICTOIRE`;
     const sub = names ? names.join(' & ') : 'Égalité parfaite';
     const winIds = team >= 0 ? battle.cfg.fighters.filter((f) => f.team === team).map((f) => f.charId) : [];
+    // Gains en Ryō pour les joueurs de cette machine (une seule fois par match)
+    let reward = 0;
+    const myTeams = new Set(battle.cfg.fighters.filter((f, i) => (role === 'client' ? i === battle.cfg.localFighter : f.ctrl.type === 'human')).map((f) => f.team));
+    if (!battle.rewarded && myTeams.size && !battle.cfg.training) {
+      battle.rewarded = true;
+      const res = team < 0 ? 'draw' : myTeams.has(team) ? 'win' : 'loss';
+      const wins = battle.state.wins || [0, 0];
+      const rounds = [...myTeams].reduce((n, t) => Math.max(n, wins[t] || 0), 0);
+      reward = REWARDS[res] + rounds * REWARDS.perRound + (role !== 'local' ? REWARDS.lanBonus : 0);
+      this.app.profile.earn(reward);
+    }
     let buttons;
     if (role === 'local') {
       buttons = [
@@ -377,7 +453,7 @@ export class UI {
     });
     el.prepend(h(`<div class="result-head"><div class="result-big ${team < 0 ? '' : 'win'}">${winner}</div>
       <div class="result-portraits">${winIds.map((id) => this.portrait(id, 'big')).join('')}</div>
-      <div class="result-sub">${esc(sub)}</div>${role === 'client' ? '<div class="result-wait">En attente de l’hôte…</div>' : ''}</div>`));
+      <div class="result-sub">${esc(sub)}</div>${reward ? `<div class="reward">+${reward} Ryō <small>(total : ${this.app.profile.ryo})</small></div>` : ''}${role === 'client' ? '<div class="result-wait">En attente de l’hôte…</div>' : ''}</div>`));
     this.show({ el });
   }
 
@@ -547,7 +623,7 @@ export class UI {
       const L = this.lobbyState;
       const t0 = L.players.filter((p) => p.team === 0).length;
       const t1 = L.players.filter((p) => p.team === 1).length;
-      L.players.push({ id: msg.id, name: msg.name, charId: randomChar(), team: t1 <= t0 ? 1 : 0, ready: false, isHost: false });
+      L.players.push({ id: msg.id, name: msg.name, charId: randomOf(baseChars()), team: t1 <= t0 ? 1 : 0, ready: false, isHost: false });
       this.app.audio.play('ui_ok');
       this.toast(`${msg.name} a rejoint la partie`);
       this.broadcastLobby();
@@ -717,8 +793,9 @@ export class UI {
     const charBtn = q('char');
     if (charBtn) {
       const cycle = (dir) => {
-        const i = CHARACTERS.findIndex((c) => c.id === me.charId);
-        const next = CHARACTERS[(i + dir + CHARACTERS.length) % CHARACTERS.length].id;
+        const pool = this.app.profile.ownedIds();
+        const i = Math.max(0, pool.indexOf(me.charId));
+        const next = pool[(i + dir + pool.length) % pool.length];
         if (isHost) { me.charId = next; this.broadcastLobby(); } else { me.charId = next; net.send({ type: 'pick', charId: next }); this.lobbyScreen(); }
       };
       charBtn.addEventListener('click', () => cycle(1));

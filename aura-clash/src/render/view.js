@@ -13,6 +13,7 @@ const rand = (a, b) => a + Math.random() * (b - a);
 const PROJ_COLORS = {
   kiball: '#8fd8ff', bigki: '#ffe05a', shuriken: '#d8e0ff', crescent: '#9ff8ff', fireball: '#ff6a1a',
   iceshard: '#9ae8ff', airfist: '#ffffff', spiritorb: '#5fffc8', palmwave: '#7fffd8',
+  bolt: '#fff38a', windblade: '#ffc8ec', rock: '#b09070', darkorb: '#ff2a5a',
 };
 
 export class MatchView {
@@ -69,7 +70,7 @@ export class MatchView {
       if (!vm) return;
       // Pendant une cinématique, les autres combattants sont figés (on n'avance pas leur animation)
       const frozen = (cineId >= 0 && cineId !== f.id) || state.hitstop > 0;
-      vm.model.update(frozen ? 0 : dt, f, { cine: cineId === f.id, cineShot: cineId === f.id && this.director.active ? this.director.active.shot : -1 });
+      vm.model.update(frozen ? 0 : dt, f, { cine: cineId === f.id, cineShot: cineId === f.id && this.director.active ? this.director.active.shot : -1, react: f.state === 'hitstun' ? vm.react : null });
       this.fighterFx(dt, vm, f, p, frozen);
     });
     this.updateEntities(dt, state);
@@ -107,6 +108,11 @@ export class MatchView {
         if (vm.prevMove !== f.moveId || f.mt < vm.prevMt) vm.prevMt = 0;
         const s = strikeTime(mv);
         const anim = ANIMS[mv.anim];
+        if (f.moveId === 'heavy' && vm.prevMt < s - 0.09 && f.mt >= s - 0.09) {
+          // Éclat de préparation sur le poing / l'arme juste avant un coup lourd
+          const limb = vm.model.strikeLimb(mv.anim)[0];
+          if (limb) { limb.getWorldPosition(tmp); this.stage.effects.flash(tmp.x, tmp.y, tmp.z, 0.9, 0.12, color); }
+        }
         if (vm.prevMt < s && f.mt >= s && anim) {
           const y = f.y + 1.1;
           if (anim.arc) this.stage.effects.slashArc(f.x, y, f.z, f.yaw, anim.arc, vm.def.id === 'ren' ? '#bff8ff' : color, mv.anim === 'iai' ? 3 : 1.5);
@@ -245,11 +251,23 @@ export class MatchView {
         }
         g.add(star);
         spin = star;
-      } else if (e.type === 'crescent') {
-        const arc = new THREE.Mesh(new THREE.TorusGeometry(0.95, 0.09, 6, 20, Math.PI * 1.1), glowMat(col, 2.6));
+      } else if (e.type === 'rock') {
+        const rock = toonPart(new THREE.DodecahedronGeometry(0.62, 0), toonMat('#7a6656'), { outline: 0.03 });
+        g.add(rock);
+        spin = rock;
+      } else if (e.type === 'bolt') {
+        const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.22, 1), glowMat('#ffffff', 3));
+        core.scale.set(1, 1, 3.5);
+        g.add(core);
+        const halo = new THREE.Mesh(new THREE.IcosahedronGeometry(0.4, 1), glowMat(col, 1.4, 0.45));
+        halo.scale.set(1, 1, 3);
+        g.add(halo);
+      } else if (e.type === 'crescent' || e.type === 'windblade') {
+        const sc = e.type === 'windblade' ? 0.55 : 1;
+        const arc = new THREE.Mesh(new THREE.TorusGeometry(0.95 * sc, 0.09 * sc, 6, 20, Math.PI * 1.1), glowMat(col, 2.6));
         arc.rotation.set(0, Math.PI / 2, Math.PI / 2 - 0.55);
         g.add(arc);
-        const arc2 = new THREE.Mesh(new THREE.TorusGeometry(0.85, 0.2, 6, 20, Math.PI * 1.1), glowMat(col, 1, 0.35));
+        const arc2 = new THREE.Mesh(new THREE.TorusGeometry(0.85 * sc, 0.2 * sc, 6, 20, Math.PI * 1.1), glowMat(col, 1, 0.35));
         arc2.rotation.copy(arc.rotation);
         g.add(arc2);
       } else if (e.type === 'iceshard') {
@@ -276,6 +294,7 @@ export class MatchView {
         if (sp > 0.01) g.rotation.y = Math.atan2(en.vx, en.vz);
         if (spin) {
           if (e.type === 'shuriken') spin.rotation.y += dt * 30;
+          else if (e.type === 'rock') { spin.rotation.x += dt * 8; spin.rotation.z += dt * 5; }
           else { const s = 1 + (en.t || 0) * 2; spin.scale.set(s, s, s); }
         }
         g.children.forEach((c, i) => { if (i > 0 && e.type !== 'shuriken') c.scale.setScalar(1 + Math.sin((en.t || 0) * 30 + i) * 0.08); });
@@ -386,7 +405,10 @@ export class MatchView {
   createAoe(e, simple, auraColor) {
     const p = this.stage.particles;
     const g = new THREE.Group();
-    const warnColor = e.type === 'meteor' ? '#ff4a1a' : e.type === 'icepillar' ? '#7ad8ff' : '#ff8a2a';
+    const warnColor = {
+      meteor: '#ff4a1a', icepillar: '#7ad8ff', thunder: '#fff38a', tornado: '#ffc8ec', windburst: '#ffc8ec',
+      darkblast: '#ff2a5a', rockpillar: '#e0a85a', rockblast: '#e0a85a',
+    }[e.type] || '#ff8a2a';
     const warn = new THREE.Mesh(new THREE.RingGeometry(0.85, 1, 40), new THREE.MeshBasicMaterial({ color: new THREE.Color(warnColor).multiplyScalar(2), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
     warn.rotation.x = -Math.PI / 2;
     warn.position.y = 0.06;
@@ -407,9 +429,31 @@ export class MatchView {
       meteor.add(new THREE.Mesh(new THREE.IcosahedronGeometry(3.4, 1), glowMat('#ff6a1a', 1.2, 0.35)));
       g.add(meteor);
     }
-    if (e.type === 'icepillar') {
+    let column = null;
+    if (e.type === 'thunder') {
+      // Colonne de foudre qui s'abat du ciel
+      column = new THREE.Group();
+      const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 30, 8, 1, true), glowMat('#ffffff', 3));
+      beam.position.y = 15;
+      const halo = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 30, 12, 1, true), glowMat(warnColor, 1.6, 0.45));
+      halo.position.y = 15;
+      column.add(beam, halo);
+      column.scale.set(e.r / 1.5, 1, e.r / 1.5);
+      column.visible = false;
+      g.add(column);
+    }
+    if (e.type === 'tornado') {
+      // Tornade : cône évasé tournoyant
+      column = new THREE.Mesh(new THREE.CylinderGeometry(e.r, e.r * 0.3, 5, 18, 1, true), flameMaterial('#ffd0f0', 0.9));
+      column.position.y = 2.5;
+      column.visible = false;
+      g.add(column);
+    }
+    if (e.type === 'icepillar' || e.type === 'rockpillar') {
       crystals = new THREE.Group();
-      const mat = toonMat('#c8f4ff', { emissive: new THREE.Color('#3a9aff'), emissiveIntensity: 0.5, flatShading: true });
+      const mat = e.type === 'rockpillar'
+        ? toonMat('#7a6656', { flatShading: true })
+        : toonMat('#c8f4ff', { emissive: new THREE.Color('#3a9aff'), emissiveIntensity: 0.5, flatShading: true });
       for (let i = 0; i < 6; i++) {
         const h = 1.6 + Math.random() * 1.8;
         const c = toonPart(new THREE.ConeGeometry(0.3 + Math.random() * 0.25, h, 5), mat, { outline: 0.02 });
@@ -445,6 +489,19 @@ export class MatchView {
         if (!en.done && pt <= 0) {
           pt = 0.016;
           p.emit({ x: en.x + meteor.position.x, y: meteor.position.y, z: en.z + meteor.position.z, count: 8, speed: 3, spread: 1.5, color: '#ff7a2a', size: 1.2, life: 0.6, up: 4 });
+        }
+      }
+      if (column) {
+        const since = t - en.delay;
+        if (e.type === 'thunder') {
+          column.visible = en.done && since < 0.45;
+          column.children.forEach((c) => { c.material.opacity = Math.max(0, 1 - since / 0.45) * (0.6 + Math.random() * 0.4); });
+        } else {
+          column.visible = en.done;
+          column.rotation.y += dt * 9;
+          column.material.uniforms.uTime.value = t * 1.5;
+          column.material.uniforms.uInt.value = Math.max(0, 1 - since / ((en.zone ? en.zone.dur : 0.6) + 0.1));
+          if (Math.random() < 0.5) p.emit({ x: en.x + (Math.random() - 0.5) * en.r, y: Math.random() * 4, z: en.z + (Math.random() - 0.5) * en.r, count: 1, speed: 6, color: '#ffe0f4', size: 0.2, life: 0.4 });
         }
       }
       if (crystals) {
@@ -492,9 +549,14 @@ export class MatchView {
             a.play('block');
           } else {
             const c = ev.color || '#ffffff';
-            p.emit({ x: ev.x, y: ev.y, z: ev.z, count: big ? 34 : 16, speed: big ? 14 : 9, color: '#ffffff', size: big ? 0.3 : 0.2, life: 0.3, drag: 5 });
-            p.emit({ x: ev.x, y: ev.y, z: ev.z, count: big ? 22 : 8, speed: big ? 9 : 5, color: c, size: big ? 0.45 : 0.3, life: 0.4, drag: 4 });
-            fx.flash(ev.x, ev.y, ev.z, big ? 3.2 : 1.6, big ? 0.16 : 0.1, '#ffffff');
+            // Réaction de la victime (côté aléatoire pour varier) et éclat d'impact manga
+            const vt = this.models[ev.tgt];
+            if (vt) vt.react = { kind: big ? 'heavy' : 'light', side: Math.random() < 0.5 ? -1 : 1 };
+            fx.mangaHit(ev.x, ev.y, ev.z, big);
+            p.emit({ x: ev.x, y: ev.y, z: ev.z, count: big ? 26 : 10, speed: big ? 14 : 9, color: '#ffffff', size: big ? 0.26 : 0.18, life: 0.28, drag: 5 });
+            p.emit({ x: ev.x, y: ev.y, z: ev.z, count: big ? 18 : 6, speed: big ? 9 : 5, color: c, size: big ? 0.4 : 0.26, life: 0.38, drag: 4 });
+            fx.flash(ev.x, ev.y, ev.z, big ? 2.6 : 1.2, big ? 0.12 : 0.08, '#ffffff');
+            if (big) this.overlay.speedLines(0.18, 0.6);
             this.stage.rig.addPunch(ev.kind === 'kd' ? 3.5 : big ? 1.6 : 0.5);
             if (ev.kind === 'kd') this.overlay.impactFrame(0.07);
             if (big) {
@@ -672,14 +734,22 @@ export class MatchView {
         break;
       case 'aoeBoom': {
         const r = ev.r || 2;
-        if (ev.type === 'meteor' || ev.type === 'dragon') {
-          const col = ev.type === 'meteor' ? '#ff6a1a' : c;
+        if (['meteor', 'dragon', 'darkblast', 'rockblast', 'windburst'].includes(ev.type) || (ev.type === 'thunder' && r > 3)) {
+          const col = { meteor: '#ff6a1a', darkblast: '#ff2a5a', rockblast: '#e0a85a', windburst: '#ffc8ec', thunder: '#fff38a' }[ev.type] || c;
           p.emit({ x: ev.x, y: 0.5, z: ev.z, count: 200, speed: 24, color: col, size: 0.9, life: 0.9, drag: 2.5, gravity: 4 });
           p.emit({ x: ev.x, y: 0.2, z: ev.z, count: 60, flat: true, speed: 18, color: '#8a7a6a', size: 1.6, sizeEnd: 2.5, life: 1, hdr: 0.5 });
           fx.shockSphere(ev.x, 0, ev.z, 1, r * 1.6, 0.7, col);
           fx.groundRing(ev.x, 0, ev.z, 1, r * 2.6, 0.8, col);
           fx.light(ev.x, 3, ev.z, col, 24.0, 0.9, 30);
           this.overlay.flash(col, 0.3);
+        } else if (ev.type === 'thunder') {
+          p.emit({ x: ev.x, y: 0.4, z: ev.z, count: 40, speed: 12, color: '#fff38a', size: 0.3, life: 0.35 });
+          fx.groundRing(ev.x, 0, ev.z, 0.3, r * 1.4, 0.3, '#fff38a');
+          fx.light(ev.x, 3, ev.z, '#fff38a', 10, 0.3, 14);
+          this.overlay.flash('#fffbd0', 0.06);
+        } else if (ev.type === 'rockpillar' || ev.type === 'tornado') {
+          p.emit({ x: ev.x, y: 0.3, z: ev.z, count: 40, flat: true, speed: 10, color: ev.type === 'tornado' ? '#ffe0f4' : '#a08870', size: 0.6, life: 0.5, hdr: 0.7 });
+          fx.groundRing(ev.x, 0, ev.z, 0.3, r * 1.3, 0.3, ev.type === 'tornado' ? '#ffc8ec' : '#e0a85a');
         } else if (ev.type === 'icepillar') {
           p.emit({ x: ev.x, y: 0.5, z: ev.z, count: 40, speed: 10, color: '#c8f4ff', size: 0.3, life: 0.5, gravity: 10 });
           fx.groundRing(ev.x, 0, ev.z, 0.3, r * 1.3, 0.3, '#9ae8ff');

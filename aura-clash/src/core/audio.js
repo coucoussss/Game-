@@ -204,6 +204,11 @@ export class AudioEngine {
       case 'bigExplosion':
         N(1.6, 1, 'lowpass', 2000, 80, { verb: true }); T('sine', 70, 22, 1.4, 1); T('sawtooth', 50, 30, 0.8, 0.3, { filter: 'lowpass', ff: 300 }); break;
       case 'cast': T('sine', 500, 1100, 0.25, 0.2, { verb: true }); T('triangle', 1500, 2200, 0.15, 0.08); break;
+      case 'thunder': N(0.08, 0.9, 'highpass', 2000, 6000); N(0.9, 0.8, 'lowpass', 2500, 120, { delay: 0.04, verb: true }); T('sawtooth', 90, 40, 0.6, 0.3, { filter: 'lowpass', ff: 400 }); break;
+      case 'shot_bolt': N(0.12, 0.6, 'highpass', 3000, 7000); T('square', 1800, 300, 0.15, 0.1); break;
+      case 'shot_rock': T('sine', 140, 60, 0.3, 0.6); N(0.25, 0.4, 'lowpass', 600, 150); break;
+      case 'shot_windblade': N(0.25, 0.4, 'bandpass', 2500, 900, { q: 2 }); break;
+      case 'shot_darkorb': T('sawtooth', 220, 110, 0.35, 0.12, { filter: 'lowpass', ff: 900, verb: true }); T('sine', 330, 160, 0.35, 0.15); break;
       case 'ice':
         [1800, 2400, 3200].forEach((f, i) => T('triangle', f, f * 1.02, 0.35, 0.18, { delay: i * 0.03, verb: true }));
         N(0.12, 0.35, 'highpass', 3000, 6000); break;

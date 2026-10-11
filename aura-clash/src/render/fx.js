@@ -531,3 +531,78 @@ export function sealTexture() {
   sealTex = new THREE.CanvasTexture(c);
   return sealTex;
 }
+
+// --- Impacts dessinés façon manga --------------------------------------------------------------
+// Étoile d'impact aux pointes irrégulières (blanc, cœur jaune, contour d'encre) et couronne de
+// traits de choc, comme les « effets de frappe » dessinés à la main dans les mangas.
+const mangaTex = {};
+function mangaTexture(kind) {
+  if (mangaTex[kind]) return mangaTex[kind];
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const g = c.getContext('2d');
+  g.translate(128, 128);
+  if (kind === 'star') {
+    const pts = 14;
+    const path = () => {
+      g.beginPath();
+      for (let i = 0; i <= pts * 2; i++) {
+        const a = (i / (pts * 2)) * Math.PI * 2;
+        const r = i % 2 === 0 ? 100 + Math.random() * 26 : 38 + Math.random() * 14;
+        if (i === 0) g.moveTo(Math.cos(a) * r, Math.sin(a) * r); else g.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+      }
+      g.closePath();
+    };
+    path();
+    g.fillStyle = '#ffffff';
+    g.fill();
+    g.lineWidth = 7;
+    g.strokeStyle = '#120c1a';
+    g.stroke();
+    const grd = g.createRadialGradient(0, 0, 0, 0, 0, 55);
+    grd.addColorStop(0, '#fffbe0');
+    grd.addColorStop(0.6, '#ffe45a');
+    grd.addColorStop(1, 'rgba(255,228,90,0)');
+    g.fillStyle = grd;
+    g.beginPath();
+    g.arc(0, 0, 55, 0, Math.PI * 2);
+    g.fill();
+  } else {
+    // Couronne de traits de choc
+    for (let i = 0; i < 26; i++) {
+      const a = (i / 26) * Math.PI * 2 + Math.random() * 0.1;
+      const r0 = 62 + Math.random() * 18;
+      const r1 = 112 + Math.random() * 14;
+      const w = 0.03 + Math.random() * 0.025;
+      g.beginPath();
+      g.moveTo(Math.cos(a - w) * r1, Math.sin(a - w) * r1);
+      g.lineTo(Math.cos(a) * r0, Math.sin(a) * r0);
+      g.lineTo(Math.cos(a + w) * r1, Math.sin(a + w) * r1);
+      g.closePath();
+      g.fillStyle = i % 3 === 0 ? '#120c1a' : '#ffffff';
+      g.fill();
+    }
+  }
+  mangaTex[kind] = new THREE.CanvasTexture(c);
+  mangaTex[kind].colorSpace = THREE.SRGBColorSpace;
+  return mangaTex[kind];
+}
+
+/** Ajoute à Effects : éclat d'impact manga (étoile + couronne de traits pour les coups lourds). */
+Effects.prototype.mangaHit = function mangaHit(x, y, z, big, tint = '#ffffff') {
+  const add = (kind, size0, size1, dur, rot) => {
+    const mat = new THREE.SpriteMaterial({
+      map: mangaTexture(kind), color: new THREE.Color(tint), transparent: true, depthTest: false, depthWrite: false, rotation: rot,
+    });
+    const s = new THREE.Sprite(mat);
+    s.position.set(x, y, z);
+    s.renderOrder = 30;
+    this.add(s, (k) => {
+      const r = size0 + (size1 - size0) * (1 - (1 - k) ** 3);
+      s.scale.set(r, r, r);
+      mat.opacity = k < 0.5 ? 1 : 1 - (k - 0.5) * 2;
+    }, dur);
+  };
+  add('star', big ? 0.8 : 0.45, big ? 2.1 : 1.15, big ? 0.16 : 0.11, Math.random() * Math.PI);
+  if (big) add('lines', 1.2, 3.4, 0.2, Math.random() * Math.PI);
+};
