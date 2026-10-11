@@ -201,6 +201,22 @@ export class Effects {
     }, dur);
   }
 
+  /** Anneau perpendiculaire à une direction (anneaux le long d'un rayon). */
+  orientedRing(x, y, z, dx, dy, dz, r0, r1, dur, color) {
+    const mat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(color).multiplyScalar(2), transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending,
+      depthWrite: false, side: THREE.DoubleSide,
+    });
+    const m = new THREE.Mesh(this.thinRingGeo, mat);
+    m.position.set(x, y, z);
+    m.lookAt(x + dx, y + dy, z + dz);
+    this.add(m, (k) => {
+      const r = r0 + (r1 - r0) * k;
+      m.scale.set(r, r, r);
+      mat.opacity = 0.9 * (1 - k);
+    }, dur);
+  }
+
   /** Sphère translucide qui gonfle (explosion, onde d'énergie). */
   shockSphere(x, y, z, r0, r1, dur, color) {
     const mat = new THREE.MeshBasicMaterial({
@@ -401,4 +417,117 @@ export class BeamVisual {
     this.scene.remove(this.group);
     this.mat.dispose();
   }
+}
+
+// --- Traînée de mouvement (« smear » des coups d'anime) -----------------------------------------
+// Un ruban lumineux, toujours face à la caméra, qui suit une main, un pied ou la pointe d'une arme
+// pendant la frappe, puis s'efface en ~0,15 s.
+const _a = new THREE.Vector3();
+const _b = new THREE.Vector3();
+const _c = new THREE.Vector3();
+export class Trail {
+  constructor(scene, color, width = 0.16, max = 16) {
+    this.scene = scene;
+    this.max = max;
+    this.width = width;
+    this.pts = []; // { p: Vector3, age }
+    this.color = new THREE.Color(color).multiplyScalar(1.6);
+    const geo = new THREE.BufferGeometry();
+    this.pos = new Float32Array(max * 2 * 3);
+    this.col = new Float32Array(max * 2 * 3);
+    geo.setAttribute('position', new THREE.BufferAttribute(this.pos, 3).setUsage(THREE.DynamicDrawUsage));
+    geo.setAttribute('color', new THREE.BufferAttribute(this.col, 3).setUsage(THREE.DynamicDrawUsage));
+    const idx = [];
+    for (let i = 0; i < max - 1; i++) {
+      const a = i * 2;
+      idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+    }
+    geo.setIndex(idx);
+    this.mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
+      vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
+    }));
+    this.mesh.frustumCulled = false;
+    this.mesh.renderOrder = 8;
+    scene.add(this.mesh);
+  }
+
+  /** À chaque image : `active` = le coup est en train de frapper. */
+  update(dt, point, camPos, active) {
+    for (const q of this.pts) q.age += dt;
+    this.pts = this.pts.filter((q) => q.age < 0.16);
+    if (active && point) {
+      const last = this.pts[0];
+      if (!last || last.p.distanceToSquared(point) > 0.0004) this.pts.unshift({ p: point.clone(), age: 0 });
+      if (this.pts.length > this.max) this.pts.length = this.max;
+    }
+    const n = this.pts.length;
+    const geo = this.mesh.geometry;
+    if (n < 2) { geo.setDrawRange(0, 0); return; }
+    for (let i = 0; i < n; i++) {
+      const p = this.pts[i].p;
+      const nb = this.pts[Math.min(n - 1, i + 1)].p;
+      const pr = this.pts[Math.max(0, i - 1)].p;
+      _a.subVectors(pr, nb).normalize(); // direction du mouvement
+      _b.subVectors(camPos, p).normalize();
+      _c.crossVectors(_a, _b).normalize();
+      const k = 1 - i / (n - 1);
+      const w = this.width * (0.25 + 0.75 * k) * (1 - this.pts[i].age / 0.16);
+      this.pos.set([p.x + _c.x * w, p.y + _c.y * w, p.z + _c.z * w, p.x - _c.x * w, p.y - _c.y * w, p.z - _c.z * w], i * 6);
+      const a = k * k * (1 - this.pts[i].age / 0.16);
+      for (let j = 0; j < 2; j++) this.col.set([this.color.r * a, this.color.g * a, this.color.b * a], i * 6 + j * 3);
+    }
+    geo.attributes.position.needsUpdate = true;
+    geo.attributes.color.needsUpdate = true;
+    geo.setDrawRange(0, (n - 1) * 6);
+  }
+
+  dispose() {
+    this.scene.remove(this.mesh);
+    this.mesh.geometry.dispose();
+    this.mesh.material.dispose();
+  }
+}
+
+// --- Sceau magique (cercle de runes au sol, pendant les ultimes) -------------------------------
+let sealTex = null;
+export function sealTexture() {
+  if (sealTex) return sealTex;
+  const c = document.createElement('canvas');
+  c.width = c.height = 512;
+  const g = c.getContext('2d');
+  g.translate(256, 256);
+  g.strokeStyle = '#ffffff';
+  g.fillStyle = '#ffffff';
+  g.lineWidth = 6;
+  for (const r of [240, 222, 150, 132]) { g.beginPath(); g.arc(0, 0, r, 0, Math.PI * 2); g.stroke(); }
+  // Étoile à 8 branches
+  g.lineWidth = 4;
+  g.beginPath();
+  for (let i = 0; i <= 8; i++) {
+    const a = (i * 3 * Math.PI * 2) / 8;
+    const x = Math.cos(a) * 222;
+    const y = Math.sin(a) * 222;
+    if (i === 0) g.moveTo(x, y); else g.lineTo(x, y);
+  }
+  g.stroke();
+  // Runes entre les deux cercles extérieurs
+  const runes = '覚醒神風雷炎氷魂龍光闇剣拳霊天地気力斬破滅極';
+  g.font = 'bold 26px sans-serif';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  for (let i = 0; i < 24; i++) {
+    const a = (i / 24) * Math.PI * 2;
+    g.save();
+    g.rotate(a);
+    g.fillText(runes[i % runes.length], 0, -231);
+    g.restore();
+  }
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    g.beginPath();
+    g.arc(Math.cos(a) * 141, Math.sin(a) * 141, 8, 0, Math.PI * 2);
+    g.fill();
+  }
+  sealTex = new THREE.CanvasTexture(c);
+  return sealTex;
 }

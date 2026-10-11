@@ -2,7 +2,7 @@
 // procédurale : squelette de groupes (hanches → torse → tête, épaules → coudes…), poses-clés
 // interpolées, et chaînes à ressort pour les cheveux et les vêtements (écharpe, cape, jupe…).
 import * as THREE from 'three';
-import { toonMat, toonPart, toonPartSmooth, glowMat, GLSL_NOISE } from './toon.js';
+import { toonMat, toonPart, toonPartSmooth, glowMat, animeMat, GLSL_NOISE } from './toon.js';
 import { limbGeo, flareGeo, torsoGeo, headGeo, faceZ, shoeGeo } from './anatomy.js';
 
 const TAU = Math.PI * 2;
@@ -175,7 +175,7 @@ export class CharacterModel {
     if (this.ghost) {
       m = new THREE.MeshToonMaterial({ color: new THREE.Color('#2a1446'), transparent: true, opacity: 0.75, emissive: new THREE.Color('#3a1a6a') });
     } else {
-      m = toonMat(color, extra);
+      m = animeMat(color, extra);
     }
     m.userData.baseEmissive = m.emissive ? m.emissive.clone() : null;
     this.mats.push(m);
@@ -222,7 +222,7 @@ export class CharacterModel {
 
     // --- Bassin et torse ---
     const hips = new THREE.Group();
-    hips.position.y = 0.95 * b;
+    hips.position.y = 1.05; // 0,06 + cuisse 0,48 + tibia 0,46 + pied : les pieds touchent le sol
     this.body.add(hips);
     this.hips = hips;
     this.hipsBaseY = hips.position.y;
@@ -252,7 +252,8 @@ export class CharacterModel {
     head.position.y = 0.1;
     neck.add(head);
     this.head = head;
-    this.part(headGeo(0.2), skin, head, [0, 0.13, 0], null, 0.016);
+    const faceSkin = this.mat(L.skin, { face: true });
+    this.part(headGeo(0.2), faceSkin, head, [0, 0.13, 0], null, 0.016);
     for (const s of [-1, 1]) {
       const ear = this.part(new THREE.SphereGeometry(0.04, 8, 6), skin, head, [s * 0.178, 0.12, -0.01], null, 0.01);
       ear.scale.set(0.45, 1, 0.75);
@@ -307,29 +308,30 @@ export class CharacterModel {
       hips.add(hp);
       this.part(new THREE.SphereGeometry(0.1 * b, 10, 8), pants, hp, [0, 0, 0], null, 0.012);
       const tr = baggy ? 1.3 : 1;
-      this.part(limbGeo(0.105 * b * tr, 0.07 * b * tr, 0.45, { bulge: 0.012 * b, at: 0.3 }), pants, hp, [0, 0, 0]);
+      this.part(limbGeo(0.1 * b * tr, 0.064 * b * tr, 0.48, { bulge: 0.012 * b, at: 0.3 }), pants, hp, [0, 0, 0]);
       const kn = new THREE.Group();
-      kn.position.y = -0.45;
+      kn.position.y = -0.48;
       hp.add(kn);
       this.part(new THREE.SphereGeometry(0.068 * b * tr, 10, 8), pants, kn, [0, 0, 0], null, 0.012);
-      if (baggy) this.part(flareGeo(0.085 * b, 0.12 * b, 0.32), pants, kn, [0, 0, 0], null, 0.014);
-      else this.part(limbGeo(0.072 * b, 0.048 * b, 0.42, { bulge: 0.016 * b, at: 0.3 }), pants, kn, [0, 0, 0]);
+      if (baggy) this.part(flareGeo(0.085 * b, 0.12 * b, 0.34), pants, kn, [0, 0, 0], null, 0.014);
+      else this.part(limbGeo(0.068 * b, 0.045 * b, 0.45, { bulge: 0.016 * b, at: 0.3 }), pants, kn, [0, 0, 0]);
       // Botte (ou pied nu) et chaussure
       const bare = x.includes('barefoot');
       const bootM = bare ? skin : boots;
-      this.part(limbGeo(0.068 * b, 0.058 * b, 0.17), bootM, kn, [0, -0.25, 0], null, 0.014);
+      this.part(limbGeo(0.066 * b, 0.056 * b, 0.18), bootM, kn, [0, -0.27, 0], null, 0.014);
       if (x.includes('armor')) this.part(new THREE.BoxGeometry(0.1, 0.22, 0.06), armorM, kn, [0, -0.2, 0.06], [0.08, 0, 0], 0.012);
       const ft = new THREE.Group();
-      ft.position.y = -0.43;
+      ft.position.y = -0.46;
       kn.add(ft);
       this.part(shoeGeo(), bootM, ft, [0, -0.005, 0]);
       if (!bare) this.part(new THREE.BoxGeometry(0.13, 0.025, 0.28), dark, ft, [0, -0.04, 0.045], null, 0.01);
-      return { hp, kn };
+      return { hp, kn, ft };
     };
     const LL = leg(1);
     const LR = leg(-1);
     this.hipL = LL.hp; this.knL = LL.kn;
     this.hipR = LR.hp; this.knR = LR.kn;
+    this.footL = LL.ft; this.footR = LR.ft;
 
     this.buildExtras(L, m);
   }
@@ -373,6 +375,7 @@ export class CharacterModel {
     const iris = this.flat(L.eyes || '#333344');
     this.irisMat = iris;
     const pupil = this.flat('#120e1a');
+    const irisDark = this.flat(new THREE.Color(L.eyes || '#333344').multiplyScalar(0.45).getStyle());
     const ink = this.flat('#16121e');
     const blush = new THREE.MeshBasicMaterial({ color: new THREE.Color('#ff8a8a'), transparent: true, opacity: 0.35, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
     this.flatMats.push(blush);
@@ -391,14 +394,15 @@ export class CharacterModel {
         g.add(d);
         return d;
       };
-      disc(0.04, white, 0, 0, 0, 1.05, fem ? 1.05 : 0.9);
-      disc(0.03, iris, -s * 0.004, -0.004, 0.002, 0.82, 1.1);
-      disc(0.016, pupil, -s * 0.004, -0.006, 0.004, 0.8, 1.1);
-      disc(0.0085, white, s * 0.008, 0.012, 0.006);
-      disc(0.004, white, -s * 0.01, -0.016, 0.006);
+      disc(0.046, white, 0, 0, 0, 1.0, fem ? 1.12 : 0.95);
+      disc(0.035, iris, -s * 0.004, -0.005, 0.002, 0.8, 1.15);
+      disc(0.03, irisDark, -s * 0.004, 0.006, 0.003, 0.82, 0.6);
+      disc(0.016, pupil, -s * 0.004, -0.006, 0.004, 0.8, 1.15);
+      disc(0.0105, white, s * 0.008, 0.014, 0.006);
+      disc(0.005, white, -s * 0.011, -0.02, 0.006);
       // Paupière supérieure épaisse (trait d'anime) et cils au coin extérieur
       const lid = new THREE.Mesh(new THREE.BoxGeometry(0.094, fem ? 0.014 : 0.011, 0.004), ink);
-      lid.position.set(0, 0.035, 0.007);
+      lid.position.set(0, 0.04, 0.007);
       lid.rotation.z = s * -0.12;
       g.add(lid);
       const lash = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.008, 0.004), ink);
@@ -407,7 +411,7 @@ export class CharacterModel {
       g.add(lash);
       // Sourcil
       const brow = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.012, 0.004), this.flat(L.hair));
-      brow.position.set(-s * 0.004, 0.068, 0.006);
+      brow.position.set(-s * 0.004, 0.075, 0.006);
       brow.rotation.z = s * (fem ? -0.05 : -0.22);
       g.add(brow);
       if (fem) disc(0.02, blush, s * 0.012, -0.055, 0.004, 1.3, 0.6);
@@ -443,6 +447,18 @@ export class CharacterModel {
 
   buildHair(head, L, hair) {
     const style = L.hairStyle;
+    // Reflet brillant en arc sur le dessus du crâne, typique des cheveux d'anime
+    if (!this.ghost) {
+      const shine = new THREE.Mesh(
+        new THREE.TorusGeometry(0.2, 0.012, 4, 24, Math.PI * 0.75),
+        new THREE.MeshBasicMaterial({ color: new THREE.Color(L.hair).lerp(new THREE.Color('#ffffff'), 0.55) }),
+      );
+      shine.position.set(0, 0.2, 0.0);
+      shine.rotation.set(-1.0, 0, Math.PI * 0.125);
+      shine.scale.set(1.08, 1.08, 1);
+      head.add(shine);
+      this.flatMats.push(shine.material);
+    }
     const cap = (r = 0.212, mat = hair, theta = 0.56) => {
       const m = this.part(new THREE.SphereGeometry(r, 18, 10, 0, TAU, 0, Math.PI * theta), mat, head, [0, 0.15, -0.012]);
       m.rotation.x = -0.28;
@@ -571,6 +587,9 @@ export class CharacterModel {
       this.part(new THREE.CylinderGeometry(0.065, 0.065, 0.022, 10), this.mat('#d8b040'), g, [0, 0.13, 0], null, 0.01);
       const blade = this.part(new THREE.BoxGeometry(0.032, 0.88, 0.012), this.mat('#e8f4ff', { emissive: new THREE.Color('#5fa8ff'), emissiveIntensity: 0.25 }), g, [0, 0.58, 0], null, 0.008);
       this.blade = blade;
+      this.tip = new THREE.Object3D();
+      this.tip.position.y = 1.0;
+      g.add(this.tip);
       this.part(new THREE.CylinderGeometry(0.032, 0.03, 0.82, 8), this.mat('#1a1a28'), this.hips, [0.21, 0.05, -0.05], [1.9, 0, 0.3], 0.01);
     }
     if (x.includes('robe') || x.includes('hakama')) {
@@ -600,6 +619,7 @@ export class CharacterModel {
       this.part(new THREE.TorusGeometry(0.13, 0.02, 6, 16, Math.PI * 1.4), this.mat('#d8b040'), g, [0, 1.1, 0], [0, 0, -0.6], 0.008);
       this.part(new THREE.ConeGeometry(0.04, 0.16, 6), this.mat('#d8b040'), g, [0, -0.6, 0], [Math.PI, 0, 0], 0.008);
       this.orb = orb;
+      this.tip = orb;
     }
     if (x.includes('talismans')) {
       this.talismans = [];
@@ -799,25 +819,53 @@ export class CharacterModel {
     const s = strikeTime(mv);
     const holdEnd = mv.hold ? mv.hold[1] : s + Math.min(0.12, mv.dur * 0.25);
     const t = f.mt;
+    const base = mergePose(stance);
     const wind = mergePose(stance, anim.wind);
     const strike = mergePose(stance, anim.strike);
     let p;
+    let impact = 0; // 1 au moment de la frappe, décroît ensuite (pour le transfert de poids)
     if (t < s) {
-      p = lerpPose(mergePose(stance), wind, ease(clamp(t / (s * 0.8), 0, 1)));
+      // Anticipation : on arme lentement puis on se « charge » juste avant de frapper
+      const k = clamp(t / (s * 0.85), 0, 1);
+      p = lerpPose(base, wind, k * k * (3 - 2 * k) * 1.04);
     } else if (t < holdEnd) {
-      p = strike;
+      // Frappe : passage très rapide de l'armé au coup, avec un léger dépassement (élan)
+      const k = clamp((t - s) / 0.07, 0, 1);
+      const over = 1 + 2.2 * (k - 1) ** 3 + 1.2 * (k - 1) ** 2; // « back out » : dépasse puis revient
+      p = lerpPose(wind, strike, over);
+      impact = 1 - clamp((t - s) / 0.18, 0, 1);
     } else {
-      p = lerpPose(strike, mergePose(stance), ease(clamp((t - holdEnd) / Math.max(0.05, mv.dur - holdEnd), 0, 1)));
+      // Retour en garde : décélération douce (le poids du corps revient)
+      const k = clamp((t - holdEnd) / Math.max(0.05, mv.dur - holdEnd), 0, 1);
+      p = lerpPose(strike, base, 1 - (1 - k) ** 3);
     }
+    // Le coup part des hanches : une partie de la rotation du torse passe dans le bassin,
+    // le corps s'abaisse à l'impact, et la tête reste tournée vers l'adversaire.
+    const twist = p.torso[1];
+    p.hips[1] += twist * 0.5;
+    p.torso[1] = twist * 0.65;
+    p.head[1] -= twist * 0.55;
+    p.hy -= 0.05 * impact;
+    p.torso[0] += 0.08 * impact * (mv.lunge ? 1.5 : 1);
     if (anim.spin) p.body[1] = ease(clamp(t / (s + 0.12), 0, 1)) * TAU;
     if (anim.rush && t >= s && t < holdEnd) {
       // Pluie de coups : bras qui alternent très vite
       const ph = Math.sin(this.time * 46);
       p.shR = [ph > 0 ? -1.6 : -0.7, 0, 0.1]; p.elR = [ph > 0 ? -0.05 : -1.8, 0, 0];
       p.shL = [ph < 0 ? -1.6 : -0.7, 0, -0.1]; p.elL = [ph < 0 ? -0.05 : -1.8, 0, 0];
-      p.torso[1] = ph * 0.35;
+      p.torso[1] = ph * 0.3;
+      p.hips[1] = ph * 0.15;
     }
     return p;
+  }
+
+  /** Point qui laisse une traînée pendant le coup (main, pied ou arme), selon l'animation. */
+  strikeLimb(animName) {
+    if (/kick/.test(animName)) return [this.footR];
+    if (/slash|thrust|rising|iai|staff/.test(animName)) return [this.tip || this.handR];
+    if (animName === 'cross') return [this.handL];
+    if (animName === 'rush' || animName === 'slam' || animName === 'cast' || animName === 'beam') return [this.handL, this.handR];
+    return [this.handR];
   }
 
   /**
@@ -830,7 +878,7 @@ export class CharacterModel {
     this.root.rotation.y = f.yaw;
 
     const target = this.targetPose(f, extra);
-    const rate = f.state === 'move' ? 34 : f.state === 'hitstun' || f.state === 'ko' ? 26 : 14;
+    const rate = f.state === 'move' ? 48 : f.state === 'hitstun' || f.state === 'ko' ? 26 : 14;
     const k = 1 - Math.exp(-rate * dt);
     // Les rotations complètes (pied tournoyant) ne doivent pas être lissées
     const spin = f.state === 'move' && target.body[1] !== 0;
@@ -873,7 +921,7 @@ export class CharacterModel {
   }
 
   auraTarget(f, extra) {
-    if (extra.cine) return 0.85;
+    if (extra.cine) return extra.cineShot === 0 ? 0 : 0.7; // pas d'aura devant l'objectif pendant le gros plan
     if (f.state === 'charge') return 1;
     if (f.transformed) return 0.55;
     if (f.state === 'move') {

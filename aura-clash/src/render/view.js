@@ -2,7 +2,8 @@
 // aux modèles 3D, aux effets, au son et à l'interface. Ne modifie jamais la simulation.
 import * as THREE from 'three';
 import { CharacterModel, buildFox, buildDragon, strikeTime, ANIMS } from './model.js';
-import { BeamVisual, flameMaterial } from './fx.js';
+import { BeamVisual, flameMaterial, Trail } from './fx.js';
+import { CineDirector } from './cinematic.js';
 import { glowMat, toonMat, toonPart } from './toon.js';
 import { CHAR_BY_ID } from '../game/characters.js';
 
@@ -25,6 +26,9 @@ export class MatchView {
     this.localIds = new Set(); // combattants contrôlés sur cette machine (sons « énergie insuffisante »)
     this.onMatchEnd = null;
     this.cineId = -1;
+    this.director = new CineDirector(stage, overlay, audio);
+    this.ghosts = [];
+    this.cineChar = null;
   }
 
   /** Crée les modèles des combattants. `fighters` : [{ charId, team }] */
@@ -39,7 +43,14 @@ export class MatchView {
   }
 
   detach() {
-    for (const m of this.models) { this.stage.scene.remove(m.model.root); m.model.dispose(); }
+    for (const m of this.models) {
+      this.stage.scene.remove(m.model.root);
+      m.model.dispose();
+      for (const t of m.trails || []) t.dispose();
+    }
+    this.director.clear();
+    for (const g of this.ghosts) { this.stage.scene.remove(g.model.root); g.model.dispose(); }
+    this.ghosts = [];
     this.models = [];
     for (const v of this.ents.values()) v.dispose();
     this.ents.clear();
@@ -50,13 +61,15 @@ export class MatchView {
    */
   update(dt, state) {
     const p = this.stage.particles;
+    this.director.update(dt);
+    this.updateGhosts(dt);
     const cineId = state.cine ? state.cine.id : -1;
     state.fighters.forEach((f, i) => {
       const vm = this.models[i];
       if (!vm) return;
       // Pendant une cinématique, les autres combattants sont figés (on n'avance pas leur animation)
       const frozen = (cineId >= 0 && cineId !== f.id) || state.hitstop > 0;
-      vm.model.update(frozen ? 0 : dt, f, { cine: cineId === f.id });
+      vm.model.update(frozen ? 0 : dt, f, { cine: cineId === f.id, cineShot: cineId === f.id && this.director.active ? this.director.active.shot : -1 });
       this.fighterFx(dt, vm, f, p, frozen);
     });
     this.updateEntities(dt, state);
@@ -86,6 +99,7 @@ export class MatchView {
       const a = vm.model.time * 6;
       p.emit({ x: f.x + Math.sin(a) * 0.4, y: f.y + 2.15, z: f.z + Math.cos(a) * 0.4, count: 1, speed: 0.1, color: '#ffe060', size: 0.18, life: 0.3 });
     }
+    this.updateTrails(dt, vm, f, color);
     // Arcs de taille et souffle des coups, calés sur l'instant de frappe
     if (f.state === 'move' && f.moveId) {
       const mv = vm.def.moves[f.moveId];
@@ -112,6 +126,76 @@ export class MatchView {
     } else {
       vm.prevMove = '';
       vm.prevMt = 0;
+    }
+  }
+
+  /** Traînées lumineuses des membres qui frappent (et rafale d'onomatopées du pugiliste). */
+  updateTrails(dt, vm, f, color) {
+    const camPos = this.stage.camera.position;
+    let limbs = [];
+    let active = false;
+    let mv = null;
+    if (f.state === 'move' && f.moveId) {
+      mv = vm.def.moves[f.moveId];
+      const anim = mv && ANIMS[mv.anim];
+      if (mv && anim && !['summon', 'powerup', 'cast', 'beam'].includes(mv.anim)) {
+        const s = strikeTime(mv);
+        const end = mv.hold ? mv.hold[1] : s + 0.12;
+        active = f.mt >= s - 0.06 && f.mt <= end + 0.04;
+        limbs = vm.model.strikeLimb(mv.anim);
+      }
+    }
+    if (!vm.trails) vm.trails = [];
+    const weapon = vm.model.tip && limbs[0] === vm.model.tip;
+    for (let i = 0; i < 2; i++) {
+      const limb = limbs[i];
+      if (!vm.trails[i] && limb) vm.trails[i] = new Trail(this.stage.scene, weapon ? '#d8f4ff' : color, weapon ? 0.2 : 0.13);
+      const tr = vm.trails[i];
+      if (!tr) continue;
+      if (limb) limb.getWorldPosition(tmp);
+      tr.update(dt, limb ? tmp : null, camPos, active && !!limb);
+    }
+    // Cent Poings du Dragon : rafale d'onomatopées et d'éclairs de poings autour de la cible
+    if (f.charId === 'goro' && f.moveId === 'ultimate' && f.mt > 0.12 && f.mt < 1.4) {
+      vm.rushT = (vm.rushT || 0) - dt;
+      if (vm.rushT <= 0) {
+        vm.rushT = 0.11;
+        const fx = Math.sin(f.yaw);
+        const fz = Math.cos(f.yaw);
+        const px = f.x + fx * 1.1 + (Math.random() - 0.5) * 0.8;
+        const py = f.y + 1.1 + (Math.random() - 0.5) * 0.7;
+        const pz = f.z + fz * 1.1 + (Math.random() - 0.5) * 0.8;
+        this.stage.effects.flash(px, py, pz, 0.9, 0.08, '#ffd8a0');
+        tmp.set(px, py, pz).project(this.stage.camera);
+        this.overlay.mangaSmall(Math.random() < 0.5 ? 'ドド' : 'ゴッ', (tmp.x * 0.5 + 0.5) * 100 + (Math.random() - 0.5) * 30, (-tmp.y * 0.5 + 0.5) * 100 + (Math.random() - 0.5) * 30);
+      }
+    }
+  }
+
+  /** Silhouette fantôme laissée par le ninja quand il se téléporte (ultime). */
+  spawnGhost(f) {
+    let g = this.ghosts.find((x) => x.t >= x.life);
+    if (!g) {
+      if (this.ghosts.length >= 4) return;
+      const model = new CharacterModel(CHAR_BY_ID[f.charId], { ghost: true });
+      this.stage.scene.add(model.root);
+      g = { model, t: 0, life: 0.45 };
+      this.ghosts.push(g);
+    }
+    g.t = 0;
+    g.model.root.visible = true;
+    const fake = { x: f.x, y: f.y, z: f.z, yaw: f.yaw, vx: 0, vy: 0, vz: 0, state: 'move', moveId: f.moveId, mt: f.mt, onGround: true, flash: 0 };
+    for (let i = 0; i < 6; i++) g.model.update(0.05, fake);
+  }
+
+  updateGhosts(dt) {
+    for (const g of this.ghosts) {
+      if (g.t >= g.life) continue;
+      g.t += dt;
+      const k = 1 - g.t / g.life;
+      for (const m of g.model.mats) m.opacity = 0.7 * k;
+      g.model.root.scale.setScalar(1 + (1 - k) * 0.15);
+      if (g.t >= g.life) g.model.root.visible = false;
     }
   }
 
@@ -210,6 +294,7 @@ export class MatchView {
     if (e.kind === 'beam') {
       const bv = new BeamVisual(scene, e.color || auraColor);
       let pt = 0;
+      let ringT = 0;
       return {
         update: (dt, en) => {
           bv.update(dt, en);
@@ -221,6 +306,13 @@ export class MatchView {
             const ey = en.y + en.dy * en.len;
             p.emit({ x: ex, y: ey, z: ez, count: 4, speed: 9, color: en.color || auraColor, size: 0.3, life: 0.3 });
             p.emit({ x: en.x + en.dx * en.len * Math.random(), y: en.y, z: en.z + en.dz * en.len * Math.random(), count: 2, speed: 4, color: '#ffffff', size: 0.2, life: 0.3 });
+            // Anneaux d'énergie qui filent le long du rayon
+            ringT -= 0.016;
+            if (ringT <= 0) {
+              ringT = 0.07;
+              const d = Math.random() * en.len;
+              this.stage.effects.orientedRing(en.x + en.dx * d, en.y + en.dy * d, en.z + en.dz * d, en.dx, en.dy, en.dz, en.width * 1.2, en.width * 3.2, 0.25, en.color || auraColor);
+            }
             this.stage.rig.addShake(0.04);
           }
         },
@@ -272,6 +364,7 @@ export class MatchView {
       }
       if (e.type === 'dragon') {
         const d = buildDragon(auraColor);
+        if (e.tx != null) this.director.seal(e.tx, e.tz, 4.6, auraColor, (e.T || 1.35) + 0.5, 2.5);
         const trail = [];
         return simple(d, (dt, en) => {
           const { head, segs } = d.userData;
@@ -306,6 +399,7 @@ export class MatchView {
     let crystals = null;
     let flame = null;
     if (e.type === 'meteor') {
+      this.director.seal(e.x, e.z, e.r * 1.15, '#ff5a1a', e.delay + 0.7, 1.2);
       meteor = new THREE.Group();
       const geo = new THREE.DodecahedronGeometry(2.4, 1);
       const rock = toonPart(geo, toonMat('#3a2420', { emissive: new THREE.Color('#ff3a0a'), emissiveIntensity: 0.6, flatShading: true }), { outline: 0.06 });
@@ -401,6 +495,8 @@ export class MatchView {
             p.emit({ x: ev.x, y: ev.y, z: ev.z, count: big ? 34 : 16, speed: big ? 14 : 9, color: '#ffffff', size: big ? 0.3 : 0.2, life: 0.3, drag: 5 });
             p.emit({ x: ev.x, y: ev.y, z: ev.z, count: big ? 22 : 8, speed: big ? 9 : 5, color: c, size: big ? 0.45 : 0.3, life: 0.4, drag: 4 });
             fx.flash(ev.x, ev.y, ev.z, big ? 3.2 : 1.6, big ? 0.16 : 0.1, '#ffffff');
+            this.stage.rig.addPunch(ev.kind === 'kd' ? 3.5 : big ? 1.6 : 0.5);
+            if (ev.kind === 'kd') this.overlay.impactFrame(0.07);
             if (big) {
               fx.burstRing(ev.x, ev.y, ev.z, 0.4, 2.6, 0.25, c, cam);
               fx.light(ev.x, ev.y, ev.z, c, 6.0, 0.25, 12);
@@ -416,22 +512,31 @@ export class MatchView {
         case 'cine': {
           const f = state.fighters[ev.id];
           const def = CHAR_BY_ID[ev.charId];
-          this.stage.rig.setFocus({ mode: 'cine', x: f.x, y: f.y, z: f.z, yaw: f.yaw, t: 0, dur: ev.dur + 0.1 });
-          this.overlay.cinematic(ev.text, f.transformed ? def.auraAlt || def.aura : def.aura, def.name, ev.dur);
+          const col = f.transformed ? def.auraAlt || def.aura : def.aura;
+          this.cineChar = ev.charId;
+          this.director.start(this.models[ev.id].model, f, col, ev.dur);
+          this.overlay.cinematic(ev.text, col, def.name, ev.dur);
           fx.light(f.x, f.y + 1.5, f.z, def.aura, 8.0, ev.dur, 14);
           a.play('ultCharge');
           break;
         }
         case 'cineEnd':
-          if (this.stage.rig.focus && this.stage.rig.focus.mode === 'cine') this.stage.rig.focus = null;
+          this.director.stop();
           this.overlay.flash('#ffffff', 0.2);
+          this.overlay.speedLines(0.8, 1.2);
+          // Le sabreur suspend le temps : monde en noir et blanc jusqu'à la coupe
+          if (this.cineChar === 'ren') this.overlay.mono(0.85);
           a.play('ultRelease');
           break;
         case 'impact': {
           tmp.set(ev.x, ev.y, ev.z).project(cam);
           this.overlay.manga(ev.text, (tmp.x * 0.5 + 0.5) * 100, (-tmp.y * 0.5 + 0.5) * 100);
-          this.overlay.flash('#ffffff', 0.12);
-          this.overlay.speedLines(0.5, 1);
+          this.overlay.monoT = 0;
+          this.overlay.impactFrame(0.16);
+          this.overlay.speedLines(0.7, 1.3);
+          this.stage.rig.addPunch(8);
+          if (this.cineChar === 'ren' || this.cineChar === 'kage') this.overlay.screenSlash(this.cineChar === 'ren' ? '#9ff8ff' : '#b07aff', this.cineChar === 'ren' ? -14 : 22);
+          this.stage.effects.burstRing(ev.x, ev.y, ev.z, 0.5, 5, 0.3, '#ffffff', cam);
           a.play('impact');
           break;
         }
@@ -512,6 +617,11 @@ export class MatchView {
         p.emit({ x: ev.x, y: 0.1, z: ev.z, count: ev.big ? 26 : 10, flat: true, speed: ev.big ? 6 : 3.5, color: '#c8b8a0', size: ev.big ? 0.7 : 0.45, sizeEnd: 0.9, life: 0.5, hdr: 0.45, drag: 3 });
         break;
       case 'vanish':
+        if (ev.id != null && state.fighters[ev.id] && state.fighters[ev.id].state === 'move') {
+          const g = state.fighters[ev.id];
+          this.spawnGhost({ charId: g.charId, x: ev.x, y: ev.y - 1, z: ev.z, yaw: g.yaw, moveId: g.moveId, mt: g.mt });
+        }
+        // fallthrough
       case 'appear':
         p.emit({ x: ev.x, y: ev.y, z: ev.z, count: 24, speed: 5, spread: 0.4, color: '#2a1a3a', size: 0.7, sizeEnd: 1.1, life: 0.35, hdr: 0.6, drag: 4 });
         p.emit({ x: ev.x, y: ev.y, z: ev.z, count: 14, speed: 8, color: c, size: 0.2, life: 0.3 });

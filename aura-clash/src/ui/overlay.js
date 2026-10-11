@@ -25,6 +25,10 @@ export class Overlay {
     this.flashDur = 1;
     this.cineT = 0;
     this.reduced = false;
+    this.gameCanvas = document.getElementById('game');
+    this.impactT = 0;
+    this.monoT = 0;
+    this.lastFilter = '';
     this.resize();
     window.addEventListener('resize', () => this.resize());
   }
@@ -73,7 +77,49 @@ export class Overlay {
     setTimeout(() => el.remove(), 1300);
   }
 
+  /**
+   * « Image d'impact » d'anime : quelques images en négatif noir et blanc très contrasté,
+   * puis un éclair blanc, au moment où un coup puissant touche.
+   */
+  impactFrame(dur = 0.1) {
+    if (this.reduced) return;
+    this.impactT = Math.max(this.impactT, dur);
+    this.impactDur = Math.max(this.impactT, dur);
+  }
+
+  /** Monde en noir et blanc (temps suspendu, juste avant un coup décisif). */
+  mono(dur) {
+    this.monoT = Math.max(this.monoT, dur);
+  }
+
+  /** Trait de lame qui traverse tout l'écran en diagonale. */
+  screenSlash(color = '#ffffff', angle = -18) {
+    if (this.reduced) return;
+    const el = document.createElement('div');
+    el.className = 'screen-slash';
+    el.style.setProperty('--c', color);
+    el.style.setProperty('--a', `${angle}deg`);
+    this.root.appendChild(el);
+    setTimeout(() => el.remove(), 900);
+  }
+
+  /** Petite onomatopée (rafales de coups). */
+  mangaSmall(text, xPct, yPct) {
+    const el = document.createElement('div');
+    el.className = 'manga small';
+    el.textContent = text;
+    el.style.left = `${xPct}%`;
+    el.style.top = `${yPct}%`;
+    el.style.setProperty('--rot', `${(Math.random() * 30 - 15).toFixed(1)}deg`);
+    this.mangaLayer.appendChild(el);
+    setTimeout(() => el.remove(), 700);
+  }
+
   clear() {
+    this.impactT = 0;
+    this.monoT = 0;
+    if (this.gameCanvas) this.gameCanvas.style.filter = '';
+    this.lastFilter = '';
     this.lines = 0;
     this.flashT = 0;
     this.cineT = 0;
@@ -84,6 +130,20 @@ export class Overlay {
   }
 
   update(dt) {
+    // Filtres plein écran (image d'impact, noir et blanc)
+    let filter = '';
+    if (this.impactT > 0) {
+      this.impactT -= dt;
+      const k = this.impactT / (this.impactDur || 0.1);
+      filter = k > 0.45 ? 'invert(1) grayscale(1) contrast(3.5)' : 'grayscale(1) contrast(2.2) brightness(1.6)';
+    } else if (this.monoT > 0) {
+      this.monoT -= dt;
+      filter = 'grayscale(1) contrast(1.35) brightness(1.05)';
+    }
+    if (filter !== this.lastFilter && this.gameCanvas) {
+      this.gameCanvas.style.filter = filter;
+      this.lastFilter = filter;
+    }
     if (this.flashT > 0) {
       this.flashT -= dt;
       this.flashEl.style.opacity = Math.max(0, this.flashT / this.flashDur) * 0.85;

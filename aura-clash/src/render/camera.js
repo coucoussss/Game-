@@ -15,6 +15,13 @@ export class CameraRig {
     this.focus = null; // { x, y, z, yaw, t, dur, mode }
     this.time = 0;
     this.shakeScale = 1;
+    this.roll = 0;
+    this.punch = 0;
+  }
+
+  /** Petit zoom bref (coup puissant). */
+  addPunch(a) {
+    this.punch = Math.min(10, this.punch + a);
   }
 
   addShake(a) {
@@ -99,6 +106,11 @@ export class CameraRig {
         wantPos.set(f.x + Math.sin(a) * 4.5, 1.6, f.z + Math.cos(a) * 4.5 + 0.5);
         wantLook.set(f.x, 1.1, f.z);
         wantFov = 38;
+      } else if (f.mode === 'manual') {
+        // Plan imposé par la mise en scène des ultimes (position, cible, focale, roulis)
+        wantPos.copy(f.pos);
+        wantLook.copy(f.look);
+        wantFov = f.fov || 40;
       } else if (f.mode === 'orbit') {
         const a = this.time * 0.08;
         wantPos.set(Math.sin(a) * 16, 5.5, Math.cos(a) * 16);
@@ -107,12 +119,24 @@ export class CameraRig {
       }
       if (f.dur && f.t > f.dur && f.mode !== 'showcase' && f.mode !== 'orbit') this.focus = null;
     }
+    const manual = this.focus && this.focus.mode === 'manual';
+    const wantRoll = manual ? this.focus.roll || 0 : 0;
 
-    const snap = this.focus && this.focus.mode === 'cine' ? 10 : 4;
+    const snap = manual ? 14 : this.focus && this.focus.mode === 'cine' ? 10 : 4;
     const kp = 1 - Math.exp(-dt * snap);
-    this.pos.lerp(wantPos, kp);
-    this.look.lerp(wantLook, 1 - Math.exp(-dt * snap * 1.5));
-    this.fov += (wantFov - this.fov) * kp;
+    if (manual && this.focus.cut) {
+      // Coupe franche entre deux plans
+      this.focus.cut = false;
+      this.pos.copy(wantPos);
+      this.look.copy(wantLook);
+      this.fov = wantFov;
+    } else {
+      this.pos.lerp(wantPos, kp);
+      this.look.lerp(wantLook, 1 - Math.exp(-dt * snap * 1.5));
+      this.fov += (wantFov - this.fov) * kp;
+    }
+    this.roll += (wantRoll - this.roll) * Math.min(1, dt * 10);
+    this.punch *= Math.exp(-dt * 9);
 
     this.camera.position.copy(this.pos);
     if (this.shake > 0.001) {
@@ -123,8 +147,10 @@ export class CameraRig {
       this.shake *= Math.exp(-dt * 7);
     }
     this.camera.lookAt(this.look);
-    if (Math.abs(this.camera.fov - this.fov) > 0.01) {
-      this.camera.fov = this.fov;
+    if (Math.abs(this.roll) > 0.001) this.camera.rotateZ(this.roll);
+    const fov = this.fov - this.punch;
+    if (Math.abs(this.camera.fov - fov) > 0.01) {
+      this.camera.fov = fov;
       this.camera.updateProjectionMatrix();
     }
   }

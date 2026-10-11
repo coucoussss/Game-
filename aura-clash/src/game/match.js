@@ -443,7 +443,7 @@ export class Match {
 
   warp(f, act, target) {
     if (!target) return;
-    this.emit('fx', { fx: 'vanish', x: f.x, y: f.y + 1, z: f.z, color: f.def.aura });
+    this.emit('fx', { fx: 'vanish', id: f.id, x: f.x, y: f.y + 1, z: f.z, color: f.def.aura });
     let dx = f.x - target.x;
     let dz = f.z - target.z;
     let d = Math.hypot(dx, dz);

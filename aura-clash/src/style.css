@@ -311,3 +311,12 @@ body.touch-on .aslot { width: 7vw; }
 .tbtn.cooling { color: #aaa; }
 .akey:empty { display: none; }
 .aslot.cooling .aname { opacity: 0.35; }
+
+/* --- Effets d'ultime --- */
+.manga.small { font-size: 5vh; -webkit-text-stroke: 0.25vh #000; text-shadow: 0.4vh 0.4vh 0 #ff2a3a; animation-duration: 0.7s; }
+.screen-slash { position: absolute; left: -10%; right: -10%; top: 50%; height: 1.4vh; margin-top: -0.7vh; pointer-events: none;
+  background: linear-gradient(90deg, transparent, #fff 20%, var(--c) 50%, #fff 80%, transparent);
+  box-shadow: 0 0 3vh var(--c), 0 0 1vh #fff; transform: rotate(var(--a)) scaleX(0); transform-origin: left center;
+  animation: slashIn 0.9s cubic-bezier(.2, .9, .2, 1) forwards; }
+@keyframes slashIn { 0% { transform: rotate(var(--a)) scaleX(0); opacity: 1; } 18% { transform: rotate(var(--a)) scaleX(1); opacity: 1; }
+  70% { transform: rotate(var(--a)) scaleX(1) scaleY(0.6); opacity: 1; } 100% { transform: rotate(var(--a)) scaleX(1) scaleY(0); opacity: 0; } }

@@ -141,3 +141,38 @@ export function toonPartSmooth(geo, mat, { outline = 0.018, shadow = true } = {}
   }
   return mesh;
 }
+
+// --- Matériau « anime » des personnages -------------------------------------------------------
+// Deux aplats francs (lumière / ombre), comme dans un dessin animé, et un liseré de lumière sur les
+// bords (rim light) qui détache la silhouette du décor. Le visage reçoit des ombres très claires,
+// comme les visages d'anime, presque jamais assombris.
+const gradients = {};
+function stepGradient(key, values) {
+  if (gradients[key]) return gradients[key];
+  const t = new THREE.DataTexture(new Uint8Array(values), values.length, 1, THREE.RedFormat);
+  t.minFilter = THREE.NearestFilter;
+  t.magFilter = THREE.NearestFilter;
+  t.generateMipmaps = false;
+  t.needsUpdate = true;
+  gradients[key] = t;
+  return t;
+}
+
+export function animeMat(color, { face = false, rim = 0.32, ...extra } = {}) {
+  const { flatShading, ...rest } = extra;
+  const m = new THREE.MeshToonMaterial({
+    color: new THREE.Color(color),
+    gradientMap: face ? stepGradient('face', [205, 255]) : stepGradient('anime', [150, 255]),
+    ...rest,
+  });
+  const k = rim.toFixed(3);
+  m.onBeforeCompile = (shader) => {
+    const marker = '#include ' + String.fromCharCode(60) + 'opaque_fragment' + String.fromCharCode(62);
+    shader.fragmentShader = shader.fragmentShader.replace(marker, `
+      float rimF = 1.0 - abs(dot(normalize(normal), normalize(vViewPosition)));
+      outgoingLight += diffuseColor.rgb * ${k} * smoothstep(0.6, 0.7, rimF);
+      ${marker}`);
+  };
+  m.customProgramCacheKey = () => `anime-${k}-${face ? 1 : 0}`;
+  return m;
+}
