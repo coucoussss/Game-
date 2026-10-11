@@ -12,6 +12,9 @@ const h = (html) => {
   t.innerHTML = html.trim();
   return t.content.firstElementChild;
 };
+const lastIp = () => { try { return localStorage.getItem('auraclash.lastIp') || ''; } catch { return ''; } };
+// Version « page web » (artefact, iPad) : pas de réseau local, le navigateur ne peut ni héberger ni joindre.
+const WEB_ONLY = typeof window !== 'undefined' && !!window.AURA_WEB_ONLY;
 const randomChar = () => CHARACTERS[Math.floor(Math.random() * CHARACTERS.length)].id;
 const randomArena = () => ARENAS[Math.floor(Math.random() * ARENAS.length)].id;
 
@@ -156,7 +159,7 @@ export class UI {
     const el = h(`<div class="screen title-screen">
       <div class="logo"><span class="logo-a">AURA</span><span class="logo-b">CLASH</span></div>
       <div class="logo-jp">オーラ・クラッシュ</div>
-      <button class="btn press" data-nav data-autofocus>Appuie sur une touche</button>
+      <button class="btn press" data-nav data-autofocus>${matchMedia('(pointer: coarse)').matches ? 'Touche l’écran pour commencer' : 'Appuie sur une touche'}</button>
       <div class="credits">Jeu de combat 3D — 6 combattants, 5 arènes, multijoueur en réseau local</div>
     </div>`);
     el.querySelector('.press').addEventListener('click', () => {
@@ -178,7 +181,7 @@ export class UI {
       { label: 'Versus contre l’IA', hint: '1 joueur, best of 3', action: () => this.setupVersus('cpu') },
       { label: 'Versus local', hint: '2 joueurs sur le même PC', action: () => this.setupVersus('local2') },
       { label: '2 contre 2', hint: 'avec ou sans partenaire humain', action: () => this.setup2v2() },
-      { label: 'Réseau local (LAN)', hint: 'créer ou rejoindre une partie', action: () => this.lanMenu() },
+      { label: 'Réseau local (LAN)', hint: WEB_ONLY ? 'disponible dans la version PC (.exe)' : 'créer ou rejoindre une partie', disabled: WEB_ONLY, action: () => this.lanMenu() },
       { label: 'Entraînement', hint: 'mannequin configurable', action: () => this.setupTraining() },
       { label: 'Options', hint: 'son, graphismes, commandes', action: () => this.options(() => this.mainMenu()) },
       ...(electron ? [{ label: 'Quitter', action: () => window.auraNative.quit() }] : []),
@@ -587,7 +590,7 @@ export class UI {
     const el = h(`<div class="screen menu lan-join">
       <h2 class="menu-title">REJOINDRE UNE PARTIE</h2>
       <div class="found"><div class="found-title">Parties trouvées sur le réseau :</div><div class="found-list"><div class="muted">${native ? 'Recherche en cours…' : 'Découverte automatique disponible dans la version .exe'}</div></div></div>
-      <div class="ip-row"><label class="opt" data-nav><span>Adresse IP de l’hôte</span><input type="text" class="ip-input" placeholder="ex. 192.168.1.20" value="${esc(localStorage.getItem('auraclash.lastIp') || '')}"></label>
+      <div class="ip-row"><label class="opt" data-nav><span>Adresse IP de l’hôte</span><input type="text" class="ip-input" placeholder="ex. 192.168.1.20" value="${esc(lastIp())}"></label>
       <button class="btn" data-nav data-act="connect">Se connecter</button></div>
       <button class="btn ghost" data-nav data-act="back">Retour</button>
       <div class="help">${FIREWALL_HELP}</div>
@@ -618,7 +621,7 @@ export class UI {
     el.querySelector('[data-act=connect]').addEventListener('click', () => {
       const addr = parseAddress(ipInput.value);
       if (!addr) { this.toast('Saisis l’adresse IP affichée chez l’hôte (ex. 192.168.1.20).'); return; }
-      localStorage.setItem('auraclash.lastIp', ipInput.value.trim());
+      try { localStorage.setItem('auraclash.lastIp', ipInput.value.trim()); } catch { /* stockage indisponible */ }
       connect(addr.host, addr.port);
     });
     el.querySelector('[data-act=back]').addEventListener('click', () => this.lanMenu());

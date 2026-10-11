@@ -17,6 +17,7 @@
     "build:nowine": "node scripts/bundle.mjs && node scripts/make-icon.mjs && electron-builder --win portable --x64 -c.win.signAndEditExecutable=false",
     "zip": "node scripts/zip.mjs",
     "html": "node scripts/bundle.mjs && node scripts/single-html.mjs",
+    "artifact": "node scripts/bundle.mjs && node scripts/artifact.mjs",
     "dist": "npm run build && npm run zip"
   },
   "dependencies": {

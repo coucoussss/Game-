@@ -21,6 +21,10 @@ export class Input {
     this.prevPause = [false, false];
     this.capture = null;
     this.lastDevice = 'keyboard';
+    // Commandes tactiles (renseignées par ui/touch.js)
+    this.touch = { x: 0, y: 0, held: 0 };
+    this.touchTapped = 0;
+    this.touchPause = false;
 
     window.addEventListener('keydown', (e) => this.onKey(e, true));
     window.addEventListener('keyup', (e) => this.onKey(e, false));
@@ -146,6 +150,12 @@ export class Input {
       for (const [a, bit] of Object.entries(ACTION_BITS)) if (on(a)) held |= bit;
       if ((k.pause || []).some((c) => this.tapped.has(c))) pause = true;
     }
+    if (solo || player === 0) {
+      x += this.touch.x;
+      y += this.touch.y;
+      held |= this.touch.held | this.touchTapped;
+      if (this.touchPause) { pause = true; this.touchPause = false; }
+    }
     const pads = solo ? this.pads : this.pads[player] ? [this.pads[player]] : [];
     for (const gp of pads) {
       const map = s.pad[solo ? 0 : player] || DEFAULT_PAD;
@@ -169,7 +179,14 @@ export class Input {
   }
 
   /** Fin de tick : les appuis brefs ont été pris en compte. */
+  /** Appui sur un bouton tactile (compté même s'il est relâché avant le tick suivant). */
+  touchPress(bit) {
+    this.touchTapped |= bit;
+    this.lastDevice = 'touch';
+  }
+
   endTick() {
+    this.touchTapped = 0;
     this.tapped.clear();
   }
 

@@ -46,6 +46,7 @@ export class AudioEngine {
     const unlock = () => this.ensure();
     window.addEventListener('pointerdown', unlock);
     window.addEventListener('keydown', unlock);
+    window.addEventListener('touchend', unlock); // iPad / iPhone : le son se débloque au premier toucher
   }
 
   ensure() {

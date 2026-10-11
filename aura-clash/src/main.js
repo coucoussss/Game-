@@ -10,6 +10,7 @@ import { Overlay } from './ui/overlay.js';
 import { Hud } from './ui/hud.js';
 import { UI } from './ui/screens.js';
 import { renderPortraits } from './ui/portraits.js';
+import { TouchControls } from './ui/touch.js';
 import { Battle } from './battle.js';
 import { CpuBrain } from './game/ai.js';
 import { CHARACTERS, CHAR_BY_ID } from './game/characters.js';
@@ -26,6 +27,11 @@ class App {
     this.hud = new Hud(overlayRoot);
     this.view = new MatchView(this.stage, this.audio, this.hud, this.overlay);
     this.ui = new UI(this);
+    this.touch = new TouchControls(document.body, this.input);
+    // Tablette : qualité moyenne par défaut (rendu plus fluide sur écran Retina)
+    if (matchMedia('(pointer: coarse)').matches && this.settings.fresh) {
+      this.settings.data.gfx.quality = 'medium';
+    }
     this.battle = null;
     this.backdrop = { mode: null, models: [] };
     this.input.onPadChange = (msg) => this.ui.toast(msg);
@@ -129,6 +135,7 @@ class App {
       fighters: cfg.fighters.map((f) => ({ ...f, ctrl: { ...f.ctrl } })),
     });
     this.audio.play('fight');
+    this.touch.setBattle(true);
   }
 
   restartBattle() {
@@ -142,6 +149,7 @@ class App {
       this.battle.dispose();
       this.battle = null;
     }
+    this.touch.setBattle(false);
     this.backdrop.key = null;
     this.backdrop.mode = null;
     if (toMenu) this.ui.mainMenu();

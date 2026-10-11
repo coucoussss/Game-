@@ -65,6 +65,7 @@ function defaults() {
 
 export class Settings {
   constructor() {
+    this.fresh = true;
     this.data = defaults();
     this.load();
   }
@@ -72,6 +73,7 @@ export class Settings {
   load() {
     try {
       const raw = localStorage.getItem(KEY);
+      this.fresh = !raw; // premier lancement : aucun réglage enregistré
       if (!raw) return;
       const saved = JSON.parse(raw);
       const d = defaults();
