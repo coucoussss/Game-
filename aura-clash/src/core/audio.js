@@ -15,15 +15,42 @@ const DORIAN = [0, 2, 3, 5, 7, 9, 10];
 const PHRYGIAN = [0, 1, 3, 5, 7, 8, 10];
 const HARM = [0, 2, 3, 5, 7, 8, 11];
 
-// Thèmes : 0-4 = arènes, 5 = menu
+// Thèmes : 0-4 = arènes, 5 = menu. `choir` : nappe de chœur synthétique ; `taiko` : grands tambours.
 const THEMES = [
-  { name: 'Falaises', bpm: 150, root: 45, scale: DORIAN, prog: [0, 5, 3, 4], drums: 'rock', lead: 'square', seed: 11 },
-  { name: 'Temple', bpm: 132, root: 50, scale: PHRYGIAN, prog: [0, 1, 0, 6], drums: 'taiko', lead: 'triangle', seed: 23 },
+  { name: 'Falaises', bpm: 150, root: 45, scale: DORIAN, prog: [0, 5, 3, 4], drums: 'rock', lead: 'square', seed: 11, taiko: true },
+  { name: 'Temple', bpm: 132, root: 50, scale: PHRYGIAN, prog: [0, 1, 0, 6], drums: 'taiko', lead: 'triangle', seed: 23, choir: true, taiko: true },
   { name: 'Néo-Kyoto', bpm: 160, root: 43, scale: MINOR, prog: [0, 5, 6, 4], drums: 'electro', lead: 'sawtooth', seed: 37 },
-  { name: 'Glacier', bpm: 140, root: 47, scale: HARM, prog: [0, 3, 5, 4], drums: 'rock', lead: 'triangle', seed: 41 },
-  { name: 'Volcan', bpm: 172, root: 40, scale: PHRYGIAN, prog: [0, 1, 5, 4], drums: 'metal', lead: 'sawtooth', seed: 53 },
-  { name: 'Menu', bpm: 112, root: 50, scale: DORIAN, prog: [0, 5, 2, 4], drums: 'soft', lead: 'triangle', seed: 7 },
+  { name: 'Glacier', bpm: 140, root: 47, scale: HARM, prog: [0, 3, 5, 4], drums: 'rock', lead: 'triangle', seed: 41, choir: true },
+  { name: 'Volcan', bpm: 172, root: 40, scale: PHRYGIAN, prog: [0, 1, 5, 4], drums: 'metal', lead: 'sawtooth', seed: 53, choir: true, taiko: true },
+  { name: 'Menu', bpm: 112, root: 50, scale: DORIAN, prog: [0, 5, 2, 4], drums: 'soft', lead: 'triangle', seed: 7, choir: true },
 ];
+
+// Thèmes de boss : une base épique, déclinée pour chaque boss (tonalité, mode, graine)
+const BOSS_THEMES = {
+  'roi-goule': { root: 41, scale: HARM, prog: [0, 1, 4, 0] },
+  'shogun-oni': { root: 38, scale: PHRYGIAN, prog: [0, 1, 6, 5] },
+  imperatrice: { root: 44, scale: HARM, prog: [0, 5, 3, 4] },
+  'dragon-noir': { root: 40, scale: PHRYGIAN, prog: [0, 6, 5, 1] },
+  titan: { root: 36, scale: MINOR, prog: [0, 5, 6, 4] },
+  'roi-fleau': { root: 39, scale: HARM, prog: [0, 1, 5, 4] },
+};
+const hashStr = (str) => [...str].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
+
+/** Construit un thème : index d'arène, 'menu', ou 'boss:<id>' / 'boss2:<id>' (seconde phase). */
+function themeFor(key) {
+  if (key === 'menu') return THEMES[5];
+  if (typeof key === 'number') return THEMES[key] || null;
+  if (typeof key === 'string' && key.startsWith('boss')) {
+    const [kind, id] = key.split(':');
+    const b = BOSS_THEMES[id] || BOSS_THEMES['roi-goule'];
+    const two = kind === 'boss2';
+    return {
+      name: key, bpm: two ? 178 : 154, root: b.root + (two ? 1 : 0), scale: b.scale, prog: b.prog,
+      drums: two ? 'metal' : 'epic', lead: 'sawtooth', seed: hashStr(key), choir: true, taiko: true, boss: true,
+    };
+  }
+  return null;
+}
 
 const DRUMS = {
   rock: { kick: [0, 6, 8, 11], snare: [4, 12], hat: 2 },
@@ -31,6 +58,7 @@ const DRUMS = {
   electro: { kick: [0, 4, 8, 12], snare: [4, 12], hat: 1 },
   metal: { kick: [0, 2, 3, 6, 8, 10, 11, 14], snare: [4, 12], hat: 2 },
   soft: { kick: [0, 10], snare: [8], hat: 4 },
+  epic: { kick: [0, 3, 6, 8, 11, 14], snare: [4, 12], hat: 2 },
 };
 
 export class AudioEngine {
@@ -313,19 +341,21 @@ export class AudioEngine {
 
   /** Lance un thème (index d'arène, ou 'menu'), ou coupe la musique avec null. */
   music(theme) {
-    const idx = theme === 'menu' ? 5 : theme;
+    const idx = theme;
     if (!this.ctx) { this.pendingTheme = theme; return; }
     if (idx === this.themeIndex) return;
+    const th = idx === null || idx === undefined ? null : themeFor(idx);
+    if (idx !== null && idx !== undefined && !th) return; // thème inconnu : on garde la musique en cours
     this.themeIndex = idx;
     clearInterval(this.timer);
     this.timer = null;
-    if (idx === null || idx === undefined || !THEMES[idx]) return;
+    if (!th) return;
     // Petit fondu pour éviter les coupures sèches
     const t = this.ctx.currentTime;
     this.musicBus.gain.cancelScheduledValues(t);
     this.musicBus.gain.setValueAtTime(0.0001, t);
     this.musicBus.gain.linearRampToValueAtTime(this.settings.data.audio.music * 0.55, t + 1.2);
-    this.theme = this.compose(THEMES[idx]);
+    this.theme = this.compose(th);
     this.step = 0;
     this.nextTime = t + 0.1;
     this.timer = setInterval(() => this.schedule(), 25);
@@ -368,8 +398,51 @@ export class AudioEngine {
     }
   }
 
+  /** Montée d'intensité (ultimes) : roulements, cymbales et chœur plus présents pendant `dur` s. */
+  boost(dur = 2) {
+    if (!this.ctx) return;
+    this.boostUntil = Math.max(this.boostUntil || 0, this.ctx.currentTime + dur);
+  }
+
+  /** Chœur synthétique : dents de scie filtrées en voyelle « a », attaque lente. */
+  choir(m, t, dur, vol) {
+    const ctx = this.ctx;
+    const out = ctx.createGain();
+    out.gain.setValueAtTime(0.0001, t);
+    out.gain.exponentialRampToValueAtTime(vol, t + Math.min(0.6, dur * 0.4));
+    out.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    out.connect(this.musicBus);
+    out.connect(this.reverbSend);
+    for (const det of [-9, 0, 8]) {
+      const o = ctx.createOscillator();
+      o.type = 'sawtooth';
+      o.frequency.value = midiHz(m);
+      o.detune.value = det;
+      for (const [f, q, g] of [[800, 6, 1], [1150, 8, 0.6], [2600, 10, 0.2]]) {
+        const bp = ctx.createBiquadFilter();
+        bp.type = 'bandpass';
+        bp.frequency.value = f;
+        bp.Q.value = q;
+        const gg = ctx.createGain();
+        gg.gain.value = g;
+        o.connect(bp).connect(gg).connect(out);
+      }
+      o.start(t);
+      o.stop(t + dur + 0.1);
+    }
+  }
+
+  /** Grand tambour taiko : coup grave et peau qui claque. */
+  taikoHit(t, vol) {
+    const bus = this.musicBus;
+    this.tone('sine', 110, 48, 0.45, vol, { at: t, bus });
+    this.noise(0.25, vol * 0.45, 'lowpass', 700, 160, { at: t, bus });
+    this.noise(0.05, vol * 0.3, 'bandpass', 2000, 1200, { at: t, bus, q: 1.5 });
+  }
+
   playStep(step, t) {
     const th = this.theme;
+    const hot = (this.boostUntil || 0) > t; // ultime en cours : la musique s'emballe
     const s = step % 16;
     const barIdx = Math.floor(step / 16) % th.bars.length;
     const bar = th.bars[barIdx];
@@ -388,6 +461,17 @@ export class AudioEngine {
     }
     if (s % dr.hat === 0) this.noise(s % 8 === 6 ? 0.12 : 0.035, 0.12, 'highpass', 8000, 8000, { at: t, bus });
     if (th.drums === 'metal' && s === 15) this.noise(0.4, 0.25, 'highpass', 5000, 3000, { at: t, bus });
+    // Taikos : grands coups sur les temps forts, roulement en fin de mesure
+    if (th.taiko && (s === 0 || s === 8 || (s >= 12 && s % 2 === 0 && barIdx % 2 === 1))) this.taikoHit(t, s === 0 ? 0.7 : 0.45);
+    // Chœur : un accord tenu par mesure (deux voix), plus fort pendant un ultime
+    if (th.choir && s === 0 && section !== 0) {
+      for (const m of bar.chord.slice(0, 2)) this.choir(m + 12, t, sd * 16, hot ? 0.12 : th.boss ? 0.09 : 0.06);
+    }
+    if (hot) {
+      // Montée : roulement de caisse claire et cymbale à chaque mesure
+      this.noise(0.06, 0.25, 'bandpass', 2200, 1600, { at: t, bus, q: 0.8 });
+      if (s === 0) this.noise(1.2, 0.3, 'highpass', 6000, 3000, { at: t, bus });
+    }
     // Basse
     for (const b of bar.bass) {
       if (b.s === s) this.tone('sawtooth', midiHz(b.m), midiHz(b.m), sd * 1.6, 0.22, { at: t, bus, filter: 'lowpass', ff: 520 });

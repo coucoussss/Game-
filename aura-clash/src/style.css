@@ -443,3 +443,68 @@ body.touch-on .aslot { width: 7vw; }
 .records li span { color: var(--muted); font-size: 1.4vh; }
 .records .portrait.mini { width: 4vh; height: 4vh; }
 .btn.locked { opacity: 0.55; }
+
+/* --- Écran VS ------------------------------------------------------------------------------ */
+.vs-screen { position: absolute; inset: 0; z-index: 30; overflow: hidden; background: #0a0612; pointer-events: auto; animation: vsIn 0.2s ease-out; }
+.vs-screen.out { animation: vsOut 0.35s ease-in forwards; }
+.vs-lines { position: absolute; inset: -20%; background: repeating-conic-gradient(from 0deg at 50% 50%, rgba(255, 255, 255, 0.07) 0deg 2deg, transparent 2deg 9deg); animation: vsSpin 6s linear infinite; }
+.vs-side { position: absolute; top: 0; bottom: 0; width: 54%; display: flex; flex-direction: column; justify-content: center; gap: 1vh; }
+.vs-side.left { left: 0; align-items: flex-start; }
+.vs-side.right { right: 0; align-items: flex-end; }
+.vs-card { position: relative; display: flex; flex-direction: column; justify-content: flex-end; width: 100%; height: calc(80vh / var(--n)); max-height: 60vh; overflow: hidden;
+  background: linear-gradient(100deg, var(--c), transparent 90%); clip-path: polygon(0 0, 92% 0, 100% 100%, 0 100%); padding: 0 3vw 1.4vh;
+  animation: vsSlideL 0.45s cubic-bezier(.2, 1.4, .4, 1) both; animation-delay: calc(var(--i) * 0.08s); }
+.vs-card.r { align-items: flex-end; text-align: right; background: linear-gradient(260deg, var(--c), transparent 90%); clip-path: polygon(8% 0, 100% 0, 100% 100%, 0 100%); animation-name: vsSlideR; }
+.vs-card .vs-portrait { position: absolute; top: 50%; transform: translateY(-50%); height: 130%; width: auto; aspect-ratio: 1; left: 4vw; border: 0; background: none; filter: drop-shadow(0 0 2vh rgba(0, 0, 0, 0.6)); }
+.vs-card.r .vs-portrait { left: auto; right: 4vw; transform: translateY(-50%) scaleX(-1); }
+.vs-name { position: relative; font: italic 900 4.6vh var(--display); color: #fff; -webkit-text-stroke: 0.25vh #000; text-shadow: 0.5vh 0.5vh 0 #000; margin-left: 30%; }
+.vs-card.r .vs-name { margin-left: 0; margin-right: 30%; }
+.vs-title { position: relative; font: 700 1.7vh var(--display); color: #fff; opacity: 0.85; margin-left: 30%; letter-spacing: 0.1em; text-transform: uppercase; }
+.vs-card.r .vs-title { margin-left: 0; margin-right: 30%; }
+.vs-mark { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font: italic 900 22vh var(--display); color: #ffd23f;
+  -webkit-text-stroke: 0.6vh #000; text-shadow: 1.2vh 1.2vh 0 #000, 0 0 6vh rgba(255, 120, 40, 0.9); animation: vsSlam 0.5s cubic-bezier(.3, 1.6, .5, 1) 0.5s both; z-index: 2; }
+.vs-top { position: absolute; top: 4vh; left: 0; right: 0; text-align: center; font: italic 900 4vh var(--display); color: #fff; -webkit-text-stroke: 0.2vh #000; text-shadow: 0.4vh 0.4vh 0 #000; animation: vsDrop 0.5s ease-out 0.3s both; }
+.vs-bottom { position: absolute; bottom: 5vh; left: 0; right: 0; text-align: center; font: italic 900 2.6vh var(--display); color: #fff; letter-spacing: 0.3em; text-transform: uppercase; opacity: 0.85; animation: vsDrop 0.5s ease-out 0.8s both; }
+@keyframes vsIn { from { opacity: 0; } }
+@keyframes vsOut { to { opacity: 0; transform: scale(1.08); } }
+@keyframes vsSpin { to { transform: rotate(360deg); } }
+@keyframes vsSlideL { from { transform: translateX(-110%); } }
+@keyframes vsSlideR { from { transform: translateX(110%); } }
+@keyframes vsSlam { from { transform: translate(-50%, -50%) scale(4) rotate(-12deg); opacity: 0; } to { transform: translate(-50%, -50%) scale(1) rotate(0); opacity: 1; } }
+@keyframes vsDrop { from { transform: translateY(-3vh); opacity: 0; } }
+@media (orientation: portrait) { .vs-name { font-size: 3vh; } .vs-mark { font-size: 14vh; } }
+
+/* --- Tutoriel -------------------------------------------------------------------------------- */
+.tuto-panel { position: absolute; top: 15vh; left: 50%; transform: translateX(-50%); width: min(64vw, 720px); z-index: 5; pointer-events: none;
+  background: linear-gradient(180deg, rgba(20, 14, 40, 0.92), rgba(10, 8, 22, 0.92)); border-left: 6px solid #6fc8ff; padding: 1.4vh 1.6vw; box-shadow: 0 0 3vh rgba(0, 0, 0, 0.5); }
+.tuto-panel.done { border-left-color: #7fffb0; }
+.tuto-step { font: 700 1.3vh var(--display); letter-spacing: 0.2em; color: #6fc8ff; }
+.tuto-title { font: italic 900 3vh var(--display); color: #fff; margin: 0.3vh 0 0.6vh; }
+.tuto-panel.done .tuto-title { color: #7fffb0; }
+.tuto-text { font-size: 1.9vh; line-height: 1.5; color: #e8e4f8; }
+.tuto-text kbd { display: inline-block; min-width: 1.6em; padding: 0 0.4em; margin: 0 0.1em; border: 2px solid #fff; border-bottom-width: 4px; border-radius: 4px; font: 900 1.6vh var(--display); text-align: center; background: rgba(255, 255, 255, 0.08); }
+.tuto-note { font-size: 1.4vh; color: var(--muted); margin-top: 0.6vh; }
+.tuto-bar { display: flex; gap: 0.3vw; margin-top: 1vh; }
+.tuto-bar i { flex: 1; height: 0.6vh; background: rgba(255, 255, 255, 0.15); }
+.tuto-bar i.ok { background: #7fffb0; }
+.tuto-bar i.cur { background: #6fc8ff; animation: blink 0.6s infinite alternate; }
+.tuto-hint { font-size: 1.2vh; color: var(--muted); margin-top: 0.6vh; }
+.btn.new { box-shadow: inset 0 0 0 2px #ffd23f; }
+.training-info:empty { display: none; }
+
+/* --- Galerie --------------------------------------------------------------------------------- */
+.screen.gallery { background: none; display: block; }
+.gal-list { position: absolute; left: 1.5vw; top: 3vh; bottom: 3vh; width: min(22vw, 260px); overflow-y: auto; display: flex; flex-direction: column; gap: 0.5vh; padding-right: 0.4vw; }
+.gal-item { display: flex; align-items: center; gap: 0.6vw; border: 0; border-left: 4px solid var(--c); background: rgba(14, 10, 28, 0.85); color: #fff; padding: 0.4vh 0.6vw; cursor: pointer; text-align: left; font: 700 1.5vh var(--display); }
+.gal-item .portrait.mini { width: 4.5vh; height: 4.5vh; }
+.gal-item.sel { background: rgba(60, 40, 110, 0.95); }
+.gal-item.focus, .gal-item:hover { outline: 2px solid #fff; }
+.gal-item.locked { opacity: 0.45; }
+.gal-info { position: absolute; right: 1.5vw; top: 3vh; width: min(28vw, 360px); background: rgba(10, 8, 20, 0.82); padding: 1.4vh 1.2vw; border-left: 4px solid #ffd23f; }
+.gal-info h3 { margin: 0; font: italic 900 2.8vh var(--display); }
+.gal-info p { font-size: 1.5vh; color: #ddd8ee; margin: 0.8vh 0 0; }
+.gal-controls { position: absolute; left: 50%; bottom: 2.5vh; transform: translateX(-38%); display: flex; flex-direction: column; gap: 0.8vh; align-items: center; }
+.gal-row { display: flex; gap: 0.5vw; flex-wrap: wrap; justify-content: center; }
+.btn.small.on { background: linear-gradient(90deg, #ffd23f, #ff8a3a); color: #1a1020; }
+.gal-hint { font-size: 1.3vh; color: var(--muted); text-shadow: 0 0 4px #000; }
+@media (orientation: portrait) { .gal-list { width: 30vw; } .gal-info { width: 60vw; } .gal-controls { transform: translateX(-30%); } }

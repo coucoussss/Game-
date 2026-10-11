@@ -8,6 +8,7 @@ import { NetClient, parseAddress, LAN_PORT } from '../net/session.js';
 import { REWARDS, UPGRADES, UPGRADE_COSTS, UPGRADE_MAX } from '../core/profile.js';
 import { CHAPTERS, STORY_TITLE } from '../story/chapters.js';
 import { StoryScene } from '../story/scene.js';
+import { Tutorial, TUTORIAL_REWARD } from './tutorial.js';
 import { WAVE_LEVELS, WAVE_HEAL, buildLevel, levelReward, isBossLevel, regionOf, DIFFICULTIES, withDifficulty, endlessWave, endlessReward, BLESSINGS } from '../game/waves.js';
 import { MONSTERS, TIERS } from '../game/monsters.js';
 
@@ -192,9 +193,11 @@ export class UI {
       { label: 'Versus local', hint: '2 joueurs sur le même PC', action: () => this.setupVersus('local2') },
       { label: '2 contre 2', hint: 'avec ou sans partenaire humain', action: () => this.setup2v2() },
       { label: 'Réseau local (LAN)', hint: WEB_ONLY ? 'disponible dans la version PC (.exe)' : 'créer ou rejoindre une partie', disabled: WEB_ONLY, action: () => this.lanMenu() },
+      { label: 'Tutoriel', hint: this.app.profile.data.tutorialDone ? 'revoir les bases et les techniques avancées' : `apprends les bases — +${TUTORIAL_REWARD} Ryō`, cls: this.app.profile.data.tutorialDone ? '' : 'new', action: () => this.charSelect([{ label: 'TUTORIEL', team: 0, ctrl: { type: 'human', player: 0 } }], (fs) => new Tutorial(this.app, fs[0].charId).start(), () => this.mainMenu()) },
       { label: 'Entraînement', hint: 'mannequin configurable', action: () => this.setupTraining() },
       { label: 'Améliorations', hint: 'renforce tes combattants (force, vie, vitesse, ki, maîtrise)', action: () => this.upgrades() },
       { label: 'Boutique', hint: `${this.app.profile.ryo} Ryō — débloque de nouveaux combattants`, action: () => this.shop() },
+      { label: 'Galerie', hint: 'modèles 3D, poses, expressions, auras et ultimes', action: () => this.gallery() },
       { label: 'Options', hint: 'son, graphismes, commandes', action: () => this.options(() => this.mainMenu()) },
       ...(electron ? [{ label: 'Quitter', action: () => window.auraNative.quit() }] : []),
     ], { cls: 'main-menu', footer: `<div class="wallet">${this.app.profile.ryo} <small>Ryō</small></div>` + '<div class="menu-logo"><span class="logo-a">AURA</span><span class="logo-b">CLASH</span></div><div class="controls-hint">Flèches / manette : naviguer — Entrée / A : valider — Échap / B : retour</div>' });
@@ -414,7 +417,7 @@ export class UI {
       ...(ch.fight.allies || []).map((a) => ({ charId: a.charId, team: 0, ctrl: { type: 'cpu', level: a.level } })),
       ...ch.fight.enemies.map((e) => ({ charId: e.charId, team: 1, ctrl: { type: 'cpu', level: e.level }, mods: e.mods })),
     ];
-    app.startBattle({ role: 'local', arena: ch.arena, fighters, story: ch.id });
+    app.startBattle({ role: 'local', arena: ch.arena, fighters, story: ch.id, storyTitle: `CHAPITRE ${ch.n} — ${ch.title}` });
   }
 
   /** Fin d'un combat du mode histoire (appelé à la place de l'écran de résultats). */
@@ -540,6 +543,7 @@ export class UI {
       ],
       waves: lv.waves,
       waveLevel: n,
+      regionName: lv.region,
       difficultyId: diff,
     });
   }
@@ -666,6 +670,62 @@ export class UI {
     </div>`);
     el.querySelector('.btn').addEventListener('click', onBack);
     this.show({ el, back: onBack });
+  }
+
+  // --- Galerie -------------------------------------------------------------------------------
+
+  gallery(sel = null) {
+    const app = this.app;
+    const prof = app.profile;
+    const seen = new Set(prof.data.seen || []);
+    const entries = [
+      ...CHARACTERS.map((c) => ({ c, open: true })),
+      ...MONSTERS.map((c) => ({ c, open: seen.has(c.id) })),
+    ];
+    const cur = sel || 'kael';
+    const g = app.gallery || (app.gallery = { yaw: 0.4, dist: 3.4, pose: 'idle', h: 1.1 });
+    const poses = [['idle', 'Garde'], ['intro', 'Entrée'], ['victory', 'Victoire'], ['aura', 'Aura'], ['ult', 'Ultime']];
+    const exprs = [[null, 'Auto'], ['fierce', 'Combatif'], ['angry', 'Colère'], ['shock', 'Stupeur'], ['menace', 'Menace'], ['smile', 'Sourire']];
+    const def = CHAR_BY_ID[cur];
+    const el = h(`<div class="screen gallery">
+      <div class="gal-list">${entries.map(({ c, open }) => `<button class="gal-item ${c.id === cur ? 'sel' : ''} ${open ? '' : 'locked'}" data-nav data-id="${c.id}" style="--c:${c.aura}">
+        ${open ? this.portrait(c.id, 'mini') : '<div class="portrait mini fallback">?</div>'}<span>${open ? esc(c.name) : '???'}</span></button>`).join('')}</div>
+      <div class="gal-info"><h3 style="color:${def.aura}">${esc(def.name)}</h3><div class="ititle">${esc(def.title)}</div><p>${esc(def.blurb)}</p>
+        <p class="gal-ult">Ultime : <b>${esc(def.moves.ultimate.name)}</b></p></div>
+      <div class="gal-controls">
+        <div class="gal-row">${poses.map(([id, l]) => `<button class="btn small ${g.pose === id ? 'on' : ''}" data-nav data-pose="${id}">${l}</button>`).join('')}</div>
+        <div class="gal-row">${exprs.map(([id, l]) => `<button class="btn small ${(g.expr || null) === id ? 'on' : ''}" data-nav data-expr="${id || ''}">${l}</button>`).join('')}</div>
+        <div class="gal-row"><button class="btn small" data-nav data-rot="-1">◀</button><button class="btn small" data-nav data-zoom="1">−</button><button class="btn small" data-nav data-zoom="-1">+</button><button class="btn small" data-nav data-rot="1">▶</button>
+          <button class="btn small ${g.auto ? 'on' : ''}" data-nav data-auto>Rotation auto</button><button class="btn small ghost" data-nav data-act="back">Retour</button></div>
+        <div class="gal-hint">Glisse sur la scène pour tourner autour du personnage, molette pour zoomer.</div>
+      </div>
+    </div>`);
+    app.setBackdrop('gallery', cur);
+    el.querySelectorAll('.gal-item').forEach((b) => b.addEventListener('click', () => {
+      if (b.classList.contains('locked')) { app.audio.play('denied'); this.toast('Créature pas encore rencontrée (mode Vagues).', 2.5); return; }
+      this.gallery(b.dataset.id);
+    }));
+    const keepFocus = (sel2) => { this.gallery(cur); const f = this.screen.el.querySelector(sel2); if (f) this.focus(f, false); };
+    el.querySelectorAll('[data-pose]').forEach((b) => b.addEventListener('click', () => { g.pose = b.dataset.pose; keepFocus(`[data-pose="${g.pose}"]`); }));
+    el.querySelectorAll('[data-expr]').forEach((b) => b.addEventListener('click', () => { g.expr = b.dataset.expr || null; keepFocus(`[data-expr="${b.dataset.expr}"]`); }));
+    el.querySelectorAll('[data-rot]').forEach((b) => b.addEventListener('click', () => { g.yaw += Number(b.dataset.rot) * 0.5; }));
+    el.querySelectorAll('[data-zoom]').forEach((b) => b.addEventListener('click', () => { g.dist = Math.max(1.4, Math.min(7, g.dist + Number(b.dataset.zoom) * 0.6)); }));
+    el.querySelector('[data-auto]').addEventListener('click', () => { g.auto = !g.auto; keepFocus('[data-auto]'); });
+    el.querySelector('[data-act=back]').addEventListener('click', () => this.mainMenu());
+    // Glisser pour tourner, molette pour zoomer, gros plan sur le visage en zoomant fort
+    let drag = null;
+    el.addEventListener('pointerdown', (e) => { if (!e.target.closest('button')) drag = { x: e.clientX, y: e.clientY }; });
+    el.addEventListener('pointermove', (e) => {
+      if (!drag) return;
+      g.yaw -= (e.clientX - drag.x) * 0.01;
+      g.h = Math.max(0.4, Math.min(1.9, g.h + (e.clientY - drag.y) * 0.005));
+      drag = { x: e.clientX, y: e.clientY };
+    });
+    el.addEventListener('pointerup', () => { drag = null; });
+    el.addEventListener('wheel', (e) => { g.dist = Math.max(1.0, Math.min(7, g.dist + Math.sign(e.deltaY) * 0.3)); }, { passive: true });
+    this.show({ el, back: () => this.mainMenu() });
+    const s2 = el.querySelector('.gal-item.sel');
+    if (s2) { this.focus(s2, false); s2.scrollIntoView({ block: 'nearest' }); }
   }
 
   // --- Améliorations ----------------------------------------------------------------------

@@ -36,6 +36,8 @@ export class Profile {
           story: Array.isArray(saved.story) ? saved.story.filter((x) => typeof x === 'string') : [],
           waves: Array.isArray(saved.waves) ? saved.waves.filter((x) => Number.isInteger(x) && x >= 1) : [],
           difficulty: ['facile', 'normal', 'cauchemar'].includes(saved.difficulty) ? saved.difficulty : 'normal',
+          tutorialDone: !!saved.tutorialDone,
+          seen: Array.isArray(saved.seen) ? saved.seen.filter((x) => typeof x === 'string') : [],
           endless: Array.isArray(saved.endless) ? saved.endless.filter((r) => r && Number.isFinite(r.score)).slice(0, 5) : [],
         };
       }
@@ -96,6 +98,12 @@ export class Profile {
   /** Niveau le plus haut accessible : le suivant du plus haut réussi. */
   levelUnlocked() {
     return this.data.waves.reduce((m, n) => Math.max(m, n), 0) + 1;
+  }
+
+  /** Créatures rencontrées (pour la galerie). */
+  markSeen(id) {
+    if (!this.data.seen) this.data.seen = [];
+    if (!this.data.seen.includes(id)) { this.data.seen.push(id); this.save(); }
   }
 
   setDifficulty(id) {

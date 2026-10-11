@@ -48,6 +48,7 @@ export class CpuBrain {
     if (!me || !me.alive || !m.canAct) { this.pressQueue.length = 0; return out; }
 
     if (this.dummy && this.dummy !== 'cpu') return this.dummyInput(me, m, dt, out);
+    if (!me) return out;
 
     const t = m.targetFor(me);
     if (!t) return out;
@@ -205,6 +206,22 @@ export class CpuBrain {
   }
 
   dummyInput(me, m, dt, out) {
+    if (this.dummy === 'attack') {
+      // Mannequin d'entraînement offensif (tutoriel) : s'approche et frappe à intervalles réguliers
+      const t = m.targetFor(me);
+      if (!t) return out;
+      const dx = t.x - me.x;
+      const dz = t.z - me.z;
+      const d = Math.hypot(dx, dz) || 1;
+      if (d > 1.8) { out.mx = dx / d * 0.7; out.mz = dz / d * 0.7; }
+      this.thinkT -= dt;
+      if (this.thinkT <= 0 && d < 2.4 && me.state !== 'move') {
+        this.thinkT = 1.6;
+        out.pressed = BTN.LIGHT;
+        out.held = BTN.LIGHT;
+      }
+      return out;
+    }
     if (this.dummy === 'guard') {
       if (me.state === 'guard' || me.state === 'idle' || me.state === 'walk' || me.state === 'blockstun') out.held = BTN.GUARD;
     } else if (this.dummy === 'jump') {

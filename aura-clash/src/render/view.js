@@ -730,6 +730,7 @@ export class MatchView {
           a.shout(def.look.body === 'f', 1, def.monster ? 'o' : 'a');
           this.overlay.cinematic(ev.text, col, def.name, ev.dur);
           this.overlay.tint(col, ev.dur + 0.8);
+          a.boost(ev.dur + 2.5);
           fx.light(f.x, f.y + 0.4, f.z, def.aura, 4.5, ev.dur, 12);
           a.play('ultCharge');
           break;

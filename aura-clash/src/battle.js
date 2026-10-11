@@ -78,6 +78,7 @@ export class Battle {
       this.netEvents.push(...this.match.events);
     }
 
+    for (const f of cfg.fighters) if (CHAR_BY_ID[f.charId].monster) app.profile.markSeen(f.charId);
     this.barOwners = cfg.fighters
       .map((f, i) => ({ i, f }))
       .filter(({ i, f }) => (this.role === 'client' ? i === cfg.localFighter : f.ctrl.type === 'human'));
@@ -89,7 +90,10 @@ export class Battle {
     stage.rig.focus = null;
     stage.rig.snapTo(this.state.fighters);
     const arenaInfo = ARENAS.find((a) => a.id === cfg.arena);
-    app.audio.music(arenaInfo ? arenaInfo.music : 0);
+    this.arenaMusic = arenaInfo ? arenaInfo.music : 0;
+    // Un boss dès le début (histoire, première vague) : son thème
+    const boss0 = cfg.fighters.find((f) => CHAR_BY_ID[f.charId].boss);
+    app.audio.music(boss0 ? `boss:${boss0.charId}` : this.arenaMusic);
     this.specialCost = cfg.fighters.map((f) => CHAR_BY_ID[f.charId].moves.special.cost);
 
     if (this.role === 'host') {
@@ -140,6 +144,7 @@ export class Battle {
       this.brains[id] = new CpuBrain(id, e.level);
       this.specialCost[id] = CHAR_BY_ID[e.charId].moves.special.cost;
       this.app.view.addFighter(e.charId);
+      this.app.profile.markSeen(e.charId);
     });
     this.setupHud();
   }
@@ -191,12 +196,17 @@ export class Battle {
     }
     const events = this.match.events.splice(0);
     for (const ev of events) {
-      if (ev.type === 'waveSpawn') this.onWaveSpawn(ev);
+      if (ev.type === 'waveSpawn') {
+        this.onWaveSpawn(ev);
+        const boss = ev.entries.find((e) => e.boss);
+        if (boss) app.audio.music(`boss:${boss.charId}`);
+        else if (ev.n > 1 && this.match.fighters.every((f) => !f.def.boss || f.gone)) app.audio.music(this.arenaMusic);
+      }
       else if (ev.type === 'waveClear' && this.match.awaitChoice) this.offerBlessing();
       else if (ev.type === 'bossPhase') {
         // Seconde phase d'un boss : l'arène bascule au cœur de la cinématique, la musique s'emballe
         if (ev.arena) this.pendingArena = { id: ev.arena, t: 1.1 };
-        app.audio.music('boss2');
+        app.audio.music(`boss2:${ev.charId}`);
       } else if (ev.type === 'blessing') app.hud.setBlessings(ev.id, this.match.fighters[ev.id].bless);
     }
     if (this.pendingArena) {
@@ -208,6 +218,7 @@ export class Battle {
       }
     }
     this.trackCombo(events);
+    if (this.cfg.tutorial && app.tutorial) app.tutorial.update(this.paused ? 0 : dt, events, this.match);
     app.view.handleEvents(events, this.match);
     app.view.update(this.paused ? 0 : dt, this.match);
     app.stage.rig.update(dt, this.match.fighters);
@@ -312,6 +323,7 @@ export class Battle {
   }
 
   trainingText() {
+    if (this.cfg.tutorial) return '';
     const dummy = this.cfg.fighters.find((f) => f.ctrl.type === 'dummy');
     const modes = { stand: 'Immobile', guard: 'Garde', jump: 'Saute', cpu: 'Combat' };
     return `<span>Mannequin : <b>${modes[dummy?.ctrl.mode] || '—'}</b></span>
@@ -346,6 +358,7 @@ export class Battle {
   }
 
   dispose() {
+    if (this.cfg.tutorial && this.app.tutorial) this.app.tutorial.dispose();
     this.app.view.detach();
     this.app.view.onMatchEnd = null;
     this.app.hud.show(false);
