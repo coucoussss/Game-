@@ -114,8 +114,10 @@ export function extrudeOutlineMat(width, color = '#0a0a12') {
   if (!extrudeMats.has(key)) {
     const m = new THREE.MeshBasicMaterial({ color: new THREE.Color(color), side: THREE.BackSide });
     m.onBeforeCompile = (shader) => {
+      // (chevrons construits à part : certains outils prennent « <begin_vertex> » pour une balise HTML)
+      const chunk = `#include ${String.fromCharCode(60)}begin_vertex${String.fromCharCode(62)}`;
       shader.vertexShader = shader.vertexShader.replace(
-        '#include <begin_vertex>',
+        chunk,
         `vec3 transformed = vec3(position) + normalize(normal) * ${width.toFixed(4)};`,
       );
     };

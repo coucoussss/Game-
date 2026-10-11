@@ -1,13 +1,14 @@
-// Crée release/aura-clash-artifact.html : la version « page web » du jeu, publiable comme artefact
-// (et jouable sur iPad : écran tactile, clavier ou manette). Pas de réseau local dans cette version.
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+// Crée la version « page web » du jeu, publiable comme artefact (jouable sur iPad : tactile,
+// clavier ou manette) : release/artifact/index.html + game.js (le code du jeu, en fichier à part).
+// Pas de réseau local dans cette version.
+import { readFileSync, writeFileSync, mkdirSync, copyFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const dist = join(root, 'dist');
+const out = join(root, 'release', 'artifact');
 const css = readFileSync(join(dist, 'style.css'), 'utf8');
-const js = readFileSync(join(dist, 'game.js'), 'utf8').replace(/<\/script/gi, '<\\/script');
 const page = `<title>Aura Clash</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -20,10 +21,9 @@ ${css}
 <div id="ui"></div>
 <div id="fatal"><div><h1>Impossible de démarrer</h1><pre></pre></div></div>
 <script>window.AURA_WEB_ONLY = true;</script>
-<script>
-${js}
-</script>
+<script src="game.js"></script>
 `;
-mkdirSync(join(root, 'release'), { recursive: true });
-writeFileSync(join(root, 'release', 'aura-clash-artifact.html'), page);
-console.log(`Artefact prêt : release/aura-clash-artifact.html (${(Buffer.byteLength(page) / 1024).toFixed(0)} Ko)`);
+mkdirSync(out, { recursive: true });
+writeFileSync(join(out, 'index.html'), page);
+copyFileSync(join(dist, 'game.js'), join(out, 'game.js'));
+console.log('Artefact prêt : release/artifact/index.html + game.js');
