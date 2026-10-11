@@ -1,6 +1,7 @@
 // Interface de combat : barres de vie (avec traînée de dégâts), d'énergie et de garde, minuteur,
 // manches gagnées, compteur de combo et annonces (« MANCHE 1 », « K.O. »…).
 import { MAX_ENERGY } from '../game/constants.js';
+import { SLOTS } from '../game/characters.js';
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -48,6 +49,7 @@ export class Hud {
         </div>
         ${side(sides[1], 'right')}
       </div>
+      <div class="attack-bars"></div>
       <div class="announce"></div>
       ${this.training ? '<div class="training-info"></div>' : ''}`;
     for (const f of fighters) {
@@ -109,8 +111,65 @@ export class Hud {
       this.pipsL.innerHTML = pip(state.wins ? state.wins[0] : 0);
       this.pipsR.innerHTML = pip(state.wins ? state.wins[1] : 0);
     }
+    this.updateBars(state);
     this.pingEl.textContent = extra.ping != null ? `${extra.ping} ms` : '';
     if (this.trainingEl && extra.trainingText != null) this.trainingEl.innerHTML = extra.trainingText;
+  }
+
+  /**
+   * Barre des attaques en bas de l'écran, une par joueur local :
+   * bars = [{ id, def, side: 'mid' | 'left' | 'right' }]. Les touches arrivent par setBarLabels.
+   */
+  setupBars(bars) {
+    const wrap = this.root.querySelector('.attack-bars');
+    this.bars = bars.map((b) => {
+      const el = document.createElement('div');
+      el.className = `abar ${b.side}`;
+      el.style.setProperty('--c', b.def.aura);
+      el.innerHTML = SLOTS.map(([slot, label]) => `<div class="aslot" data-slot="${slot}">
+          <div class="acd"></div><span class="akey"></span><span class="aname">${label}</span><span class="amove"></span><span class="atime"></span>
+        </div>`).join('');
+      wrap.appendChild(el);
+      const slots = {};
+      for (const [slot] of SLOTS) {
+        const s = el.querySelector(`[data-slot="${slot}"]`);
+        slots[slot] = { el: s, cd: s.querySelector('.acd'), key: s.querySelector('.akey'), move: s.querySelector('.amove'), time: s.querySelector('.atime') };
+      }
+      return { ...b, el, slots, trans: null };
+    });
+  }
+
+  setBarLabels(index, labels) {
+    const bar = this.bars && this.bars[index];
+    if (!bar) return;
+    for (const [slot] of SLOTS) if (bar.slots[slot].key.textContent !== labels[slot]) bar.slots[slot].key.textContent = labels[slot];
+  }
+
+  updateBars(state) {
+    for (const bar of this.bars || []) {
+      const f = state.fighters[bar.id];
+      if (!f || !f.cd) continue;
+      const tr = !!f.transformed;
+      if (bar.trans !== tr) {
+        // Noms des coups (le spécial du guerrier change une fois transformé)
+        bar.trans = tr;
+        for (const [slot, , ref] of SLOTS) {
+          let mv = bar.def.moves[ref];
+          if (mv.alt && tr) mv = bar.def.moves[mv.alt];
+          bar.slots[slot].move.textContent = slot === 'light' ? 'Enchaînement' : mv.name;
+          bar.slots[slot].cost = mv.cost || 0;
+        }
+      }
+      for (const [slot] of SLOTS) {
+        const s = bar.slots[slot];
+        const cd = f.cd[slot] || 0;
+        const frac = cd > 0 ? Math.min(1, cd / (f.cdMax[slot] || 1)) : 0;
+        s.cd.style.transform = `scaleY(${frac})`;
+        s.time.textContent = cd > 0 ? cd.toFixed(1) : '';
+        s.el.classList.toggle('cooling', cd > 0);
+        s.el.classList.toggle('noen', (s.cost || 0) > f.energy);
+      }
+    }
   }
 
   combo(id, n) {

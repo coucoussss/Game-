@@ -282,5 +282,32 @@ table.binds td { padding: 0.25vh 0.4vw; border-bottom: 1px solid rgba(255, 255, 
   .logo-a, .logo-b { font-size: 11vh; }
   .menu-logo { display: none; }
 }
-body.touch-on .training-info { bottom: auto; top: 16vh; }
+body.touch-on .training-info { bottom: auto !important; top: 16vh; }
 body.touch-on .training-info .hint { display: none; }
+
+/* --- Barre des attaques (bas de l'écran) --- */
+.attack-bars { position: absolute; left: 0; right: 0; bottom: calc(1.5vh + env(safe-area-inset-bottom, 0px)); display: flex; justify-content: center; gap: 4vw; pointer-events: none; }
+.abar { display: flex; gap: 0.5vw; }
+.attack-bars:has(.abar.left) { justify-content: space-between; padding: 0 2vw; }
+.aslot { position: relative; width: 8.4vw; min-width: 64px; padding: 0.6vh 0.5vw 0.5vh; background: rgba(10, 8, 28, 0.78); border: 2px solid rgba(255, 255, 255, 0.28);
+  border-bottom: 3px solid var(--c); transform: skewX(-10deg); overflow: hidden; display: flex; flex-direction: column; gap: 0.15vh; }
+.aslot > * { position: relative; }
+.acd { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.62); transform-origin: top; transform: scaleY(0); }
+.akey { align-self: flex-start; font: 800 1.35vh var(--font); color: #120c00; background: var(--gold); padding: 0.05vh 0.45vw; border-radius: 2px; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.aname { font: italic 900 1.55vh var(--display); color: #fff; text-shadow: 0 1px 0 #000; }
+.amove { font: 600 1.15vh var(--font); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.atime { position: absolute; right: 0.4vw; top: 0.4vh; font: italic 900 2.2vh var(--display); color: #fff; text-shadow: 0 0 6px #000, 0 1px 0 #000; font-variant-numeric: tabular-nums; }
+.aslot.cooling { border-color: rgba(255, 255, 255, 0.12); }
+.aslot.cooling .akey { background: #666; color: #ddd; }
+.aslot.noen .aname { color: #8a86a8; }
+.aslot.noen::after { content: 'ÉNERGIE'; position: absolute; left: 0; right: 0; bottom: 0.3vh; text-align: center; font: 800 1vh var(--font); color: #ff8a9a; letter-spacing: 0.1em; }
+.aslot.noen .amove { visibility: hidden; }
+.training-info { bottom: 13vh !important; }
+body.touch-on .attack-bars { bottom: calc(1vh + env(safe-area-inset-bottom, 0px)); }
+body.touch-on .abar { transform: scale(0.82); transform-origin: bottom center; }
+body.touch-on .aslot { width: 7vw; }
+.tbtn::after { content: ''; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+  background: conic-gradient(rgba(0, 0, 0, 0.65) calc(var(--cd, 0) * 360deg), transparent 0); }
+.tbtn.cooling { color: #aaa; }
+.akey:empty { display: none; }
+.aslot.cooling .aname { opacity: 0.35; }

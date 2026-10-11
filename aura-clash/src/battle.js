@@ -4,7 +4,9 @@
 //   'client' : affichage des instantanés reçus de l'hôte + envoi de nos entrées
 import { Match } from './game/match.js';
 import { CpuBrain } from './game/ai.js';
-import { CHAR_BY_ID } from './game/characters.js';
+import { CHAR_BY_ID, SLOTS } from './game/characters.js';
+import { keyLabel } from './core/input.js';
+import { PAD_NAMES } from './core/settings.js';
 import { TICK } from './game/constants.js';
 import { ARENA_RADIUS, ARENAS } from './render/arenas.js';
 import { encodeSnapshot, RemoteState } from './net/session.js';
@@ -73,6 +75,13 @@ export class Battle {
     app.hud.setup(cfg.fighters.map((f, i) => ({
       id: i, name: CHAR_BY_ID[f.charId].name, team: f.team, color: CHAR_BY_ID[f.charId].aura, label: labels[i],
     })), { training: cfg.training });
+    // Barre des attaques : une par joueur de cette machine
+    this.barOwners = cfg.fighters
+      .map((f, i) => ({ i, f }))
+      .filter(({ i, f }) => (this.role === 'client' ? i === cfg.localFighter : f.ctrl.type === 'human'));
+    const sides = this.barOwners.length > 1 ? ['left', 'right'] : ['mid'];
+    app.hud.setupBars(this.barOwners.map(({ i, f }, k) => ({ id: i, def: CHAR_BY_ID[f.charId], side: sides[k] || 'right' })));
+    this.labelT = 0;
     app.hud.show(true);
     app.overlay.clear();
     app.input.resetEdges();
@@ -129,6 +138,7 @@ export class Battle {
     app.view.handleEvents(events, this.match);
     app.view.update(this.paused ? 0 : dt, this.match);
     app.stage.rig.update(dt, this.match.fighters);
+    this.refreshBarLabels(dt);
     app.hud.update(dt, this.match, { specialCost: this.specialCost, ping: null, trainingText: this.cfg.training ? this.trainingText() : null });
     if (this.paused) app.input.endTick(); // les appuis faits pendant la pause ne ressortent pas après
     if (this.wantPause) {
@@ -184,9 +194,36 @@ export class Battle {
     app.view.handleEvents(events, st);
     app.view.update(dt, st);
     app.stage.rig.update(dt, st.fighters);
+    this.refreshBarLabels(dt);
     app.hud.update(dt, st, { specialCost: this.specialCost, ping: Math.round(rtt) });
     if (s.pause) app.ui.openNetMenu();
     if (app.ui.screen) this.clientPressed = 0; // menu ouvert : on n'envoie pas les validations du menu
+  }
+
+  /** Touche affichée pour chaque attaque, selon le dernier périphérique utilisé. */
+  refreshBarLabels(dt) {
+    // Recharge visible aussi sur les boutons tactiles
+    const own = this.barOwners[0];
+    if (own) this.app.touch.setCooldowns(this.state.fighters[own.i]);
+    this.labelT -= dt;
+    if (this.labelT > 0) return;
+    this.labelT = 0.5;
+    const input = this.app.input;
+    const s = this.app.settings.data;
+    const touchNames = { light: '', heavy: '', ranged: '', special: '', ultimate: '' }; // au tactile, les boutons portent déjà le nom
+    this.barOwners.forEach(({ f }, k) => {
+      const player = this.role === 'client' ? 0 : f.ctrl.player;
+      const solo = this.role === 'client' || this.humans <= 1;
+      const labels = {};
+      for (const [slot] of SLOTS) {
+        if (input.lastDevice === 'touch' && player === 0) labels[slot] = touchNames[slot];
+        else if (input.lastDevice === 'pad' && input.padCount() > (solo ? 0 : player)) {
+          const b = (s.pad[solo ? 0 : player][slot] || [])[0];
+          labels[slot] = b != null ? PAD_NAMES[b] || `Bouton ${b}` : '—';
+        } else labels[slot] = keyLabel((s.keys[solo ? 0 : player][slot] || [])[0]);
+      }
+      this.app.hud.setBarLabels(k, labels);
+    });
   }
 
   trackCombo(events) {

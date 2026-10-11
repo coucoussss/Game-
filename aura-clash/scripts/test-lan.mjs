@@ -35,7 +35,7 @@ function client(name, token) {
         });
       },
     };
-    ws.on('open', () => { api.send({ type: 'hello', name, token, protocol: 1 }); resolve(api); });
+    ws.on('open', () => { api.send({ type: 'hello', name, token, protocol: 2 }); resolve(api); });
     ws.on('error', reject);
   });
 }

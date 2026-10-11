@@ -492,6 +492,7 @@ export class MatchView {
         case 'special':
           this.hud.moveName(ev.id, ev.name);
           break;
+        case 'cooldown':
         case 'noEnergy':
           if (this.localIds.has(ev.id)) a.play('denied');
           break;

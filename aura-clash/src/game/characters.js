@@ -287,3 +287,56 @@ export function moveList(def) {
   if (def.teleportDodge) rows.push(['Esquive', 'Téléportation (sans direction : dans le dos de l’adversaire)']);
   return rows;
 }
+
+// --- Temps de recharge ---------------------------------------------------------------------
+// Chaque type d'attaque a son temps de recharge, proportionnel à sa puissance (dégâts potentiels).
+
+/** Emplacements d'attaque : [identifiant, libellé, coup de référence, action de commande]. */
+export const SLOTS = [
+  ['light', 'Léger', 'light1'],
+  ['heavy', 'Lourd', 'heavy'],
+  ['ranged', 'Distance', 'ranged'],
+  ['special', 'Spécial', 'special'],
+  ['ultimate', 'Ultime', 'ultimate'],
+];
+export const SLOT_IDS = SLOTS.map((s) => s[0]);
+
+export function slotOf(moveId) {
+  if (/^light/.test(moveId)) return 'light';
+  if (moveId.startsWith('special')) return 'special';
+  return moveId;
+}
+
+/** Dégâts potentiels d'un coup (somme de ses actions offensives). */
+export function movePower(mv) {
+  let p = 0;
+  for (const a of mv.actions) {
+    switch (a.a) {
+      case 'hit': p += a.dmg * (a.every ? Math.floor((a.dur || 0) / a.every) + 1 : 1); break;
+      case 'proj': {
+        const pr = a.p || a.cycle[0];
+        p += (pr.dmg + (pr.explode ? pr.explode.dmg : 0)) * (a.spread ? a.spread.length : 1);
+        break;
+      }
+      case 'beam': p += a.dmg * Math.floor(a.dur / a.tick) + a.finalDmg; break;
+      case 'aoe': p += a.dmg + (a.zone ? a.zone.dmg * Math.floor(a.zone.dur / a.zone.tick) : 0); break;
+      case 'ring': p += a.dmg; break;
+      case 'summon': p += a.kind === 'clone' ? 40 * a.count : a.kind === 'fox' ? 50 * a.count : a.dmg || 0; break;
+      case 'buff': p += 120; break;
+      default: break;
+    }
+  }
+  return p;
+}
+
+const cdCache = new WeakMap();
+/** Temps de recharge (s) déclenché par un coup : 0,4 s + 0,02 s par point de puissance, 10 s au plus. */
+export function cooldownOf(mv, moveId) {
+  if (cdCache.has(mv)) return cdCache.get(mv);
+  let cd;
+  if (mv.cd != null) cd = mv.cd;
+  else if (slotOf(moveId) === 'light') cd = 0.45; // l'enchaînement léger reste vif
+  else cd = Math.min(10, Math.round((0.4 + movePower(mv) * 0.02) * 10) / 10);
+  cdCache.set(mv, cd);
+  return cd;
+}

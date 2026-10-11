@@ -2,7 +2,7 @@
 import {
   BTN, GRAVITY, JUMP_VELOCITY, INPUT_BUFFER, MAX_ENERGY,
 } from './constants.js';
-import { isNormalMove } from './characters.js';
+import { isNormalMove, slotOf, cooldownOf, SLOT_IDS } from './characters.js';
 
 const BITS = Object.values(BTN);
 const DODGE_TIME = 0.32;
@@ -49,6 +49,9 @@ export class Fighter {
     this.targetId = -1;
     this.elem = 0;
     this.flash = 0;
+    // Temps de recharge restant par emplacement d'attaque, et durée totale (pour l'affichage)
+    this.cd = Object.fromEntries(SLOT_IDS.map((k) => [k, 0]));
+    this.cdMax = Object.fromEntries(SLOT_IDS.map((k) => [k, 1]));
     this.lastHurt = 99;
     this.buf = {};
   }
@@ -109,6 +112,7 @@ export class Fighter {
     this.st += dt;
     this.invuln = Math.max(0, this.invuln - dt);
     this.dodgeCd = Math.max(0, this.dodgeCd - dt);
+    for (const k of SLOT_IDS) if (this.cd[k] > 0) this.cd[k] = Math.max(0, this.cd[k] - dt);
     this.slowT = Math.max(0, this.slowT - dt);
     this.flash = Math.max(0, this.flash - dt);
     this.lastHurt += dt;
@@ -222,6 +226,12 @@ export class Fighter {
       }
       const res = this.moveDef(id);
       if (!res) continue;
+      const slot = slotOf(id);
+      if (this.cd[slot] > 0) {
+        // En recharge : un appui juste avant la fin reste en attente, sinon il est refusé
+        if (this.cd[slot] > INPUT_BUFFER) { this.buf[bit] = 0; m.emit('cooldown', { id: this.id, slot }); }
+        continue;
+      }
       if (!this.onGround && !res.mv.air) continue;
       const cost = res.mv.cost || 0;
       if (cost > this.energy) {
@@ -243,6 +253,11 @@ export class Fighter {
 
   startMove(id, mv, m, target) {
     this.energy -= mv.cost || 0;
+    const slot = slotOf(id);
+    if (slot !== 'light' || id === 'light1') {
+      this.cd[slot] = cooldownOf(mv, id);
+      this.cdMax[slot] = this.cd[slot];
+    }
     this.move = mv;
     this.moveId = id;
     this.mt = 0;

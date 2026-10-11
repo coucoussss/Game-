@@ -8,7 +8,9 @@
 //    la position autoritaire de l'hôte ;
 //  - les appuis de touches sont cumulés entre deux envois : aucun appui bref n'est perdu.
 
-export const NET_PROTOCOL = 1;
+import { SLOT_IDS } from '../game/characters.js';
+
+export const NET_PROTOCOL = 2;
 export const LAN_PORT = 41234;
 
 export function parseAddress(text) {
@@ -128,6 +130,7 @@ export function encodeSnapshot(m, events, tick) {
       x: r2(f.x), y: r2(f.y), z: r2(f.z), a: r3(f.yaw), vx: r2(f.vx), vy: r2(f.vy), vz: r2(f.vz),
       s: f.state, st: r3(f.st), m: f.moveId, mt: r3(f.mt), hp: Math.round(f.hp), en: r2(f.energy), g: Math.round(f.guardHp),
       tr: f.transformT > 0 ? 1 : 0, og: f.onGround ? 1 : 0, fl: f.flash > 0 ? 1 : 0,
+      c: SLOT_IDS.map((k) => Math.round(f.cd[k] * 10) / 10), cm: SLOT_IDS.map((k) => f.cdMax[k]),
     })),
     e: m.entities.map((e) => {
       const o = { id: e.id, x: r2(e.x), y: r2(e.y), z: r2(e.z), t: r3(e.t) };
@@ -156,6 +159,7 @@ export class RemoteState {
       id: i, charId: d.charId, team: d.team, maxHp: d.maxHp, hp: d.maxHp, energy: 0, guardHp: 100,
       x: 0, y: 0, z: 0, yaw: 0, vx: 0, vy: 0, vz: 0, state: 'idle', st: 0, moveId: '', mt: 0,
       onGround: true, transformed: false, flash: 0,
+      cd: Object.fromEntries(SLOT_IDS.map((k) => [k, 0])), cdMax: Object.fromEntries(SLOT_IDS.map((k) => [k, 1])),
       get alive() { return this.state !== 'ko'; },
     }));
     this.entities = [];
@@ -219,6 +223,7 @@ export class RemoteState {
       f.state = fb.s; f.st = fb.st; f.moveId = fb.m; f.mt = fa.m === fb.m ? lerp(fa.mt, fb.mt, k) : fb.mt;
       f.hp = fb.hp; f.energy = fb.en; f.guardHp = fb.g;
       f.transformed = !!fb.tr; f.onGround = !!fb.og; f.flash = fb.fl ? 0.1 : 0;
+      if (fb.c) SLOT_IDS.forEach((k, j) => { f.cd[k] = fb.c[j]; f.cdMax[k] = fb.cm[j]; });
       if (i === this.localId) this.predict(f, latest.f[i], dt, localInput, speedOf, now + this.offset - latest.t);
     });
 

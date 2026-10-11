@@ -86,6 +86,11 @@ utilise la première manette branchée, le joueur 2 la seconde. F11 bascule en p
   est brisée et le personnage reste étourdi.
 - **Combos.** Les attaques légères s'enchaînent (3 ou 4 coups). En fin d'animation, un coup normal peut
   être annulé par un autre coup normal, un spécial ou un ultime. Les dégâts diminuent avec la longueur du combo.
+- **Temps de recharge.** Chaque attaque a un temps de recharge proportionnel à sa puissance :
+  0,45 s pour l'enchaînement léger, 1 à 2 s pour les attaques lourdes et à distance, 2 à 3,5 s pour les
+  spéciaux et 6 à 7,6 s pour les ultimes (0,4 s + 0,02 s par point de dégâts potentiels).
+- **Barre des attaques.** En bas de l'écran, une barre par joueur local affiche chaque attaque, la touche ou le
+  bouton qui la déclenche (clavier, manette ou tactile), la recharge restante et le manque d'énergie.
 - **Esquive.** Elle rend invulnérable un court instant. Celle du ninja est une téléportation : sans
   direction, il réapparaît dans le dos de l'adversaire.
 - **Ultimes.** Une cinématique se lance : zoom de caméra, bandes noires, lignes de vitesse, nom du coup.

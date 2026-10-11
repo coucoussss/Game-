@@ -11,7 +11,7 @@ const crypto = require('crypto');
 const { WebSocketServer } = require('ws');
 const { LAN_PORT } = require('./netUtils');
 
-const PROTOCOL = 1;
+const PROTOCOL = 2; // doit correspondre à NET_PROTOCOL (src/net/session.js)
 const MAX_PLAYERS = 4;
 
 class LanServer {

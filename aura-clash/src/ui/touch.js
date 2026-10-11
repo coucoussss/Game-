@@ -69,6 +69,20 @@ export class TouchControls {
     this.el.addEventListener('contextmenu', (e) => e.preventDefault());
   }
 
+  /** Affiche la recharge des attaques sur les boutons (voile qui descend). */
+  setCooldowns(f) {
+    if (!this.active || !f || !f.cd) return;
+    if (!this.cdButtons) {
+      const q = (c) => this.el.querySelector(`.${c}`);
+      this.cdButtons = { light: q('b-light'), heavy: q('b-heavy'), ranged: q('b-ranged'), special: q('b-special'), ultimate: q('b-ult') };
+    }
+    for (const [slot, el] of Object.entries(this.cdButtons)) {
+      const cd = f.cd[slot] || 0;
+      el.style.setProperty('--cd', cd > 0 ? Math.min(1, cd / (f.cdMax[slot] || 1)).toFixed(3) : '0');
+      el.classList.toggle('cooling', cd > 0);
+    }
+  }
+
   setActive(on) {
     if (on === this.active) return;
     this.active = on;
