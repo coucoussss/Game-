@@ -22,7 +22,7 @@ export class Match {
     this.roundTime = cfg.roundTime || 99;
     this.fighters = cfg.fighters.map((f, i) => {
       const slot = cfg.fighters.slice(0, i).filter((o) => o.team === f.team).length;
-      return new Fighter(i, CHAR_BY_ID[f.charId], f.team, slot);
+      return new Fighter(i, CHAR_BY_ID[f.charId], f.team, slot, f.mods);
     });
     this.entities = [];
     this.events = [];
@@ -358,8 +358,8 @@ export class Match {
     tgt.hp -= dmg;
     tgt.lastHurt = 0;
     tgt.flash = 0.12;
-    att.energy = Math.min(MAX_ENERGY, att.energy + h.dmg * 0.09);
-    tgt.energy = Math.min(MAX_ENERGY, tgt.energy + h.dmg * 0.05);
+    att.energy = Math.min(MAX_ENERGY, att.energy + h.dmg * 0.09 * att.mods.energy);
+    tgt.energy = Math.min(MAX_ENERGY, tgt.energy + h.dmg * 0.05 * tgt.mods.energy);
     if (h.slow) tgt.slowT = h.slow;
 
     const armor = tgt.state === 'move' && tgt.move && (tgt.move.armor === 'full' || (tgt.move.armor === 'light' && !kd && up === 0));

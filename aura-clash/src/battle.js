@@ -51,7 +51,11 @@ export class Battle {
       app.view.localIds = new Set([cfg.localFighter]);
     } else {
       this.match = new Match({
-        fighters: cfg.fighters.map((f) => ({ charId: f.charId, team: f.team })),
+        // Les améliorations achetées s'appliquent aux joueurs de cette machine (hors réseau local)
+        fighters: cfg.fighters.map((f) => ({
+          charId: f.charId, team: f.team,
+          mods: f.mods || (this.role === 'local' && f.ctrl.type === 'human' ? app.profile.modsFor(f.charId) : undefined),
+        })),
         arenaRadius: ARENA_RADIUS,
         roundTime: cfg.roundTime || 99,
         training: !!cfg.training,
@@ -85,6 +89,7 @@ export class Battle {
     app.hud.show(true);
     app.overlay.clear();
     app.input.resetEdges();
+    app.input.endTick(); // la touche qui a lancé le combat (ou passé la scène) ne compte pas
     stage.rig.focus = null;
     stage.rig.snapTo(this.state.fighters);
     const arenaInfo = ARENAS.find((a) => a.id === cfg.arena);

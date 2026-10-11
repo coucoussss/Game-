@@ -53,6 +53,10 @@ Le `.exe` Windows peut aussi être construit depuis Linux ou macOS. Il faut alor
 ## 2. Jouer
 
 ### Modes
+- **Mode Histoire — *La Légende de l'Éclipse*** : 8 chapitres mis en scène (personnages en 3D,
+  plans de caméra, dialogues, effets), chacun suivi d'un combat. Certains chapitres se jouent en 2v2
+  avec un allié, le dernier oppose le héros à un boss renforcé. Récompenses : Ryō, et le déblocage
+  de Raiden (chap. 3), Garo (chap. 5), Hana (chap. 6) et Yami (chap. 8). On peut rejouer un chapitre.
 - **Versus contre l'IA**, en 3 niveaux (facile, normal, difficile), et **Versus local** à deux joueurs.
 - **2 contre 2** : toi + une IA contre deux IA, deux joueurs ensemble, ou J1 + IA contre J2 + IA.
 - **Réseau local (LAN)** : de 2 à 4 joueurs, en 1v1 ou en 2v2. L'IA prend les places libres.
@@ -124,6 +128,20 @@ match nul +180, défaite +120, plus 40 par manche gagnée et 50 de bonus en rés
 jouable dans tous les modes. Les personnages verrouillés restent des adversaires possibles pour l'IA.
 Le solde et les achats sont enregistrés sur la machine (ou dans le navigateur pour la version web).
 
+### Améliorations
+Le menu **Améliorations** permet de renforcer chaque personnage possédé sur 5 axes, de 5 niveaux chacun :
+
+| Axe | Effet par niveau |
+|---|---|
+| Force | +6 % de dégâts sur toutes les attaques |
+| Endurance | +7 % de points de vie |
+| Vitesse | +4 % de vitesse de déplacement |
+| Ki | +12 % de gain d'énergie (ulti plus fréquent) |
+| Maîtrise | −7 % de temps de recharge des attaques |
+
+Coût d'un niveau : 200, 350, 550, 800 puis 1100 Ryō. Les améliorations s'appliquent dans les modes
+solo et en local. En réseau local, tout le monde combat à armes égales.
+
 Arènes : Plateau des Falaises, Temple du Crépuscule, Toits de Néo-Kyoto, Glacier Éternel, Cœur du Volcan.
 
 ---
@@ -187,7 +205,7 @@ aura-clash/
 │   ├── battle.js         déroulement d'un combat : local, hôte ou invité
 │   ├── game/             LOGIQUE PURE (sans Three.js, testable sous Node)
 │   │   ├── constants.js  pas de simulation, boutons, types de coups
-│   │   ├── characters.js les 6 personnages : stats, apparence, coups (données)
+│   │   ├── characters.js les 10 personnages : stats, apparence, coups (données)
 │   │   ├── fighter.js    états, physique, exécution des coups, esquive, garde
 │   │   ├── match.js      manches, coups, projectiles, rayons, zones, invocations, K.O.
 │   │   └── ai.js         IA (3 niveaux) et mannequin d'entraînement
@@ -200,7 +218,8 @@ aura-clash/
 │   │   ├── stage.js      moteur de rendu, bloom, ombres
 │   │   └── view.js       relie l'état du match aux modèles, aux effets, au son et au HUD
 │   ├── net/session.js    client WebSocket, instantanés, interpolation, prédiction
-│   ├── core/             réglages (localStorage), entrées clavier/manette, audio WebAudio
+│   ├── story/            mode histoire : chapitres (données) et mise en scène 3D des dialogues
+│   ├── core/             réglages et profil (Ryō, achats, améliorations, histoire), entrées, audio
 │   ├── ui/               menus, HUD, calque manga, portraits
 │   ├── index.html
 │   └── style.css

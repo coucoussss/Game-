@@ -5,7 +5,9 @@ import { ARENAS } from '../render/arenas.js';
 import { ACTIONS, PAD_NAMES } from '../core/settings.js';
 import { keyLabel } from '../core/input.js';
 import { NetClient, parseAddress, LAN_PORT } from '../net/session.js';
-import { REWARDS } from '../core/profile.js';
+import { REWARDS, UPGRADES, UPGRADE_COSTS, UPGRADE_MAX } from '../core/profile.js';
+import { CHAPTERS, STORY_TITLE } from '../story/chapters.js';
+import { StoryScene } from '../story/scene.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const h = (html) => {
@@ -180,12 +182,15 @@ export class UI {
     this.app.setBackdrop('menu');
     this.app.audio.music('menu');
     const electron = !!window.auraNative;
+    const done = CHAPTERS.filter((c) => this.app.profile.hasCleared(c.id)).length;
     const el = this.menu('', [
+      { label: 'Mode Histoire', hint: `${STORY_TITLE} — ${done} / ${CHAPTERS.length} chapitres`, cls: 'story-btn', action: () => this.storyMenu() },
       { label: 'Versus contre l’IA', hint: '1 joueur, best of 3', action: () => this.setupVersus('cpu') },
       { label: 'Versus local', hint: '2 joueurs sur le même PC', action: () => this.setupVersus('local2') },
       { label: '2 contre 2', hint: 'avec ou sans partenaire humain', action: () => this.setup2v2() },
       { label: 'Réseau local (LAN)', hint: WEB_ONLY ? 'disponible dans la version PC (.exe)' : 'créer ou rejoindre une partie', disabled: WEB_ONLY, action: () => this.lanMenu() },
       { label: 'Entraînement', hint: 'mannequin configurable', action: () => this.setupTraining() },
+      { label: 'Améliorations', hint: 'renforce tes combattants (force, vie, vitesse, ki, maîtrise)', action: () => this.upgrades() },
       { label: 'Boutique', hint: `${this.app.profile.ryo} Ryō — débloque de nouveaux combattants`, action: () => this.shop() },
       { label: 'Options', hint: 'son, graphismes, commandes', action: () => this.options(() => this.mainMenu()) },
       ...(electron ? [{ label: 'Quitter', action: () => window.auraNative.quit() }] : []),
@@ -356,6 +361,161 @@ export class UI {
     showInfo(this.focused && this.focused.dataset.id ? this.focused.dataset.id : items[0].id);
   }
 
+  // --- Mode histoire ------------------------------------------------------------------------
+
+  storyMenu() {
+    this.app.setBackdrop('menu');
+    const prof = this.app.profile;
+    const el = h(`<div class="screen menu story-menu">
+      <h2 class="menu-title">${esc(STORY_TITLE)}</h2>
+      <p class="menu-sub">Yami vole l’aura des grands maîtres pour réveiller l’Éclipse Infernale. Kael part l’arrêter.</p>
+      <div class="chapters">${CHAPTERS.map((c, i) => {
+        const open = i === 0 || prof.hasCleared(CHAPTERS[i - 1].id);
+        const cleared = prof.hasCleared(c.id);
+        return `<button class="chapter ${cleared ? 'cleared' : ''}" data-nav data-i="${i}" ${open ? '' : 'disabled'}>
+          <span class="ch-kanji">${esc(c.kanji)}</span>
+          <span class="ch-txt"><small>Chapitre ${c.n}${cleared ? ' — terminé ✔' : ''}</small><b>${open ? esc(c.title) : '???'}</b>
+          <em>${open ? `Récompense : ${c.reward.ryo} Ryō${c.reward.unlock ? ` + ${esc(CHAR_BY_ID[c.reward.unlock].name)}` : ''}` : 'Termine le chapitre précédent'}</em></span>
+        </button>`;
+      }).join('')}</div>
+      <button class="btn ghost" data-nav data-act="back">Retour</button>
+    </div>`);
+    el.querySelectorAll('.chapter').forEach((b) => b.addEventListener('click', () => this.playChapter(CHAPTERS[Number(b.dataset.i)])));
+    el.querySelector('[data-act=back]').addEventListener('click', () => this.mainMenu());
+    this.show({ el, back: () => this.mainMenu() });
+    const next = el.querySelector('.chapter:not([disabled]):not(.cleared)');
+    if (next) this.focus(next, false);
+  }
+
+  /** Joue un chapitre : scène d'introduction → combat → scène de fin → récompenses. */
+  playChapter(ch) {
+    const app = this.app;
+    const scene = new StoryScene(app, ch, ch.intro, {
+      title: true,
+      allies: (ch.fight.allies || []).map((a) => a.charId),
+      onDone: () => this.storyFight(ch),
+    });
+    app.scene = scene;
+    scene.start();
+  }
+
+  storyFight(ch) {
+    const app = this.app;
+    const merge = (a, b) => {
+      const m = { ...a };
+      for (const k in b || {}) m[k] = (m[k] || 1) * b[k];
+      return m;
+    };
+    const fighters = [
+      { charId: 'kael', team: 0, ctrl: { type: 'human', player: 0 }, mods: merge(app.profile.modsFor('kael'), ch.fight.playerMods) },
+      ...(ch.fight.allies || []).map((a) => ({ charId: a.charId, team: 0, ctrl: { type: 'cpu', level: a.level } })),
+      ...ch.fight.enemies.map((e) => ({ charId: e.charId, team: 1, ctrl: { type: 'cpu', level: e.level }, mods: e.mods })),
+    ];
+    app.startBattle({ role: 'local', arena: ch.arena, fighters, story: ch.id });
+  }
+
+  /** Fin d'un combat du mode histoire (appelé à la place de l'écran de résultats). */
+  storyFightEnd(battle, team) {
+    const app = this.app;
+    const ch = CHAPTERS.find((c) => c.id === battle.cfg.story);
+    if (team === 0) {
+      app.endBattle(false);
+      const scene = new StoryScene(app, ch, ch.outro, {
+        allies: (ch.fight.allies || []).map((a) => a.charId),
+        onDone: () => this.storyReward(ch),
+      });
+      app.scene = scene;
+      scene.start();
+      return;
+    }
+    const el = this.menu('DÉFAITE', [
+      { label: 'Réessayer le combat', action: () => app.restartBattle() },
+      { label: 'Revoir la scène', action: () => { app.endBattle(false); this.playChapter(ch); } },
+      { label: 'Améliorer Kael', hint: 'force, vie, vitesse, ki, maîtrise', action: () => { app.endBattle(false); this.upgrades('kael'); } },
+      { label: 'Menu du mode histoire', cls: 'danger', action: () => { app.endBattle(false); this.storyMenu(); } },
+    ], { cls: 'results', subtitle: `Chapitre ${ch.n} — ${ch.title}. Les améliorations de Kael peuvent faire la différence.` });
+    this.show({ el });
+  }
+
+  storyReward(ch) {
+    const prof = this.app.profile;
+    const first = !prof.hasCleared(ch.id);
+    const ryo = first ? ch.reward.ryo : Math.round(ch.reward.ryo * 0.25);
+    prof.earn(ryo);
+    let unlocked = null;
+    if (ch.reward.unlock && prof.grant(ch.reward.unlock)) unlocked = CHAR_BY_ID[ch.reward.unlock];
+    prof.clearChapter(ch.id);
+    const idx = CHAPTERS.indexOf(ch);
+    const nextCh = CHAPTERS[idx + 1];
+    const buttons = [];
+    if (nextCh) buttons.push({ label: `Chapitre ${nextCh.n} : ${nextCh.title}`, action: () => this.playChapter(nextCh) });
+    buttons.push({ label: 'Menu du mode histoire', action: () => this.storyMenu() });
+    buttons.push({ label: 'Menu principal', cls: 'ghost', action: () => this.mainMenu() });
+    const el = this.menu('', buttons, { cls: 'results' });
+    el.prepend(h(`<div class="result-head"><div class="result-big win">CHAPITRE ${ch.n} TERMINÉ</div>
+      <div class="result-sub">${esc(ch.title)}</div>
+      <div class="reward">+${ryo} Ryō${first ? '' : ' <small>(chapitre déjà terminé : récompense réduite)</small>'}</div>
+      ${unlocked ? `<div class="unlock">${this.portrait(unlocked.id, 'big')}<b>${esc(unlocked.name)} est débloqué !</b></div>` : ''}
+      ${!nextCh ? '<div class="the-end">— FIN —</div>' : ''}</div>`));
+    this.show({ el });
+    this.app.audio.play('roundWin');
+    this.app.setBackdrop('menu');
+  }
+
+  // --- Améliorations ----------------------------------------------------------------------
+
+  upgrades(sel = null) {
+    const prof = this.app.profile;
+    const owned = prof.ownedIds();
+    const cur = sel && owned.includes(sel) ? sel : owned[0];
+    const c = CHAR_BY_ID[cur];
+    const pct = (v) => `${v >= 0 ? '+' : ''}${Math.round(v * 100)} %`;
+    const rows = UPGRADES.map(([id, label, desc, per, , sign]) => {
+      const lv = prof.level(cur, id);
+      const max = lv >= UPGRADE_MAX;
+      const cost = max ? 0 : UPGRADE_COSTS[lv];
+      return `<div class="up-row">
+        <div class="up-name"><b>${label}</b><small>${desc}</small></div>
+        <div class="up-pips">${Array.from({ length: UPGRADE_MAX }, (_, i) => `<i class="${i < lv ? 'on' : ''}"></i>`).join('')}</div>
+        <div class="up-val">${pct(sign * per * lv)}${max ? '' : ` → <em>${pct(sign * per * (lv + 1))}</em>`}</div>
+        <button class="btn small up-buy" data-nav data-track="${id}" ${max ? 'disabled' : ''}>${max ? 'Maximum' : `${cost} Ryō`}</button>
+      </div>`;
+    }).join('');
+    const el = h(`<div class="screen select upgrades">
+      <div class="select-head"><b>AMÉLIORATIONS</b> — renforce tes combattants <span class="wallet inline">${prof.ryo} <small>Ryō</small></span></div>
+      <div class="select-body">
+        <div class="char-grid up-grid">
+          ${owned.map((id) => `<button class="char-card ${id === cur ? 'sel' : ''}" data-nav data-id="${id}" style="--c:${CHAR_BY_ID[id].aura}">${this.portrait(id)}<span class="cname">${esc(CHAR_BY_ID[id].name)}</span><span class="ctitle">Rang ${prof.rank(id)} / ${UPGRADES.length * UPGRADE_MAX}</span></button>`).join('')}
+        </div>
+        <div class="char-info up-panel">
+          <h3 style="color:${c.aura}">${esc(c.name)}</h3><div class="ititle">${esc(c.title)} — rang ${prof.rank(cur)} / ${UPGRADES.length * UPGRADE_MAX}</div>
+          ${rows}
+          <p class="muted">Les améliorations s'appliquent dans tous les modes joués sur cette machine : versus, 2 contre 2, entraînement, histoire. En réseau local, tout le monde se bat à égalité, sans amélioration.</p>
+        </div>
+      </div>
+      <div class="shop-foot"><span>Gagne des Ryō en combattant et dans le mode histoire.</span><button class="btn small" data-nav data-act="back">Retour</button></div>
+    </div>`);
+    el.querySelectorAll('.char-card').forEach((card) => card.addEventListener('click', () => this.upgrades(card.dataset.id)));
+    el.querySelectorAll('.up-buy').forEach((b) => b.addEventListener('click', () => {
+      const res = prof.upgrade(cur, b.dataset.track);
+      if (res === 'ok') {
+        this.app.audio.play('transform');
+        this.toast(`${c.name} : ${UPGRADES.find((u) => u[0] === b.dataset.track)[1]} niveau ${prof.level(cur, b.dataset.track)} !`);
+        this.upgrades(cur);
+        const again = this.screen.el.querySelector(`[data-track="${b.dataset.track}"]`);
+        if (again && !again.disabled) this.focus(again, false);
+      } else if (res === 'poor') {
+        this.app.audio.play('denied');
+        this.toast(`Il te manque ${UPGRADE_COSTS[prof.level(cur, b.dataset.track)] - prof.ryo} Ryō.`);
+      }
+    }));
+    el.querySelector('[data-act=back]').addEventListener('click', () => this.mainMenu());
+    this.show({ el, back: () => this.mainMenu() });
+    const first = el.querySelector('.up-buy:not([disabled])');
+    if (first && sel) this.focus(first, false);
+    this.app.setBackdrop('select', cur);
+  }
+
   // --- Pause, résultats ------------------------------------------------------------------------
 
   openPause() {
@@ -415,6 +575,7 @@ export class UI {
 
   showResults(battle, team) {
     if (this.app.battle !== battle) return;
+    if (battle.cfg.story) { this.storyFightEnd(battle, team); return; }
     const names = battle.winnerNames(team);
     const role = battle.role;
     const winner = team < 0 ? 'MATCH NUL' : `VICTOIRE`;

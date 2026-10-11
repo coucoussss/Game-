@@ -9,13 +9,18 @@ const DODGE_TIME = 0.32;
 const DODGE_SPEED = 16;
 
 export class Fighter {
-  constructor(id, def, team, slot) {
+  /**
+   * @param mods multiplicateurs (améliorations achetées, boss du mode histoire) :
+   *   { dmg, hp, speed, energy, cd }
+   */
+  constructor(id, def, team, slot, mods = {}) {
     this.id = id;
     this.def = def;
     this.charId = def.id;
     this.team = team;
     this.slot = slot; // position dans l'équipe (0 ou 1)
-    this.maxHp = def.hp;
+    this.mods = { dmg: 1, hp: 1, speed: 1, energy: 1, cd: 1, ...mods };
+    this.maxHp = Math.round(def.hp * this.mods.hp);
     this.buf = {};
     this.reset(0, 0, 0);
     this.energy = 0;
@@ -65,8 +70,8 @@ export class Fighter {
 
   get transformed() { return this.transformT > 0; }
 
-  dmgMul() { return this.transformed ? 1.3 : 1; }
-  speedMul() { return (this.transformed ? 1.2 : 1) * (this.slowT > 0 ? 0.6 : 1); }
+  dmgMul() { return (this.transformed ? 1.3 : 1) * this.mods.dmg; }
+  speedMul() { return (this.transformed ? 1.2 : 1) * (this.slowT > 0 ? 0.6 : 1) * this.mods.speed; }
 
   setState(s) {
     if (this.state !== s) { this.state = s; this.st = 0; }
@@ -143,7 +148,7 @@ export class Fighter {
         break;
       case 'charge':
         this.vx = 0; this.vz = 0;
-        this.energy = Math.min(MAX_ENERGY, this.energy + 30 * dt);
+        this.energy = Math.min(MAX_ENERGY, this.energy + 30 * dt * this.mods.energy);
         if (this.tryActions(inp, m, target)) break;
         if (!(inp.held & BTN.CHARGE) || this.energy >= MAX_ENERGY) this.setState('idle');
         break;
@@ -255,7 +260,7 @@ export class Fighter {
     this.energy -= mv.cost || 0;
     const slot = slotOf(id);
     if (slot !== 'light' || id === 'light1') {
-      this.cd[slot] = cooldownOf(mv, id);
+      this.cd[slot] = cooldownOf(mv, id) * this.mods.cd;
       this.cdMax[slot] = this.cd[slot];
     }
     this.move = mv;

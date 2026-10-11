@@ -35,6 +35,7 @@ class App {
       this.settings.data.gfx.quality = 'medium';
     }
     this.battle = null;
+    this.scene = null; // scène du mode histoire en cours
     this.backdrop = { mode: null, models: [] };
     this.input.onPadChange = (msg) => this.ui.toast(msg);
     this.applyGfx(true);
@@ -123,12 +124,18 @@ class App {
 
   // --- Combats ------------------------------------------------------------------------------
 
-  startBattle(cfg) {
-    if (this.battle) this.battle.dispose();
-    this.ui.show(null);
+  /** Retire les personnages du décor des menus (avant un combat ou une scène). */
+  clearBackdrop() {
     this.setBackdrop('none');
     for (const m of this.backdrop.models) { this.stage.scene.remove(m.model.root); m.model.dispose(); }
     this.backdrop.models = [];
+  }
+
+  startBattle(cfg) {
+    if (this.battle) this.battle.dispose();
+    if (this.scene) { this.scene.dispose(); this.scene = null; }
+    this.ui.show(null);
+    this.clearBackdrop();
     this.stage.rig.focus = null;
     this.lastCfg = cfg;
     this.battle = new Battle(this, {
@@ -178,6 +185,7 @@ class App {
     const actions = this.input.menuActions();
     if (this.ui.screen) this.ui.handle(actions);
     if (this.battle) this.battle.frame(dt);
+    else if (this.scene) this.scene.update(dt);
     else this.updateBackdrop(dt);
     this.stage.update(dt);
     this.overlay.update(dt);
