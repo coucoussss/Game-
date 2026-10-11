@@ -229,8 +229,16 @@ export class Fighter {
         return;
       }
       if (m.canAct && (inp.held & BTN.CHARGE) && this.energy < MAX_ENERGY) { this.setState('charge'); return; }
-      this.vx = inp.mx * spd;
-      this.vz = inp.mz * spd;
+      // Sol glissant (glacier) : on accélère et on freine progressivement
+      const grip = m.grip ?? 1;
+      if (grip < 1) {
+        const k = Math.min(1, dt * 10 * grip);
+        this.vx += (inp.mx * spd - this.vx) * k;
+        this.vz += (inp.mz * spd - this.vz) * k;
+      } else {
+        this.vx = inp.mx * spd;
+        this.vz = inp.mz * spd;
+      }
       const moving = inp.mx * inp.mx + inp.mz * inp.mz > 0.01;
       if (this.state !== 'land') this.setState(moving ? 'walk' : 'idle');
       this.turnTo(target, dt);

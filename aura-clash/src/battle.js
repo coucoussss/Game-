@@ -53,7 +53,7 @@ export class Battle {
         f.costume = f.costume === undefined ? app.profile.outfitFor(f.charId) : f.costume;
       }
     }
-    app.view.attach(cfg.fighters);
+    app.view.attach(cfg.fighters, cfg.training || cfg.tutorial ? null : cfg.arena, cfg.hazards !== false);
     app.view.localIds = new Set(cfg.fighters.map((f, i) => (f.ctrl.type === 'human' ? i : -1)).filter((i) => i >= 0));
     app.view.onMatchEnd = (team) => this.onMatchEnd(team);
 
@@ -70,6 +70,8 @@ export class Battle {
           loadout: f.loadout,
         })),
         arenaRadius: ARENA_RADIUS,
+        arena: cfg.arena,
+        hazards: cfg.hazards !== false && !cfg.tutorial,
         roundTime: cfg.roundTime || 99,
         training: !!cfg.training,
         waves: cfg.waves ? cfg.waves.map((w) => w.map((e) => ({ ...e }))) : undefined,

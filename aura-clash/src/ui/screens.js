@@ -2,6 +2,7 @@
 import { CHARACTERS, CHAR_BY_ID, moveList } from '../game/characters.js';
 import { AI_LEVELS, DUMMY_MODES } from '../game/ai.js';
 import { ARENAS } from '../render/arenas.js';
+import { HAZARD_INFO } from '../game/hazards.js';
 import { ACTIONS, PAD_NAMES } from '../core/settings.js';
 import { keyLabel } from '../core/input.js';
 import { NetClient, parseAddress, LAN_PORT } from '../net/session.js';
@@ -316,7 +317,7 @@ export class UI {
     const el = h(`<div class="screen arena-select">
       <div class="select-head"><b>ARÈNE</b> — choisis le lieu du combat</div>
       <div class="arena-list">
-        ${ARENAS.map((a) => `<button class="arena-card" data-nav data-id="${a.id}"><b>${esc(a.name)}</b><small>${esc(a.desc)}</small></button>`).join('')}
+        ${ARENAS.map((a) => `<button class="arena-card" data-nav data-id="${a.id}"><b>${esc(a.name)}</b><small>${esc(a.desc)}</small><em class="hz">⚠ ${esc(HAZARD_INFO[a.id] || '')}</em></button>`).join('')}
         <button class="arena-card" data-nav data-id="random"><b>Aléatoire</b><small>Une arène au hasard</small></button>
       </div>
     </div>`);

@@ -3,6 +3,7 @@
 // et que les invités reçoivent sous forme d'instantanés (snapshot).
 import { Fighter } from './fighter.js';
 import { CHAR_BY_ID } from './characters.js';
+import { createHazards, updateHazards, groundGrip, hitProps } from './hazards.js';
 import {
   HIT_TYPES, MAX_ENERGY, NO_INPUT, ROUNDS_TO_WIN, FIGHTER_RADIUS, FIGHTER_HEIGHT,
 } from './constants.js';
@@ -41,12 +42,27 @@ export class Match {
     this.winner = -1;
     this.infiniteEnergy = false;
     this.slowmo = 0; // ralenti (parade parfaite)
+    // Arène interactive (obstacles, lave, électricité, glace) — désactivée à l'entraînement
+    this.hazards = cfg.arena && !this.training && cfg.hazards !== false ? createHazards(cfg.arena) : null;
     this.waveList = cfg.waves || (cfg.waveGen ? [] : null); // mode Infini : vagues générées à la demande
     this.waveGen = cfg.waveGen || null;
     this.awaitChoice = false; // une bénédiction est en cours de choix (le joueur fige la pause)
     this.wave = 0; // indice de la vague en cours
     this.waveBreak = 0; // pause entre deux vagues (s)
     this.startRound();
+  }
+
+  /** « Attaquant » neutre des dangers de l'arène (lave, électricité, explosions d'obstacles). */
+  envAttacker() {
+    return {
+      id: -1, team: -1, alive: false, x: 0, z: 0, move: null, combo: 0, comboT: 0, counterT: 0, energy: 0,
+      mods: { energy: 0, dmg: 1 }, bless: {}, def: { aura: '#ff9a3a', weapon: 'magic' }, dmgMul: () => 1, setState: () => {},
+    };
+  }
+
+  /** Adhérence du sol (glacier : on glisse). */
+  get grip() {
+    return groundGrip(this.hazards);
   }
 
   /** Mode Vagues : { n, total, boss } de la vague en cours (null sinon). */
@@ -353,6 +369,7 @@ export class Match {
       else if (this.infiniteEnergy) f.energy = MAX_ENERGY;
     }
     this.separate();
+    if (this.hazards && act) updateHazards(this.hazards, this, sdt);
     this.updateEntities(sdt);
     this.entities = this.entities.filter((e) => !e.dead);
   }
@@ -402,6 +419,7 @@ export class Match {
     const key = act.every ? `${idx}:${Math.floor((f.mt - act.t) / act.every)}` : `${idx}`;
     let set = f.hitSets.get(key);
     if (!set) { set = new Set(); f.hitSets.set(key, set); }
+    if (this.hazards && !set.has('prop') && act.dmg >= 25) { set.add('prop'); hitProps(this.hazards, this, cx, cz, act.radius, act.dmg); }
     for (const e of this.fighters) {
       if (e.team === f.team || !e.alive || set.has(e.id)) continue;
       const dx = e.x - cx;
@@ -598,6 +616,7 @@ export class Match {
 
   /** Coups de zone : tous les ennemis dans un cercle (hauteur limitée). */
   areaHit(owner, x, z, r, h, maxY = 3) {
+    hitProps(this.hazards, this, x, z, r, h.dmg || 30);
     for (const e of this.fighters) {
       if (e.team === owner.team || !e.alive) continue;
       const dx = e.x - x;

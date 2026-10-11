@@ -126,6 +126,7 @@ export function encodeSnapshot(m, events, tick) {
     tm: r2(m.timer),
     hs: m.hitstop > 0 ? 1 : 0,
     cn: m.cine ? [m.cine.id, r3(m.cine.t), m.cine.dur] : 0,
+    hz: m.hazards ? { p: m.hazards.props.map((p) => (p.alive ? 1 : 0)), l: r2(m.hazards.lava), a: m.hazards.arena } : 0,
     f: m.fighters.map((f) => ({
       x: r2(f.x), y: r2(f.y), z: r2(f.z), a: r3(f.yaw), vx: r2(f.vx), vy: r2(f.vy), vz: r2(f.vz),
       s: f.state, st: r3(f.st), m: f.moveId, mt: r3(f.mt), hp: Math.round(f.hp), en: r2(f.energy), g: Math.round(f.guardHp),
@@ -237,6 +238,7 @@ export class RemoteState {
     this.timer = b.tm;
     this.wins = b.w;
     this.phase = b.ph;
+    if (b.hz) this.hazards = { arena: b.hz.a, lava: b.hz.l, props: b.hz.p.map((v, i) => ({ id: i, alive: !!v })) };
     this.round = b.rd;
     this.hitstop = b.hs;
     this.cine = b.cn ? { id: b.cn[0], t: b.cn[1], dur: b.cn[2] } : null;

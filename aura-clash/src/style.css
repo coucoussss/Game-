@@ -524,3 +524,4 @@ body.touch-on .aslot { width: 7vw; }
 .ch-ok { color: #7fffb0; font: 900 2.4vh var(--display); width: 6em; text-align: center; }
 .badge { display: inline-block; background: #ff3a3a; color: #fff; border-radius: 1em; padding: 0 0.5em; font-size: 0.8em; margin-left: 0.4em; vertical-align: middle; }
 .wallet.inline { margin-left: 1em; color: var(--gold); font-weight: 900; }
+.arena-card .hz { display: block; font-style: normal; font-size: 1.3vh; color: #ffb05a; margin-top: 0.4vh; }

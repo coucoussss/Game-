@@ -7,6 +7,7 @@ import { CineDirector } from './cinematic.js';
 import { glowMat, toonMat, toonPart } from './toon.js';
 import { CHAR_BY_ID } from '../game/characters.js';
 import { dressed } from '../game/techniques.js';
+import { HazardView } from './hazardView.js';
 
 const tmp = new THREE.Vector3();
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -31,11 +32,13 @@ export class MatchView {
     this.director = new CineDirector(stage, overlay, audio);
     this.ghosts = [];
     this.cineChar = null;
+    this.hazardView = new HazardView(stage);
   }
 
   /** Crée les modèles des combattants. `fighters` : [{ charId, team }] */
-  attach(fighters) {
+  attach(fighters, arena = null, hazards = true) {
     this.detach();
+    if (arena && hazards) this.hazardView.setup(arena);
     for (const f of fighters) this.addFighter(f.charId, f.costume);
   }
 
@@ -48,6 +51,7 @@ export class MatchView {
   }
 
   detach() {
+    this.hazardView.clear();
     for (const m of this.models) {
       this.stage.scene.remove(m.model.root);
       m.model.dispose();
@@ -92,6 +96,7 @@ export class MatchView {
       this.fighterFx(dt, vm, f, p, frozen);
     });
     if (dt > 0) this.auraClash(dt, state);
+    this.hazardView.update(dt, state);
     this.updateEntities(dt, state);
   }
 
@@ -680,6 +685,15 @@ export class MatchView {
         }
         case 'fx':
           this.effect(ev, state);
+          break;
+        case 'prop':
+        case 'zapWarn':
+        case 'zap':
+        case 'lava':
+          this.hazardView.handleEvent(ev);
+          if (ev.type === 'zap') a.play('thunder');
+          if (ev.type === 'prop' && !ev.alive) a.play('explosion');
+          if (ev.type === 'lava' && ev.rising) { this.hud.announce('LA LAVE MONTE !', { dur: 1.6, color: '#ff8a3a' }); a.play('meteorFall'); }
           break;
         case 'parry': {
           // Parade parfaite : éclair blanc, onde, ralenti et petit kanji

@@ -97,6 +97,26 @@ else console.log('✔ entraînement sans KO');
   if (missing.length) failures++;
 }
 
+// Arènes interactives : chaque règle se déclenche et les matchs se terminent
+for (const arena of ['cliffs', 'temple', 'neon', 'glacier', 'volcano']) {
+  const m = new Match({ fighters: [{ charId: 'goro', team: 0 }, { charId: 'garo', team: 1 }], arenaRadius: 18, arena });
+  const br = [new CpuBrain(0, 'hard'), new CpuBrain(1, 'hard')];
+  const seen = new Set();
+  let t = 0;
+  while (m.phase !== 'matchEnd' && t < 60 * 60 * 8) {
+    // On pousse régulièrement un combattant vers le bord (là où sont les obstacles et la lave)
+    if (t % 900 === 450) { const f = m.fighters[1]; const a = Math.atan2(f.z, f.x); f.vx = Math.cos(a) * 14; f.vz = Math.sin(a) * 14; f.setState('hitstun'); f.stun = 0.5; }
+    m.step(TICK, br.map((b) => b.think(m, TICK)));
+    for (const e of m.events) seen.add(e.type === 'prop' && !e.alive ? 'propBroken' : e.type);
+    m.events.length = 0;
+    t++;
+  }
+  const want = { cliffs: 'propBroken', temple: 'propBroken', glacier: 'propBroken', neon: 'zap', volcano: 'lava' }[arena];
+  const ok = m.phase === 'matchEnd' && seen.has(want);
+  if (!ok) failures++;
+  console.log(`${ok ? '✔' : '✘'} arène ${arena} : ${seen.has(want) ? want : `pas de ${want}`}, match terminé en ${(t / 60).toFixed(0)} s`);
+}
+
 // Mode Vagues : composition des 30 niveaux, puis quelques niveaux joués par une IA difficile
 for (let n = 1; n <= WAVE_LEVELS; n++) {
   const lv = buildLevel(n);
