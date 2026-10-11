@@ -1155,6 +1155,17 @@ export class CharacterModel {
       this.auraFx.update(dt, level, charge, max);
       if (extra.cine && this.auraFx.eyeMat) this.auraFx.eyeMat.opacity = 1;
       this.auraLevel = this.auraFx.level;
+      // Aura à son maximum : les cheveux s'illuminent à sa couleur
+      const glow = this.auraFx.max;
+      if (Math.abs(glow - (this.hairGlow || 0)) > 0.02) {
+        this.hairGlow = glow;
+        const c = this.auraFx.mats[0].uniforms.uColor.value;
+        for (const m of this.hairMats) {
+          if (!m.emissive) continue;
+          const base = m.userData.baseEmissive || new THREE.Color(0, 0, 0);
+          m.emissive.copy(base).lerp(c, glow * 0.4);
+        }
+      }
     }
 
     if (this.talismans) {
