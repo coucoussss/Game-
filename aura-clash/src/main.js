@@ -1,0 +1,191 @@
+// Point d'entrée du jeu (fenêtre Electron ou navigateur) : assemble le rendu, le son, les entrées,
+// les menus et la boucle principale.
+import { Settings } from './core/settings.js';
+import { Input } from './core/input.js';
+import { AudioEngine } from './core/audio.js';
+import { Stage } from './render/stage.js';
+import { MatchView } from './render/view.js';
+import { CharacterModel } from './render/model.js';
+import { Overlay } from './ui/overlay.js';
+import { Hud } from './ui/hud.js';
+import { UI } from './ui/screens.js';
+import { renderPortraits } from './ui/portraits.js';
+import { Battle } from './battle.js';
+import { CpuBrain } from './game/ai.js';
+import { CHARACTERS, CHAR_BY_ID } from './game/characters.js';
+
+class App {
+  constructor() {
+    this.settings = new Settings();
+    this.input = new Input(this.settings);
+    this.audio = new AudioEngine(this.settings);
+    const canvas = document.getElementById('game');
+    this.stage = new Stage(canvas, this.settings);
+    const overlayRoot = document.getElementById('overlay');
+    this.overlay = new Overlay(overlayRoot);
+    this.hud = new Hud(overlayRoot);
+    this.view = new MatchView(this.stage, this.audio, this.hud, this.overlay);
+    this.ui = new UI(this);
+    this.battle = null;
+    this.backdrop = { mode: null, models: [] };
+    this.input.onPadChange = (msg) => this.ui.toast(msg);
+    this.applyGfx(true);
+    this.last = performance.now();
+    this.ui.portraits = renderPortraits();
+    this.ui.title();
+    requestAnimationFrame((t) => this.frame(t));
+  }
+
+  applyGfx(initial = false) {
+    const g = this.settings.data.gfx;
+    this.stage.applySettings();
+    this.overlay.reduced = !g.shake;
+    if (initial && !g.fullscreen) return;
+    if (window.auraNative) window.auraNative.setFullscreen(g.fullscreen);
+    else if (g.fullscreen && !document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {});
+    else if (!g.fullscreen && document.fullscreenElement) document.exitFullscreen?.();
+  }
+
+  // --- Décor des menus ----------------------------------------------------------------------
+
+  /** Scène affichée derrière les menus. mode : 'title' | 'menu' | 'select' | 'arena'. */
+  setBackdrop(mode, arg) {
+    const key = `${mode}:${arg ?? ''}`;
+    if (this.backdrop.key === key) return;
+    const prevMode = this.backdrop.mode;
+    this.backdrop.key = key;
+    this.backdrop.mode = mode;
+    const rig = this.stage.rig;
+    const clearModels = () => {
+      for (const m of this.backdrop.models) { this.stage.scene.remove(m.model.root); m.model.dispose(); }
+      this.backdrop.models = [];
+    };
+    const addModel = (id, x, z, yaw) => {
+      const model = new CharacterModel(CHAR_BY_ID[id]);
+      this.stage.scene.add(model.root);
+      const f = { x, y: 0, z, yaw, vx: 0, vy: 0, vz: 0, state: 'idle', st: 0, moveId: '', mt: 0, onGround: true, flash: 0, transformed: false };
+      this.backdrop.models.push({ model, f, id });
+      return f;
+    };
+    if (mode === 'title' || mode === 'menu') {
+      if (prevMode === 'title' || prevMode === 'menu') return;
+      clearModels();
+      this.stage.setArena(mode === 'title' ? 'temple' : 'cliffs');
+      const ids = CHARACTERS.map((c) => c.id).sort(() => Math.random() - 0.5);
+      addModel(ids[0], -2.2, 0, Math.PI / 2);
+      addModel(ids[1], 2.2, 0, -Math.PI / 2);
+      rig.setFocus({ mode: 'orbit', x: 0, y: 0, z: 0, yaw: 0, t: 0 });
+    } else if (mode === 'select') {
+      if (prevMode !== 'select') this.stage.setArena('temple');
+      clearModels();
+      if (arg) {
+        const f = addModel(arg, 0, 0, 0.35);
+        f.state = 'victory';
+        this.backdrop.models[0].poseT = 0;
+      }
+      rig.setFocus({ mode: 'showcase', x: 0, y: 0, z: 0, yaw: 0, t: 0 });
+    } else if (mode === 'arena') {
+      clearModels();
+      this.stage.setArena(arg);
+      rig.setFocus({ mode: 'orbit', x: 0, y: 0, z: 0, yaw: 0, t: 0 });
+    }
+  }
+
+  updateBackdrop(dt) {
+    for (const m of this.backdrop.models) {
+      m.poseT = (m.poseT || 0) + dt;
+      if (this.backdrop.mode === 'select' && m.poseT > 1.6) m.f.state = 'idle';
+      if (this.backdrop.mode !== 'select') {
+        // Les deux combattants du menu s'échauffent : petits enchaînements de temps en temps
+        m.f.st += dt;
+        if (m.f.state === 'move') {
+          m.f.mt += dt;
+          const mv = CHAR_BY_ID[m.id].moves[m.f.moveId];
+          if (m.f.mt > mv.dur) { m.f.state = 'idle'; m.f.moveId = ''; }
+        } else if (Math.random() < dt * 0.4) {
+          m.f.state = 'move';
+          m.f.moveId = ['light1', 'light2', 'heavy', 'ranged'][Math.floor(Math.random() * 4)];
+          m.f.mt = 0;
+        }
+      }
+      m.model.update(dt, m.f, { auraBoost: this.backdrop.mode === 'select' ? 0.6 : 0.25 });
+    }
+    this.stage.rig.update(dt, this.backdrop.models.map((m) => ({ ...m.f, team: 0, alive: true })));
+  }
+
+  // --- Combats ------------------------------------------------------------------------------
+
+  startBattle(cfg) {
+    if (this.battle) this.battle.dispose();
+    this.ui.show(null);
+    this.setBackdrop('none');
+    for (const m of this.backdrop.models) { this.stage.scene.remove(m.model.root); m.model.dispose(); }
+    this.backdrop.models = [];
+    this.stage.rig.focus = null;
+    this.lastCfg = cfg;
+    this.battle = new Battle(this, {
+      roundTime: this.settings.data.game.roundTime,
+      ...cfg,
+      fighters: cfg.fighters.map((f) => ({ ...f, ctrl: { ...f.ctrl } })),
+    });
+    this.audio.play('fight');
+  }
+
+  restartBattle() {
+    if (!this.lastCfg) return;
+    this.startBattle(this.lastCfg);
+  }
+
+  /** Termine le combat ; `toMenu` ramène au menu principal (sinon l'appelant choisit l'écran). */
+  endBattle(toMenu = true) {
+    if (this.battle) {
+      this.battle.dispose();
+      this.battle = null;
+    }
+    this.backdrop.key = null;
+    this.backdrop.mode = null;
+    if (toMenu) this.ui.mainMenu();
+  }
+
+  /** Un invité a quitté la partie en plein combat : l'IA prend sa place. */
+  convertPeerToCpu(peer) {
+    const b = this.battle;
+    if (!b || !b.brains) return;
+    b.cfg.fighters.forEach((f, i) => {
+      if (f.ctrl.type === 'remote' && f.ctrl.peer === peer) {
+        f.ctrl = { type: 'cpu', level: b.cfg.difficulty || 'normal' };
+        b.brains[i] = new CpuBrain(i, f.ctrl.level);
+      }
+    });
+  }
+
+  // --- Boucle principale ------------------------------------------------------------------------
+
+  frame(t) {
+    const dt = Math.min(0.05, Math.max(0, (t - this.last) / 1000));
+    this.last = t;
+    this.input.poll(dt);
+    const actions = this.input.menuActions();
+    if (this.ui.screen) this.ui.handle(actions);
+    if (this.battle) this.battle.frame(dt);
+    else this.updateBackdrop(dt);
+    this.stage.update(dt);
+    this.overlay.update(dt);
+    this.stage.render();
+    requestAnimationFrame((tt) => this.frame(tt));
+  }
+}
+
+function boot() {
+  try {
+    window.app = new App();
+  } catch (err) {
+    console.error(err);
+    const el = document.getElementById('fatal');
+    el.style.display = 'flex';
+    el.querySelector('pre').textContent = `${err.message}\n\nAura Clash a besoin de WebGL (carte graphique avec pilotes à jour).`;
+  }
+}
+
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+else boot();
