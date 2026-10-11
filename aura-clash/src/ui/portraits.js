@@ -31,7 +31,7 @@ export function renderPortraits() {
     const model = new CharacterModel(def);
     scene.add(model.root);
     model.update(0.016, { x: 0, y: 0, z: 0, yaw: -0.35, vx: 0, vy: 0, vz: 0, state: 'idle', st: 0, onGround: true, flash: 0 });
-    for (let i = 0; i < 30; i++) model.update(0.03, { x: 0, y: 0, z: 0, yaw: -0.35, vx: 0, vy: 0, vz: 0, state: 'idle', st: 0, onGround: true, flash: 0 });
+    for (let i = 0; i < 30; i++) model.update(0.03, { x: 0, y: 0, z: 0, yaw: -0.35, vx: 0, vy: 0, vz: 0, state: 'idle', st: 0, onGround: true, flash: 0 }, { portrait: true });
     model.aura.visible = false;
     const head = new THREE.Vector3();
     model.head.getWorldPosition(head);

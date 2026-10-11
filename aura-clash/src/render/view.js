@@ -82,7 +82,12 @@ export class MatchView {
       }
       // Pendant une cinématique, les autres combattants sont figés (on n'avance pas leur animation)
       const frozen = (cineId >= 0 && cineId !== f.id) || state.hitstop > 0;
-      vm.model.update(frozen ? 0 : dt, f, { cine: cineId === f.id, cineShot: cineId === f.id && this.director.active ? this.director.active.shot : -1, react: f.state === 'hitstun' ? vm.react : null });
+      vm.model.update(frozen ? 0 : dt, f, {
+        cine: cineId === f.id,
+        cineShot: cineId === f.id && this.director.active ? this.director.active.shot : -1,
+        react: f.state === 'hitstun' ? vm.react : null,
+        intro: state.phase === 'intro' && !state.training,
+      });
       this.fighterFx(dt, vm, f, p, frozen);
     });
     if (dt > 0) this.auraClash(dt, state);

@@ -70,10 +70,11 @@ function eye(g, o, look, expr, fem) {
     g.stroke();
     return;
   }
-  const fierce = expr === 'fierce';
+  const fierce = expr === 'fierce' || expr === 'angry' || expr === 'menace';
+  const shock = expr === 'shock';
   // Forme en amande ; le regard combatif abaisse la paupière côté nez
-  const topIn = fierce ? -h * 0.18 : -h * 0.42;
-  const topOut = fierce ? -h * 0.44 : -h * 0.4;
+  const topIn = fierce ? -h * 0.18 : shock ? -h * 0.55 : -h * 0.42;
+  const topOut = fierce ? -h * 0.44 : shock ? -h * 0.55 : -h * 0.4;
   const inX = -o * w * 0.48;
   const outX = o * w * 0.52;
   const almond = () => {
@@ -92,24 +93,27 @@ function eye(g, o, look, expr, fem) {
   g.clip();
   const ix = -o * w * 0.04;
   const iy = h * 0.06;
+  const ir = shock ? 0.55 : 1; // stupeur : iris rétréci au milieu du blanc de l'œil
   const grd = g.createLinearGradient(0, iy - h * 0.38, 0, iy + h * 0.38);
   grd.addColorStop(0, shade(iris, 0.25));
   grd.addColorStop(0.45, iris);
   grd.addColorStop(1, shade(iris, 1.3));
   g.beginPath();
-  g.ellipse(ix, iy, w * 0.29, h * 0.4, 0, 0, Math.PI * 2);
+  g.ellipse(ix, iy, w * 0.29 * ir, h * 0.4 * ir, 0, 0, Math.PI * 2);
   g.fillStyle = grd;
   g.fill();
   g.lineWidth = lw(4);
   g.strokeStyle = shade(iris, 0.3);
   g.stroke();
   g.beginPath();
-  g.ellipse(ix, iy + h * 0.02, w * 0.12, h * 0.2, 0, 0, Math.PI * 2);
+  g.ellipse(ix, iy + h * 0.02, w * 0.12 * ir, h * 0.2 * ir, 0, 0, Math.PI * 2);
   g.fillStyle = shade(iris, 0.18);
   g.fill();
   // Ombre de la paupière sur le haut de l'œil
-  g.fillStyle = 'rgba(40,20,60,0.35)';
-  g.fillRect(-w, -h, w * 2, h * 0.62 + (fierce ? h * 0.15 : 0));
+  if (!shock) {
+    g.fillStyle = 'rgba(40,20,60,0.35)';
+    g.fillRect(-w, -h, w * 2, h * 0.62 + (fierce ? h * 0.15 : 0));
+  }
   // Reflets (juste sous le seuil du halo lumineux)
   g.fillStyle = '#efeff6';
   g.beginPath();
@@ -156,11 +160,11 @@ function eye(g, o, look, expr, fem) {
 
 /** Œil masculin d'anime : étroit et acéré, iris en partie caché par la paupière, trait épais sans cils recourbés. */
 function eyeMale(g, o, look, expr) {
-  if (expr !== 'neutral' && expr !== 'fierce') { eye(g, o, look, expr, false); return; }
+  if (!['neutral', 'fierce', 'angry', 'menace'].includes(expr)) { eye(g, o, look, expr, false); return; }
   const ink = '#15101c';
   const lw = (px) => px / SX;
   const iris = look.eyes || '#3a3a5a';
-  const fierce = expr === 'fierce';
+  const fierce = expr !== 'neutral';
   const w = 0.094;
   const h = fierce ? 0.046 : 0.056;
   const inX = -o * w * 0.5;
@@ -264,6 +268,48 @@ function mouth(g, expr, fem) {
   const ink = '#2a1018';
   g.lineCap = 'round';
   g.lineJoin = 'round';
+  if (expr === 'angry') {
+    // Dents serrées, lèvres retroussées
+    const w = 0.03;
+    const hh = 0.014;
+    g.beginPath();
+    g.moveTo(-w, -hh * 0.4);
+    g.quadraticCurveTo(0, -hh * 0.9, w, -hh * 0.4);
+    g.lineTo(w * 0.9, hh * 0.7);
+    g.quadraticCurveTo(0, hh * 1.1, -w * 0.9, hh * 0.7);
+    g.closePath();
+    g.fillStyle = '#f6f4f8';
+    g.fill();
+    g.lineWidth = 3.5 / SX;
+    g.strokeStyle = ink;
+    g.stroke();
+    g.beginPath();
+    g.moveTo(-w * 0.95, hh * 0.15); g.lineTo(w * 0.95, hh * 0.15);
+    for (let i = -2; i <= 2; i++) { g.moveTo(i * w * 0.36, -hh * 0.6); g.lineTo(i * w * 0.36, hh * 0.85); }
+    g.lineWidth = 2 / SX;
+    g.stroke();
+    return;
+  }
+  if (expr === 'shock') {
+    g.beginPath();
+    g.ellipse(0, 0.004, 0.011, 0.014, 0, 0, Math.PI * 2);
+    g.fillStyle = '#5a1420';
+    g.fill();
+    g.lineWidth = 3 / SX;
+    g.strokeStyle = ink;
+    g.stroke();
+    return;
+  }
+  if (expr === 'menace') {
+    // Rictus : un coin de la bouche relevé
+    g.beginPath();
+    g.moveTo(-0.022, 0.002);
+    g.quadraticCurveTo(0.004, 0.006, 0.024, -0.01);
+    g.lineWidth = 4 / SX;
+    g.strokeStyle = ink;
+    g.stroke();
+    return;
+  }
   if (expr === 'fierce' || expr === 'ko') {
     // Bouche ouverte (cri de combat), dents du haut
     g.beginPath();
@@ -307,12 +353,78 @@ function mouth(g, expr, fem) {
   g.stroke();
 }
 
+/**
+ * Signes du manga dessinés sur le visage : veine de colère sur le front, goutte de sueur sur la
+ * tempe, ombre sur les yeux (regard menaçant) avec des pupilles qui luisent.
+ */
+function mangaMarks(g, look, expr) {
+  if (expr === 'angry') {
+    // Veine de colère « ╬ » : quatre arcs qui se tournent le dos
+    at(g, 0.125, 0.062, () => {
+      g.strokeStyle = '#d8203a';
+      g.lineWidth = 6 / SX;
+      g.lineCap = 'round';
+      const r = 0.012;
+      for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+        g.beginPath();
+        g.arc(sx * r * 1.5, sy * r * 1.5, r, sx > 0 ? (sy > 0 ? Math.PI : Math.PI * 1.5) : (sy > 0 ? Math.PI * 1.5 : 0), sx > 0 ? (sy > 0 ? Math.PI * 1.5 : Math.PI * 2) : (sy > 0 ? Math.PI * 2 : Math.PI * 0.5));
+        g.stroke();
+      }
+    });
+  }
+  if (expr === 'shock' || expr === 'hurt') {
+    // Goutte de sueur sur la tempe
+    at(g, -0.135, 0.0, () => {
+      g.beginPath();
+      g.moveTo(0, -0.03);
+      g.quadraticCurveTo(0.018, 0.0, 0.012, 0.012);
+      g.arc(0, 0.012, 0.012, 0, Math.PI);
+      g.quadraticCurveTo(-0.018, 0.0, 0, -0.03);
+      g.fillStyle = 'rgba(170,220,255,0.9)';
+      g.fill();
+      g.strokeStyle = '#2a5a8a';
+      g.lineWidth = 3 / SX;
+      g.stroke();
+      g.fillStyle = '#ffffff';
+      g.beginPath();
+      g.ellipse(-0.004, 0.008, 0.003, 0.006, 0.3, 0, Math.PI * 2);
+      g.fill();
+    });
+  }
+  if (expr === 'menace') {
+    // Ombre portée sur le haut du visage, d'où ne ressortent que deux pupilles lumineuses
+    at(g, 0, 0.02, () => {
+      const grd = g.createLinearGradient(0, -0.09, 0, 0.05);
+      grd.addColorStop(0, 'rgba(20,6,30,0.85)');
+      grd.addColorStop(0.65, 'rgba(20,6,30,0.75)');
+      grd.addColorStop(1, 'rgba(20,6,30,0)');
+      g.fillStyle = grd;
+      g.fillRect(-0.2, -0.09, 0.4, 0.14);
+    });
+    for (const o of [-1, 1]) {
+      at(g, o * 0.075, -0.004, () => {
+        g.save();
+        g.shadowColor = look.eyes || '#ffffff';
+        g.shadowBlur = 25;
+        g.fillStyle = '#ffffff';
+        g.beginPath();
+        g.ellipse(0, 0, 0.012, 0.009, 0, 0, Math.PI * 2);
+        g.fill();
+        g.restore();
+      });
+    }
+  }
+}
+
 /** Texture du visage pour un personnage et une expression (mise en cache). */
 export function faceTexture(def, expr = 'neutral') {
   const key = `${def.id}|${expr}`;
   if (cache.has(key)) return cache.get(key);
   const look = def.look;
-  if (look.face === 'demon') return demonFace(look, expr, key);
+  if (look.face === 'demon') {
+    const map = { angry: 'fierce', menace: 'fierce', shock: 'hurt' };
+    return demonFace(look, map[expr] || expr, key);
+  }
   const fem = look.body === 'f';
   const c = document.createElement('canvas');
   c.width = c.height = SIZE;
@@ -368,6 +480,7 @@ export function faceTexture(def, expr = 'neutral') {
     g.stroke();
   });
   at(g, 0, -0.112, () => mouth(g, expr, fem));
+  mangaMarks(g, look, expr);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 4;

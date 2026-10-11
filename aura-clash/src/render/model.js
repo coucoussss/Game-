@@ -33,6 +33,27 @@ const STANCES = {
   priestess: { hy: -0.02, torso: [0.02, 0, 0], head: [0.05, 0, 0], shL: [-0.7, 0, -0.1], elL: [-1.4, 0, 0], shR: [-0.7, 0, 0.1], elR: [-1.4, 0, 0], hipL: [-0.05, 0, -0.04], knL: [0.1, 0, 0], hipR: [0.05, 0, 0.04], knR: [0.1, 0, 0] },
 };
 
+// Poses de victoire propres à chaque combattant (sinon : celle de sa garde)
+const VICTORY_BY_CHAR = {
+  kael: { hy: -0.05, torso: [-0.15, 0.2, 0], head: [-0.3, -0.2, 0], shR: [-2.95, 0, 0.1], elR: [-0.1, 0, 0], shL: [0.2, 0, -0.5], elL: [-1.7, 0, 0], hipL: [-0.1, 0, -0.25], hipR: [0.1, 0, 0.25], knL: [0.1, 0, 0], knR: [0.1, 0, 0] },
+  kage: { hy: -0.32, torso: [0.35, 0, 0], head: [0.1, 0, 0], shL: [-1.3, 0, -0.35], elL: [-1.8, 0, 0], shR: [-1.3, 0, -0.35], elR: [-1.8, 0, 0], hipL: [-1.1, 0, -0.2], knL: [1.9, 0, 0], hipR: [-0.2, 0, 0.3], knR: [1.6, 0, 0] },
+  ren: { torso: [0.05, 0.7, 0], head: [0.15, -0.9, 0], shR: [-0.35, 0, 0.15], elR: [-1.3, 0, 0], shL: [-0.5, 0, -0.1], elL: [-1.2, 0, 0], hipL: [-0.1, 0, -0.08], hipR: [0.1, 0, 0.08] },
+  lyra: { torso: [0, 0, 0.08], head: [0.1, 0.2, 0.18], shL: [-0.9, 0, -0.05], elL: [-2.1, 0, 0], shR: [-0.9, 0, -0.05], elR: [-2.1, 0, 0], hipL: [0.05, 0, -0.05], hipR: [-0.1, 0, 0.12], knR: [0.3, 0, 0] },
+  goro: { hy: -0.05, torso: [0.55, 0, 0], head: [0.35, 0, 0], shL: [-1.3, 0, -0.15], elL: [-2.3, 0, 0], shR: [-1.3, 0, -0.15], elR: [-2.3, 0, 0], hipL: [0, 0, -0.1], hipR: [0, 0, 0.1] },
+  sora: { torso: [-0.2, 0, 0], head: [-0.35, 0, 0], shL: [-2.5, 0, -0.95], elL: [-0.2, 0, 0], shR: [-2.5, 0, 0.95], elR: [-0.2, 0, 0], hipL: [0, 0, -0.08], hipR: [0, 0, 0.08] },
+  raiden: { torso: [-0.05, -0.3, 0], head: [-0.2, 0.3, 0], shR: [-0.5, 0, 0.35], elR: [-1.5, 0, 0], shL: [-0.85, 0, -0.35], elL: [-2.0, 0, 0], hipL: [-0.1, 0, -0.2], hipR: [0.1, 0, 0.2] },
+  hana: { hy: 0.02, torso: [-0.1, 0.3, 0.1], head: [-0.1, -0.3, 0.2], shL: [-1.6, 0, -1.25], elL: [-0.2, 0, 0], shR: [-1.6, 0, 1.25], elR: [-0.2, 0, 0], hipL: [0.1, 0, -0.05], knL: [0.1, 0, 0], hipR: [0.5, 0, 0.1], knR: [1.8, 0, 0] },
+  garo: { hy: -0.12, torso: [0.05, 0, 0], head: [-0.15, 0, 0], shL: [-0.1, 0, -1.45], elL: [-2.2, 0, 0], shR: [-0.1, 0, 1.45], elR: [-2.2, 0, 0], hipL: [-0.2, 0, -0.3], knL: [0.4, 0, 0], hipR: [-0.2, 0, 0.3], knR: [0.4, 0, 0] },
+  yami: { torso: [0.1, 0.15, 0], head: [0.3, -0.2, 0], shL: [-0.9, 0, -0.45], elL: [-2.1, 0, 0], shR: [-0.8, 0, -0.45], elR: [-2.0, 0, 0], hipL: [0, 0, -0.06], hipR: [0, 0, 0.06] },
+};
+
+// Pose d'entrée (présentation de la manche) : le coup ou la posture qui définit le combattant
+const INTRO_BY_CHAR = {
+  kael: ['powerup', 'strike'], kage: ['summon', 'wind'], ren: ['iai', 'wind'], lyra: ['cast', 'wind'],
+  goro: ['charge', 'wind'], sora: ['summon', 'strike'], raiden: ['rising', 'wind'], hana: ['cast', 'strike'],
+  garo: ['slam', 'wind'], yami: ['iai', 'wind'],
+};
+
 const VICTORY = {
   fists: { torso: [-0.1, 0, 0], head: [-0.25, 0, 0], shR: [-2.95, 0, 0.15], elR: [-0.15, 0, 0], shL: [0.1, 0, -0.4], elL: [-1.6, 0, 0], hipL: [0, 0, -0.15], hipR: [0, 0, 0.15], knL: [0, 0, 0], knR: [0, 0, 0] },
   blade: { torso: [0, 0.5, 0], head: [0, -0.5, 0], shR: [-0.2, 0, 1.1], elR: [-0.1, 0, 0], shL: [0, 0, -0.2], elL: [-0.3, 0, 0], hipL: [-0.1, 0, -0.1], hipR: [0.1, 0, 0.1], knL: [0.1, 0, 0], knR: [0.1, 0, 0] },
@@ -269,6 +290,7 @@ export class CharacterModel {
     const B = arm(-1);
     this.shL = A.sh; this.elL = A.el; this.handL = A.hand;
     this.shR = B.sh; this.elR = B.el; this.handR = B.hand;
+    if (L.armScale) for (const sh of [A.sh, B.sh]) sh.scale.setScalar(L.armScale); // bras démesurés des brutes
 
     // --- Jambes ---
     const baggy = x.includes('gi') || x.includes('hakama');
@@ -661,6 +683,30 @@ export class CharacterModel {
         }
       }
     }
+    if (x.includes('tusks')) {
+      // Mâchoire de brute : deux défenses qui sortent de la bouche
+      const tm = this.mat('#f2ead8');
+      for (const sd of [-1, 1]) this.part(new THREE.ConeGeometry(0.022, 0.1, 6), tm, this.head, [sd * 0.055, 0.035, 0.165], [-0.35, 0, sd * 0.25], 0.006);
+      const jaw = this.part(new THREE.SphereGeometry(0.1, 12, 8), this.matSkin, this.head, [0, 0.0, 0.07], null, 0.012);
+      jaw.scale.set(1.15, 0.55, 0.9);
+    }
+    if (x.includes('carapace')) {
+      // Armure organique : plaques bombées sur le dos et les épaules, liserés lumineux
+      const cm = this.mat(L.carapace || '#2a2232');
+      const edge = new THREE.MeshBasicMaterial({ color: new THREE.Color(this.def.aura).multiplyScalar(1.6) });
+      this.flatMats.push(edge);
+      for (let i = 0; i < 3; i++) {
+        const pl = this.part(new THREE.SphereGeometry(0.17 * b - i * 0.025, 14, 8, 0, TAU, 0, Math.PI * 0.5), cm, torso, [0, 0.45 - i * 0.15, -0.1 * b - 0.03], [-1.75, 0, 0], 0.01);
+        pl.scale.set(1.2, 1, 0.45);
+        const rim = new THREE.Mesh(new THREE.TorusGeometry(0.17 * b - i * 0.025, 0.008, 4, 18), edge);
+        rim.rotation.x = Math.PI / 2;
+        pl.add(rim);
+      }
+      for (const sh of [this.shL, this.shR]) {
+        const pad = this.part(new THREE.SphereGeometry(0.13 * b, 12, 8, 0, TAU, 0, Math.PI * 0.5), cm, sh, [0, 0.04, 0], null, 0.01);
+        pad.scale.set(1.1, 0.8, 1.1);
+      }
+    }
     if (x.includes('crown')) {
       // Couronne de pointes d'os au sommet du crâne
       const cm = this.mat(L.accent || '#d8b040');
@@ -813,6 +859,17 @@ export class CharacterModel {
     const vS = f.vx * Math.cos(yaw) - f.vz * Math.sin(yaw);
     const speed = Math.hypot(f.vx, f.vz);
 
+    if (extra && extra.portrait && def.look.armScale) {
+      // Portrait des brutes : bras le long du corps pour dégager le visage
+      return mergePose(stance, { torso: [0, 0, 0], head: [0, 0, 0], shL: [0.1, 0, -0.25], elL: [-0.5, 0, 0], shR: [0.1, 0, 0.25], elR: [-0.5, 0, 0] });
+    }
+    if (extra && extra.intro && (f.state === 'idle' || f.state === 'walk')) {
+      const [anim, part] = INTRO_BY_CHAR[def.id] || ['powerup', 'strike'];
+      const a = ANIMS[anim];
+      const p = mergePose(stance, a[part] || a.strike);
+      p.hy += Math.sin(t * 2.5) * 0.01;
+      return p;
+    }
     if (extra && extra.cine) {
       // Cinématique d'ultime : posture de concentration
       const a = ANIMS.powerup;
@@ -897,7 +954,7 @@ export class CharacterModel {
         if (!f.onGround) return mergePose(LYING, { by: 0, bz: 0.4, body: [-1.0 - Math.min(1.5, f.st * 2), 0, 0] });
         return mergePose(LYING);
       case 'victory': {
-        const v = mergePose(stance, VICTORY[def.stance]);
+        const v = mergePose(stance, VICTORY_BY_CHAR[def.id] || VICTORY[def.stance]);
         v.hy += Math.sin(t * 3) * 0.015;
         return v;
       }
@@ -1046,9 +1103,13 @@ export class CharacterModel {
     if (this.faceMat) {
       let ex = 'neutral';
       if (f.state === 'ko' || f.state === 'knockdown') ex = 'ko';
-      else if (f.state === 'hitstun' || f.state === 'dizzy' || f.state === 'blockstun') ex = 'hurt';
-      else if (f.state === 'victory') ex = 'smile';
-      else if (f.state === 'move' || f.state === 'charge' || f.state === 'guard' || extra.cine) ex = 'fierce';
+      else if (f.state === 'dizzy') ex = 'shock';
+      else if (f.state === 'hitstun' || f.state === 'blockstun') ex = 'hurt';
+      else if (f.state === 'victory') ex = this.def.monster || ['yami', 'kage', 'ren'].includes(this.def.id) ? 'menace' : 'smile';
+      else if (extra.cine) ex = 'menace';
+      else if (f.state === 'charge' || (f.state === 'move' && f.moveId === 'ultimate')) ex = 'angry';
+      else if (extra.intro) ex = 'menace';
+      else if (f.state === 'move' || f.state === 'guard') ex = 'fierce';
       this.blinkT -= dt;
       if (this.blinkT < 0.12 && (ex === 'neutral' || ex === 'fierce')) ex = 'blink';
       if (this.blinkT < 0) this.blinkT = 2.2 + Math.random() * 2.5;
@@ -1088,6 +1149,8 @@ export class CharacterModel {
       // Cinématique : yeux allumés, mais pas de colonne de lumière devant l'objectif
       if (extra.cine) max = 0;
       let level = Math.max(aura, full && f.state !== 'ko' ? 0.14 : 0);
+      if (extra.intro) level = Math.max(level, 0.65);
+      if (this.def.boss && f.state !== 'ko') level = Math.max(level, 0.3); // les boss fument en permanence
       if (extra.cine) level = Math.min(level, 0.5); // gros plans : l'aura borde la silhouette sans la voiler
       this.auraFx.update(dt, level, charge, max);
       if (extra.cine && this.auraFx.eyeMat) this.auraFx.eyeMat.opacity = 1;

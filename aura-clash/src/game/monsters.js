@@ -103,7 +103,7 @@ const RAW = [
     stance: 'fists', aiRange: 2.2, aiZoning: 0.2,
     look: {
       skin: '#b8322a', hair: '#1a1414', hairStyle: 'spiky', eyes: '#ffd23a', face: 'demon', horn: '#f0e0b8',
-      pants: '#d8a030', belt: '#2a1a14', gloves: '#3a2a20', extras: ['barefoot', 'bigHorns', 'gloves', 'sash'], build: 1.15, body: 'big', size: 1.22,
+      pants: '#d8a030', belt: '#2a1a14', gloves: '#3a2a20', extras: ['barefoot', 'bigHorns', 'gloves', 'sash', 'tusks'], armScale: 1.2, build: 1.15, body: 'big', size: 1.22,
     },
     moves: {
       light1: { name: 'Poing d’oni', anim: 'jab', dur: 0.4, cancel: 0.22, chain: 'light2', lunge: [[0, 0.1, 3]], actions: [hit(0.13, 24, 'light', { radius: 1 })] },
@@ -181,7 +181,7 @@ const RAW = [
     stance: 'fists', aiRange: 2.3, aiZoning: 0.25,
     look: {
       skin: '#3a3448', hair: '#241e30', hairStyle: 'short', eyes: '#8a6aff', face: 'demon', marks: '#8a6aff', horn: '#1a1424',
-      armor: '#4a4060', gloves: '#5a4a7a', pants: '#2a2436', belt: '#7a5aff', extras: ['barefoot', 'gloves', 'armor', 'spikes'], build: 1.25, body: 'big', size: 1.45,
+      armor: '#4a4060', gloves: '#5a4a7a', pants: '#2a2436', belt: '#7a5aff', extras: ['barefoot', 'gloves', 'armor', 'spikes', 'carapace'], armScale: 1.3, build: 1.25, body: 'big', size: 1.45,
     },
     moves: {
       light1: { name: 'Poing de pierre', anim: 'jab', dur: 0.46, cancel: 0.26, chain: 'light2', lunge: [[0, 0.1, 3]], actions: [hit(0.15, 32, 'light', { radius: 1.1 })] },
@@ -207,7 +207,7 @@ const RAW = [
     stance: 'ninja', aiRange: 2.3, aiZoning: 0.25,
     look: {
       skin: '#6a5038', hair: '#2a2018', hairStyle: 'spiky', eyes: '#ffb000', face: 'demon', horn: '#e8dcc0', tail: '#4a3828',
-      pants: '#3a2a1e', belt: '#8a3020', extras: ['barefoot', 'claws', 'tail', 'spikes'], build: 1.08, body: 'm', size: 1.12,
+      pants: '#3a2a1e', belt: '#8a3020', extras: ['barefoot', 'claws', 'tail', 'spikes'], armScale: 1.15, build: 1.08, body: 'm', size: 1.12,
     },
     moves: {
       light1: { name: 'Griffe', anim: 'slash1', dur: 0.26, cancel: 0.14, chain: 'light2', lunge: [[0, 0.08, 5]], actions: [hit(0.08, 20)] },
@@ -236,7 +236,7 @@ const RAW = [
     look: {
       skin: '#8a9aa0', hair: '#e8f0f0', hairStyle: 'long', hairAlt: '#b8c8c8', eyes: '#5affd8', face: 'demon', horn: '#1a2a2a',
       top: '#1a2228', arms: '#1a2228', pants: '#222c32', belt: '#3affc8', boots: '#0c1214', accent: '#3affc8', armor: '#3a4a52',
-      extras: ['spear', 'armor', 'horns', 'scarf'], body: 'm', size: 1.15, emblem: '亡', emblemColor: '#1a8a70',
+      extras: ['spear', 'armor', 'horns', 'scarf', 'carapace'], carapace: '#1a2a30', body: 'm', size: 1.15, emblem: '亡', emblemColor: '#1a8a70',
     },
     moves: {
       light1: { name: 'Estoc spectral', anim: 'thrust', dur: 0.32, cancel: 0.18, chain: 'light2', lunge: [[0, 0.1, 4]], actions: [hit(0.1, 26, 'light', { reach: 1.65 })] },
@@ -265,7 +265,7 @@ const RAW = [
     look: {
       skin: '#6a7a68', hair: '#e8e8d8', hairStyle: 'long', hairAlt: '#b8b8a8', eyes: '#e8ff3a', face: 'demon', accent: '#d8c040',
       top: '#2a2a22', arms: '#6a7a68', pants: '#22221c', belt: '#d8c040', boots: '#141410',
-      extras: ['barefoot', 'claws', 'crown', 'haori', 'spikes'], build: 1.15, body: 'big', size: 1.5, emblem: '屍', emblemColor: '#6a8a20',
+      extras: ['barefoot', 'claws', 'crown', 'haori', 'spikes', 'tusks'], armScale: 1.25, build: 1.15, body: 'big', size: 1.5, emblem: '屍', emblemColor: '#6a8a20',
     },
     moves: {
       light1: { name: 'Griffe royale', anim: 'jab', dur: 0.4, cancel: 0.22, chain: 'light2', lunge: [[0, 0.1, 4]], actions: [hit(0.13, 28, 'light', { radius: 1.1 })] },
@@ -345,7 +345,7 @@ const RAW = [
     look: {
       skin: '#3a2a2a', hair: '#ff6a1a', hairStyle: 'spiky', hairAlt: '#ffd23a', eyes: '#ffb01a', face: 'demon', marks: '#ff6a1a', horn: '#1a1010', tail: '#2a1a1a',
       top: '#1a0e0e', arms: '#3a2a2a', pants: '#1a0e0e', belt: '#ff6a1a', boots: '#0c0606', armor: '#4a2a1a', wing: '#2a0e0a', wingSpan: 1.2,
-      extras: ['bigHorns', 'wings', 'tail', 'claws', 'armor', 'spikes'], build: 1.1, body: 'big', size: 1.6, emblem: '竜', emblemColor: '#ff6a1a',
+      extras: ['bigHorns', 'wings', 'tail', 'claws', 'armor', 'spikes', 'carapace'], carapace: '#3a1a14', build: 1.1, body: 'big', size: 1.6, emblem: '竜', emblemColor: '#ff6a1a',
     },
     moves: {
       light1: { name: 'Griffe draconique', anim: 'jab', dur: 0.36, cancel: 0.2, chain: 'light2', lunge: [[0, 0.1, 4]], actions: [hit(0.12, 30, 'light', { radius: 1.1 })] },
@@ -371,7 +371,7 @@ const RAW = [
     stance: 'fists', aiRange: 2.5, aiZoning: 0.3,
     look: {
       skin: '#2a3a4a', hair: '#0e1824', hairStyle: 'short', eyes: '#5af0ff', face: 'demon', marks: '#5af0ff', horn: '#0e141c',
-      armor: '#3a4a5a', gloves: '#4a5a6a', pants: '#1a242e', belt: '#5af0ff', extras: ['barefoot', 'gloves', 'armor', 'bigHorns', 'spikes'], build: 1.3, body: 'big', size: 1.85,
+      armor: '#3a4a5a', gloves: '#4a5a6a', pants: '#1a242e', belt: '#5af0ff', extras: ['barefoot', 'gloves', 'armor', 'bigHorns', 'spikes', 'carapace', 'tusks'], armScale: 1.3, build: 1.3, body: 'big', size: 1.85,
     },
     moves: {
       light1: { name: 'Poing titanesque', anim: 'jab', dur: 0.5, cancel: 0.28, chain: 'light2', lunge: [[0, 0.1, 3]], actions: [hit(0.17, 40, 'light', { radius: 1.2 })] },
@@ -398,7 +398,7 @@ const RAW = [
     look: {
       skin: '#1a1424', hair: '#f8f0ff', hairStyle: 'long', hairAlt: '#ff1a4a', eyes: '#ff1a4a', face: 'demon', marks: '#ff1a4a', horn: '#0a0610', accent: '#ff1a4a', tail: '#140e1c',
       top: '#0a0610', arms: '#1a1424', pants: '#0e0a14', belt: '#ff1a4a', boots: '#060408', armor: '#2a1a3a', blade: '#ff1a4a', wing: '#1a0410', wingSpan: 1.35,
-      extras: ['katana', 'bigHorns', 'wings', 'tail', 'crown', 'claws', 'haori', 'armor'], build: 1.08, body: 'm', size: 1.75, emblem: '蝕', emblemColor: '#ff1a4a',
+      extras: ['katana', 'bigHorns', 'wings', 'tail', 'crown', 'claws', 'haori', 'armor', 'carapace'], carapace: '#1a0e24', build: 1.08, body: 'm', size: 1.75, emblem: '蝕', emblemColor: '#ff1a4a',
     },
     moves: {
       light1: { name: 'Taille de l’éclipse', anim: 'slash1', dur: 0.3, cancel: 0.16, chain: 'light2', lunge: [[0, 0.08, 5]], actions: [hit(0.09, 28, 'light', { reach: 1.5 })] },

@@ -118,7 +118,9 @@ export function extrudeOutlineMat(width, color = '#0a0a12') {
       const chunk = `#include ${String.fromCharCode(60)}begin_vertex${String.fromCharCode(62)}`;
       shader.vertexShader = shader.vertexShader.replace(
         chunk,
-        `vec3 transformed = vec3(position) + normalize(normal) * ${width.toFixed(4)};`,
+        // Trait d'encre : plus fin sur les faces tournées vers le haut, plus épais dessous et sur les côtés
+        `vec3 nrm = normalize(normal);
+        vec3 transformed = vec3(position) + nrm * ${width.toFixed(4)} * (1.2 - 0.45 * max(0.0, nrm.y));`,
       );
     };
     m.customProgramCacheKey = () => `outline-${width}`;
@@ -171,6 +173,16 @@ export function animeMat(color, { face = false, rim = 0.32, ...extra } = {}) {
     shader.fragmentShader = shader.fragmentShader.replace(marker, `
       float rimF = 1.0 - abs(dot(normalize(normal), normalize(vViewPosition)));
       outgoingLight += diffuseColor.rgb * ${k} * smoothstep(0.6, 0.7, rimF);
+      ${face ? '' : `
+      #if NUM_DIR_LIGHTS > 0
+        // Trame manga : points réguliers (grille à 45°) dans les zones à l'ombre
+        float ndl = dot(normalize(normal), directionalLights[0].direction);
+        float shadowZone = 1.0 - smoothstep(-0.08, 0.06, ndl);
+        vec2 sp = gl_FragCoord.xy * 0.70710678;
+        vec2 cell = fract(vec2(sp.x - sp.y, sp.x + sp.y) / 3.2) - 0.5;
+        float dotMask = 1.0 - smoothstep(0.24, 0.34, length(cell));
+        outgoingLight *= 1.0 - shadowZone * dotMask * 0.22;
+      #endif`}
       ${marker}`);
   };
   m.customProgramCacheKey = () => `anime-${k}-${face ? 1 : 0}`;
