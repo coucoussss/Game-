@@ -3,7 +3,7 @@
 // interpolées, et chaînes à ressort pour les cheveux et les vêtements (écharpe, cape, jupe…).
 import * as THREE from 'three';
 import { toonMat, toonPart, toonPartSmooth, glowMat, animeMat, GLSL_NOISE } from './toon.js';
-import { limbGeo, flareGeo, torsoGeo, headGeo, faceZ, shoeGeo, faceGeo, lockGeo } from './anatomy.js';
+import { limbGeo, flareGeo, torsoGeo, headGeo, faceZ, shoeGeo, faceGeo, lockGeo, deformHead } from './anatomy.js';
 import { faceTexture, emblemTexture } from './face.js';
 
 const TAU = Math.PI * 2;
@@ -256,7 +256,7 @@ export class CharacterModel {
     neck.add(head);
     this.head = head;
     const faceSkin = this.mat(L.skin, { face: true });
-    const headMesh = this.part(headGeo(0.2), faceSkin, head, [0, 0.13, 0], null, 0.016);
+    const headMesh = this.part(headGeo(0.2, L.body || 'm'), faceSkin, head, [0, 0.13, 0], null, 0.016);
     headMesh.receiveShadow = false; // visage d'anime : jamais sali par l'ombre des cheveux
     for (const s of [-1, 1]) {
       const ear = this.part(new THREE.SphereGeometry(0.04, 8, 6), skin, head, [s * 0.178, 0.12, -0.01], null, 0.01);
@@ -381,7 +381,7 @@ export class CharacterModel {
       polygonOffset: true, polygonOffsetFactor: -4,
     });
     this.flatMats.push(this.faceMat);
-    const face = new THREE.Mesh(faceGeo(R), this.faceMat);
+    const face = new THREE.Mesh(faceGeo(R, L.body || 'm'), this.faceMat);
     face.position.y = cy;
     face.renderOrder = 2;
     head.add(face);
@@ -563,8 +563,20 @@ export class CharacterModel {
       this.chain(torso, { pos: [-0.05, 0.55, -0.1], segs: 6, len: 0.14, w: 0.09, t: 0.025, mat: sc, rest: [0.55, -0.05], drag: 0.1, stiff: 25 });
     }
     if (x.includes('mask')) {
-      const mk = this.part(new THREE.SphereGeometry(0.192, 16, 8, 0, Math.PI, Math.PI * 0.55, Math.PI * 0.3), top, this.head, [0, 0.13, 0.008], [0, -Math.PI / 2, 0], 0.01);
-      mk.scale.set(0.95, 1.1, 1.06);
+      // Masque de ninja : épouse le bas du visage (sous le nez), par-dessus le calque du visage
+      const r = 0.2;
+      const geo = new THREE.SphereGeometry(r * 1.04, 28, 10, Math.PI / 2 - 1.5, 3.0, 1.78, 0.9);
+      const pa = geo.attributes.position;
+      for (let i = 0; i < pa.count; i++) {
+        const [px, py, pz] = deformHead(pa.getX(i), pa.getY(i), pa.getZ(i), r, L.body || 'm');
+        pa.setXYZ(i, px, py, pz);
+      }
+      geo.computeVertexNormals();
+      const mk = this.part(geo, top, this.head, [0, 0.13, 0], null, 0.01);
+      mk.material = mk.material.clone();
+      mk.material.side = THREE.DoubleSide;
+      this.mats.push(mk.material);
+      mk.renderOrder = 3;
     }
     if (x.includes('headband')) {
       const band = this.mat('#2a2f4a');

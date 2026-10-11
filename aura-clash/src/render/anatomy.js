@@ -51,25 +51,36 @@ export function torsoGeo(kind, b = 1) {
   return lathe(P.map(([r, y]) => [r * b, y]), 16);
 }
 
-/** Déformation « tête d'anime » : menton affiné et légèrement avancé, arrière du crâne arrondi. */
-export function deformHead(x, y, z, r) {
-  x *= 0.92;
+/**
+ * Déformation « tête d'anime ». Féminin : menton fin en V. Masculin : visage plus long, mâchoire
+ * large qui ne s'affine que tard, menton plus carré.
+ */
+export function deformHead(x, y, z, r, kind = 'f') {
+  const male = kind !== 'f';
+  x *= male ? 0.95 : 0.92;
   if (y < 0) {
     const k = Math.min(1, -y / r);
-    x *= 1 - 0.42 * k ** 1.4;
-    z = z * (1 - 0.18 * k) + (z > 0 ? 0.03 * k : 0);
-    y *= 1 + 0.16 * k;
+    if (male) {
+      // La mâchoire reste large puis se resserre franchement vers un menton carré
+      x *= 1 - 0.2 * k ** 1.6 - 0.32 * Math.max(0, k - 0.62) ** 1.2;
+      z = z * (1 - 0.14 * k) + (z > 0 ? 0.022 * k : 0);
+      y *= 1 + 0.24 * k;
+    } else {
+      x *= 1 - 0.42 * k ** 1.4;
+      z = z * (1 - 0.18 * k) + (z > 0 ? 0.03 * k : 0);
+      y *= 1 + 0.16 * k;
+    }
   }
   if (z < 0) z *= 0.96;
   return [x, y, z];
 }
 
-/** Tête d'anime. */
-export function headGeo(r = 0.2) {
+/** Tête d'anime ; `kind` : 'm', 'big' ou 'f'. */
+export function headGeo(r = 0.2, kind = 'f') {
   const g = new THREE.SphereGeometry(r, 24, 18);
   const p = g.attributes.position;
   for (let i = 0; i < p.count; i++) {
-    const [x, y, z] = deformHead(p.getX(i), p.getY(i), p.getZ(i), r);
+    const [x, y, z] = deformHead(p.getX(i), p.getY(i), p.getZ(i), r, kind);
     p.setXYZ(i, x, y, z);
   }
   g.computeVertexNormals();
@@ -80,11 +91,11 @@ export function headGeo(r = 0.2) {
 export const FACE = { phiStart: Math.PI / 2 - 1.2, phiLength: 2.4, thetaStart: 0.95, thetaLength: 1.35 };
 
 /** Calque du visage : portion de sphère épousant exactement la tête déformée, juste au-dessus. */
-export function faceGeo(r = 0.2) {
+export function faceGeo(r = 0.2, kind = 'f') {
   const g = new THREE.SphereGeometry(r * 1.012, 32, 24, FACE.phiStart, FACE.phiLength, FACE.thetaStart, FACE.thetaLength);
   const p = g.attributes.position;
   for (let i = 0; i < p.count; i++) {
-    const [x, y, z] = deformHead(p.getX(i), p.getY(i), p.getZ(i), r);
+    const [x, y, z] = deformHead(p.getX(i), p.getY(i), p.getZ(i), r, kind);
     p.setXYZ(i, x, y, z);
   }
   g.computeVertexNormals();

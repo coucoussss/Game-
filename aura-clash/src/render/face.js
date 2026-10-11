@@ -154,6 +154,99 @@ function eye(g, o, look, expr, fem) {
   g.stroke();
 }
 
+/** Œil masculin d'anime : étroit et acéré, iris en partie caché par la paupière, trait épais sans cils recourbés. */
+function eyeMale(g, o, look, expr) {
+  if (expr !== 'neutral' && expr !== 'fierce') { eye(g, o, look, expr, false); return; }
+  const ink = '#15101c';
+  const lw = (px) => px / SX;
+  const iris = look.eyes || '#3a3a5a';
+  const fierce = expr === 'fierce';
+  const w = 0.094;
+  const h = fierce ? 0.046 : 0.056;
+  const inX = -o * w * 0.5;
+  const outX = o * w * 0.52;
+  // Paupière supérieure presque droite, qui remonte vers un coin extérieur pointu
+  const topIn = fierce ? -h * 0.05 : -h * 0.35;
+  const top = () => {
+    g.moveTo(inX, h * 0.2);
+    g.bezierCurveTo(inX + o * w * 0.15, topIn, outX - o * w * 0.35, -h * 0.75, outX, -h * 0.38);
+  };
+  const almond = () => {
+    g.beginPath();
+    top();
+    g.bezierCurveTo(outX - o * w * 0.12, h * 0.55, inX + o * w * 0.3, h * 0.7, inX, h * 0.2);
+    g.closePath();
+  };
+  almond();
+  g.fillStyle = '#e6e4ee';
+  g.fill();
+  g.save();
+  almond();
+  g.clip();
+  const ix = -o * w * 0.03;
+  const iy = h * 0.22;
+  const grd = g.createLinearGradient(0, iy - h * 0.7, 0, iy + h * 0.7);
+  grd.addColorStop(0, shade(iris, 0.2));
+  grd.addColorStop(0.55, shade(iris, 0.85));
+  grd.addColorStop(1, shade(iris, 1.18));
+  g.beginPath();
+  g.ellipse(ix, iy, w * 0.21, h * 0.78, 0, 0, Math.PI * 2);
+  g.fillStyle = grd;
+  g.fill();
+  g.lineWidth = lw(3);
+  g.strokeStyle = shade(iris, 0.25);
+  g.stroke();
+  g.beginPath();
+  g.ellipse(ix, iy + h * 0.05, w * 0.075, h * 0.42, 0, 0, Math.PI * 2);
+  g.fillStyle = shade(iris, 0.12);
+  g.fill();
+  // Ombre de la paupière, plus marquée chez l'homme
+  g.fillStyle = 'rgba(30,15,40,0.45)';
+  g.fillRect(-w, -h * 2, w * 2, h * 1.95 + (fierce ? h * 0.2 : 0));
+  g.fillStyle = '#efeff6';
+  g.beginPath();
+  g.ellipse(ix - o * w * 0.07, iy - h * 0.18, w * 0.05, h * 0.16, 0, 0, Math.PI * 2);
+  g.fill();
+  g.restore();
+  // Trait supérieur épais, petit crochet au coin extérieur (pas d'aile)
+  g.beginPath();
+  top();
+  g.lineTo(outX + o * w * 0.06, -h * 0.2);
+  g.strokeStyle = ink;
+  g.lineWidth = lw(10);
+  g.lineCap = 'round';
+  g.lineJoin = 'round';
+  g.stroke();
+  // Trait inférieur court, sous la moitié extérieure
+  g.beginPath();
+  g.moveTo(o * w * 0.02, h * 0.62);
+  g.quadraticCurveTo(o * w * 0.32, h * 0.55, outX - o * w * 0.04, -h * 0.1);
+  g.lineWidth = lw(3.5);
+  g.strokeStyle = ink;
+  g.stroke();
+  // Pli de paupière
+  g.beginPath();
+  g.moveTo(inX + o * w * 0.3, topIn - h * 0.55);
+  g.quadraticCurveTo(o * w * 0.1, -h * 1.15, outX - o * w * 0.08, -h * 0.9);
+  g.lineWidth = lw(2.5);
+  g.strokeStyle = 'rgba(21,16,28,0.55)';
+  g.stroke();
+}
+
+/** Sourcil masculin : épais, presque droit, proche de l'œil. */
+function browMale(g, o, look, expr) {
+  const hair = shade(look.hair || '#222', 0.55);
+  const tilt = expr === 'fierce' ? 0.016 : expr === 'hurt' ? -0.01 : 0.004;
+  g.beginPath();
+  g.moveTo(-o * 0.04, tilt);
+  g.lineTo(o * 0.048, -0.008);
+  g.lineTo(o * 0.05, -0.001);
+  g.lineTo(-o * 0.038, tilt + 0.014);
+  g.closePath();
+  g.fillStyle = hair;
+  g.fill();
+}
+
 function brow(g, o, look, expr) {
   const hair = shade(look.hair || '#222', 0.7);
   const inner = expr === 'fierce' ? 0.012 : expr === 'hurt' ? -0.012 : 0;
@@ -201,9 +294,13 @@ function mouth(g, expr, fem) {
   } else if (expr === 'smile') {
     g.moveTo(-0.018, -0.004);
     g.quadraticCurveTo(0, 0.016, 0.018, -0.004);
-  } else {
+  } else if (fem) {
     g.moveTo(-0.014, 0);
-    g.quadraticCurveTo(0, fem ? 0.006 : 0.003, 0.014, 0);
+    g.quadraticCurveTo(0, 0.006, 0.014, 0);
+  } else {
+    // Bouche masculine : trait plus large, coins légèrement tombants
+    g.moveTo(-0.022, 0.003);
+    g.quadraticCurveTo(0, -0.002, 0.022, 0.003);
   }
   g.lineWidth = 4 / SX;
   g.strokeStyle = ink;
@@ -220,7 +317,7 @@ export function faceTexture(def, expr = 'neutral') {
   c.width = c.height = SIZE;
   const g = c.getContext('2d');
   // Joues (blush) : ellipse rose et petits traits obliques, typiques du manga
-  if (fem || expr === 'hurt' || expr === 'smile') {
+  if (fem) {
     for (const o of [-1, 1]) {
       at(g, o * 0.1, -0.075, () => {
         g.fillStyle = 'rgba(255,120,140,0.35)';
@@ -239,11 +336,27 @@ export function faceTexture(def, expr = 'neutral') {
     }
   }
   for (const o of [-1, 1]) {
-    at(g, o * 0.074, -0.012, () => eye(g, o, look, expr, fem));
-    at(g, o * 0.072, 0.058, () => brow(g, o, look, expr));
+    if (fem) {
+      at(g, o * 0.074, -0.012, () => eye(g, o, look, expr, fem));
+      at(g, o * 0.072, 0.058, () => brow(g, o, look, expr));
+    } else {
+      at(g, o * 0.076, -0.006, () => eyeMale(g, o, look, expr));
+      at(g, o * 0.074, 0.042, () => browMale(g, o, look, expr));
+    }
   }
-  // Nez : petite ombre
-  at(g, 0, -0.058, () => {
+  if (!fem) {
+    // Arête du nez (ombre d'un côté) et narine
+    at(g, 0, -0.045, () => {
+      g.beginPath();
+      g.moveTo(-0.004, -0.03);
+      g.quadraticCurveTo(-0.007, 0.0, 0.002, 0.026);
+      g.lineTo(0.009, 0.022);
+      g.strokeStyle = shade(look.skin, 0.55);
+      g.lineWidth = 3 / SX;
+      g.lineCap = 'round';
+      g.stroke();
+    });
+  } else at(g, 0, -0.058, () => {
     g.beginPath();
     g.moveTo(0.002, -0.012);
     g.lineTo(-0.004, 0.006);
