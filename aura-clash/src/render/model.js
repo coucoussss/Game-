@@ -3,7 +3,8 @@
 // interpolées, et chaînes à ressort pour les cheveux et les vêtements (écharpe, cape, jupe…).
 import * as THREE from 'three';
 import { toonMat, toonPart, toonPartSmooth, glowMat, animeMat, GLSL_NOISE } from './toon.js';
-import { limbGeo, flareGeo, torsoGeo, headGeo, faceZ, shoeGeo } from './anatomy.js';
+import { limbGeo, flareGeo, torsoGeo, headGeo, faceZ, shoeGeo, faceGeo, lockGeo } from './anatomy.js';
+import { faceTexture, emblemTexture } from './face.js';
 
 const TAU = Math.PI * 2;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -255,7 +256,8 @@ export class CharacterModel {
     neck.add(head);
     this.head = head;
     const faceSkin = this.mat(L.skin, { face: true });
-    this.part(headGeo(0.2), faceSkin, head, [0, 0.13, 0], null, 0.016);
+    const headMesh = this.part(headGeo(0.2), faceSkin, head, [0, 0.13, 0], null, 0.016);
+    headMesh.receiveShadow = false; // visage d'anime : jamais sali par l'ombre des cheveux
     for (const s of [-1, 1]) {
       const ear = this.part(new THREE.SphereGeometry(0.04, 8, 6), skin, head, [s * 0.178, 0.12, -0.01], null, 0.01);
       ear.scale.set(0.45, 1, 0.75);
@@ -366,84 +368,68 @@ export class CharacterModel {
     const cy = 0.13; // centre de la sphère de la tête
     if (this.ghost) {
       const eye = glowMat('#ff2a5a', 2.5);
-      for (const s of [-1, 1]) {
+      for (const sd of [-1, 1]) {
         const e = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.022, 0.01), eye);
-        e.position.set(s * 0.07, cy - 0.01, faceZ(R, 0.07, -0.01) + 0.004);
+        e.position.set(sd * 0.07, cy - 0.01, faceZ(R, 0.07, -0.01) + 0.004);
         head.add(e);
       }
       return;
     }
-    const white = this.flat('#e9e8f0'); // sous le seuil du bloom : les yeux ne « brillent » pas
-    const iris = this.flat(L.eyes || '#333344');
-    this.irisMat = iris;
-    const pupil = this.flat('#120e1a');
-    const irisDark = this.flat(new THREE.Color(L.eyes || '#333344').multiplyScalar(0.45).getStyle());
-    const ink = this.flat('#16121e');
-    const blush = new THREE.MeshBasicMaterial({ color: new THREE.Color('#ff8a8a'), transparent: true, opacity: 0.35, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
-    this.flatMats.push(blush);
-    const fem = L.body === 'f';
-    for (const s of [-1, 1]) {
-      const ex = s * 0.074;
-      const ey = -0.012;
-      const g = new THREE.Group();
-      g.position.set(ex, cy + ey, faceZ(R, ex, ey) + 0.003);
-      g.rotation.set(-0.06, s * 0.38, 0);
-      head.add(g);
-      const disc = (r, mat, px, py, pz, sx = 1, sy = 1) => {
-        const d = new THREE.Mesh(new THREE.CircleGeometry(r, 18), mat);
-        d.position.set(px, py, pz);
-        d.scale.set(sx, sy, 1);
-        g.add(d);
-        return d;
-      };
-      disc(0.046, white, 0, 0, 0, 1.0, fem ? 1.12 : 0.95);
-      disc(0.035, iris, -s * 0.004, -0.005, 0.002, 0.8, 1.15);
-      disc(0.03, irisDark, -s * 0.004, 0.006, 0.003, 0.82, 0.6);
-      disc(0.016, pupil, -s * 0.004, -0.006, 0.004, 0.8, 1.15);
-      disc(0.0105, white, s * 0.008, 0.014, 0.006);
-      disc(0.005, white, -s * 0.011, -0.02, 0.006);
-      // Paupière supérieure épaisse (trait d'anime) et cils au coin extérieur
-      const lid = new THREE.Mesh(new THREE.BoxGeometry(0.094, fem ? 0.014 : 0.011, 0.004), ink);
-      lid.position.set(0, 0.04, 0.007);
-      lid.rotation.z = s * -0.12;
-      g.add(lid);
-      const lash = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.008, 0.004), ink);
-      lash.position.set(s * 0.048, 0.03, 0.007);
-      lash.rotation.z = s * (fem ? 0.6 : 0.3);
-      g.add(lash);
-      // Sourcil
-      const brow = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.012, 0.004), this.flat(L.hair));
-      brow.position.set(-s * 0.004, 0.075, 0.006);
-      brow.rotation.z = s * (fem ? -0.05 : -0.22);
-      g.add(brow);
-      if (fem) disc(0.02, blush, s * 0.012, -0.055, 0.004, 1.3, 0.6);
-    }
-    // Nez (petit trait) et bouche
-    const nose = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.022, 0.012), this.flat('#c9917a'));
-    nose.position.set(0, cy - 0.06, faceZ(R, 0, -0.06) + 0.012);
-    head.add(nose);
-    const mouth = new THREE.Mesh(new THREE.BoxGeometry(fem ? 0.035 : 0.045, 0.008, 0.006), ink);
-    mouth.position.set(0, cy - 0.118, 0.172);
-    head.add(mouth);
+    // Visage dessiné (yeux, sourcils, nez, bouche) posé comme un calque sur la tête
+    this.faceMat = new THREE.MeshBasicMaterial({
+      map: faceTexture(this.def, 'neutral'), transparent: true, depthWrite: false,
+      polygonOffset: true, polygonOffsetFactor: -4,
+    });
+    this.flatMats.push(this.faceMat);
+    const face = new THREE.Mesh(faceGeo(R), this.faceMat);
+    face.position.y = cy;
+    face.renderOrder = 2;
+    head.add(face);
+    this.expr = 'neutral';
+    this.blinkT = 2 + Math.random() * 2;
   }
 
-  /** Mèche pointue (cône aplati, façon anime) orientée selon (pitch, yaw) depuis le centre de la tête. */
+  /** Change l'expression du visage (neutre, combatif, douleur, K.O., sourire, cligne). */
+  setExpression(expr) {
+    if (!this.faceMat || expr === this.expr) return;
+    this.expr = expr;
+    this.faceMat.map = faceTexture(this.def, expr);
+  }
+
+  /** Matériau des mèches (dégradé racine → pointe par couleurs de sommet). */
+  lockMat(color, main = true) {
+    const key = `${color}|${main}`;
+    this.lockMats = this.lockMats || new Map();
+    if (!this.lockMats.has(key)) {
+      const m = this.mat(color, { vertexColors: true });
+      m.userData.hairMain = main;
+      this.hairMats.push(m);
+      this.lockMats.set(key, m);
+    }
+    return this.lockMats.get(key);
+  }
+
+  /** Mèche d'anime (ruban effilé et incurvé) orientée selon (pitch, yaw) depuis le centre de la tête. */
   spike(head, mat, pitch, yaw, len, r = 0.075, dist = 0.13) {
     const g = new THREE.Group();
     g.position.set(0, 0.15, 0);
     g.rotation.set(pitch, yaw, 0, 'YXZ');
     head.add(g);
-    const cone = this.part(new THREE.ConeGeometry(r, len, 7), mat, g, [0, dist + len / 2, 0], null, 0.012);
-    cone.scale.z = 0.62;
+    const main = mat === this.hairMats[0] || (mat.userData && mat.userData.hairMain);
+    const lm = this.ghost ? mat : this.lockMat(`#${mat.color.getHexString()}`, main);
+    const bend = 0.25 + Math.random() * 0.25;
+    const cone = this.part(lockGeo(len * 1.1, r * 1.05, { bend, twist: (Math.random() - 0.5) * 0.3, flat: 0.55 }), lm, g, [0, dist - 0.02, 0], null, 0.012);
     this.spikes.push({ group: g, cone, len, pitch, yaw });
     return g;
   }
 
-  /** Frange : mèches qui tombent sur le front. */
+  /** Frange : mèches qui tombent sur le front en s'incurvant. */
   bangs(head, mat, list, r = 0.05) {
+    const main = mat === this.hairMats[0] || (mat.userData && mat.userData.hairMain);
+    const lm = this.ghost ? mat : this.lockMat(`#${mat.color.getHexString()}`, main);
     for (const [xx, len, tilt] of list) {
-      const c = this.part(new THREE.ConeGeometry(r, len, 6), mat, head, [xx, 0.24 - len / 2, 0.15], [Math.PI - 0.35, 0, tilt], 0.01);
-      c.scale.z = 0.5;
+      const c = this.part(lockGeo(len * 1.1, r * 1.1, { bend: -0.45, twist: -tilt * 0.4, flat: 0.45 }), lm, head, [xx, 0.29, 0.13], [Math.PI, 0, tilt], 0.01);
+      c.rotation.x = Math.PI - 0.5;
     }
   }
 
@@ -462,10 +448,20 @@ export class CharacterModel {
       this.flatMats.push(shine.material);
     }
     const cap = (r = 0.212, mat = hair, theta = 0.56) => {
-      const m = this.part(new THREE.SphereGeometry(r, 18, 10, 0, TAU, 0, Math.PI * theta), mat, head, [0, 0.15, -0.012]);
-      m.rotation.x = -0.28;
+      const m = this.part(new THREE.SphereGeometry(r, 18, 10, 0, TAU, 0, Math.PI * theta), mat, head, [0, 0.15, -0.02]);
+      m.rotation.x = -0.62; // calotte basculée vers l'arrière : le front reste visible sous la frange
+      m.receiveShadow = false;
       return m;
     };
+    // Mèches avant communes : elles bordent le front sous la calotte basculée
+    const front = (mat, len = 0.17, n = 5) => {
+      for (let i = 0; i < n; i++) {
+        const yaw = -0.75 + (1.5 * i) / (n - 1);
+        this.spike(head, mat, 0.85 + Math.abs(yaw) * 0.25, yaw, len * (1 - Math.abs(yaw) * 0.2), 0.065, 0.11);
+      }
+    };
+    if (style !== 'ninja' && style !== 'short') front(hair, style === 'priestess' ? 0.15 : 0.17);
+    if (style === 'short') front(hair, 0.1, 4);
     if (style === 'spiky') {
       cap();
       const spikes = [
@@ -517,6 +513,22 @@ export class CharacterModel {
     const torso = this.torso;
     const kind = L.body || 'm';
     const tw = kind === 'big' ? 1.18 : kind === 'f' ? 0.78 : 1; // largeur relative du torse
+    if (L.emblem && !this.ghost) {
+      // Emblème brodé : grand dans le dos, petit sur la poitrine
+      const zb = (kind === 'f' ? 0.112 : kind === 'big' ? 0.16 : 0.133) * b;
+      const col = L.emblemColor || L.belt || '#c0262f';
+      const mk = (r, y, z, ry) => {
+        const e = new THREE.Mesh(new THREE.CircleGeometry(r, 24), new THREE.MeshBasicMaterial({
+          map: emblemTexture(L.emblem, col), transparent: true, polygonOffset: true, polygonOffsetFactor: -2,
+        }));
+        e.position.set(ry ? 0 : 0.085 * b, y, z);
+        e.rotation.y = ry;
+        torso.add(e);
+        this.flatMats.push(e.material);
+      };
+      mk(0.09 * b, 0.34, -zb - 0.006, Math.PI);
+      if (L.top) mk(0.032, 0.43, zb * 0.92 + 0.008, 0);
+    }
     if (x.includes('gi')) {
       // Kimono de combat : tee-shirt visible dans l'encolure en V, revers, ceinture nouée
       this.part(new THREE.BoxGeometry(0.11, 0.2, 0.03), this.mat(L.topAlt || '#1d2bb0'), torso, [0, 0.43, 0.115], [-0.25, 0, 0], 0.008);
@@ -713,8 +725,11 @@ export class CharacterModel {
     const L = this.def.look;
     if (L.hairAlt && this.def.id === 'kael') {
       const c = new THREE.Color(on ? L.hairAlt : L.hair);
-      this.hairMats[0].color.copy(c);
-      this.hairMats[0].userData.baseEmissive = new THREE.Color(on ? '#8a6a00' : '#000000');
+      for (const m of this.hairMats) {
+        if (m !== this.hairMats[0] && !m.userData.hairMain) continue;
+        m.color.copy(c);
+        m.userData.baseEmissive = new THREE.Color(on ? '#8a6a00' : '#000000');
+      }
       this.lastFlash = -1;
     }
     if (L.topAlt) for (const m of this.topMats) m.color.set(on ? L.topAlt : L.top);
@@ -976,6 +991,18 @@ export class CharacterModel {
     this.loco.m += (wantM - this.loco.m) * Math.min(1, dt * 9);
     if (walking) this.loco.phase += dt * (gsp / 1.6) * Math.PI;
     this.react = extra.react || null;
+    // Expression du visage selon l'action, avec clignements réguliers
+    if (this.faceMat) {
+      let ex = 'neutral';
+      if (f.state === 'ko' || f.state === 'knockdown') ex = 'ko';
+      else if (f.state === 'hitstun' || f.state === 'dizzy' || f.state === 'blockstun') ex = 'hurt';
+      else if (f.state === 'victory') ex = 'smile';
+      else if (f.state === 'move' || f.state === 'charge' || f.state === 'guard' || extra.cine) ex = 'fierce';
+      this.blinkT -= dt;
+      if (this.blinkT < 0.12 && (ex === 'neutral' || ex === 'fierce')) ex = 'blink';
+      if (this.blinkT < 0) this.blinkT = 2.2 + Math.random() * 2.5;
+      this.setExpression(ex);
+    }
 
     const target = this.targetPose(f, extra);
     const rate = f.state === 'move' ? 48 : f.state === 'hitstun' || f.state === 'ko' ? 26 : 14;

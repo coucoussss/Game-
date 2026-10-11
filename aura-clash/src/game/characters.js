@@ -50,7 +50,7 @@ export const CHARACTERS = [
     look: {
       skin: '#f2c8a0', hair: '#1b1b2a', hairAlt: '#ffd84a', hairStyle: 'spiky', eyes: '#2a7bff',
       top: '#ff7a1a', topAlt: '#2a4cff', pants: '#ff7a1a', belt: '#1d2bb0', boots: '#1d2bb0',
-      extras: ['wristbands', 'gi'], body: 'm',
+      extras: ['wristbands', 'gi'], body: 'm', emblem: '武', emblemColor: '#1d2bb0',
     },
     moves: {
       light1: { name: 'Direct', anim: 'jab', dur: 0.3, cancel: 0.16, chain: 'light2', air: true, lunge: [[0, 0.1, 3]], actions: [hit(0.09, 30)] },
@@ -90,7 +90,7 @@ export const CHARACTERS = [
     look: {
       skin: '#e8c09a', hair: '#e8ecf5', hairStyle: 'ninja', eyes: '#c0262f',
       top: '#1d2340', arms: '#1d2340', pants: '#1d2340', belt: '#5a2d8c', boots: '#11131f', accent: '#c0262f',
-      extras: ['scarf', 'mask', 'headband', 'kunai', 'armor', 'sash'], body: 'm',
+      extras: ['scarf', 'mask', 'headband', 'kunai', 'armor', 'sash'], body: 'm', emblem: '影', emblemColor: '#5a2d8c',
     },
     moves: {
       light1: { name: 'Taille de kunaï', anim: 'slash1', dur: 0.26, cancel: 0.14, chain: 'light2', air: true, lunge: [[0, 0.1, 4]], actions: [hit(0.08, 27)] },
@@ -132,7 +132,7 @@ export const CHARACTERS = [
     look: {
       skin: '#f0caa6', hair: '#3a3f7a', hairStyle: 'ponytail', eyes: '#3fd0ff',
       top: '#f2f2f5', arms: '#f2f2f5', pants: '#2b3050', belt: '#7a1f2b', boots: '#1a1a22', accent: '#3a6fd8',
-      extras: ['haori', 'katana', 'kimono', 'sleeves', 'hakama'], body: 'm',
+      extras: ['haori', 'katana', 'kimono', 'sleeves', 'hakama'], body: 'm', emblem: '月', emblemColor: '#3a6fd8',
     },
     moves: {
       light1: { name: 'Taille', anim: 'slash1', dur: 0.24, cancel: 0.13, chain: 'light2', air: true, lunge: [[0, 0.08, 4]], actions: [hit(0.07, 25, 'light', { reach: 1.3 })] },
@@ -167,7 +167,7 @@ export const CHARACTERS = [
     look: {
       skin: '#f6d2b5', hair: '#ff5a3a', hairAlt: '#bfefff', hairStyle: 'long', eyes: '#ff7a2a',
       top: '#3a2a6e', arms: '#3a2a6e', pants: '#22183f', belt: '#ffb43a', boots: '#2a1b3a', accent: '#56c8ff',
-      extras: ['robe', 'staff', 'sleeves', 'mantle'], body: 'f',
+      extras: ['robe', 'staff', 'sleeves', 'mantle'], body: 'f', emblem: '炎', emblemColor: '#e0401a',
     },
     moves: {
       light1: { name: 'Coup de bâton', anim: 'staff1', dur: 0.28, cancel: 0.15, chain: 'light2', air: true, lunge: [[0, 0.1, 3]], actions: [hit(0.09, 27, 'light', { reach: 1.25 })] },
@@ -211,7 +211,7 @@ export const CHARACTERS = [
     look: {
       skin: '#c98f62', hair: '#2a1a12', hairStyle: 'short', eyes: '#3a2210',
       top: null, pants: '#2f2f3a', belt: '#c0262f', boots: '#1d1d24', accent: '#f2f2f2',
-      extras: ['gloves', 'bandages', 'sash', 'redband', 'barefoot'], build: 1.08, body: 'big',
+      extras: ['gloves', 'bandages', 'sash', 'redband', 'barefoot'], build: 1.08, body: 'big', emblem: '拳', emblemColor: '#c0262f',
     },
     moves: {
       light1: { name: 'Jab', anim: 'jab', dur: 0.22, cancel: 0.12, chain: 'light2', air: true, lunge: [[0, 0.08, 3]], actions: [hit(0.07, 24)] },
@@ -249,7 +249,7 @@ export const CHARACTERS = [
     look: {
       skin: '#f7d8c0', hair: '#14121c', hairStyle: 'priestess', eyes: '#3fffc0',
       top: '#f4f2ee', arms: '#f4f2ee', pants: '#c0262f', belt: '#c0262f', boots: '#f4f2ee', accent: '#5fffc8',
-      extras: ['hakama', 'talismans', 'ribbons', 'kimono', 'sleeves'], body: 'f',
+      extras: ['hakama', 'talismans', 'ribbons', 'kimono', 'sleeves'], body: 'f', emblem: '霊', emblemColor: '#c0262f',
     },
     moves: {
       light1: { name: 'Talisman', anim: 'palm', dur: 0.28, cancel: 0.15, chain: 'light2', air: true, lunge: [[0, 0.1, 3]], actions: [hit(0.09, 26)] },
@@ -281,7 +281,7 @@ export const CHARACTERS = [
     look: {
       skin: '#f0c9a2', hair: '#f5d742', hairStyle: 'spiky', eyes: '#ffc400',
       top: '#24262f', arms: '#24262f', pants: '#3a3d4a', belt: '#ffcc00', boots: '#15161c', accent: '#ffcc00', armor: '#c8a43a',
-      extras: ['spear', 'armor', 'scarf', 'sash'], body: 'm',
+      extras: ['spear', 'armor', 'scarf', 'sash'], body: 'm', emblem: '雷', emblemColor: '#c89a00',
     },
     moves: {
       light1: { name: 'Estoc', anim: 'thrust', dur: 0.28, cancel: 0.15, chain: 'light2', air: true, lunge: [[0, 0.1, 4]], actions: [hit(0.09, 27, 'light', { reach: 1.65 })] },
@@ -316,7 +316,7 @@ export const CHARACTERS = [
     look: {
       skin: '#f9dcc8', hair: '#ff6fb5', hairStyle: 'ponytail', eyes: '#ff3f98',
       top: '#ffffff', arms: '#ffd6ec', pants: '#ff6fb5', belt: '#7a2a5a', boots: '#ffffff', accent: '#ff6fb5',
-      extras: ['fans', 'kimono', 'sleeves', 'hakama', 'ribbons'], body: 'f',
+      extras: ['fans', 'kimono', 'sleeves', 'hakama', 'ribbons'], body: 'f', emblem: '風', emblemColor: '#d83a8a',
     },
     moves: {
       light1: { name: 'Éventail', anim: 'slash1', dur: 0.24, cancel: 0.13, chain: 'light2', air: true, lunge: [[0, 0.08, 4]], actions: [hit(0.07, 24, 'light', { reach: 1.25 })] },
@@ -350,7 +350,7 @@ export const CHARACTERS = [
     look: {
       skin: '#8a6a58', hair: '#3a2a20', hairStyle: 'short', eyes: '#ffb030',
       top: '#5a4636', arms: '#8a6a58', pants: '#3a3028', belt: '#d8a050', boots: '#2a221c', accent: '#d8a050', armor: '#6a6a76', gloves: '#7a7a86',
-      extras: ['gloves', 'armor', 'sash', 'barefoot'], build: 1.2, body: 'big',
+      extras: ['gloves', 'armor', 'sash', 'barefoot'], build: 1.2, body: 'big', emblem: '岩', emblemColor: '#8a5a20',
     },
     moves: {
       light1: { name: 'Marteau', anim: 'jab', dur: 0.34, cancel: 0.18, chain: 'light2', lunge: [[0, 0.1, 3]], actions: [hit(0.11, 32, 'light', { radius: 1 })] },
@@ -389,7 +389,7 @@ export const CHARACTERS = [
     look: {
       skin: '#ead4dc', hair: '#f0f0f8', hairAlt: '#c8c8dc', hairStyle: 'long', eyes: '#ff1a3a',
       top: '#14121c', arms: '#14121c', pants: '#1c1826', belt: '#8a1a2a', boots: '#0c0a10', accent: '#8a1a2a', blade: '#ff3a5a',
-      extras: ['katana', 'haori', 'kimono', 'horns'], body: 'm',
+      extras: ['katana', 'haori', 'kimono', 'horns'], body: 'm', emblem: '魔', emblemColor: '#8a1a2a',
     },
     moves: {
       light1: { name: 'Taille maudite', anim: 'slash1', dur: 0.24, cancel: 0.13, chain: 'light2', air: true, lunge: [[0, 0.08, 4]], actions: [hit(0.07, 27, 'light', { reach: 1.35 })] },

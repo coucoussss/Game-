@@ -51,24 +51,103 @@ export function torsoGeo(kind, b = 1) {
   return lathe(P.map(([r, y]) => [r * b, y]), 16);
 }
 
-/** Tête d'anime : sphère au menton affiné et légèrement avancé. */
+/** Déformation « tête d'anime » : menton affiné et légèrement avancé, arrière du crâne arrondi. */
+export function deformHead(x, y, z, r) {
+  x *= 0.92;
+  if (y < 0) {
+    const k = Math.min(1, -y / r);
+    x *= 1 - 0.42 * k ** 1.4;
+    z = z * (1 - 0.18 * k) + (z > 0 ? 0.03 * k : 0);
+    y *= 1 + 0.16 * k;
+  }
+  if (z < 0) z *= 0.96;
+  return [x, y, z];
+}
+
+/** Tête d'anime. */
 export function headGeo(r = 0.2) {
-  const g = new THREE.SphereGeometry(r, 20, 16);
+  const g = new THREE.SphereGeometry(r, 24, 18);
   const p = g.attributes.position;
   for (let i = 0; i < p.count; i++) {
-    let x = p.getX(i);
-    let y = p.getY(i);
-    let z = p.getZ(i);
-    x *= 0.92;
-    if (y < 0) {
-      const k = -y / r;
-      x *= 1 - 0.42 * k ** 1.4;
-      z = z * (1 - 0.18 * k) + (z > 0 ? 0.03 * k : 0);
-      y *= 1 + 0.16 * k;
-    }
-    if (z < 0) z *= 0.96;
+    const [x, y, z] = deformHead(p.getX(i), p.getY(i), p.getZ(i), r);
     p.setXYZ(i, x, y, z);
   }
+  g.computeVertexNormals();
+  return g;
+}
+
+/** Zone du visage couverte par la texture dessinée (yeux, sourcils, bouche). */
+export const FACE = { phiStart: Math.PI / 2 - 1.2, phiLength: 2.4, thetaStart: 0.95, thetaLength: 1.35 };
+
+/** Calque du visage : portion de sphère épousant exactement la tête déformée, juste au-dessus. */
+export function faceGeo(r = 0.2) {
+  const g = new THREE.SphereGeometry(r * 1.012, 32, 24, FACE.phiStart, FACE.phiLength, FACE.thetaStart, FACE.thetaLength);
+  const p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const [x, y, z] = deformHead(p.getX(i), p.getY(i), p.getZ(i), r);
+    p.setXYZ(i, x, y, z);
+  }
+  g.computeVertexNormals();
+  return g;
+}
+
+/** Position (en pixels, sur une texture de `size`) d'un point du visage repéré en (x, y) avant déformation. */
+export function faceUV(x, y, r = 0.2, size = 512) {
+  const theta = Math.acos(Math.max(-1, Math.min(1, y / r)));
+  const zz = Math.sqrt(Math.max(1e-6, r * r - y * y - x * x));
+  const phi = Math.atan2(zz, -x); // x = -r cos(phi) sin(theta), z = r sin(phi) sin(theta)
+  const u = (phi - FACE.phiStart) / FACE.phiLength;
+  const v = (theta - FACE.thetaStart) / FACE.thetaLength;
+  return [u * size, v * size];
+}
+
+/**
+ * Mèche de cheveux d'anime : un ruban épais et effilé qui pousse le long de +Y en s'incurvant vers
+ * −Z (`bend`) et éventuellement sur le côté (`twist`). Couleurs de sommet : racine sombre → pointe claire.
+ */
+export function lockGeo(len, width, { bend = 0.35, twist = 0, flat = 0.5, seg = 8, radial = 6 } = {}) {
+  const pos = [];
+  const col = [];
+  const idx = [];
+  const P = (t) => [twist * len * t * t, len * t, -bend * len * t * t];
+  for (let i = 0; i <= seg; i++) {
+    const t = i / seg;
+    const [cx, cy, cz] = P(t);
+    // tangente
+    const [nx, ny, nz] = P(Math.min(1, t + 0.01));
+    let tx = nx - cx; let ty = ny - cy; let tz = nz - cz;
+    const tl = Math.hypot(tx, ty, tz) || 1;
+    tx /= tl; ty /= tl; tz /= tl;
+    // repère : côté (x) et épaisseur (perpendiculaire)
+    let sx = 1; let sy = 0; let sz = 0;
+    const d = sx * tx + sy * ty + sz * tz;
+    sx -= d * tx; sy -= d * ty; sz -= d * tz;
+    const sl = Math.hypot(sx, sy, sz) || 1;
+    sx /= sl; sy /= sl; sz /= sl;
+    const bx = ty * sz - tz * sy; const by = tz * sx - tx * sz; const bz = tx * sy - ty * sx;
+    const r = width * (1 - t) ** 0.85 + 0.002;
+    const shade = 0.72 + 0.45 * t;
+    for (let j = 0; j < radial; j++) {
+      const a = (j / radial) * Math.PI * 2;
+      const ca = Math.cos(a) * r;
+      const sa = Math.sin(a) * r * flat;
+      pos.push(cx + sx * ca + bx * sa, cy + sy * ca + by * sa, cz + sz * ca + bz * sa);
+      col.push(shade, shade, shade);
+    }
+  }
+  for (let i = 0; i < seg; i++) {
+    for (let j = 0; j < radial; j++) {
+      const a = i * radial + j;
+      const b = i * radial + ((j + 1) % radial);
+      const c = (i + 1) * radial + j;
+      const e = (i + 1) * radial + ((j + 1) % radial);
+      idx.push(a, c, b, b, c, e);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.setIndex(idx);
   g.computeVertexNormals();
   return g;
 }
