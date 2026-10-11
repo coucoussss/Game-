@@ -42,6 +42,7 @@ votre ordinateur » : clique sur **Informations complémentaires**, puis sur **E
 | `npm start` | Lance le jeu avec Electron, sans créer de `.exe` (développement). |
 | `npm run web` | Sert le jeu sur <http://localhost:8080> : on peut jouer dans un navigateur, mais sans pouvoir héberger de partie LAN. |
 | `npm test` | Teste le serveur LAN, puis fait jouer 30 matchs complets entre IA (1v1 et 2v2) et une session d'entraînement. |
+| `npm run html` | Crée `release/AuraClash.html` : tout le jeu dans un seul fichier HTML (≈ 750 Ko), qui s'ouvre d'un double-clic dans Chrome ou Edge, sans installation ni droits administrateur. On peut y rejoindre une partie LAN, mais pas en créer une. |
 | `npm run dist` | `build`, puis `zip`. |
 
 Le `.exe` Windows peut aussi être construit depuis Linux ou macOS. Il faut alors Wine, ou bien
