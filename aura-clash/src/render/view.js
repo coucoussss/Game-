@@ -576,12 +576,43 @@ export class MatchView {
               fx.light(ev.x, ev.y, ev.z, c, 6.0, 0.25, 12);
             }
             a.play(big ? 'hitHeavy' : 'hitLight');
+            a.play({ blade: 'hitBlade', spear: 'hitSpear', claw: 'hitClaw', magic: 'hitMagic' }[ev.weapon] || 'hitFist');
             if (ev.combo >= 2) this.hud.combo(ev.att, ev.combo);
+            if (ev.counter) {
+              // Riposte après parade : impact surdimensionné
+              this.hud.moveName(ev.att, 'RIPOSTE !');
+              this.overlay.impactFrame(0.12);
+              this.overlay.manga('返し!!', 50, 32);
+              fx.shockSphere(ev.x, ev.y, ev.z, 0.3, 3.5, 0.35, c);
+              this.stage.rig.addPunch(5);
+              a.play('counter');
+            }
           }
           break;
         }
         case 'fx':
           this.effect(ev, state);
+          break;
+        case 'parry': {
+          // Parade parfaite : éclair blanc, onde, ralenti et petit kanji
+          const c = ev.color || '#ffffff';
+          this.overlay.flash('#ffffff', 0.18);
+          this.overlay.speedLines(0.5, 1.2);
+          fx.burstRing(ev.x, ev.y, ev.z, 0.2, 3.2, 0.3, '#ffffff', cam);
+          fx.burstRing(ev.x, ev.y, ev.z, 0.2, 2.2, 0.35, c, cam);
+          fx.light(ev.x, ev.y, ev.z, '#ffffff', 10, 0.3, 10);
+          p.emit({ x: ev.x, y: ev.y, z: ev.z, count: 40, speed: 12, color: '#fff7c0', size: 0.18, life: 0.4, drag: 4 });
+          this.hud.moveName(ev.id, 'PARADE PARFAITE !');
+          this.overlay.manga('見切り!', 50, 30);
+          this.stage.rig.addPunch(2.5);
+          a.play('parry');
+          break;
+        }
+        case 'pursuit':
+          this.overlay.speedLines(0.4, 1);
+          p.emit({ x: ev.x, y: ev.y, z: ev.z, count: 26, speed: 9, color: '#ffffff', size: 0.25, life: 0.3, drag: 4 });
+          this.hud.moveName(ev.id, 'POURSUITE !');
+          a.play('pursuit');
           break;
         case 'cine': {
           const f = state.fighters[ev.id];
@@ -589,6 +620,7 @@ export class MatchView {
           const col = f.transformed ? def.auraAlt || def.aura : def.aura;
           this.cineChar = ev.charId;
           this.director.start(this.models[ev.id].model, f, col, ev.dur);
+          a.shout(def.look.body === 'f', 1, def.monster ? 'o' : 'a');
           this.overlay.cinematic(ev.text, col, def.name, ev.dur);
           fx.light(f.x, f.y + 1.5, f.z, def.aura, 8.0, ev.dur, 14);
           a.play('ultCharge');
@@ -643,6 +675,9 @@ export class MatchView {
             break;
           }
           if (allDown) {
+            this.overlay.impactFrame(0.3);
+            this.overlay.manga('決着!!', 50, 28);
+            a.play('finalHit');
             this.hud.announce('K.O.', { dur: 2.2, big: true, color: '#ff3a3a' });
             this.stage.rig.setFocus({ mode: 'ko', x: f.x, y: f.y, z: f.z, yaw: f.yaw, t: 0, dur: 2.4, k: CHAR_BY_ID[f.charId].look.size || 1 });
             this.overlay.flash('#ffffff', 0.35);
@@ -691,9 +726,12 @@ export class MatchView {
           fx.burstRing(ev.x, ev.y, ev.z, 0.4, 2.5, 0.3, '#8ac8ff', cam);
           a.play('guardBreak');
           break;
-        case 'special':
+        case 'special': {
           this.hud.moveName(ev.id, ev.name);
+          const sp = state.fighters[ev.id];
+          if (sp && sp.def) a.shout(sp.def.look.body === 'f', 0.35, 'e');
           break;
+        }
         case 'cooldown':
         case 'noEnergy':
           if (this.localIds.has(ev.id)) a.play('denied');
@@ -763,6 +801,14 @@ export class MatchView {
       case 'slashTrail':
         if (ev.x2 != null) fx.streak(ev.x, ev.y, ev.z, ev.x2, ev.y, ev.z2, '#d8faff', 0.9, 0.12);
         this.overlay.speedLines(0.6, 0.8);
+        break;
+      case 'slamLand':
+        // Rabattu au sol : cratère de poussière et onde de choc
+        p.emit({ x: ev.x, y: 0.1, z: ev.z, count: 50, flat: true, speed: 9, color: '#c8b8a0', size: 0.8, sizeEnd: 1.2, life: 0.6, hdr: 0.45, drag: 3 });
+        p.emit({ x: ev.x, y: 0.2, z: ev.z, count: 24, dir: [0, 1, 0], cone: 0.6, speed: 8, color: '#8a7a68', size: 0.25, life: 0.7 });
+        fx.groundRing(ev.x, 0, ev.z, 0.3, 4.5, 0.45, '#ffffff');
+        this.overlay.impactFrame(0.08);
+        this.stage.rig.addPunch(4);
         break;
       case 'summonBurst':
         p.emit({ x: ev.x, y: ev.y, z: ev.z, count: 40, speed: 8, color: c, size: 0.35, life: 0.5 });

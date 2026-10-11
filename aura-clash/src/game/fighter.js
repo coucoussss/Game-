@@ -7,6 +7,8 @@ import { isNormalMove, slotOf, cooldownOf, SLOT_IDS } from './characters.js';
 const BITS = Object.values(BTN);
 const DODGE_TIME = 0.32;
 const DODGE_SPEED = 16;
+export const PARRY_WINDOW = 0.16; // garde levée juste avant le coup : parade parfaite
+const PARRY_REARM = 0.35; // délai avant qu'une nouvelle garde offre une parade (pas de spam)
 
 export class Fighter {
   /**
@@ -59,6 +61,12 @@ export class Fighter {
     this.cdMax = Object.fromEntries(SLOT_IDS.map((k) => [k, 1]));
     this.lastHurt = 99;
     this.buf = {};
+    this.parryUntil = -1; // instant (temps du match) jusqu'auquel une parade parfaite est possible
+    this.lastGuard = -9;
+    this.counterT = 0; // fenêtre de riposte après une parade
+    this.pursuitT = 0; // fenêtre de poursuite aérienne après un lanceur
+    this.pursuitId = -1;
+    this.slammed = false;
   }
 
   get alive() {
@@ -119,6 +127,8 @@ export class Fighter {
     this.dodgeCd = Math.max(0, this.dodgeCd - dt);
     for (const k of SLOT_IDS) if (this.cd[k] > 0) this.cd[k] = Math.max(0, this.cd[k] - dt);
     this.slowT = Math.max(0, this.slowT - dt);
+    this.counterT = Math.max(0, this.counterT - dt);
+    this.pursuitT = Math.max(0, this.pursuitT - dt);
     this.flash = Math.max(0, this.flash - dt);
     this.lastHurt += dt;
     if (this.transformT > 0) {
@@ -190,6 +200,7 @@ export class Fighter {
     if (m.canAct && this.tryActions(inp, m, target)) return;
     const spd = this.def.speed * this.speedMul();
     if (this.onGround) {
+      if (m.canAct && this.pursuitT > 0 && this.buf[BTN.JUMP] > 0 && this.tryPursuit(m)) return;
       if (m.canAct && this.take(BTN.JUMP)) {
         this.vy = JUMP_VELOCITY;
         this.onGround = false;
@@ -200,7 +211,13 @@ export class Fighter {
         m.emit('fx', { fx: 'dust', x: this.x, y: 0.05, z: this.z });
         return;
       }
-      if (m.canAct && (inp.held & BTN.GUARD)) { this.setState('guard'); return; }
+      if (m.canAct && (inp.held & BTN.GUARD)) {
+        // Garde fraîchement levée : courte fenêtre de parade parfaite
+        if (m.time - this.lastGuard >= PARRY_REARM) this.parryUntil = m.time + PARRY_WINDOW;
+        this.lastGuard = m.time;
+        this.setState('guard');
+        return;
+      }
       if (m.canAct && (inp.held & BTN.CHARGE) && this.energy < MAX_ENERGY) { this.setState('charge'); return; }
       this.vx = inp.mx * spd;
       this.vz = inp.mz * spd;
@@ -217,6 +234,36 @@ export class Fighter {
     }
   }
 
+  /**
+   * Poursuite aérienne : juste après avoir envoyé l'adversaire en l'air, un saut nous téléporte
+   * à sa hauteur pour continuer le combo (puis Lourd en l'air = frappe plongeante).
+   */
+  tryPursuit(m) {
+    const t = m.fighters[this.pursuitId];
+    if (!t || !t.alive || t.onGround || t.state !== 'hitstun' || t.y < 0.8) return false;
+    this.buf[BTN.JUMP] = 0;
+    this.pursuitT = 0;
+    m.emit('fx', { fx: 'vanish', x: this.x, y: this.y + 1, z: this.z, color: this.def.aura });
+    let dx = this.x - t.x;
+    let dz = this.z - t.z;
+    const d = Math.hypot(dx, dz) || 1;
+    dx /= d; dz /= d;
+    [this.x, this.z] = m.clampToArena(t.x + dx * 1.0, t.z + dz * 1.0, 0.6);
+    this.y = Math.max(0.6, t.y - 0.3);
+    this.vx = 0; this.vz = 0; this.vy = 3;
+    this.onGround = false;
+    this.airDash = true;
+    this.faceTo(t);
+    this.setState('air');
+    // La cible reste suspendue un instant : le temps d'enchaîner
+    t.vy = Math.min(t.vy, 2.5);
+    t.vx *= 0.2; t.vz *= 0.2;
+    t.stun = Math.max(t.stun, 0.5);
+    m.emit('fx', { fx: 'appear', x: this.x, y: this.y + 1, z: this.z, color: this.def.aura });
+    m.emit('pursuit', { id: this.id, x: this.x, y: this.y + 1, z: this.z });
+    return true;
+  }
+
   /** Lance un coup si une touche est en attente. Renvoie true si une action a démarré. */
   tryActions(inp, m, target, from = null) {
     const order = [
@@ -229,9 +276,11 @@ export class Fighter {
         if (id === 'light1') continue;
         if (id === from) continue;
       }
-      const res = this.moveDef(id);
+      // En l'air, le coup lourd devient une frappe plongeante (sauf coups lourds aériens dédiés)
+      const aid = id === 'heavy' && !this.onGround && !this.def.moves.heavy.air && this.def.moves.airslam ? 'airslam' : id;
+      const res = this.moveDef(aid);
       if (!res) continue;
-      const slot = slotOf(id);
+      const slot = slotOf(aid);
       if (this.cd[slot] > 0) {
         // En recharge : un appui juste avant la fin reste en attente, sinon il est refusé
         if (this.cd[slot] > INPUT_BUFFER) { this.buf[bit] = 0; m.emit('cooldown', { id: this.id, slot }); }
@@ -270,7 +319,7 @@ export class Fighter {
     this.moveHit = false;
     this.setState('move');
     this.faceTo(target);
-    if (!this.onGround) this.vy = Math.max(this.vy, 3);
+    if (!this.onGround) this.vy = mv.dive ? -mv.dive : Math.max(this.vy, 3);
     if (mv.cine) m.startCine(this, mv);
     else if (id.startsWith('special')) m.emit('special', { id: this.id, name: mv.name });
     m.emit('sfx', { name: mv.cine ? 'ultStart' : id === 'special' || id === 'special2' ? 'specialStart' : 'swing' });
@@ -381,10 +430,11 @@ export class Fighter {
   physics(dt, m) {
     if (!this.onGround) {
       let g = GRAVITY;
-      if (this.state === 'move') g *= 0.35; // les coups aériens « flottent »
-      if (this.state === 'hitstun' && this.vy < 0) g *= 0.75; // jongles un peu plus lisibles
+      const dive = this.state === 'move' && this.move && this.move.dive;
+      if (this.state === 'move' && !dive) g *= 0.35; // les coups aériens « flottent »
+      if (this.state === 'hitstun' && this.vy < 0 && !this.slammed) g *= 0.75; // jongles un peu plus lisibles
       this.vy -= g * dt;
-      if (this.state === 'move' && this.vy < -6) this.vy = -6;
+      if (this.state === 'move' && !dive && this.vy < -6) this.vy = -6;
     }
     if (['hitstun', 'blockstun', 'knockdown', 'getup', 'ko', 'dizzy', 'victory'].includes(this.state) && this.onGround) {
       const f = Math.exp(-7 * dt);
@@ -429,6 +479,26 @@ export class Fighter {
   }
 
   onLand(m, impact) {
+    if (this.slammed) {
+      // Rabattu au sol : rebond spectaculaire, puis chute
+      this.slammed = false;
+      if (this.state === 'hitstun') {
+        this.vy = 5.5;
+        this.onGround = false;
+        this.y = 0.01;
+        this.kdOnLand = true;
+        m.emit('fx', { fx: 'slamLand', x: this.x, y: 0.05, z: this.z });
+        m.emit('shake', { amt: 0.7 });
+        m.emit('sfx', { name: 'slam' });
+        return;
+      }
+    }
+    if (this.state === 'move' && this.move && this.move.dive) {
+      m.emit('fx', { fx: 'dust', x: this.x, y: 0.05, z: this.z, big: true });
+      m.emit('shake', { amt: 0.3 });
+      this.endMove();
+      return;
+    }
     if (this.state === 'hitstun' && this.kdOnLand) {
       this.setState('knockdown');
       this.kdOnLand = false;

@@ -176,6 +176,19 @@ export class AudioEngine {
         N(0.28, 0.8, 'lowpass', 2500, 300); T('sine', 130, 38, 0.32, 0.9); T('square', 600, 200, 0.05, 0.15, { verb: true }); break;
       case 'impact':
         N(0.5, 0.9, 'lowpass', 1500, 100, { verb: true }); T('sine', 90, 30, 0.6, 1); break;
+      // Impacts selon l'arme de l'attaquant (s'ajoutent au coup sourd de base)
+      case 'hitBlade': N(0.14, 0.5, 'bandpass', 5200, 2400, { q: 3 }); T('triangle', 3100, 2600, 0.16, 0.12, { verb: true }); break;
+      case 'hitFist': T('sine', 110, 45, 0.16, 0.6); N(0.06, 0.35, 'lowpass', 900, 300); break;
+      case 'hitSpear': N(0.1, 0.45, 'bandpass', 3000, 1500, { q: 2 }); T('square', 1200, 400, 0.05, 0.1); break;
+      case 'hitClaw': N(0.12, 0.45, 'highpass', 3000, 1500); N(0.1, 0.3, 'highpass', 4200, 2000, { delay: 0.03 }); break;
+      case 'hitMagic': T('sine', 900, 1800, 0.18, 0.18, { verb: true }); T('triangle', 1350, 2700, 0.14, 0.08, { verb: true }); break;
+      case 'parry':
+        T('triangle', 2900, 2800, 0.5, 0.35, { verb: true }); T('triangle', 4350, 4300, 0.4, 0.2, { verb: true });
+        N(0.12, 0.6, 'highpass', 5000, 7000); T('sine', 220, 110, 0.3, 0.4); break;
+      case 'counter': N(0.35, 0.9, 'lowpass', 3000, 200, { verb: true }); T('sine', 70, 28, 0.5, 1); T('sawtooth', 600, 150, 0.2, 0.15); break;
+      case 'pursuit': T('sine', 300, 2400, 0.16, 0.25); N(0.18, 0.45, 'bandpass', 1500, 6000, { q: 1.2 }); break;
+      case 'slam': T('sine', 80, 26, 0.6, 1); N(0.6, 0.9, 'lowpass', 1200, 90, { verb: true }); T('square', 160, 50, 0.2, 0.2); break;
+      case 'finalHit': N(1.2, 0.9, 'lowpass', 4000, 80, { verb: true }); T('sine', 55, 22, 1.2, 1); T('triangle', 1800, 600, 0.9, 0.2, { verb: true }); break;
       case 'block':
         T('triangle', 1500, 900, 0.1, 0.35); T('triangle', 2300, 1800, 0.08, 0.2); N(0.05, 0.25, 'highpass', 4000, 4000); break;
       case 'jump': T('sine', 280, 620, 0.1, 0.18); N(0.08, 0.1, 'bandpass', 1500, 3000); break;
@@ -250,6 +263,48 @@ export class AudioEngine {
         if (name.startsWith('shot_')) this.play('cast');
         break;
     }
+  }
+
+  /**
+   * Cri de combat (« Haaa ! ») par synthèse de formants : une voix en dents de scie passée dans
+   * trois filtres qui imitent la voyelle « a », avec souffle. `fem` : voix aiguë. `power` : 0..1.
+   */
+  shout(fem = false, power = 1, vowel = 'a') {
+    if (!this.ensure()) return;
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+    if (now - (this.lastPlay.get('shout') || -1) < 0.4) return;
+    this.lastPlay.set('shout', now);
+    const dur = 0.45 + power * 0.5;
+    const f0 = (fem ? 290 : 135) * (0.95 + Math.random() * 0.1);
+    const formants = { a: [800, 1250, 2600], o: [520, 900, 2500], e: [500, 1900, 2600] }[vowel];
+    const out = ctx.createGain();
+    this.env(out, now, 0.55 + power * 0.25, 0.04, dur);
+    out.connect(this.sfxBus);
+    out.connect(this.reverbSend);
+    const osc = ctx.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(f0 * 0.9, now);
+    osc.frequency.linearRampToValueAtTime(f0 * 1.25, now + dur * 0.35);
+    osc.frequency.linearRampToValueAtTime(f0 * 1.05, now + dur);
+    // Vibrato et grain de voix
+    const vib = ctx.createOscillator();
+    vib.frequency.value = 6.5;
+    const vg = ctx.createGain();
+    vg.gain.value = f0 * 0.03;
+    vib.connect(vg).connect(osc.frequency);
+    formants.forEach((f, i) => {
+      const bp = ctx.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.value = f * (fem ? 1.15 : 1);
+      bp.Q.value = 7 + i * 3;
+      const g = ctx.createGain();
+      g.gain.value = [1, 0.6, 0.25][i];
+      osc.connect(bp).connect(g).connect(out);
+    });
+    osc.start(now); vib.start(now);
+    osc.stop(now + dur + 0.05); vib.stop(now + dur + 0.05);
+    this.noise(dur * 0.8, 0.12 + power * 0.08, 'bandpass', 1400, 900, { q: 0.8 });
   }
 
   // --- Musique ---------------------------------------------------------------------------

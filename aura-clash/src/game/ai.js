@@ -126,6 +126,17 @@ export class CpuBrain {
       }
     }
 
+    // --- Poursuite aérienne et frappe plongeante ---
+    if (me.pursuitT > 0 && me.onGround && Math.random() < L.combo * dt * 10) {
+      this.press(BTN.JUMP);
+      this.airCombo = 3;
+    }
+    if (this.airCombo > 0 && !me.onGround && me.state === 'air' && t.state === 'hitstun' && d < 2.4 && Math.random() < L.combo * dt * 14) {
+      this.press(this.airCombo === 1 ? BTN.HEAVY : BTN.LIGHT);
+      this.airCombo -= 1;
+    }
+    if (me.onGround) this.airCombo = 0;
+
     // --- Enchaînements : continue le combo si le coup a touché ---
     if (this.comboT > 0) {
       this.comboT -= dt;

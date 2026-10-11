@@ -40,6 +40,7 @@ export class Match {
     this.phaseT = 0;
     this.winner = -1;
     this.infiniteEnergy = false;
+    this.slowmo = 0; // ralenti (parade parfaite)
     this.waveList = cfg.waves || null;
     this.wave = 0; // indice de la vague en cours
     this.waveBreak = 0; // pause entre deux vagues (s)
@@ -281,7 +282,8 @@ export class Match {
       this.emit('cineEnd');
     }
     this.updatePhase(dt);
-    const sdt = dt * this.timeScale;
+    if (this.slowmo > 0) this.slowmo = Math.max(0, this.slowmo - dt);
+    const sdt = dt * (this.slowmo > 0 ? Math.min(this.timeScale, 0.3) : this.timeScale);
     const act = this.canAct;
     for (const f of this.fighters) {
       const inp = act ? (inputs[f.id] || NO_INPUT) : NO_INPUT;
@@ -385,6 +387,25 @@ export class Match {
     const pz = (tgt.z + (src ? src.z : att.z)) / 2;
     const py = tgt.y + 1.1;
 
+    // Parade parfaite : garde levée au tout dernier moment → aucun dégât, l'attaquant vacille
+    if (tgt.state === 'guard' && facing && !h.unblockable && this.time <= tgt.parryUntil) {
+      tgt.energy = Math.min(MAX_ENERGY, tgt.energy + 12);
+      tgt.counterT = 0.8;
+      tgt.guardHp = 100;
+      const melee = !src && Math.hypot(att.x - tgt.x, att.z - tgt.z) < 4;
+      const armored = att.move && att.move.armor === 'full';
+      if (melee && !armored && att.alive) {
+        att.move = null; att.moveId = '';
+        att.setState('dizzy');
+        att.stun = 0.6;
+        att.vx = -dx * 5; att.vz = -dz * 5;
+      }
+      this.hitstop = Math.max(this.hitstop, 0.1);
+      this.slowmo = 0.45;
+      this.emit('parry', { id: tgt.id, att: att.id, x: px, y: py, z: pz, color: tgt.def.aura });
+      return 'block';
+    }
+
     if (guarding && facing && !h.unblockable) {
       const chip = dmg * (h.chip ?? 0.12);
       tgt.hp = Math.max(this.training ? 1 : 0, tgt.hp - chip);
@@ -416,6 +437,9 @@ export class Match {
     att.comboT = 1.2;
     const scale = Math.max(0.35, 1 - (att.combo - 1) * 0.07);
     dmg *= scale;
+    // Riposte après une parade parfaite : dégâts majorés
+    const counter = att.counterT > 0;
+    if (counter) { dmg *= 1.5; att.counterT = 0; }
     // Anti-boucle infinie : l'étourdissement diminue au fil du combo, et au 7e coup la victime
     // est projetée au sol (elle se relève invulnérable et peut répliquer).
     let comboStun = stun * Math.max(0.45, 1 - (att.combo - 1) * 0.09);
@@ -451,13 +475,21 @@ export class Match {
         else if (!tgt.onGround) tgt.vy = Math.max(tgt.vy, 3.5); // jongle
       }
       tgt.kdOnLand = !!comboKd || comboUp > 0 || (!tgt.onGround && tgt.kdOnLand);
+      if (comboUp < 0 && !tgt.onGround) {
+        // Frappe plongeante : la cible est rabattue au sol (et rebondit)
+        tgt.vy = comboUp;
+        tgt.slammed = true;
+        tgt.kdOnLand = true;
+      }
+      // Lanceur : fenêtre de poursuite aérienne pour l'attaquant
+      if (comboUp >= 9 && !comboKd) { att.pursuitT = 0.9; att.pursuitId = tgt.id; }
     }
 
     const ht = HIT_TYPES[h.type || h.hit || 'light'];
     this.hitstop = Math.max(this.hitstop, h.ult ? 0.25 : ht.hitstop);
     this.emit('hit', {
       x: px, y: py, z: pz, kind: h.type || h.hit, blocked: false, att: att.id, tgt: tgt.id,
-      dmg: Math.round(dmg), combo: att.combo, color: att.def.aura,
+      dmg: Math.round(dmg), combo: att.combo, color: att.def.aura, counter, weapon: att.def.weapon,
     });
     this.emit('shake', { amt: ht.shake });
     if (h.impact) this.emit('impact', { text: h.impact, x: px, y: py, z: pz });

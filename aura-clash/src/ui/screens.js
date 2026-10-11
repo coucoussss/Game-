@@ -678,7 +678,9 @@ export class UI {
       <div class="ml-general">
         <b>Bases :</b> la garde bloque les coups de face (attention à la jauge de garde). L’esquive rend invulnérable un court instant.
         Les attaques légères s’enchaînent, et tout coup normal peut être annulé par un autre en fin d’animation.
-        L’énergie monte en frappant, en encaissant ou en chargeant. Ultime : énergie pleine.
+        L’énergie monte en frappant, en encaissant ou en chargeant. Ultime : énergie pleine.<br>
+        <b>Parade parfaite :</b> lever la garde au tout dernier moment annule le coup, fait vaciller l’attaquant et ouvre une <b>riposte</b> (+50 % de dégâts).
+        <b>Poursuite :</b> après un coup qui envoie en l’air, Saut te téléporte à hauteur de l’adversaire ; enchaîne en l’air puis <b>Lourd</b> pour la <b>frappe plongeante</b> qui le rabat au sol.
       </div>
       <button class="btn" data-nav data-autofocus>Retour</button>
     </div>`);

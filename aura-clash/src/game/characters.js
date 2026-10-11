@@ -415,6 +415,26 @@ export const CHARACTERS = [
   },
 ];
 
+/** Coup commun à tous : Lourd en l'air = frappe plongeante qui rabat l'adversaire au sol. */
+export const AIR_SLAM = {
+  name: 'Frappe plongeante', anim: 'slam', dur: 0.6, cancel: 0.5, air: true, dive: 16,
+  actions: [hit(0.06, 46, 'kd', { up: -18, kb: 2, radius: 1.15, hy: 0.4, dur: 0.3 }), fx(0.02, 'kiCharge')],
+};
+/** Arme principale (pour le son des impacts). */
+function weaponOf(c) {
+  const x = c.look.extras;
+  if (x.includes('katana')) return 'blade';
+  if (x.includes('spear') || c.stance === 'staff') return 'spear';
+  if (x.includes('fans')) return 'blade';
+  if (x.includes('claws')) return 'claw';
+  if (c.stance === 'priestess') return 'magic';
+  return 'fist';
+}
+for (const c of [...CHARACTERS, ...MONSTERS]) {
+  if (!c.moves.airslam) c.moves.airslam = AIR_SLAM;
+  c.weapon = weaponOf(c);
+}
+
 // Les créatures du mode Vagues sont indexées avec les combattants (même moteur), sans être jouables.
 export const CHAR_BY_ID = Object.fromEntries([...CHARACTERS, ...MONSTERS].map((c) => [c.id, c]));
 
@@ -434,6 +454,8 @@ export function moveList(def) {
     [`Spécial (${m.special.cost} énergie)`, m.special.name + (m.special.alt ? ` (puis : ${m[m.special.alt].name})` : '')],
     ['Ultime (100 énergie)', m.ultimate.name],
   ];
+  rows.push(['Lourd en l’air', 'Frappe plongeante (rabat l’adversaire au sol)']);
+  rows.push(['Garde au dernier moment', 'Parade parfaite, puis riposte renforcée']);
   if (def.teleportDodge) rows.push(['Esquive', 'Téléportation (sans direction : dans le dos de l’adversaire)']);
   return rows;
 }
@@ -453,6 +475,7 @@ export const SLOT_IDS = SLOTS.map((s) => s[0]);
 
 export function slotOf(moveId) {
   if (/^light/.test(moveId)) return 'light';
+  if (moveId === 'airslam') return 'heavy';
   if (moveId.startsWith('special')) return 'special';
   return moveId;
 }
