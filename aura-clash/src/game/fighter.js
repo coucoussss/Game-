@@ -24,6 +24,9 @@ export class Fighter {
     this.mods = { dmg: 1, hp: 1, speed: 1, energy: 1, cd: 1, ...mods };
     this.maxHp = Math.round(def.hp * this.mods.hp);
     this.buf = {};
+    this.bless = {}; // bénédictions du mode Vagues : { identifiant: nombre de fois }
+    this.shield = 0;
+    this.phase2 = false; // boss du mode Vagues entré dans sa seconde phase
     this.reset(0, 0, 0);
     this.energy = 0;
   }
@@ -78,7 +81,10 @@ export class Fighter {
 
   get transformed() { return this.transformT > 0; }
 
-  dmgMul() { return (this.transformed ? 1.3 : 1) * this.mods.dmg; }
+  dmgMul() {
+    const fury = this.bless.colere && this.hp < this.maxHp * 0.35 ? 1 + 0.4 * this.bless.colere : 1;
+    return (this.transformed ? 1.3 : 1) * this.mods.dmg * fury;
+  }
   speedMul() { return (this.transformed ? 1.2 : 1) * (this.slowT > 0 ? 0.6 : 1) * this.mods.speed; }
 
   setState(s) {
@@ -105,7 +111,9 @@ export class Fighter {
 
   /** Coup effectivement joué pour un identifiant (le spécial change une fois transformé). */
   moveDef(id) {
-    let mv = this.def.moves[id];
+    // Seconde phase d'un boss : certains coups sont remplacés par des versions plus puissantes
+    const p2 = this.phase2 && this.def.phase2 && this.def.phase2.moves;
+    let mv = (p2 && p2[id]) || this.def.moves[id];
     if (!mv) return null;
     if (mv.alt && this.transformed) { id = mv.alt; mv = this.def.moves[id]; }
     return { id, mv };
@@ -213,7 +221,7 @@ export class Fighter {
       }
       if (m.canAct && (inp.held & BTN.GUARD)) {
         // Garde fraîchement levée : courte fenêtre de parade parfaite
-        if (m.time - this.lastGuard >= PARRY_REARM) this.parryUntil = m.time + PARRY_WINDOW;
+        if (m.time - this.lastGuard >= PARRY_REARM) this.parryUntil = m.time + PARRY_WINDOW * (1 + (this.bless.parade || 0));
         this.lastGuard = m.time;
         this.setState('guard');
         return;
@@ -388,7 +396,7 @@ export class Fighter {
     const hasDir = len > 0.25;
     if (!hasDir) { dx = -this.fwdX; dz = -this.fwdZ; len = 1; }
     dx /= len; dz /= len;
-    this.dodgeCd = 0.42;
+    this.dodgeCd = 0.42 / (1 + (this.bless.agile || 0));
     if (!this.onGround) { this.airDash = false; this.vy = Math.max(this.vy, 2); }
     if (this.def.teleportDodge) {
       // Téléportation : derrière l'adversaire sans direction, sinon un bond de 4,5 m.

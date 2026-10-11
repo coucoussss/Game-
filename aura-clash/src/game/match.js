@@ -41,7 +41,9 @@ export class Match {
     this.winner = -1;
     this.infiniteEnergy = false;
     this.slowmo = 0; // ralenti (parade parfaite)
-    this.waveList = cfg.waves || null;
+    this.waveList = cfg.waves || (cfg.waveGen ? [] : null); // mode Infini : vagues générées à la demande
+    this.waveGen = cfg.waveGen || null;
+    this.awaitChoice = false; // une bénédiction est en cours de choix (le joueur fige la pause)
     this.wave = 0; // indice de la vague en cours
     this.waveBreak = 0; // pause entre deux vagues (s)
     this.startRound();
@@ -50,7 +52,19 @@ export class Match {
   /** Mode Vagues : { n, total, boss } de la vague en cours (null sinon). */
   get waveInfo() {
     if (!this.waveList) return null;
-    return { n: this.wave + 1, total: this.waveList.length, boss: this.waveList[this.wave].some((e) => e.boss) };
+    const cur = this.waveAt(this.wave);
+    return { n: this.wave + 1, total: this.waveGen ? Infinity : this.waveList.length, boss: cur.some((e) => e.boss) };
+  }
+
+  /** Composition de la vague k (générée et mémorisée en mode Infini). */
+  waveAt(k) {
+    if (this.waveGen && !this.waveList[k]) this.waveList[k] = this.waveGen(k);
+    return this.waveList[k];
+  }
+
+  /** Reste-t-il une vague après la vague courante ? */
+  hasNextWave() {
+    return !!this.waveGen || this.wave + 1 < this.waveList.length;
   }
 
   /** Points d'apparition des ennemis : en arc de cercle face au joueur, vers le centre de l'arène. */
@@ -66,10 +80,46 @@ export class Match {
     return pts;
   }
 
+  /** Bénédiction choisie entre deux vagues (mode Vagues). */
+  applyBlessing(f, id) {
+    f.bless[id] = (f.bless[id] || 0) + 1;
+    const m = f.mods;
+    switch (id) {
+      case 'force': m.dmg *= 1.2; break;
+      case 'vitalite': {
+        const old = f.maxHp;
+        f.maxHp = Math.round(f.maxHp * 1.25);
+        f.hp = Math.min(f.maxHp, f.hp + (f.maxHp - old) + f.maxHp * 0.15);
+        break;
+      }
+      case 'celerite': m.speed *= 1.12; break;
+      case 'ki': m.energy *= 1.4; f.energy = Math.min(MAX_ENERGY, f.energy + 50); break;
+      case 'maitrise': m.cd *= 0.8; break;
+      case 'bouclier': f.shield = 120 * f.bless.bouclier; break;
+      default: break; // les autres agissent pendant le combat
+    }
+    this.awaitChoice = false;
+    this.emit('blessing', { id: f.id, bless: id });
+  }
+
+  /** Seconde phase d'un boss : il s'éveille (cinématique, transformation, nouveaux coups). */
+  bossPhase(f) {
+    f.phase2 = true;
+    f.transformT = 9999;
+    f.energy = MAX_ENERGY;
+    f.hp = Math.min(f.maxHp, f.hp + f.maxHp * 0.1);
+    f.invuln = 2.5;
+    f.move = null; f.moveId = '';
+    f.setState('idle');
+    const p2 = f.def.phase2 || {};
+    this.cine = { id: f.id, t: 0, dur: 2.2, text: p2.title || 'ÉVEIL' };
+    this.emit('bossPhase', { id: f.id, charId: f.charId, text: p2.title || 'ÉVEIL', arena: p2.arena || null, dur: 2.2 });
+  }
+
   /** Fait entrer la vague suivante (les vaincus de la précédente disparaissent). */
   spawnWave() {
     this.wave += 1;
-    const list = this.waveList[this.wave];
+    const list = this.waveAt(this.wave);
     for (const f of this.fighters) if (f.team === 1) f.gone = true;
     const pts = this.spawnPoints(list.length);
     const ids = [];
@@ -87,9 +137,10 @@ export class Match {
       if (f.team !== 0 || !f.alive) continue;
       f.hp = Math.min(f.maxHp, f.hp + f.maxHp * (this.cfg.waveHeal || 0));
       f.energy = Math.min(MAX_ENERGY, f.energy + 25);
+      if (f.bless.bouclier) f.shield = 120 * f.bless.bouclier;
       for (const k in f.cd) f.cd[k] = 0;
     }
-    this.emit('waveSpawn', { ...this.waveInfo, ids });
+    this.emit('waveSpawn', { ...this.waveInfo, ids, entries: list.map((e) => ({ charId: e.charId, level: e.level, boss: !!e.boss, elite: !!e.elite })) });
   }
 
   emit(type, data = {}) {
@@ -192,10 +243,14 @@ export class Match {
         if (this.training) break;
         const a0 = this.teamAlive(0);
         const a1 = this.teamAlive(1);
-        if (this.waveList && a0 && !a1 && this.wave + 1 < this.waveList.length) {
-          // Vague repoussée : courte pause, puis la suivante surgit
-          if (this.waveBreak <= 0) { this.waveBreak = 2.4; this.emit('waveClear', this.waveInfo); }
-          this.waveBreak -= dt;
+        if (this.waveList && a0 && !a1 && this.hasNextWave()) {
+          // Vague repoussée : courte pause (et choix d'une bénédiction), puis la suivante surgit
+          if (this.waveBreak <= 0) {
+            this.waveBreak = 2.4;
+            if (this.cfg.blessings) this.awaitChoice = true;
+            this.emit('waveClear', this.waveInfo);
+          }
+          if (!this.awaitChoice || this.waveBreak > 1.2) this.waveBreak -= dt;
           if (this.waveBreak <= 0) { this.waveBreak = 0; this.spawnWave(); }
           break;
         }
@@ -205,6 +260,11 @@ export class Match {
           this.timeScale = 0.25;
           this.roundWinner = a0 ? 0 : a1 ? 1 : -1;
           break;
+        }
+        if (this.waveList) {
+          for (const f of this.fighters) {
+            if (f.def.boss && f.def.phase2 && !f.phase2 && f.alive && !f.gone && f.hp <= f.maxHp * 0.5) { this.bossPhase(f); break; }
+          }
         }
         if (!this.waveList) this.timer -= dt;
         if (this.timer <= 0) {
@@ -451,8 +511,17 @@ export class Match {
       comboKb = Math.max(kb, 9);
       comboUp = Math.max(up, 5);
     }
+    if (att.bless.brasier) dmg += 6 * att.bless.brasier;
+    if (tgt.shield > 0) {
+      // Bouclier spirituel : il encaisse en premier
+      const absorbed = Math.min(tgt.shield, dmg);
+      tgt.shield -= absorbed;
+      dmg -= absorbed;
+      this.emit('fx', { fx: 'shieldHit', x: tgt.x, y: tgt.y + 1, z: tgt.z, broken: tgt.shield <= 0 });
+    }
     tgt.hp -= dmg;
     tgt.lastHurt = 0;
+    if (att.bless.vampire && att.alive) att.hp = Math.min(att.maxHp, att.hp + dmg * 0.08 * att.bless.vampire);
     tgt.flash = 0.12;
     att.energy = Math.min(MAX_ENERGY, att.energy + h.dmg * 0.09 * att.mods.energy);
     tgt.energy = Math.min(MAX_ENERGY, tgt.energy + h.dmg * 0.05 * tgt.mods.energy);
@@ -509,6 +578,12 @@ export class Match {
     if (h && h.impact) this.emit('impact', { text: h.impact, x: px, y: py, z: pz });
     this.emit('ko', { id: tgt.id, x: tgt.x, y: tgt.y + 1, z: tgt.z });
     this.emit('shake', { amt: 0.8 });
+    if (att.bless.explosif && tgt.team !== att.team) {
+      // Chaîne d'explosions : la victime explose et blesse ses voisins
+      this.emit('fx', { fx: 'explosion', x: tgt.x, y: tgt.y + 1, z: tgt.z, r: 3, kind: 'fireball' });
+      this.emit('sfx', { name: 'explosion' });
+      this.areaHit(att, tgt.x, tgt.z, 3, { dmg: 45 * att.bless.explosif, type: 'kd' });
+    }
     if (this.waveList && tgt.team === 1) {
       // Mode Vagues : chaque ennemi abattu ravive les joueurs (vie et énergie)
       for (const f of this.fighters) {

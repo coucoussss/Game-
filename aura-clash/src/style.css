@@ -421,3 +421,25 @@ body.touch-on .aslot { width: 7vw; }
 @media (orientation: portrait) { .wave-menu .levels { grid-template-columns: repeat(5, minmax(0, 1fr)); } .bestiary { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .menu-list.row { flex-direction: row; justify-content: center; min-width: 0; }
 .aura-tint { position: absolute; inset: 0; pointer-events: none; opacity: 0; mix-blend-mode: soft-light; z-index: 2; }
+.hp-shield { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: repeating-linear-gradient(90deg, rgba(127, 240, 255, 0.85) 0 6px, rgba(127, 240, 255, 0.55) 6px 9px); box-shadow: 0 0 1vh #7ff0ff; transition: width 0.15s; }
+.side.right .hp-shield { left: auto; right: 0; }
+.bless-row { display: flex; gap: 0.3vw; margin-top: 0.4vh; font: 900 1.7vh var(--display); }
+.bless-row span { position: relative; background: rgba(255, 210, 63, 0.18); border: 1px solid #ffd23f; color: #ffd23f; padding: 0 0.35em; transform: skewX(-8deg); }
+.bless-row i { font-size: 0.7em; font-style: normal; vertical-align: super; margin-left: 1px; }
+.blessing-screen { background: radial-gradient(ellipse at center, rgba(40, 20, 60, 0.75), rgba(0, 0, 0, 0.88)); }
+.bless-cards { display: flex; gap: 2vw; justify-content: center; flex-wrap: wrap; margin-top: 2vh; }
+.bless-card { width: min(26vw, 260px); min-height: 32vh; border: 0; border-top: 6px solid #ffd23f; background: linear-gradient(170deg, #2a1e4a, #120c22); color: #fff;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.2vh; padding: 2vh 1vw; cursor: pointer; transform: skewX(-4deg); transition: transform 0.15s; }
+.bless-card .bk { font: 900 9vh serif; color: #ffd23f; text-shadow: 0 0 2vh rgba(255, 210, 63, 0.8); line-height: 1; }
+.bless-card b { font: italic 900 2.4vh var(--display); }
+.bless-card small { font-size: 1.6vh; color: var(--muted); text-align: center; }
+.bless-card.focus, .bless-card:hover { transform: skewX(-4deg) translateY(-1.5vh) scale(1.04); outline: 3px solid #ffd23f; box-shadow: 0 0 4vh rgba(255, 210, 63, 0.4); }
+@media (orientation: portrait) { .bless-card { width: 80vw; min-height: 14vh; } }
+.records { width: min(70vw, 640px); margin-top: 2vh; background: rgba(10, 8, 20, 0.85); padding: 1.4vh 1.4vw; border-left: 5px solid #ffd23f; }
+.records h3 { margin: 0 0 1vh; font: italic 900 2.2vh var(--display); color: #ffd23f; }
+.records ol { margin: 0; padding-left: 1.6em; display: flex; flex-direction: column; gap: 0.8vh; }
+.records li { display: flex; align-items: center; gap: 0.8vw; }
+.records li b { font: italic 900 2vh var(--display); min-width: 8em; }
+.records li span { color: var(--muted); font-size: 1.4vh; }
+.records .portrait.mini { width: 4vh; height: 4vh; }
+.btn.locked { opacity: 0.55; }

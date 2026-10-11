@@ -422,13 +422,60 @@ const RAW = [
   },
 ];
 
+/**
+ * Seconde phase des boss (à la moitié de leur vie) : une cinématique d'éveil, l'arène qui change,
+ * une transformation permanente et un spécial bien plus dangereux.
+ */
+const PHASE2 = {
+  'roi-goule': {
+    title: 'FAIM ÉTERNELLE', arena: 'volcano',
+    moves: { special: { name: 'Marée des morts', cost: 30, anim: 'summon', dur: 0.8, cancel: 0.6, actions: [{ t: 0.2, a: 'summon', kind: 'clone', count: 3 }, { t: 0.3, a: 'ring', maxR: 6, speed: 16, dmg: 45, type: 'kd', fxColor: '#c8ff5a' }] } },
+  },
+  'shogun-oni': {
+    title: 'CORPS DE GUERRE', arena: 'volcano',
+    moves: { special: { name: 'Cinq lames du shōgun', cost: 30, anim: 'slash3', dur: 0.75, cancel: 0.6, actions: [proj(0.15, { kind: 'crescent', speed: 21, dmg: 40, hit: 'heavy', r: 1.0, life: 0.9, pierce: true }, { spread: [-30, -15, 0, 15, 30] })] } },
+  },
+  imperatrice: {
+    title: 'AURORE NOIRE', arena: 'glacier',
+    moves: {
+      special: {
+        name: 'Pluie de comètes', cost: 30, anim: 'summon', dur: 0.9, cancel: 0.7,
+        actions: [aoe(0.15, 'meteor', 0.6, 1.8, 50, 'kd'), aoe(0.15, 'meteor', 0.8, 1.6, 40, 'kd', { offset: [2.2, 1] }), aoe(0.15, 'meteor', 1.0, 1.6, 40, 'kd', { offset: [-2.2, -1] }), aoe(0.15, 'meteor', 1.2, 1.6, 40, 'kd', { offset: [1, -2.2] })],
+      },
+    },
+  },
+  'dragon-noir': {
+    title: 'FLAMME ORIGINELLE', arena: 'volcano',
+    moves: {
+      special: {
+        name: 'Couronne de flammes', cost: 30, anim: 'powerup', dur: 0.9, cancel: 0.7,
+        actions: [0, 72, 144, 216, 288].map((deg, i) => aoe(0.2, 'firepillar', 0.4 + i * 0.12, 1.5, 38, 'launch', { offset: [Math.cos(deg * Math.PI / 180) * 2.4, Math.sin(deg * Math.PI / 180) * 2.4] })),
+      },
+    },
+  },
+  titan: {
+    title: 'COLÈRE DES PROFONDEURS', arena: 'glacier',
+    moves: { special: { name: 'Séisme des abysses', cost: 30, anim: 'slam', dur: 1.0, cancel: 0.8, actions: [{ t: 0.5, a: 'ring', maxR: 12, speed: 15, dmg: 80, type: 'launch', groundOnly: true, fxColor: '#5ab4ff' }, aoe(0.5, 'rockpillar', 0.3, 2, 50, 'launch')] } },
+  },
+  'roi-fleau': {
+    title: 'ÉCLIPSE TOTALE', arena: 'neon',
+    moves: {
+      special2: {
+        name: 'Jugement primordial', cost: 30, anim: 'summon', dur: 0.9, cancel: 0.7,
+        actions: [aoe(0.15, 'darkblast', 0.4, 2.2, 55, 'launch'), aoe(0.15, 'thunder', 0.6, 1.6, 40, 'heavy', { offset: [2, 1] }), aoe(0.15, 'thunder', 0.8, 1.6, 40, 'heavy', { offset: [-2, -1] }), aoe(0.15, 'darkblast', 1.1, 3, 70, 'kd', { offset: [0, 0] })],
+      },
+    },
+  },
+};
+
 /** Les géants frappent plus loin : allonge et rayon des coups suivent (en partie) leur taille. */
 function scaleReach(def) {
   const size = def.look.size || 1;
   if (size === 1) return def;
   const kr = 1 + (size - 1) * 0.7; // allonge
   const kw = 1 + (size - 1) * 0.3; // largeur de la zone touchée (les coups circulaires restent esquivables)
-  for (const mv of Object.values(def.moves)) {
+  const all = [...Object.values(def.moves), ...Object.values((def.phase2 && def.phase2.moves) || {})];
+  for (const mv of all) {
     for (const a of mv.actions) {
       if (a.a !== 'hit') continue;
       a.reach = (a.reach || 1.05) * kr;
@@ -438,5 +485,5 @@ function scaleReach(def) {
   return def;
 }
 
-export const MONSTERS = RAW.map((m) => scaleReach({ monster: true, ...m }));
+export const MONSTERS = RAW.map((m) => scaleReach({ monster: true, ...m, phase2: PHASE2[m.id] || null }));
 export const MONSTER_BY_ID = Object.fromEntries(MONSTERS.map((m) => [m.id, m]));

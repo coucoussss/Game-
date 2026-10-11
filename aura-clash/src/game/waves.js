@@ -120,6 +120,85 @@ export function buildLevel(n) {
   };
 }
 
+// --- Difficulté ------------------------------------------------------------------------------
+
+/** Niveaux de difficulté : multiplicateurs appliqués aux ennemis, et aux récompenses. */
+export const DIFFICULTIES = {
+  facile: { label: 'Facile', hp: 0.75, dmg: 0.7, reward: 0.7, ai: -1 },
+  normal: { label: 'Normal', hp: 1, dmg: 1, reward: 1, ai: 0 },
+  cauchemar: { label: 'Cauchemar', hp: 1.35, dmg: 1.3, reward: 1.6, ai: 1 },
+};
+const AI_ORDER = ['easy', 'normal', 'hard'];
+
+/** Applique la difficulté à une entrée d'ennemi (copie). */
+export function withDifficulty(e, diffId) {
+  const d = DIFFICULTIES[diffId] || DIFFICULTIES.normal;
+  const lv = AI_ORDER[Math.max(0, Math.min(2, AI_ORDER.indexOf(e.level) + d.ai))];
+  return { ...e, level: lv, mods: { ...e.mods, hp: e.mods.hp * d.hp, dmg: e.mods.dmg * d.dmg } };
+}
+
+// --- Mode Infini ------------------------------------------------------------------------------
+
+const BOSS_CYCLE = REGIONS.map((r) => r.boss);
+
+/**
+ * Vague `k` (0, 1, 2…) du mode Infini : la difficulté monte sans fin ; un boss toutes les
+ * 10 vagues (ils reviennent dans l'ordre, de plus en plus forts).
+ */
+export function endlessWave(k) {
+  const n = Math.min(60, 8 + k * 0.9); // « niveau » équivalent
+  const r = rng(9001 + k * 31);
+  const pick = (list) => list[Math.floor(r() * list.length)];
+  const tiers = tiersFor(Math.floor(n));
+  const wave = [];
+  let budget = 1.5 + n * 0.14 + (k % 10) * 0.25;
+  if ((k + 1) % 10 === 0) {
+    const id = BOSS_CYCLE[Math.floor(k / 10) % BOSS_CYCLE.length];
+    wave.push(entry(Math.floor(n), id, 4, { boss: true }));
+    budget = Math.min(4, n * 0.08);
+  }
+  while (wave.length < MAX_ON_FIELD) {
+    const options = tiers.filter((t) => TIER_COST[t] <= budget + 1e-9);
+    if (!options.length) break;
+    const t = options[Math.floor(r() * options.length)];
+    wave.push(entry(Math.floor(n), pick(BY_TIER[t - 1]), t));
+    budget -= TIER_COST[t];
+  }
+  if (!wave.length) wave.push(entry(Math.floor(n), pick(BY_TIER[0]), 1));
+  return wave;
+}
+
+/** Ryō du mode Infini : 35 par vague repoussée, plus 150 par boss vaincu. */
+export function endlessReward(wavesCleared) {
+  return wavesCleared * 35 + Math.floor(wavesCleared / 10) * 150;
+}
+
+// --- Bénédictions (choix entre deux vagues) --------------------------------------------------
+
+/** [identifiant, nom, description, icône] — chaque bénédiction peut être prise plusieurs fois. */
+export const BLESSINGS = [
+  ['force', 'Force du dragon', '+20 % de dégâts', '力'],
+  ['vitalite', 'Cœur de pierre', '+25 % de vie maximale (et soin)', '命'],
+  ['celerite', 'Pas du vent', '+12 % de vitesse', '風'],
+  ['ki', 'Source de ki', '+40 % d’énergie gagnée, +50 d’énergie', '気'],
+  ['maitrise', 'Maîtrise', '−20 % de temps de recharge', '技'],
+  ['vampire', 'Soif de sang', 'Tes coups te rendent 8 % des dégâts', '血'],
+  ['brasier', 'Poings de braise', '+6 dégâts de feu à chaque coup', '炎'],
+  ['explosif', 'Chaîne d’explosions', 'Les ennemis que tu abats explosent', '爆'],
+  ['agile', 'Ombre fugace', 'Esquive deux fois plus fréquente', '影'],
+  ['bouclier', 'Bouclier spirituel', 'Chaque vague commence avec 120 de bouclier', '盾'],
+  ['colere', 'Colère du survivant', '+40 % de dégâts sous 35 % de vie', '怒'],
+  ['parade', 'Œil du maître', 'Fenêtre de parade parfaite doublée', '見'],
+];
+
+/** Trois bénédictions au hasard, différentes. */
+export function blessingChoices(rand = Math.random) {
+  const pool = BLESSINGS.slice();
+  const out = [];
+  while (out.length < 3 && pool.length) out.push(pool.splice(Math.floor(rand() * pool.length), 1)[0]);
+  return out;
+}
+
 /** Ryō gagnés : la récompense pleine à la première victoire, un quart ensuite ; 25 par vague en cas d'échec. */
 export function levelReward(level, won, wavesCleared, firstClear) {
   if (won) return firstClear ? level.reward : Math.round(level.reward * 0.3);

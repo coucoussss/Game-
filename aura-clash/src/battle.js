@@ -11,7 +11,7 @@ import { TICK } from './game/constants.js';
 import { ARENA_RADIUS, ARENAS } from './render/arenas.js';
 import { encodeSnapshot, RemoteState } from './net/session.js';
 import { TIERS } from './game/monsters.js';
-import { WAVE_HEAL } from './game/waves.js';
+import { WAVE_HEAL, endlessWave, withDifficulty, blessingChoices } from './game/waves.js';
 
 const SNAP_EVERY = 2; // un instantané tous les 2 ticks = 30 par seconde
 
@@ -61,8 +61,11 @@ export class Battle {
         arenaRadius: ARENA_RADIUS,
         roundTime: cfg.roundTime || 99,
         training: !!cfg.training,
-        waves: cfg.waves ? cfg.waves.map((w) => w.map((e) => ({ charId: e.charId, mods: e.mods, boss: !!e.boss }))) : undefined,
+        waves: cfg.waves ? cfg.waves.map((w) => w.map((e) => ({ ...e }))) : undefined,
+        // Mode Infini : vagues générées sans fin (difficulté choisie appliquée)
+        waveGen: cfg.endless ? (k) => (k === 0 ? cfg.firstWave : endlessWave(k).map((e) => withDifficulty(e, cfg.difficultyId))) : undefined,
         waveHeal: cfg.waveHeal ?? WAVE_HEAL,
+        blessings: !!(cfg.waves || cfg.endless),
       });
       this.state = this.match;
       this.brains = cfg.fighters.map((f, i) => {
@@ -120,7 +123,8 @@ export class Battle {
     list.sort((a, b) => (a.f.team - b.f.team) || ((b.f.boss ? 1 : 0) - (a.f.boss ? 1 : 0)));
     app.hud.setup(list.map(({ f, i }) => ({
       id: i, name: CHAR_BY_ID[f.charId].name, team: f.team, color: CHAR_BY_ID[f.charId].aura, label: label(f), boss: !!f.boss,
-    })), { training: cfg.training, waves: !!cfg.waves });
+    })), { training: cfg.training, waves: !!(cfg.waves || cfg.endless) });
+    if (this.match) for (const f of this.match.fighters) if (f.team === 0 && Object.keys(f.bless).length) app.hud.setBlessings(f.id, f.bless);
     // Barre des attaques : une par joueur de cette machine
     const sides = this.barOwners.length > 1 ? ['left', 'right'] : ['mid'];
     app.hud.setupBars(this.barOwners.map(({ i, f }, k) => ({ id: i, def: CHAR_BY_ID[f.charId], side: sides[k] || 'right' })));
@@ -129,15 +133,31 @@ export class Battle {
 
   /** Mode Vagues : une nouvelle vague est apparue dans la simulation → modèles, IA et interface. */
   onWaveSpawn(ev) {
-    const wave = this.cfg.waves[ev.n - 1];
     ev.ids.forEach((id, k) => {
-      const e = wave[k];
+      const e = ev.entries[k];
       this.cfg.fighters[id] = { charId: e.charId, team: 1, ctrl: { type: 'cpu', level: e.level }, boss: !!e.boss, elite: !!e.elite };
       this.brains[id] = new CpuBrain(id, e.level);
       this.specialCost[id] = CHAR_BY_ID[e.charId].moves.special.cost;
       this.app.view.addFighter(e.charId);
     });
     this.setupHud();
+  }
+
+  /** Mode Vagues : propose trois bénédictions entre deux vagues (le combat est figé pendant le choix). */
+  offerBlessing() {
+    const me = this.match.fighters.findIndex((f, i) => this.cfg.fighters[i] && this.cfg.fighters[i].ctrl.type === 'human');
+    if (me < 0) { this.match.awaitChoice = false; return; }
+    this.paused = true;
+    // Petit délai : on laisse le temps de voir la vague tomber
+    setTimeout(() => {
+      if (this.app.battle !== this || this.ended) return;
+      this.app.ui.blessingChoice(blessingChoices(), (id) => {
+        this.match.applyBlessing(this.match.fighters[me], id);
+        this.paused = false;
+        this.app.input.resetEdges();
+        this.app.input.endTick();
+      });
+    }, 700);
   }
 
   /** Convertit une entrée écran (x : droite, y : fond) en direction au sol. */
@@ -169,7 +189,23 @@ export class Battle {
       if (steps === 5) this.acc = 0;
     }
     const events = this.match.events.splice(0);
-    for (const ev of events) if (ev.type === 'waveSpawn') this.onWaveSpawn(ev);
+    for (const ev of events) {
+      if (ev.type === 'waveSpawn') this.onWaveSpawn(ev);
+      else if (ev.type === 'waveClear' && this.match.awaitChoice) this.offerBlessing();
+      else if (ev.type === 'bossPhase') {
+        // Seconde phase d'un boss : l'arène bascule au cœur de la cinématique, la musique s'emballe
+        if (ev.arena) this.pendingArena = { id: ev.arena, t: 1.1 };
+        app.audio.music('boss2');
+      } else if (ev.type === 'blessing') app.hud.setBlessings(ev.id, this.match.fighters[ev.id].bless);
+    }
+    if (this.pendingArena) {
+      this.pendingArena.t -= dt;
+      if (this.pendingArena.t <= 0) {
+        app.overlay.flash('#ffffff', 0.35);
+        app.stage.setArena(this.pendingArena.id);
+        this.pendingArena = null;
+      }
+    }
     this.trackCombo(events);
     app.view.handleEvents(events, this.match);
     app.view.update(this.paused ? 0 : dt, this.match);

@@ -4,7 +4,7 @@ import { Match } from '../src/game/match.js';
 import { CpuBrain } from '../src/game/ai.js';
 import { CHARACTERS } from '../src/game/characters.js';
 import { TICK } from '../src/game/constants.js';
-import { buildLevel, WAVE_LEVELS, WAVE_HEAL } from '../src/game/waves.js';
+import { buildLevel, WAVE_LEVELS, WAVE_HEAL, endlessWave, blessingChoices } from '../src/game/waves.js';
 import { MONSTERS } from '../src/game/monsters.js';
 
 let failures = 0;
@@ -101,6 +101,42 @@ for (const [n, mods] of [[1, {}], [3, {}], [5, {}], [8, {}], [10, maxed], [12, m
 }
 console.log('Ultimes observés en mode Vagues :', [...monsterUlts].join(', ') || 'aucun');
 console.log(`Bestiaire : ${MONSTERS.length} créatures`);
+
+// Mode Infini avec bénédictions choisies au hasard, et éveil des boss en seconde phase
+{
+  const m = new Match({
+    fighters: [{ charId: 'kael', team: 0, mods: maxed }, ...endlessWave(0).map((e) => ({ charId: e.charId, team: 1, mods: e.mods }))],
+    arenaRadius: 18, waveGen: (k) => endlessWave(k), waveHeal: WAVE_HEAL, blessings: true,
+  });
+  const brains = [new CpuBrain(0, 'hard'), ...endlessWave(0).map((e, k) => new CpuBrain(k + 1, e.level))];
+  const seen = new Set();
+  let ticks = 0;
+  while (m.phase !== 'matchEnd' && ticks < 60 * 60 * 20) {
+    if (m.awaitChoice) m.applyBlessing(m.fighters[0], blessingChoices()[0][0]);
+    m.step(TICK, brains.map((b) => (b ? b.think(m, TICK) : null)));
+    for (const e of m.events) {
+      seen.add(e.type);
+      if (e.type === 'waveSpawn') e.ids.forEach((id, k) => { brains[id] = new CpuBrain(id, e.entries[k].level); });
+    }
+    m.events.length = 0;
+    ticks++;
+  }
+  const f = m.fighters[0];
+  const ok = m.phase === 'matchEnd' && seen.has('blessing');
+  if (!ok) failures++;
+  console.log(`${ok ? '✔' : '✘'} mode Infini : ${m.wave} vagues repoussées, bénédictions ${JSON.stringify(f.bless)}${seen.has('bossPhase') ? ', un boss est passé en seconde phase' : ''}`);
+}
+// Seconde phase forcée : un boss à mi-vie s'éveille
+{
+  const m = new Match({ fighters: [{ charId: 'kael', team: 0 }, { charId: 'roi-fleau', team: 1 }], arenaRadius: 18, waves: [[{ charId: 'roi-fleau', boss: true }]] });
+  m.phase = 'fight';
+  m.fighters[1].hp = m.fighters[1].maxHp * 0.4;
+  let phase = false;
+  for (let k = 0; k < 10; k++) { m.step(TICK, [null, null]); if (m.events.some((e) => e.type === 'bossPhase')) phase = true; m.events.length = 0; }
+  const ok = phase && m.fighters[1].phase2 && m.fighters[1].moveDef('special2') && m.fighters[1].transformed;
+  if (!ok) failures++;
+  console.log(`${ok ? '✔' : '✘'} seconde phase du boss`);
+}
 
 if (failures) { console.error(`${failures} échec(s)`); process.exit(1); }
 console.log('Simulation OK');

@@ -695,6 +695,26 @@ export class MatchView {
           a.play('parry');
           break;
         }
+        case 'bossPhase': {
+          // Éveil du boss : cinématique, teinte, onde et rugissement
+          const f = state.fighters[ev.id];
+          const def = CHAR_BY_ID[ev.charId];
+          this.cineChar = ev.charId;
+          this.director.start(this.models[ev.id].model, f, def.aura, ev.dur);
+          this.overlay.cinematic(ev.text, def.aura, def.name, ev.dur);
+          this.overlay.tint(def.aura, ev.dur + 1);
+          this.overlay.manga('覚醒!!', 50, 30);
+          this.stage.rig.addShake(1);
+          fx.shockSphere(f.x, 1.5, f.z, 0.5, 8, 0.9, def.aura);
+          a.shout(def.look.body === 'f', 1, 'o');
+          a.play('ultCharge');
+          break;
+        }
+        case 'blessing':
+          this.hud.moveName(ev.id, 'BÉNÉDICTION !');
+          this.overlay.flash('#fff3c0', 0.25);
+          this.stage.effects.groundRing(state.fighters[ev.id].x, 0.05, state.fighters[ev.id].z, 0.3, 4, 0.5, '#ffd23f');
+          break;
         case 'pursuit':
           this.overlay.speedLines(0.4, 1);
           p.emit({ x: ev.x, y: ev.y, z: ev.z, count: 26, speed: 9, color: '#ffffff', size: 0.25, life: 0.3, drag: 4 });
@@ -833,7 +853,7 @@ export class MatchView {
   /** Annonce d'une vague ; l'arrivée d'un boss a droit à sa mise en scène. */
   announceWave(w, state) {
     if (!w.boss) {
-      this.hud.announce(`VAGUE ${w.n} / ${w.total}`, { dur: 1.6, color: w.n === w.total ? '#ff8a5a' : '#ffffff' });
+      this.hud.announce(w.total === Infinity ? `VAGUE ${w.n}` : `VAGUE ${w.n} / ${w.total}`, { dur: 1.6, color: w.n === w.total ? '#ff8a5a' : '#ffffff' });
       return;
     }
     const boss = state.fighters.filter((f) => f.team === 1 && !f.gone).find((f) => f.def && f.def.boss) || null;
@@ -889,6 +909,10 @@ export class MatchView {
       case 'slashTrail':
         if (ev.x2 != null) fx.streak(ev.x, ev.y, ev.z, ev.x2, ev.y, ev.z2, '#d8faff', 0.9, 0.12);
         this.overlay.speedLines(0.6, 0.8);
+        break;
+      case 'shieldHit':
+        p.emit({ x: ev.x, y: ev.y, z: ev.z, count: ev.broken ? 40 : 10, speed: ev.broken ? 9 : 5, color: '#7ff0ff', size: 0.2, life: 0.35 });
+        if (ev.broken) { fx.burstRing(ev.x, ev.y, ev.z, 0.4, 2.4, 0.3, '#7ff0ff', this.stage.camera); this.audio.play('guardBreak'); }
         break;
       case 'slamLand':
         // Rabattu au sol : cratère de poussière et onde de choc

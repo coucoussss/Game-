@@ -2,6 +2,7 @@
 // manches gagnées, compteur de combo et annonces (« MANCHE 1 », « K.O. »…).
 import { MAX_ENERGY } from '../game/constants.js';
 import { SLOTS } from '../game/characters.js';
+import { BLESSINGS } from '../game/waves.js';
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -33,11 +34,12 @@ export class Hud {
     const side = (list, cls) => `<div class="side ${cls}">${list.map((f, i) => `
       <div class="panel ${i > 0 ? 'small' : ''} ${f.boss ? 'boss' : ''}" data-id="${f.id}" style="--c:${f.color}">
         <div class="pname"><span class="tag">${esc(f.label || '')}</span>${esc(f.name)}</div>
-        <div class="hp"><div class="hp-lag"></div><div class="hp-fill"></div></div>
+        <div class="hp"><div class="hp-lag"></div><div class="hp-fill"></div><div class="hp-shield"></div></div>
         <div class="row2"><div class="energy"><div class="en-fill"></div><div class="en-mark" style="left:40%"></div></div><div class="en-num">0</div></div>
         <div class="guard"><div class="guard-fill"></div></div>
         <div class="combo"></div>
         <div class="movename"></div>
+        <div class="bless-row"></div>
       </div>`).join('')}</div>`;
     this.root.innerHTML = `
       <div class="topbar">
@@ -69,6 +71,8 @@ export class Hud {
         comboT: 0,
         moveT: 0,
         mark: el.querySelector('.en-mark'),
+        shield: el.querySelector('.hp-shield'),
+        bless: el.querySelector('.bless-row'),
       };
     }
     this.timerEl = this.root.querySelector('.timer');
@@ -93,6 +97,8 @@ export class Hud {
       p.lagHold = (p.lagHold || 0) - dt;
       p.lastHp = hp;
       p.lag.style.width = `${p.lagV * 100}%`;
+      const sh = f.shield > 0 ? Math.min(1, f.shield / f.maxHp) : 0;
+      if (sh !== p.lastShield) { p.lastShield = sh; p.shield.style.width = `${sh * 100}%`; }
       const en = f.energy / MAX_ENERGY;
       p.en.style.width = `${en * 100}%`;
       p.en.classList.toggle('full', en >= 1);
@@ -105,7 +111,7 @@ export class Hud {
       if (p.moveT > 0) { p.moveT -= dt; if (p.moveT <= 0) p.move.classList.remove('on'); }
     }
     const wv = state.waveInfo;
-    if (wv) this.timerEl.textContent = `${wv.n}/${wv.total}`;
+    if (wv) this.timerEl.textContent = wv.total === Infinity ? `${wv.n}` : `${wv.n}/${wv.total}`;
     else if (!this.training) this.timerEl.textContent = Math.ceil(state.timer ?? 99);
     this.timerEl.classList.toggle('urgent', !this.training && !wv && (state.timer ?? 99) <= 10);
     const wins = (state.wins || [0, 0]).join('-');
@@ -174,6 +180,16 @@ export class Hud {
         s.el.classList.toggle('noen', (s.cost || 0) > f.energy);
       }
     }
+  }
+
+  /** Icônes des bénédictions obtenues (mode Vagues). */
+  setBlessings(id, bless) {
+    const p = this.panels[id];
+    if (!p) return;
+    p.bless.innerHTML = Object.entries(bless).map(([k, n]) => {
+      const b = BLESSINGS.find((x) => x[0] === k);
+      return b ? `<span title="${esc(b[1])}">${esc(b[3])}${n > 1 ? `<i>${n}</i>` : ''}</span>` : '';
+    }).join('');
   }
 
   combo(id, n) {

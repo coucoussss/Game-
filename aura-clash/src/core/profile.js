@@ -25,7 +25,7 @@ export const UPGRADE_COSTS = [200, 350, 550, 800, 1100];
 
 export class Profile {
   constructor() {
-    this.data = { ryo: START_RYO, owned: [], upgrades: {}, story: [], waves: [] };
+    this.data = { ryo: START_RYO, owned: [], upgrades: {}, story: [], waves: [], difficulty: 'normal', endless: [] };
     try {
       const saved = JSON.parse(localStorage.getItem(KEY) || 'null');
       if (saved && Number.isFinite(saved.ryo) && Array.isArray(saved.owned)) {
@@ -35,6 +35,8 @@ export class Profile {
           upgrades: saved.upgrades && typeof saved.upgrades === 'object' ? saved.upgrades : {},
           story: Array.isArray(saved.story) ? saved.story.filter((x) => typeof x === 'string') : [],
           waves: Array.isArray(saved.waves) ? saved.waves.filter((x) => Number.isInteger(x) && x >= 1) : [],
+          difficulty: ['facile', 'normal', 'cauchemar'].includes(saved.difficulty) ? saved.difficulty : 'normal',
+          endless: Array.isArray(saved.endless) ? saved.endless.filter((r) => r && Number.isFinite(r.score)).slice(0, 5) : [],
         };
       }
     } catch { /* stockage indisponible : profil de départ */ }
@@ -94,6 +96,22 @@ export class Profile {
   /** Niveau le plus haut accessible : le suivant du plus haut réussi. */
   levelUnlocked() {
     return this.data.waves.reduce((m, n) => Math.max(m, n), 0) + 1;
+  }
+
+  setDifficulty(id) {
+    this.data.difficulty = id;
+    this.save();
+  }
+
+  /** Mode Infini : enregistre un score ; renvoie son rang (1 = record) ou 0 s'il n'entre pas au tableau. */
+  recordEndless(score, charId, difficulty) {
+    const list = this.data.endless;
+    list.push({ score, charId, difficulty, date: new Date().toISOString().slice(0, 10) });
+    list.sort((a, b) => b.score - a.score);
+    this.data.endless = list.slice(0, 5);
+    this.save();
+    const i = this.data.endless.findIndex((r) => r.score === score && r.charId === charId);
+    return i + 1;
   }
 
   /** Débloque gratuitement un personnage (récompense du mode histoire). */
