@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { toonMat, toonPart, toonPartSmooth, glowMat, animeMat, GLSL_NOISE } from './toon.js';
 import { limbGeo, flareGeo, torsoGeo, headGeo, faceZ, shoeGeo, faceGeo, lockGeo, deformHead } from './anatomy.js';
 import { faceTexture, emblemTexture } from './face.js';
+import { AuraFX } from './aura.js';
 
 const TAU = Math.PI * 2;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -106,42 +107,6 @@ export function strikeTime(mv) {
   s = Math.max(0.04, s);
   strikeCache.set(mv, s);
   return s;
-}
-
-// --- Shader d'aura ------------------------------------------------------------------------
-
-function auraMaterial(color) {
-  return new THREE.ShaderMaterial({
-    uniforms: { uTime: { value: 0 }, uInt: { value: 0 }, uColor: { value: new THREE.Color(color) } },
-    vertexShader: /* glsl */`
-      varying vec2 vUv; varying vec3 vN; varying vec3 vV;
-      void main() {
-        vUv = uv;
-        vec4 mv = modelViewMatrix * vec4(position, 1.0);
-        vN = normalize(normalMatrix * normal);
-        vV = normalize(-mv.xyz);
-        gl_Position = projectionMatrix * mv;
-      }`,
-    fragmentShader: /* glsl */`
-      uniform float uTime; uniform float uInt; uniform vec3 uColor;
-      varying vec2 vUv; varying vec3 vN; varying vec3 vV;
-      ${GLSL_NOISE}
-      void main() {
-        float a = vUv.x * 6.2831853;
-        vec2 q = vec2(cos(a), sin(a)) * 2.2;
-        float n = vnoise(q + vec2(0.0, vUv.y * 4.0 - uTime * 4.5)) * 0.65
-                + vnoise(q * 2.3 + vec2(3.1, vUv.y * 7.0 - uTime * 7.0)) * 0.35;
-        float fade = smoothstep(0.0, 0.12, vUv.y) * (1.0 - smoothstep(0.35, 1.0, vUv.y));
-        float rim = 1.0 - abs(dot(vN, vV));
-        float flame = smoothstep(0.3, 0.75, n + (1.0 - vUv.y) * 0.3);
-        float alpha = flame * fade * (0.15 + rim * 0.8) * uInt;
-        gl_FragColor = vec4(uColor * alpha * 0.9, alpha);
-      }`,
-    transparent: true,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending,
-    side: THREE.DoubleSide,
-  });
 }
 
 // --- Modèle ---------------------------------------------------------------------------------
@@ -794,24 +759,14 @@ export class CharacterModel {
   }
 
   buildAura() {
-    this.aura = new THREE.Group();
-    this.auraMats = [];
-    const sizes = [[0.55, 0.8, 2.5], [0.75, 1.05, 2.9]];
-    for (const [rt, rb, h] of sizes) {
-      const mat = auraMaterial(this.def.aura);
-      const mesh = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, 18, 1, true), mat);
-      mesh.position.y = h / 2 - 0.15;
-      mesh.renderOrder = 5;
-      this.aura.add(mesh);
-      this.auraMats.push(mat);
-    }
-    this.aura.visible = false;
-    this.root.add(this.aura);
+    // Aura nouvelle génération (voir aura.js) ; les clones d'ombre n'en ont pas
+    this.auraFx = this.ghost ? null : new AuraFX(this);
+    this.aura = this.auraFx ? this.auraFx.root : new THREE.Group();
     this.auraLevel = 0;
   }
 
   setAuraColor(color) {
-    for (const m of this.auraMats) m.uniforms.uColor.value.set(color);
+    if (this.auraFx) this.auraFx.setColor(color);
   }
 
   /** Change la couleur des cheveux et du haut (transformation du guerrier). */
@@ -1123,13 +1078,21 @@ export class CharacterModel {
       sp.group.rotation.x = sp.pitch + Math.sin(this.time * 3 + sp.yaw * 4) * 0.03 - (aura > 0.5 ? 0.12 * Math.sign(sp.pitch) : 0);
     }
     // Aura
-    this.auraLevel += (aura - this.auraLevel) * Math.min(1, dt * 8);
-    this.aura.visible = this.auraLevel > 0.02;
-    for (const m of this.auraMats) {
-      m.uniforms.uTime.value = this.time;
-      m.uniforms.uInt.value = this.auraLevel;
+    if (this.auraFx) {
+      const full = (f.energy ?? 0) >= 100;
+      const ult = f.state === 'move' && f.moveId === 'ultimate';
+      const charge = f.state === 'charge' ? 1 : 0;
+      let max = 0;
+      if ((f.state === 'charge' && (f.energy >= 90 || f.transformed)) || (ult && f.mt < 0.5)) max = 1;
+      else if (f.transformed) max = 0.3;
+      // Cinématique : yeux allumés, mais pas de colonne de lumière devant l'objectif
+      if (extra.cine) max = 0;
+      let level = Math.max(aura, full && f.state !== 'ko' ? 0.14 : 0);
+      if (extra.cine) level = Math.min(level, 0.5); // gros plans : l'aura borde la silhouette sans la voiler
+      this.auraFx.update(dt, level, charge, max);
+      if (extra.cine && this.auraFx.eyeMat) this.auraFx.eyeMat.opacity = 1;
+      this.auraLevel = this.auraFx.level;
     }
-    this.aura.scale.setScalar(0.9 + this.auraLevel * 0.25 + Math.sin(this.time * 20) * 0.02);
 
     if (this.talismans) {
       this.talismans.forEach((tl, i) => {
@@ -1220,7 +1183,7 @@ export class CharacterModel {
     });
     for (const m of this.mats) m.dispose();
     for (const m of this.flatMats || []) m.dispose();
-    for (const m of this.auraMats) m.dispose();
+    if (this.auraFx) this.auraFx.dispose();
   }
 }
 

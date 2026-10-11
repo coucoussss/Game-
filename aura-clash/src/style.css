@@ -420,3 +420,4 @@ body.touch-on .aslot { width: 7vw; }
 .beast p { margin: 0; font-size: 1.2vh; color: var(--muted); }
 @media (orientation: portrait) { .wave-menu .levels { grid-template-columns: repeat(5, minmax(0, 1fr)); } .bestiary { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .menu-list.row { flex-direction: row; justify-content: center; min-width: 0; }
+.aura-tint { position: absolute; inset: 0; pointer-events: none; opacity: 0; mix-blend-mode: soft-light; z-index: 2; }

@@ -15,6 +15,12 @@ export class Overlay {
     this.cineEl.className = 'cine';
     this.cineEl.innerHTML = '<div class="bar top"></div><div class="bar bottom"></div><div class="cine-text"><span class="cine-name"></span><span class="cine-move"></span></div>';
     root.appendChild(this.cineEl);
+    // Teinte de l'écran aux couleurs de l'aura (ultimes)
+    this.tintEl = document.createElement('div');
+    this.tintEl.className = 'aura-tint';
+    root.appendChild(this.tintEl);
+    this.tintT = 0;
+    this.tintDur = 1;
     this.mangaLayer = document.createElement('div');
     this.mangaLayer.className = 'manga-layer';
     root.appendChild(this.mangaLayer);
@@ -43,6 +49,14 @@ export class Overlay {
     this.flashEl.style.background = color;
     this.flashT = dur;
     this.flashDur = dur;
+  }
+
+  /** L'écran vire à la couleur de l'aura pendant `dur` secondes. */
+  tint(color, dur = 1.5) {
+    if (this.reduced) return;
+    this.tintEl.style.background = `radial-gradient(ellipse at 50% 60%, transparent 20%, ${color} 95%)`;
+    this.tintT = dur;
+    this.tintDur = dur;
   }
 
   speedLines(dur = 0.6, intensity = 1) {
@@ -126,10 +140,17 @@ export class Overlay {
     this.cineEl.classList.remove('on');
     this.mangaLayer.innerHTML = '';
     this.flashEl.style.opacity = 0;
+    this.tintT = 0;
+    this.tintEl.style.opacity = '0';
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
   }
 
   update(dt) {
+    if (this.tintT > 0) {
+      this.tintT -= dt;
+      const k = this.tintT / this.tintDur;
+      this.tintEl.style.opacity = String(Math.min(1, k * 3, (1 - k) * 6) * 0.4);
+    } else if (this.tintEl.style.opacity !== '0') this.tintEl.style.opacity = '0';
     // Filtres plein écran (image d'impact, noir et blanc)
     let filter = '';
     if (this.impactT > 0) {

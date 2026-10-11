@@ -182,6 +182,8 @@ export class AudioEngine {
       case 'hitSpear': N(0.1, 0.45, 'bandpass', 3000, 1500, { q: 2 }); T('square', 1200, 400, 0.05, 0.1); break;
       case 'hitClaw': N(0.12, 0.45, 'highpass', 3000, 1500); N(0.1, 0.3, 'highpass', 4200, 2000, { delay: 0.03 }); break;
       case 'hitMagic': T('sine', 900, 1800, 0.18, 0.18, { verb: true }); T('triangle', 1350, 2700, 0.14, 0.08, { verb: true }); break;
+      case 'auraBurst': N(0.6, 0.6, 'lowpass', 600, 2400, { attack: 0.02, verb: true }); T('sine', 60, 120, 0.5, 0.6); break;
+      case 'crackle': N(0.05, 0.35, 'highpass', 4000, 7000); N(0.04, 0.25, 'highpass', 5000, 8000, { delay: 0.05 }); break;
       case 'parry':
         T('triangle', 2900, 2800, 0.5, 0.35, { verb: true }); T('triangle', 4350, 4300, 0.4, 0.2, { verb: true });
         N(0.12, 0.6, 'highpass', 5000, 7000); T('sine', 220, 110, 0.3, 0.4); break;

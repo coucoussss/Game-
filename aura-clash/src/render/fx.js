@@ -295,8 +295,22 @@ export class Effects {
     this.add(m, (k) => {
       m.scale.x = 1 + k * 2;
       mat.opacity = 1 - k;
-      if (k >= 1) m.geometry.dispose();
+      if (k >= 1) { m.geometry.dispose(); mat.dispose(); }
     }, dur);
+  }
+
+  /** Éclair en zigzag entre deux points (une suite de traits brefs). */
+  lightning(x1, y1, z1, x2, y2, z2, color, segs = 6) {
+    let px = x1; let py = y1; let pz = z1;
+    for (let i = 1; i <= segs; i++) {
+      const k = i / segs;
+      const j = i === segs ? 0 : 0.35;
+      const nx = x1 + (x2 - x1) * k + (Math.random() - 0.5) * j;
+      const ny = y1 + (y2 - y1) * k + (Math.random() - 0.5) * j;
+      const nz = z1 + (z2 - z1) * k + (Math.random() - 0.5) * j;
+      this.streak(px, py, pz, nx, ny, nz, i % 2 ? '#ffffff' : color, 0.12, 0.05);
+      px = nx; py = ny; pz = nz;
+    }
   }
 
   update(dt) {

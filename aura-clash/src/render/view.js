@@ -85,7 +85,92 @@ export class MatchView {
       vm.model.update(frozen ? 0 : dt, f, { cine: cineId === f.id, cineShot: cineId === f.id && this.director.active ? this.director.active.shot : -1, react: f.state === 'hitstun' ? vm.react : null });
       this.fighterFx(dt, vm, f, p, frozen);
     });
+    if (dt > 0) this.auraClash(dt, state);
     this.updateEntities(dt, state);
+  }
+
+  /**
+   * Particules de l'aura, selon le style du personnage, et onde de choc quand elle s'embrase.
+   */
+  auraParticles(dt, vm, f, p, color) {
+    const fx = vm.model.auraFx;
+    if (!fx) return;
+    const lv = fx.level;
+    const prev = vm.prevAura || 0;
+    vm.prevAura = lv;
+    if (prev < 0.55 && lv >= 0.55) {
+      // L'aura s'embrase : onde de choc au sol, éclair et souffle
+      this.stage.effects.groundRing(f.x, 0.05, f.z, 0.3, 4, 0.45, color);
+      this.stage.effects.burstRing(f.x, f.y + 1, f.z, 0.3, 2.6, 0.3, color, this.stage.camera);
+      this.stage.effects.light(f.x, f.y + 1.2, f.z, color, 6, 0.4, 10);
+      p.emit({ x: f.x, y: 0.2, z: f.z, count: 30, flat: true, speed: 9, color: '#c8b8a0', size: 0.5, life: 0.5, hdr: 0.5, drag: 3 });
+      this.audio.play('auraBurst');
+    }
+    if (lv < 0.1) return;
+    const n = lv * dt * 60; // ~1 émission par image à pleine intensité
+    if (Math.random() > n) return;
+    const sc = vm.model.root.scale.x;
+    const base = { x: f.x, y: f.y + 0.3 * sc, z: f.z, spread: 0.55 * sc };
+    switch (fx.style.particle) {
+      case 'ember':
+        p.emit({ ...base, count: 2, dir: [0, 1, 0], cone: 0.2, speed: 6, color, size: 0.16, life: 0.7, drag: 1 });
+        p.emit({ ...base, count: 1, dir: [0, 1, 0], cone: 0.3, speed: 4, color: '#fff3c0', size: 0.1, life: 0.5 });
+        break;
+      case 'smoke':
+      case 'mist':
+      case 'abyss':
+        p.emit({ ...base, count: 2, dir: [0, 1, 0], cone: 0.35, speed: 2.5, color, size: 0.45, sizeEnd: 0.9, life: 0.9, hdr: 0.45, drag: 1 });
+        if (fx.style.particle === 'abyss') p.emit({ ...base, count: 1, dir: [0, 1, 0], cone: 0.4, speed: 5, color: '#ff2a3a', size: 0.12, life: 0.6 });
+        break;
+      case 'streak':
+        p.emit({ ...base, count: 2, dir: [0, 1, 0], cone: 0.05, speed: 12, color: '#e8ffff', size: 0.08, life: 0.3 });
+        break;
+      case 'flake':
+        p.emit({ ...base, count: 1, dir: [0, 1, 0], cone: 0.6, speed: 1.5, color: '#e8f8ff', size: 0.14, life: 1.1, drag: 0.5 });
+        p.emit({ ...base, count: 1, dir: [0, 1, 0], cone: 0.2, speed: 5, color, size: 0.12, life: 0.6 });
+        break;
+      case 'wisp':
+        p.emit({ ...base, count: 1, dir: [0, 1, 0], cone: 0.5, speed: 2.2, color, size: 0.3, sizeEnd: 0.05, life: 1.1, drag: 0.4 });
+        break;
+      case 'spark':
+        p.emit({ ...base, count: 3, speed: 9, color: '#fffbd0', size: 0.07, life: 0.18 });
+        break;
+      case 'petal':
+        p.emit({ ...base, count: 1, dir: [Math.sin(fx.time * 3), 0.7, Math.cos(fx.time * 3)], cone: 0.4, speed: 3, color, size: 0.2, life: 1.2, drag: 0.6 });
+        break;
+      case 'dust':
+        p.emit({ x: f.x, y: 0.1, z: f.z, count: 2, flat: true, speed: 3, spread: 0.8, color: '#c8b090', size: 0.35, life: 0.6, hdr: 0.5 });
+        p.emit({ ...base, count: 1, dir: [0, 1, 0], cone: 0.2, speed: 5, color, size: 0.14, life: 0.6 });
+        break;
+      default:
+        p.emit({ ...base, count: 2, dir: [0, 1, 0], cone: 0.25, speed: 5, color, size: 0.2, life: 0.6, drag: 1 });
+    }
+    if (f.state === 'charge' && Math.random() < dt * 10) p.emit({ x: f.x, y: 0.05, z: f.z, count: 3, flat: true, speed: 4, color: '#c8b8a0', size: 0.3, life: 0.5, hdr: 0.5 });
+  }
+
+  /** Deux auras embrasées face à face : éclairs et étincelles entre les combattants. */
+  auraClash(dt, state) {
+    const fs = state.fighters;
+    for (let i = 0; i < fs.length; i++) {
+      for (let j = i + 1; j < fs.length; j++) {
+        const a = fs[i];
+        const b = fs[j];
+        if (a.team === b.team || a.gone || b.gone) continue;
+        const ma = this.models[i] && this.models[i].model.auraFx;
+        const mb = this.models[j] && this.models[j].model.auraFx;
+        if (!ma || !mb || ma.level < 0.6 || mb.level < 0.6) continue;
+        const d = Math.hypot(a.x - b.x, a.z - b.z);
+        if (d > 7 || Math.random() > dt * 14) continue;
+        const mx = (a.x + b.x) / 2;
+        const mz = (a.z + b.z) / 2;
+        const ca = this.models[i].def.aura;
+        const cb = this.models[j].def.aura;
+        this.stage.effects.lightning(a.x, 1.2 + Math.random(), a.z, mx, 1 + Math.random(), mz, ca);
+        this.stage.effects.lightning(b.x, 1.2 + Math.random(), b.z, mx, 1 + Math.random(), mz, cb);
+        this.stage.particles.emit({ x: mx, y: 1.3, z: mz, count: 8, speed: 8, color: '#ffffff', size: 0.12, life: 0.25 });
+        if (Math.random() < 0.3) this.audio.play('crackle');
+      }
+    }
   }
 
   fighterFx(dt, vm, f, p, frozen) {
@@ -96,10 +181,7 @@ export class MatchView {
       vm.humT = (vm.humT || 0) - dt;
       if (vm.humT <= 0) { vm.humT = 0.36; this.audio.play('chargeHum'); }
     }
-    if (f.state === 'charge' || (f.state === 'move' && f.moveId === 'ultimate' && f.mt < 0.3)) {
-      p.emit({ x: f.x, y: f.y + 0.2, z: f.z, count: 2, dir: [0, 1, 0], cone: 0.25, speed: 5, spread: 0.6, color, size: 0.2, life: 0.6, drag: 1 });
-      if (Math.random() < dt * 10) p.emit({ x: f.x, y: 0.05, z: f.z, count: 3, flat: true, speed: 4, color: '#c8b8a0', size: 0.3, life: 0.5, hdr: 0.5 });
-    }
+    this.auraParticles(dt, vm, f, p, color);
     if (f.transformed && vm.trailT <= 0) {
       p.emit({ x: f.x, y: f.y + 1, z: f.z, count: 1, dir: [0, 1, 0], cone: 0.5, speed: 3, spread: 0.4, color, size: 0.14, life: 0.5 });
     }
@@ -622,7 +704,8 @@ export class MatchView {
           this.director.start(this.models[ev.id].model, f, col, ev.dur);
           a.shout(def.look.body === 'f', 1, def.monster ? 'o' : 'a');
           this.overlay.cinematic(ev.text, col, def.name, ev.dur);
-          fx.light(f.x, f.y + 1.5, f.z, def.aura, 8.0, ev.dur, 14);
+          this.overlay.tint(col, ev.dur + 0.8);
+          fx.light(f.x, f.y + 0.4, f.z, def.aura, 4.5, ev.dur, 12);
           a.play('ultCharge');
           break;
         }
