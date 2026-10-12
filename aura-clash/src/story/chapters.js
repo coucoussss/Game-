@@ -148,10 +148,28 @@ export const CHAPTERS = [
     outro: [
       { who: 'yami', text: 'Impossible… Ma lumière noire… se disperse…', pose: 'ko', shot: 'close', fx: 'flash' },
       { who: null, text: 'Les auras volées s’envolent comme des lucioles et retrouvent leurs maîtres. Le soleil revient.', shot: 'wide' },
-      { who: 'yami', text: 'Ce sabre… m’avait dévoré bien avant que je ne dévore les autres. Merci… de l’avoir brisé.', pose: 'hurt', shot: 'close' },
-      { who: 'kael', text: 'Alors relève-toi, et bats-toi avec nous. Pour de vrai, cette fois.', pose: 'victory', shot: 'two' },
-      { who: null, text: 'Yami Kurosaki rejoint ton équipe ! Merci d’avoir joué à « La Légende de l’Éclipse ».', shot: 'wide', fx: 'flash' },
+      { who: 'yami', text: 'Ce sabre… m’avait dévoré bien avant que je ne dévore les autres. Achève-moi, ou tends-moi la main.', pose: 'hurt', shot: 'close' },
+      {
+        who: 'kael', text: 'Que vais-je faire de Yami ?', shot: 'two',
+        choice: [
+          { label: 'Lui tendre la main', ending: 'redemption' },
+          { label: 'Sceller le sabre avec lui', ending: 'seal' },
+        ],
+      },
     ],
+    // Fins, selon le choix
+    endings: {
+      redemption: [
+        { who: 'kael', text: 'Relève-toi, et bats-toi avec nous. Pour de vrai, cette fois.', pose: 'victory', shot: 'two' },
+        { who: 'yami', text: '… Je n’ai plus qu’une dette à payer. Et toute une vie pour le faire.', pose: 'idle', shot: 'close' },
+        { who: null, text: 'FIN — La Rédemption. Yami Kurosaki rejoint ton équipe !', shot: 'wide', fx: 'flash' },
+      ],
+      seal: [
+        { who: 'kael', text: 'Ton sabre ne doit plus jamais revoir le jour. Je le scelle dans le volcan… avec toi.', pose: 'charge', shot: 'low', fx: 'aura' },
+        { who: 'yami', text: 'C’est… juste. Si un jour la lame se réveille, viens me chercher.', pose: 'ko', shot: 'close', fx: 'dark' },
+        { who: null, text: 'FIN — Le Sceau. Des années plus tard, une ombre aux cheveux blancs sort des flammes… Yami rejoint ton équipe !', shot: 'wide', fx: 'flash' },
+      ],
+    },
     reward: { ryo: 1000, unlock: 'yami' },
   },
 ];

@@ -525,3 +525,9 @@ body.touch-on .aslot { width: 7vw; }
 .badge { display: inline-block; background: #ff3a3a; color: #fff; border-radius: 1em; padding: 0 0.5em; font-size: 0.8em; margin-left: 0.4em; vertical-align: middle; }
 .wallet.inline { margin-left: 1em; color: var(--gold); font-weight: 900; }
 .arena-card .hz { display: block; font-style: normal; font-size: 1.3vh; color: #ffb05a; margin-top: 0.4vh; }
+.arcs-title { font: italic 900 2.4vh var(--display); color: #ffd23f; margin: 0.4vh 0 1vh; }
+.chapters.arcs .chapter { border-left-color: var(--c); }
+.chapters.arcs .portrait.mini { width: 5vh; height: 5vh; flex: none; }
+.story-menu { overflow-y: auto; justify-content: flex-start; padding-top: 4vh; }
+.dl-choice { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); display: flex; flex-direction: column; gap: 1.4vh; z-index: 5; }
+.dl-choice .btn { min-width: 34vw; font-size: 2.4vh; }

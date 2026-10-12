@@ -8,6 +8,7 @@ import { keyLabel } from '../core/input.js';
 import { NetClient, parseAddress, LAN_PORT } from '../net/session.js';
 import { REWARDS, UPGRADES, UPGRADE_COSTS, UPGRADE_MAX } from '../core/profile.js';
 import { CHAPTERS, STORY_TITLE } from '../story/chapters.js';
+import { ARCS } from '../story/arcs.js';
 import { StoryScene } from '../story/scene.js';
 import { Tutorial, TUTORIAL_REWARD } from './tutorial.js';
 import { TECH_PRICES, COSTUMES, COSTUME_PRICE } from '../game/techniques.js';
@@ -396,9 +397,21 @@ export class UI {
           <em>${open ? `Récompense : ${c.reward.ryo} Ryō${c.reward.unlock ? ` + ${esc(CHAR_BY_ID[c.reward.unlock].name)}` : ''}` : 'Termine le chapitre précédent'}</em></span>
         </button>`;
       }).join('')}</div>
+      <h3 class="arcs-title">Récits des combattants</h3>
+      <div class="chapters arcs">${ARCS.map((c, i) => {
+        const open = prof.owns(c.hero);
+        const cleared = prof.hasCleared(c.id);
+        const hero = CHAR_BY_ID[c.hero];
+        return `<button class="chapter arc ${cleared ? 'cleared' : ''}" data-nav data-arc="${i}" ${open ? '' : 'disabled'} style="--c:${hero.aura}">
+          ${this.portrait(c.hero, 'mini')}
+          <span class="ch-txt"><small>${esc(hero.name)}${cleared ? ' — terminé ✔' : ''}</small><b>${open ? esc(c.title) : '???'}</b>
+          <em>${open ? `Récompense : ${c.reward.ryo} Ryō` : 'Débloque ce combattant pour lire son récit'}</em></span>
+        </button>`;
+      }).join('')}</div>
       <button class="btn ghost" data-nav data-act="back">Retour</button>
     </div>`);
-    el.querySelectorAll('.chapter').forEach((b) => b.addEventListener('click', () => this.playChapter(CHAPTERS[Number(b.dataset.i)])));
+    el.querySelectorAll('[data-arc]').forEach((b) => b.addEventListener('click', () => this.playChapter(ARCS[Number(b.dataset.arc)])));
+    el.querySelectorAll('.chapter:not(.arc)').forEach((b) => b.addEventListener('click', () => this.playChapter(CHAPTERS[Number(b.dataset.i)])));
     el.querySelector('[data-act=back]').addEventListener('click', () => this.mainMenu());
     this.show({ el, back: () => this.mainMenu() });
     const next = el.querySelector('.chapter:not([disabled]):not(.cleared)');
@@ -424,23 +437,26 @@ export class UI {
       for (const k in b || {}) m[k] = (m[k] || 1) * b[k];
       return m;
     };
+    const hero = ch.hero || 'kael';
     const fighters = [
-      { charId: 'kael', team: 0, ctrl: { type: 'human', player: 0 }, mods: merge(app.profile.modsFor('kael'), ch.fight.playerMods) },
+      { charId: hero, team: 0, ctrl: { type: 'human', player: 0 }, mods: merge(app.profile.modsFor(hero), ch.fight.playerMods) },
       ...(ch.fight.allies || []).map((a) => ({ charId: a.charId, team: 0, ctrl: { type: 'cpu', level: a.level } })),
       ...ch.fight.enemies.map((e) => ({ charId: e.charId, team: 1, ctrl: { type: 'cpu', level: e.level }, mods: e.mods })),
     ];
-    app.startBattle({ role: 'local', arena: ch.arena, fighters, story: ch.id, storyTitle: `CHAPITRE ${ch.n} — ${ch.title}` });
+    app.startBattle({ role: 'local', arena: ch.arena, fighters, story: ch.id, storyTitle: ch.hero ? `RÉCIT — ${ch.title}` : `CHAPITRE ${ch.n} — ${ch.title}` });
   }
 
   /** Fin d'un combat du mode histoire (appelé à la place de l'écran de résultats). */
   storyFightEnd(battle, team) {
     const app = this.app;
-    const ch = CHAPTERS.find((c) => c.id === battle.cfg.story);
+    const ch = CHAPTERS.find((c) => c.id === battle.cfg.story) || ARCS.find((c) => c.id === battle.cfg.story);
+    const heroDef = CHAR_BY_ID[ch.hero || 'kael'];
     if (team === 0) {
       app.profile.bumpStat('wins');
       app.endBattle(false);
       const scene = new StoryScene(app, ch, ch.outro, {
         allies: (ch.fight.allies || []).map((a) => a.charId),
+        onChoice: (ending) => { app.profile.data.ending = ending; app.profile.save(); },
         onDone: () => this.storyReward(ch),
       });
       app.scene = scene;
@@ -450,9 +466,9 @@ export class UI {
     const el = this.menu('DÉFAITE', [
       { label: 'Réessayer le combat', action: () => app.restartBattle() },
       { label: 'Revoir la scène', action: () => { app.endBattle(false); this.playChapter(ch); } },
-      { label: 'Améliorer Kael', hint: 'force, vie, vitesse, ki, maîtrise', action: () => { app.endBattle(false); this.upgrades('kael'); } },
+      { label: `Améliorer ${esc(heroDef.name)}`, hint: 'force, vie, vitesse, ki, maîtrise', action: () => { app.endBattle(false); this.upgrades(heroDef.id); } },
       { label: 'Menu du mode histoire', cls: 'danger', action: () => { app.endBattle(false); this.storyMenu(); } },
-    ], { cls: 'results', subtitle: `Chapitre ${ch.n} — ${ch.title}. Les améliorations de Kael peuvent faire la différence.` });
+    ], { cls: 'results', subtitle: `${ch.hero ? 'Récit' : `Chapitre ${ch.n}`} — ${ch.title}. Les améliorations de ${heroDef.name} peuvent faire la différence.` });
     this.show({ el });
   }
 
@@ -465,17 +481,19 @@ export class UI {
     if (ch.reward.unlock && prof.grant(ch.reward.unlock)) unlocked = CHAR_BY_ID[ch.reward.unlock];
     prof.clearChapter(ch.id);
     const idx = CHAPTERS.indexOf(ch);
-    const nextCh = CHAPTERS[idx + 1];
+    const nextCh = idx >= 0 ? CHAPTERS[idx + 1] : null;
+    const isArc = idx < 0;
     const buttons = [];
     if (nextCh) buttons.push({ label: `Chapitre ${nextCh.n} : ${nextCh.title}`, action: () => this.playChapter(nextCh) });
     buttons.push({ label: 'Menu du mode histoire', action: () => this.storyMenu() });
     buttons.push({ label: 'Menu principal', cls: 'ghost', action: () => this.mainMenu() });
     const el = this.menu('', buttons, { cls: 'results' });
-    el.prepend(h(`<div class="result-head"><div class="result-big win">CHAPITRE ${ch.n} TERMINÉ</div>
+    const endingName = { redemption: 'La Rédemption', seal: 'Le Sceau' }[this.app.profile.data.ending];
+    el.prepend(h(`<div class="result-head"><div class="result-big win">${isArc ? 'RÉCIT TERMINÉ' : `CHAPITRE ${ch.n} TERMINÉ`}</div>
       <div class="result-sub">${esc(ch.title)}</div>
       <div class="reward">+${ryo} Ryō${first ? '' : ' <small>(chapitre déjà terminé : récompense réduite)</small>'}</div>
       ${unlocked ? `<div class="unlock">${this.portrait(unlocked.id, 'big')}<b>${esc(unlocked.name)} est débloqué !</b></div>` : ''}
-      ${!nextCh ? '<div class="the-end">— FIN —</div>' : ''}</div>`));
+      ${!nextCh && !isArc ? `<div class="the-end">— FIN${endingName ? ` : ${endingName}` : ''} —</div><div class="result-sub">Rejoue le chapitre 8 pour découvrir l’autre fin.</div>` : ''}</div>`));
     this.show({ el });
     this.app.audio.play('roundWin');
     this.app.setBackdrop('menu');

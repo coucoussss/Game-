@@ -37,6 +37,7 @@ export class Profile {
           waves: Array.isArray(saved.waves) ? saved.waves.filter((x) => Number.isInteger(x) && x >= 1) : [],
           difficulty: ['facile', 'normal', 'cauchemar'].includes(saved.difficulty) ? saved.difficulty : 'normal',
           tutorialDone: !!saved.tutorialDone,
+          ending: ['redemption', 'seal'].includes(saved.ending) ? saved.ending : null,
           tech: saved.tech && typeof saved.tech === 'object' ? saved.tech : {},
           loadout: saved.loadout && typeof saved.loadout === 'object' ? saved.loadout : {},
           costumes: saved.costumes && typeof saved.costumes === 'object' ? saved.costumes : {},

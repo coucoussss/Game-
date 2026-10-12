@@ -53,7 +53,8 @@ export class StoryScene {
     const arena = ARENAS.find((a) => a.id === this.ch.arena);
     app.audio.music(arena ? arena.music : 'menu');
     // Placement : le héros et ses alliés à gauche, les autres à droite
-    const allies = new Set(['kael', ...(this.opts.allies || [])]);
+    const hero = this.ch.hero || 'kael';
+    const allies = new Set([hero, ...(this.opts.allies || [])]);
     const left = this.ch.cast.filter((id) => allies.has(id));
     const right = this.ch.cast.filter((id) => !allies.has(id));
     const place = (ids, side) => ids.forEach((id, k) => {
@@ -70,7 +71,7 @@ export class StoryScene {
     const el = document.createElement('div');
     el.className = 'screen story-scene';
     el.innerHTML = `
-      ${this.opts.title ? `<div class="story-title"><div class="st-kanji">${esc(this.ch.kanji)}</div><div class="st-num">CHAPITRE ${this.ch.n}</div><div class="st-name">${esc(this.ch.title)}</div></div>` : ''}
+      ${this.opts.title ? `<div class="story-title"><div class="st-kanji">${esc(this.ch.kanji)}</div><div class="st-num">${this.ch.hero ? 'RÉCIT' : `CHAPITRE ${this.ch.n}`}</div><div class="st-name">${esc(this.ch.title)}</div></div>` : ''}
       <div class="dialog hidden">
         <div class="dl-portrait"></div>
         <div class="dl-box"><div class="dl-name"></div><div class="dl-text"></div><div class="dl-next">▼</div></div>
@@ -83,6 +84,7 @@ export class StoryScene {
     app.ui.show({
       el,
       onNav: (a) => {
+        if (this.choosing) return false; // navigation entre les boutons du choix
         if (a === 'ok') { this.advance(); return true; }
         if (a === 'back') { this.finish(); return true; }
         return true;
@@ -94,7 +96,7 @@ export class StoryScene {
   }
 
   advance() {
-    if (this.finished) return;
+    if (this.finished || this.choosing) return;
     if (this.titleT > 0) { this.titleT = 0; this.hideTitle(); this.next(); return; }
     const line = this.lines[this.i];
     if (line && this.shown < line.text.length) { this.shown = line.text.length; return; } // affiche tout le texte
@@ -125,6 +127,30 @@ export class StoryScene {
     dlg.querySelector('.dl-portrait').innerHTML = def ? this.app.ui.portrait(def.id) : '';
     dlg.querySelector('.dl-text').textContent = '';
     this.fx(line.fx, speaker);
+    if (line.choice) this.showChoice(line);
+  }
+
+  /** Choix du joueur (fin de l'histoire) : des boutons, puis la suite correspondante. */
+  showChoice(line) {
+    this.choosing = true;
+    const box = document.createElement('div');
+    box.className = 'dl-choice';
+    box.innerHTML = line.choice.map((c, i) => `<button class="btn" data-nav data-i="${i}" ${i === 0 ? 'data-autofocus' : ''}>${c.label}</button>`).join('');
+    this.el.appendChild(box);
+    box.querySelectorAll('button').forEach((b) => b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const c = line.choice[Number(b.dataset.i)];
+      box.remove();
+      this.choosing = false;
+      this.chosen = c.ending;
+      if (this.opts.onChoice) this.opts.onChoice(c.ending);
+      const more = (this.ch.endings && this.ch.endings[c.ending]) || [];
+      this.lines = [...this.lines.slice(0, this.i + 1), ...more];
+      this.app.audio.play('ui_ok');
+      this.next();
+    }));
+    this.app.ui.focused = null;
+    setTimeout(() => { const f = box.querySelector('button'); if (f) this.app.ui.focus(f, false); }, 50);
   }
 
   fx(kind, speaker) {
