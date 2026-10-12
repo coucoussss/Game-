@@ -333,6 +333,7 @@ export class Fighter {
     this.move = mv;
     this.moveId = id;
     this.mt = 0;
+    this.firstHitT = null;
     this.hitSets.clear();
     this.moveHit = false;
     this.setState('move');
@@ -363,6 +364,13 @@ export class Fighter {
     if (!lunging && this.onGround) {
       const f = Math.exp(-12 * dt);
       this.vx *= f; this.vz *= f;
+    }
+    // Pendant la préparation du coup (et un peu pendant l'élan), l'attaquant suit sa cible :
+    // tourner autour de l'adversaire ne suffit plus à esquiver tous ses coups
+    if (target && target.alive && !mv.cine) {
+      const first = this.firstHitT ?? (this.firstHitT = firstHitTime(mv));
+      if (t < first) this.turnTo(target, dt, 9);
+      else if (lunging) this.turnTo(target, dt, 3);
     }
     if (mv.invuln && t >= mv.invuln[0] && t <= mv.invuln[1]) this.invuln = Math.max(this.invuln, dt * 1.5);
 
@@ -533,4 +541,11 @@ export class Fighter {
       // rien : les coups au sol continuent
     }
   }
+}
+
+/** Instant du premier coup porté d'une attaque (fin de la préparation). */
+function firstHitTime(mv) {
+  let t = mv.dur;
+  for (const a of mv.actions) if (a.t < t) t = a.t;
+  return t;
 }

@@ -84,6 +84,7 @@ export class CpuBrain {
     this.thinkT -= dt;
     if (this.thinkT <= 0) {
       this.thinkT = L.think * (0.6 + Math.random() * 0.8);
+      this.chase = 0;
       if (this.hold === BTN.CHARGE) this.hold = 0;
       const r = Math.random();
       const tVuln = t.state !== 'knockdown' && t.state !== 'getup';
@@ -105,6 +106,7 @@ export class CpuBrain {
         const side = def.aiZoning > 0.5 ? 0.6 : 0.25;
         this.mx = ux + -uz * this.strafe * side;
         this.mz = uz + ux * this.strafe * side;
+        this.chase = 1; this.chaseSide = side;
         if (Math.random() < 0.15) this.strafe *= -1;
         if (Math.random() < def.aiZoning * L.aggr) this.press(BTN.RANGED);
         else if (d > 9 && me.energy < 60 && Math.random() < 0.25) {
@@ -117,6 +119,7 @@ export class CpuBrain {
       } else if (Math.random() < L.aggr) {
         this.mx = ux * 0.3; this.mz = uz * 0.3;
         if (d > range) { this.mx = ux; this.mz = uz; }
+        this.chase = d > range ? 1 : 0.3; this.chaseSide = 0;
         const pick = Math.random();
         // Hors de portée du corps à corps : attaques à distance (ou lourd s'il frappe à distance)
         const melee = d < 2.6;
@@ -124,7 +127,7 @@ export class CpuBrain {
         if (!melee) {
           if (remoteHeavy && pick < 0.45) this.press(BTN.HEAVY);
           else this.press(BTN.RANGED);
-          if (range < 4) { this.mx = ux; this.mz = uz; } // les combattants au contact se rapprochent
+          if (range < 4) { this.mx = ux; this.mz = uz; this.chase = 1; } // les combattants au contact se rapprochent
         } else if (pick < 0.6) { this.press(BTN.LIGHT); this.comboT = 0.9; }
         else if (pick < 0.82) this.press(BTN.HEAVY);
         else this.press(BTN.RANGED);
@@ -132,6 +135,18 @@ export class CpuBrain {
         // Tourne autour de l'adversaire
         this.mx = -uz * this.strafe; this.mz = ux * this.strafe;
       }
+    }
+
+    // --- Poursuite : la direction est recalculée à chaque tick, vers la position où sera la cible
+    // (sinon un joueur qui tourne en rond garde toujours un temps d'avance sur l'IA)
+    if (this.chase > 0 && !(this.hold & (BTN.GUARD | BTN.CHARGE))) {
+      const lead = Math.min(0.45, d / 9);
+      const px = t.x + t.vx * lead - me.x;
+      const pz = t.z + t.vz * lead - me.z;
+      const pl = Math.hypot(px, pz) || 1;
+      const side = this.chaseSide || 0;
+      this.mx = (px / pl - (pz / pl) * this.strafe * side) * this.chase;
+      this.mz = (pz / pl + (px / pl) * this.strafe * side) * this.chase;
     }
 
     // --- Poursuite aérienne et frappe plongeante ---
