@@ -583,3 +583,7 @@ body.touch-on .aslot { width: 7vw; }
   .home-foot .controls-hint { display: none; }
 }
 .home-head .menu-logo .logo-a, .home-head .menu-logo .logo-b { display: inline; font-size: 5.5vh; margin-right: 0.3em; }
+/* Scènes d'histoire : la boîte de dialogue reste en bas (pas de défilement, pas de centrage) */
+.screen.story-scene { justify-content: flex-end; overflow: hidden; }
+.screen.story-scene > * { margin-top: 0; margin-bottom: 0; }
+.screen.story-scene > .story-title { margin: 0; }
