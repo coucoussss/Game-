@@ -980,6 +980,7 @@ export class UI {
     if (role === 'local') {
       buttons = [
         { label: 'Revanche', action: () => this.app.restartBattle() },
+        ...(battle.rec && this.app.lastReplay === battle.rec ? [{ label: 'Revoir le combat', hint: 'replay : ralenti, pause', action: () => this.app.startReplay(() => this.mainMenu()) }] : []),
         { label: 'Changer de combattants', action: () => { this.app.endBattle(false); this.reselect(battle.cfg); } },
         { label: 'Menu principal', action: () => this.app.endBattle() },
       ];

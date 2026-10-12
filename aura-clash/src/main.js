@@ -13,6 +13,7 @@ import { Hud } from './ui/hud.js';
 import { UI } from './ui/screens.js';
 import { renderPortraits } from './ui/portraits.js';
 import { showVs } from './ui/vs.js';
+import { ReplayPlayer } from './replay.js';
 import { TouchControls } from './ui/touch.js';
 import { Battle } from './battle.js';
 import { CpuBrain } from './game/ai.js';
@@ -201,6 +202,22 @@ class App {
         if (this.battle === b) { b.paused = false; this.input.resetEdges(); this.input.endTick(); }
       });
     }
+  }
+
+  /** Rejoue le dernier combat enregistré. */
+  startReplay(onExit) {
+    if (!this.lastReplay) return;
+    if (this.battle) { this.battle.dispose(); this.battle = null; }
+    this.ui.show(null);
+    this.clearBackdrop();
+    this.battle = new ReplayPlayer(this, this.lastReplay, onExit);
+  }
+
+  endReplay(onExit) {
+    if (this.battle) { this.battle.dispose(); this.battle = null; }
+    this.backdrop.key = null;
+    this.backdrop.mode = null;
+    if (onExit) onExit(); else this.ui.mainMenu();
   }
 
   restartBattle() {

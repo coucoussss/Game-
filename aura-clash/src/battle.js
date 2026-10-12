@@ -89,6 +89,10 @@ export class Battle {
       });
       // Les événements initiaux (annonce de la manche 1) partent aussi chez les invités
       this.netEvents.push(...this.match.events);
+      // Enregistrement pour le replay (combats locaux à effectif fixe)
+      if (this.role === 'local' && !cfg.training && !cfg.waves && !cfg.endless && !cfg.tutorial) {
+        this.rec = { cfg: { ...cfg, fighters: cfg.fighters.map((f) => ({ ...f, ctrl: { ...f.ctrl } })) }, snaps: [], ev: [...this.match.events], maxHp: this.match.fighters.map((f) => f.maxHp) };
+      }
     }
 
     for (const f of cfg.fighters) if (CHAR_BY_ID[f.charId].monster) app.profile.markSeen(f.charId);
@@ -264,6 +268,13 @@ export class Battle {
     const before = m.events.length;
     m.step(TICK, inputs);
     this.tick++;
+    if (this.rec) {
+      this.rec.ev.push(...m.events.slice(before));
+      if (this.tick % SNAP_EVERY === 0 && this.rec.snaps.length < 60 * 30 * 6) {
+        this.rec.snaps.push(encodeSnapshot(m, this.rec.ev, this.tick));
+        this.rec.ev = [];
+      }
+    }
     if (this.role === 'host') {
       this.netEvents.push(...m.events.slice(before));
       if (this.tick % SNAP_EVERY === 0) {
@@ -363,6 +374,7 @@ export class Battle {
   onMatchEnd(team) {
     if (this.ended) return;
     this.ended = true;
+    if (this.rec && this.rec.snaps.length > 30) this.app.lastReplay = this.rec;
     setTimeout(() => this.app.ui.showResults(this, team), 1800);
   }
 
