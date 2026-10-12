@@ -32,7 +32,7 @@ class App {
     this.hud = new Hud(overlayRoot);
     this.view = new MatchView(this.stage, this.audio, this.hud, this.overlay);
     this.ui = new UI(this);
-    this.touch = new TouchControls(document.body, this.input);
+    this.touch = new TouchControls(document.body, this.input, this.settings);
     // Tablette : qualité moyenne par défaut (rendu plus fluide sur écran Retina)
     if (matchMedia('(pointer: coarse)').matches && this.settings.fresh) {
       this.settings.data.gfx.quality = 'medium';
@@ -245,6 +245,7 @@ class App {
     else if (this.scene) this.scene.update(dt);
     else this.updateBackdrop(dt);
     this.stage.update(dt);
+    this.stage.adapt(dt);
     this.overlay.update(dt);
     this.stage.render();
     requestAnimationFrame((tt) => this.frame(tt));

@@ -531,3 +531,13 @@ body.touch-on .aslot { width: 7vw; }
 .story-menu { overflow-y: auto; justify-content: flex-start; padding-top: 4vh; }
 .dl-choice { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); display: flex; flex-direction: column; gap: 1.4vh; z-index: 5; }
 .dl-choice .btn { min-width: 34vw; font-size: 2.4vh; }
+/* Tactile : taille réglable, boutons placés à la main, joystick fixe, mode édition */
+.tbtn { scale: var(--tscale, 1); }
+.tbtn.placed { position: fixed; right: auto !important; bottom: auto !important; transform-origin: top left; }
+.stick-base.fixed { opacity: 0.85; }
+.touch.editing { z-index: 60; background: rgba(0, 0, 0, 0.45); }
+.touch.editing .tbtn { outline: 2px dashed #ffd23f; cursor: grab; }
+.touch-edit-bar { position: fixed; top: 3vh; left: 50%; transform: translateX(-50%); display: flex; gap: 1vw; align-items: center; flex-wrap: wrap; justify-content: center;
+  background: rgba(14, 10, 28, 0.94); padding: 1vh 1.4vw; border-left: 4px solid #ffd23f; pointer-events: auto; font-size: 1.6vh; max-width: 92vw; }
+.save-code, .save-import { width: min(70vw, 760px); height: 12vh; background: rgba(0, 0, 0, 0.5); color: #cfe; border: 1px solid #5a4aaa; font: 1.3vh monospace; padding: 0.8vh; word-break: break-all; resize: none; }
+.row-btns { display: flex; gap: 1vw; margin: 0.8vh 0 1.4vh; }

@@ -50,12 +50,15 @@ export class Stage {
 
   applySettings() {
     const g = this.settings.data.gfx;
-    const ratio = { low: 0.75, medium: 1, high: Math.min(window.devicePixelRatio || 1, 1.5) }[g.quality] || 1;
+    const dpr = window.devicePixelRatio || 1;
+    let ratio = { low: 0.75, medium: 1, high: Math.min(dpr, 1.5), auto: Math.min(dpr, 1.5) }[g.quality] || 1;
+    if (g.quality === 'auto') ratio *= this.autoScale || 1; // qualité automatique : résolution adaptée
     this.renderer.setPixelRatio(ratio);
-    this.renderer.shadowMap.enabled = g.shadows;
-    this.sun.castShadow = g.shadows;
+    const sh = g.shadows && !(g.quality === 'auto' && (this.autoScale || 1) <= 0.6);
+    this.renderer.shadowMap.enabled = sh;
+    this.sun.castShadow = sh;
     this.bloom.enabled = g.bloom;
-    this.particles.density = g.quality === 'low' ? 0.5 : 1;
+    this.particles.density = g.quality === 'low' || (g.quality === 'auto' && (this.autoScale || 1) < 0.7) ? 0.5 : 1;
     this.rig.shakeScale = g.shake ? 1 : 0;
     this.scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; });
     this.resize();
@@ -114,6 +117,27 @@ export class Stage {
       this.lastFov = this.camera.fov;
       this.particles.setViewport(window.innerHeight * this.renderer.getPixelRatio(), this.camera.fov);
     }
+  }
+
+  /**
+   * Qualité automatique : mesure la durée moyenne des images ; trop lent → résolution réduite
+   * (puis ombres coupées), très rapide → résolution remontée. Vise 60 images par seconde.
+   */
+  adapt(dt) {
+    const g = this.settings.data.gfx;
+    if (g.quality !== 'auto' || dt <= 0) return;
+    this.autoScale = this.autoScale || 1;
+    this.frameAvg = this.frameAvg ? this.frameAvg * 0.95 + dt * 0.05 : dt;
+    this.adaptT = (this.adaptT || 0) + dt;
+    if (this.adaptT < 2) return;
+    this.adaptT = 0;
+    const fps = 1 / this.frameAvg;
+    let changed = false;
+    if (fps < 50 && this.autoScale > 0.5) { this.autoScale = Math.max(0.5, this.autoScale - 0.1); changed = true; }
+    else if (fps > 58 && this.autoScale < 1) { this.autoScale = Math.min(1, this.autoScale + 0.05); changed = true; }
+    const shadows = g.shadows && this.autoScale > 0.6;
+    if (shadows !== this.renderer.shadowMap.enabled) { this.renderer.shadowMap.enabled = shadows; this.sun.castShadow = shadows; changed = true; }
+    if (changed) this.applySettings();
   }
 
   render() {

@@ -56,10 +56,12 @@ const clone = (o) => JSON.parse(JSON.stringify(o));
 function defaults() {
   return {
     audio: { master: 0.8, music: 0.55, sfx: 0.85 },
-    gfx: { quality: 'high', bloom: true, shadows: true, shake: true, fullscreen: false },
+    gfx: { quality: 'auto', bloom: true, shadows: true, shake: true, fullscreen: false },
     game: { difficulty: 'normal', roundTime: 99, playerName: 'Joueur' },
     keys: clone(DEFAULT_KEYS),
     pad: [clone(DEFAULT_PAD), clone(DEFAULT_PAD)],
+    // Tactile : taille des boutons, joystick fixe ou flottant, sensibilité, disposition personnalisée
+    touch: { scale: 1, fixedStick: false, sens: 1, layout: {} },
   };
 }
 
@@ -78,7 +80,7 @@ export class Settings {
       const saved = JSON.parse(raw);
       const d = defaults();
       // Fusion prudente : une clé absente ou d'un mauvais type garde sa valeur par défaut
-      for (const section of ['audio', 'gfx', 'game']) {
+      for (const section of ['audio', 'gfx', 'game', 'touch']) {
         for (const k of Object.keys(d[section])) {
           if (saved[section] && typeof saved[section][k] === typeof d[section][k]) d[section][k] = saved[section][k];
         }
@@ -89,6 +91,7 @@ export class Settings {
           if (Array.isArray(saved.pad?.[p]?.[a])) d.pad[p][a] = saved.pad[p][a].filter((x) => Number.isInteger(x));
         }
       }
+      if (saved.touch && saved.touch.layout && typeof saved.touch.layout === 'object') d.touch.layout = saved.touch.layout;
       this.data = d;
     } catch {
       this.data = defaults();

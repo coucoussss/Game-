@@ -23,6 +23,12 @@ export const UPGRADES = [
 export const UPGRADE_MAX = 5;
 export const UPGRADE_COSTS = [200, 350, 550, 800, 1100];
 
+function checksum(str) {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return (h >>> 0).toString(36);
+}
+
 export class Profile {
   constructor() {
     this.data = { ryo: START_RYO, owned: [], upgrades: {}, story: [], waves: [], difficulty: 'normal', endless: [] };
@@ -174,6 +180,31 @@ export class Profile {
     this.data.claimed.push(id);
     this.earn(reward);
     return true;
+  }
+
+  // --- Sauvegarde transférable (code texte) ---
+
+  /** Code de sauvegarde : la progression en JSON, encodée en base64 avec un préfixe et une somme de contrôle. */
+  exportCode() {
+    const json = JSON.stringify(this.data);
+    const b64 = btoa(unescape(encodeURIComponent(json)));
+    return `AURA1:${checksum(json)}:${b64}`;
+  }
+
+  /** Importe un code ; renvoie true si tout est valide (sinon rien ne change). */
+  importCode(code) {
+    try {
+      const m = String(code).trim().match(/^AURA1:([0-9a-z]+):([A-Za-z0-9+/=\s]+)$/);
+      if (!m) return false;
+      const json = decodeURIComponent(escape(atob(m[2].replace(/\s/g, ''))));
+      if (checksum(json) !== m[1]) return false;
+      const saved = JSON.parse(json);
+      if (!saved || !Number.isFinite(saved.ryo) || !Array.isArray(saved.owned)) return false;
+      localStorage.setItem(KEY, json);
+      const fresh = new Profile();
+      this.data = fresh.data;
+      return true;
+    } catch { return false; }
   }
 
   /** Créatures rencontrées (pour la galerie). */

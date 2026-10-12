@@ -1015,18 +1015,32 @@ export class UI {
   options(onBack, tab = 'audio', player = 0) {
     const s = this.app.settings;
     const d = s.data;
-    const tabs = [['audio', 'Son'], ['gfx', 'Graphismes'], ['controls', 'Commandes'], ['game', 'Jeu']];
+    const tabs = [['audio', 'Son'], ['gfx', 'Graphismes'], ['controls', 'Commandes'], ['touch', 'Tactile'], ['game', 'Jeu'], ['save', 'Sauvegarde']];
     let body = '';
     if (tab === 'audio') {
       const slider = (key, label) => `<label class="opt" data-nav data-slider><span>${label}</span><input type="range" min="0" max="1" step="0.05" value="${d.audio[key]}" data-key="${key}"><em>${Math.round(d.audio[key] * 100)}%</em></label>`;
       body = slider('master', 'Volume général') + slider('music', 'Musique') + slider('sfx', 'Bruitages');
     } else if (tab === 'gfx') {
       const cyc = (key, label, values) => `<button class="opt" data-nav data-cycle data-key="${key}" data-values='${JSON.stringify(values)}'><span>${label}</span><b>${values.find((v) => v[0] === d.gfx[key])?.[1] ?? d.gfx[key]}</b></button>`;
-      body = cyc('quality', 'Qualité', [['low', 'Basse'], ['medium', 'Moyenne'], ['high', 'Haute']])
+      body = cyc('quality', 'Qualité', [['auto', 'Automatique'], ['low', 'Basse'], ['medium', 'Moyenne'], ['high', 'Haute']])
         + cyc('bloom', 'Bloom (halo lumineux)', [[true, 'Activé'], [false, 'Désactivé']])
         + cyc('shadows', 'Ombres', [[true, 'Activées'], [false, 'Désactivées']])
         + cyc('shake', 'Tremblements de caméra', [[true, 'Activés'], [false, 'Désactivés']])
         + cyc('fullscreen', 'Plein écran (F11)', [[false, 'Non'], [true, 'Oui']]);
+    } else if (tab === 'touch') {
+      const t = d.touch;
+      body = `<button class="opt" data-nav data-tcycle="fixedStick" data-values='${JSON.stringify([[false, 'Flottant (là où se pose le pouce)'], [true, 'Fixe (en bas à gauche)']])}'><span>Joystick</span><b>${t.fixedStick ? 'Fixe (en bas à gauche)' : 'Flottant (là où se pose le pouce)'}</b></button>
+        <label class="opt" data-nav data-slider><span>Sensibilité du joystick</span><input type="range" min="0.6" max="1.8" step="0.1" value="${t.sens}" data-touch="sens"><em>${Math.round(t.sens * 100)}%</em></label>
+        <label class="opt" data-nav data-slider><span>Taille des boutons</span><input type="range" min="0.7" max="1.5" step="0.05" value="${t.scale}" data-touch="scale"><em>${Math.round(t.scale * 100)}%</em></label>
+        <button class="btn small" data-nav data-act="layout">Disposer les boutons à l’écran…</button>
+        <p class="ctrl-note">Sur iPad et tablette : les commandes apparaissent en combat dès que tu touches l’écran. Glisse les boutons pour les placer à ta main.</p>`;
+    } else if (tab === 'save') {
+      body = `<p class="ctrl-note">Ta progression (Ryō, personnages, améliorations, histoire, vagues, défis) est enregistrée sur cet appareil. Pour la transférer sur un autre appareil (PC ↔ iPad), copie ce code et colle-le là-bas.</p>
+        <textarea class="save-code" readonly>${esc(this.app.profile.exportCode())}</textarea>
+        <div class="row-btns"><button class="btn small" data-nav data-act="copy">Copier le code</button><button class="btn small" data-nav data-act="download">Télécharger le fichier</button></div>
+        <p class="ctrl-note">Importer une sauvegarde (remplace la progression actuelle) :</p>
+        <textarea class="save-import" placeholder="Colle ici le code de sauvegarde"></textarea>
+        <div class="row-btns"><button class="btn small" data-nav data-act="import">Importer</button></div>`;
     } else if (tab === 'game') {
       const levels = Object.entries(AI_LEVELS).map(([k, v]) => [k, v.label]);
       body = `<button class="opt" data-nav data-cycle data-gkey="difficulty" data-values='${JSON.stringify(levels)}'><span>Difficulté de l’IA</span><b>${AI_LEVELS[d.game.difficulty].label}</b></button>
@@ -1075,6 +1089,41 @@ export class UI {
       b.addEventListener('click', () => step(1));
       b.addEventListener('cycle', (e) => step(e.detail));
     });
+    // Tactile
+    el.querySelectorAll('[data-touch]').forEach((inp) => inp.addEventListener('input', () => {
+      d.touch[inp.dataset.touch] = Number(inp.value);
+      inp.parentElement.querySelector('em').textContent = `${Math.round(inp.value * 100)}%`;
+      this.app.touch.applyLayout();
+      s.save();
+    }));
+    el.querySelectorAll('[data-tcycle]').forEach((b) => b.addEventListener('click', () => {
+      d.touch[b.dataset.tcycle] = !d.touch[b.dataset.tcycle];
+      s.save();
+      this.app.touch.applyLayout();
+      reopen('touch');
+    }));
+    const lay = el.querySelector('[data-act=layout]');
+    if (lay) lay.addEventListener('click', () => { this.show(null); this.app.touch.editLayout(() => reopen('touch')); });
+    // Sauvegarde
+    const code = el.querySelector('.save-code');
+    if (code) {
+      el.querySelector('[data-act=copy]').addEventListener('click', async () => {
+        code.select();
+        try { await navigator.clipboard.writeText(code.value); this.toast('Code copié !'); } catch { document.execCommand('copy'); this.toast('Code sélectionné : copie-le (Ctrl+C / appui long).'); }
+      });
+      el.querySelector('[data-act=download]').addEventListener('click', () => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([code.value], { type: 'text/plain' }));
+        a.download = `aura-clash-sauvegarde-${new Date().toISOString().slice(0, 10)}.txt`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      });
+      el.querySelector('[data-act=import]').addEventListener('click', () => {
+        const ok = this.app.profile.importCode(el.querySelector('.save-import').value);
+        if (ok) { this.app.audio.play('roundWin'); this.toast('Sauvegarde importée !'); reopen('save'); }
+        else { this.app.audio.play('denied'); this.toast('Code invalide.'); }
+      });
+    }
     const nameInput = el.querySelector('.name-input');
     if (nameInput) nameInput.addEventListener('change', () => { d.game.playerName = nameInput.value.trim().slice(0, 16) || 'Joueur'; s.save(); });
     el.querySelectorAll('[data-player]').forEach((b) => b.addEventListener('click', () => reopen('controls', Number(b.dataset.player))));

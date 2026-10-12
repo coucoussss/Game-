@@ -17,8 +17,9 @@ const BUTTONS = [
 ];
 
 export class TouchControls {
-  constructor(root, input) {
+  constructor(root, input, settings) {
     this.input = input;
+    this.settings = settings;
     this.active = false;
     this.inBattle = false;
     this.el = document.createElement('div');
@@ -67,6 +68,86 @@ export class TouchControls {
     this.el.querySelector('.tpause').addEventListener('pointerdown', (e) => { e.preventDefault(); this.input.touchPause = true; });
     // Pas de menu contextuel ni de loupe lors d'un appui long
     this.el.addEventListener('contextmenu', (e) => e.preventDefault());
+    this.applyLayout();
+  }
+
+  /** Applique la taille et la disposition enregistrées (positions en % de l'écran). */
+  applyLayout() {
+    const t = this.settings ? this.settings.data.touch : { scale: 1, layout: {} };
+    this.el.style.setProperty('--tscale', t.scale);
+    this.el.querySelectorAll('.tbtn').forEach((b) => {
+      const cls = [...b.classList].find((c) => c.startsWith('b-'));
+      const pos = t.layout[cls];
+      if (pos) {
+        b.classList.add('placed');
+        b.style.left = `${pos[0]}vw`;
+        b.style.top = `${pos[1]}vh`;
+      } else {
+        b.classList.remove('placed');
+        b.style.left = '';
+        b.style.top = '';
+      }
+    });
+    this.base.classList.toggle('fixed', !!t.fixedStick);
+    if (t.fixedStick) { this.base.style.left = ''; this.base.style.top = ''; }
+  }
+
+  /**
+   * Mode édition : les boutons s'affichent hors combat et se déplacent au doigt (ou à la souris).
+   * `onDone` est appelé quand on quitte le mode.
+   */
+  editLayout(onDone) {
+    const t = this.settings.data.touch;
+    this.editing = true;
+    this.el.classList.remove('hidden');
+    this.el.classList.add('editing');
+    const bar = document.createElement('div');
+    bar.className = 'touch-edit-bar';
+    bar.innerHTML = `<span>Fais glisser les boutons où tu veux.</span>
+      <button class="btn small" data-act="smaller">Plus petits</button><button class="btn small" data-act="bigger">Plus grands</button>
+      <button class="btn small" data-act="reset">Disposition d'origine</button><button class="btn small" data-act="done">Terminé</button>`;
+    this.el.appendChild(bar);
+    const drag = new Map();
+    const down = (e) => {
+      const b = e.target.closest('.tbtn');
+      if (!b) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      b.setPointerCapture(e.pointerId);
+      const r = b.getBoundingClientRect();
+      drag.set(e.pointerId, { b, dx: e.clientX - r.left, dy: e.clientY - r.top });
+    };
+    const move = (e) => {
+      const d = drag.get(e.pointerId);
+      if (!d) return;
+      const cls = [...d.b.classList].find((c) => c.startsWith('b-'));
+      const x = ((e.clientX - d.dx) / window.innerWidth) * 100;
+      const y = ((e.clientY - d.dy) / window.innerHeight) * 100;
+      t.layout[cls] = [Math.max(0, Math.min(95, x)), Math.max(0, Math.min(92, y))];
+      this.applyLayout();
+    };
+    const up = (e) => drag.delete(e.pointerId);
+    this.el.addEventListener('pointerdown', down, true);
+    this.el.addEventListener('pointermove', move);
+    this.el.addEventListener('pointerup', up);
+    bar.addEventListener('click', (e) => {
+      const act = e.target.dataset && e.target.dataset.act;
+      if (act === 'smaller') t.scale = Math.max(0.7, Math.round((t.scale - 0.1) * 10) / 10);
+      if (act === 'bigger') t.scale = Math.min(1.5, Math.round((t.scale + 0.1) * 10) / 10);
+      if (act === 'reset') { t.layout = {}; t.scale = 1; }
+      this.applyLayout();
+      this.settings.save();
+      if (act === 'done') {
+        this.editing = false;
+        this.el.removeEventListener('pointerdown', down, true);
+        this.el.removeEventListener('pointermove', move);
+        this.el.removeEventListener('pointerup', up);
+        bar.remove();
+        this.el.classList.remove('editing');
+        this.update();
+        if (onDone) onDone();
+      }
+    });
   }
 
   /** Affiche la recharge des attaques sur les boutons (voile qui descend). */
@@ -97,6 +178,7 @@ export class TouchControls {
   }
 
   update() {
+    if (this.editing) return;
     const on = this.active && this.inBattle;
     this.el.classList.toggle('hidden', !on);
     document.body.classList.toggle('touch-on', on);
@@ -123,16 +205,23 @@ export class TouchControls {
     e.preventDefault();
     this.zone.setPointerCapture(e.pointerId);
     this.stickId = e.pointerId;
-    this.origin = { x: e.clientX, y: e.clientY };
-    this.base.style.left = `${e.clientX}px`;
-    this.base.style.top = `${e.clientY}px`;
+    if (this.settings && this.settings.data.touch.fixedStick) {
+      // Joystick fixe : le centre reste au même endroit, quel que soit le point de contact
+      const r = this.base.getBoundingClientRect();
+      this.origin = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    } else {
+      this.origin = { x: e.clientX, y: e.clientY };
+      this.base.style.left = `${e.clientX}px`;
+      this.base.style.top = `${e.clientY}px`;
+    }
     this.base.classList.add('on');
     this.stickMove(e);
   }
 
   stickMove(e) {
     if (e.pointerId !== this.stickId) return;
-    const R = Math.min(window.innerWidth, window.innerHeight) * 0.09;
+    const sens = this.settings ? this.settings.data.touch.sens : 1;
+    const R = (Math.min(window.innerWidth, window.innerHeight) * 0.09) / sens; // sensibilité : course plus courte
     let dx = e.clientX - this.origin.x;
     let dy = e.clientY - this.origin.y;
     const d = Math.hypot(dx, dy);
@@ -149,6 +238,6 @@ export class TouchControls {
     this.input.touch.x = 0;
     this.input.touch.y = 0;
     this.knob.style.transform = '';
-    this.base.classList.remove('on');
+    if (!(this.settings && this.settings.data.touch.fixedStick)) this.base.classList.remove('on');
   }
 }
