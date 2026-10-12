@@ -4,8 +4,8 @@
   "version": "1.0.0",
   "description": "Jeu de combat 3D en cel-shading, style anime, avec multijoueur en réseau local.",
   "main": "electron/main.js",
-  "author": "Aura Clash",
-  "license": "MIT",
+  "author": "fears_nix",
+  "license": "SEE LICENSE IN LICENSE",
   "private": true,
   "scripts": {
     "bundle": "node scripts/bundle.mjs",
