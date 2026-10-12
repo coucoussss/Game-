@@ -105,7 +105,16 @@ for (const arena of ['cliffs', 'temple', 'neon', 'glacier', 'volcano']) {
   let t = 0;
   while (m.phase !== 'matchEnd' && t < 60 * 60 * 8) {
     // On pousse régulièrement un combattant vers le bord (là où sont les obstacles et la lave)
-    if (t % 900 === 450) { const f = m.fighters[1]; const a = Math.atan2(f.z, f.x); f.vx = Math.cos(a) * 14; f.vz = Math.sin(a) * 14; f.setState('hitstun'); f.stun = 0.5; }
+    if (t % 900 === 450 && m.phase === 'fight') {
+      // Projection droit sur un obstacle (ou vers le bord s'il n'y en a pas)
+      const f = m.fighters[1];
+      const p = m.hazards.props.find((q) => q.alive);
+      const tx = p ? p.x : f.x * 3;
+      const tz = p ? p.z : f.z * 3;
+      if (p) { const r = Math.hypot(p.x, p.z); const k = (r - 1.9) / r; f.x = p.x * k; f.z = p.z * k; f.y = 0; }
+      const a = Math.atan2(tz - f.z, tx - f.x);
+      f.vx = Math.cos(a) * 16; f.vz = Math.sin(a) * 16; f.setState('hitstun'); f.stun = 0.5;
+    }
     m.step(TICK, br.map((b) => b.think(m, TICK)));
     for (const e of m.events) seen.add(e.type === 'prop' && !e.alive ? 'propBroken' : e.type);
     m.events.length = 0;
