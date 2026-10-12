@@ -546,3 +546,40 @@ body.touch-on .aslot { width: 7vw; }
 .rp-tag { color: #ff3a3a; font: 900 1.7vh var(--display); letter-spacing: 0.1em; animation: blink 0.8s infinite alternate; }
 .rp-progress { flex-basis: 100%; height: 0.5vh; background: rgba(255, 255, 255, 0.15); }
 .rp-progress i { display: block; height: 100%; background: #ff3a3a; width: 0; }
+
+/* --- Écrans : défilement quand le contenu dépasse (iPad, petits écrans) ----------------------- */
+.screen { overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; justify-content: flex-start; }
+.screen > :first-child { margin-top: auto; }
+.screen > :last-child { margin-bottom: auto; }
+.screen.gallery > :first-child, .screen.gallery > :last-child { margin: 0; }
+
+/* --- Menu principal en tuiles ---------------------------------------------------------------- */
+.screen.home { align-items: stretch; padding: 3vh 4vw; background: linear-gradient(180deg, rgba(5, 6, 10, 0.75), rgba(5, 6, 10, 0.35) 60%, rgba(5, 6, 10, 0.75)); }
+.home-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5vh; }
+.home-head .menu-logo { position: static; font-size: 6vh; }
+.home-head .wallet { position: static; }
+.home-label { font: italic 900 1.6vh var(--display); letter-spacing: 0.3em; color: #ffd23f; margin: 1vh 0 0.8vh; }
+.tiles { display: grid; gap: 1.4vh 1.2vw; }
+.tiles.play { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.tiles.meta { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.tile { position: relative; display: flex; align-items: center; gap: 1vw; text-align: left; cursor: pointer; color: #fff; border: 0;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--c) 35%, #14102a) 0%, rgba(14, 10, 30, 0.92) 70%); border-bottom: 5px solid var(--c);
+  transform: skewX(-6deg); transition: transform 0.12s, box-shadow 0.12s; padding: 1.4vh 1.2vw; }
+.tile > * { transform: skewX(6deg); }
+.tiles.play .tile { flex-direction: column; align-items: flex-start; justify-content: flex-end; min-height: 26vh; padding: 2vh 1.4vw; }
+.tile .t-kanji { font: 900 5vh serif; color: var(--c); text-shadow: 0 0 2vh color-mix(in srgb, var(--c) 70%, transparent); line-height: 1; }
+.tiles.play .t-kanji { font-size: 11vh; position: absolute; top: 1.5vh; right: 1.4vw; opacity: 0.9; }
+.tile .t-txt { display: flex; flex-direction: column; gap: 0.4vh; }
+.tile b { font: italic 900 2.2vh var(--display); }
+.tiles.play .tile b { font-size: 3vh; }
+.tile small { font-size: 1.35vh; color: #d8d2ee; opacity: 0.85; }
+.tile .t-badge { position: absolute; top: 0.8vh; left: 0.8vw; background: #ff3a3a; color: #fff; font: 900 1.3vh var(--display); padding: 0.2vh 0.5vw; border-radius: 1vh; }
+.tile.focus, .tile:hover { transform: skewX(-6deg) translateY(-0.8vh) scale(1.03); box-shadow: 0 0 0 3px #fff, 0 1vh 3vh rgba(0, 0, 0, 0.5), 0 0 4vh color-mix(in srgb, var(--c) 50%, transparent); }
+.home-foot { display: flex; gap: 1vw; align-items: center; margin-top: 2vh; flex-wrap: wrap; }
+.home-foot .controls-hint { position: static; margin-left: auto; }
+@media (orientation: portrait), (max-width: 900px) {
+  .tiles.play, .tiles.meta { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tiles.play .tile { min-height: 18vh; }
+  .home-foot .controls-hint { display: none; }
+}
+.home-head .menu-logo .logo-a, .home-head .menu-logo .logo-b { display: inline; font-size: 5.5vh; margin-right: 0.3em; }

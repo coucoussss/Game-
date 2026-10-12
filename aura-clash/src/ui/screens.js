@@ -189,20 +189,42 @@ export class UI {
     this.app.setBackdrop('menu');
     this.app.audio.music('menu');
     const electron = !!window.auraNative;
-    const done = CHAPTERS.filter((c) => this.app.profile.hasCleared(c.id)).length;
-    const el = this.menu('', [
-      { label: 'Mode Histoire', hint: `${STORY_TITLE} — ${done} / ${CHAPTERS.length} chapitres`, cls: 'story-btn', action: () => this.storyMenu() },
-      { label: 'Mode Vagues', hint: `fléaux, démons et boss — niveau ${Math.min(WAVE_LEVELS, this.app.profile.levelUnlocked())} / ${WAVE_LEVELS}`, cls: 'story-btn', action: () => this.wavesMenu() },
-      { label: 'Combat libre', hint: 'versus contre l’IA, à deux, 2 contre 2, réseau local', action: () => this.freeMenu() },
-      { label: 'Tutoriel', hint: this.app.profile.data.tutorialDone ? 'revoir les bases et les techniques avancées' : `apprends les bases — +${TUTORIAL_REWARD} Ryō`, cls: this.app.profile.data.tutorialDone ? '' : 'new', action: () => this.charSelect([{ label: 'TUTORIEL', team: 0, ctrl: { type: 'human', player: 0 } }], (fs) => new Tutorial(this.app, fs[0].charId).start(), () => this.mainMenu()) },
-      { label: 'Améliorations', hint: 'renforce tes combattants (force, vie, vitesse, ki, maîtrise)', action: () => this.upgrades() },
-      { label: 'Boutique', hint: `${this.app.profile.ryo} Ryō — débloque de nouveaux combattants`, action: () => this.shop() },
-      { label: `Défis${pendingChallenges(this.app.profile).length ? ` <span class="badge">${pendingChallenges(this.app.profile).length}</span>` : ''}`, hint: `${CHALLENGES.filter((c) => challengeState(this.app.profile, c).claimed).length} / ${CHALLENGES.length} réclamés — des Ryō à gagner`, action: () => this.challenges() },
-      { label: 'Galerie', hint: 'modèles 3D, poses, expressions, auras et ultimes', action: () => this.gallery() },
-      { label: 'Options', hint: 'son, graphismes, commandes', action: () => this.options(() => this.mainMenu()) },
-      ...(electron ? [{ label: 'Quitter', action: () => window.auraNative.quit() }] : []),
-    ], { cls: 'main-menu', footer: `<div class="wallet">${this.app.profile.ryo} <small>Ryō</small></div>` + '<div class="menu-logo"><span class="logo-a">AURA</span><span class="logo-b">CLASH</span></div><div class="controls-hint">Flèches / manette : naviguer — Entrée / A : valider — Échap / B : retour</div>' });
+    const prof = this.app.profile;
+    const done = CHAPTERS.filter((c) => prof.hasCleared(c.id)).length;
+    const pending = pendingChallenges(prof).length;
+    // Tuiles : les modes de jeu en grand, la progression en plus petit
+    const play = [
+      { kanji: '物', label: 'Mode Histoire', hint: `${done} / ${CHAPTERS.length} chapitres · récits`, color: '#ff8a3a', action: () => this.storyMenu() },
+      { kanji: '波', label: 'Mode Vagues', hint: `niveau ${Math.min(WAVE_LEVELS, prof.levelUnlocked())} / ${WAVE_LEVELS} · boss · infini`, color: '#ff3a5a', action: () => this.wavesMenu() },
+      { kanji: '戦', label: 'Combat libre', hint: 'versus, 2 contre 2, réseau, entraînement', color: '#5ab4ff', action: () => this.freeMenu() },
+      { kanji: '学', label: 'Tutoriel', hint: prof.data.tutorialDone ? 'revoir les techniques' : `les bases — +${TUTORIAL_REWARD} Ryō`, color: '#7fffb0', badge: prof.data.tutorialDone ? '' : 'NEW', action: () => this.charSelect([{ label: 'TUTORIEL', team: 0, ctrl: { type: 'human', player: 0 } }], (fs) => new Tutorial(this.app, fs[0].charId).start(), () => this.mainMenu()) },
+    ];
+    const meta = [
+      { kanji: '強', label: 'Améliorations', hint: 'stats, techniques, tenues', action: () => this.upgrades() },
+      { kanji: '店', label: 'Boutique', hint: 'nouveaux combattants', action: () => this.shop() },
+      { kanji: '賞', label: 'Défis', hint: `${CHALLENGES.filter((c) => challengeState(prof, c).claimed).length} / ${CHALLENGES.length} réclamés`, badge: pending ? String(pending) : '', action: () => this.challenges() },
+      { kanji: '画', label: 'Galerie', hint: 'modèles 3D et auras', action: () => this.gallery() },
+    ];
+    const sys = [
+      { label: 'Options', action: () => this.options(() => this.mainMenu()) },
+      ...(electron ? [{ label: 'Quitter', cls: 'ghost', action: () => window.auraNative.quit() }] : []),
+    ];
+    const tile = (t, i, kind) => `<button class="tile ${kind}" data-nav data-k="${kind}" data-i="${i}" style="--c:${t.color || '#ffd23f'}">
+      <span class="t-kanji">${t.kanji}</span><span class="t-txt"><b>${t.label}</b><small>${t.hint}</small></span>
+      ${t.badge ? `<span class="t-badge">${t.badge}</span>` : ''}</button>`;
+    const el = h(`<div class="screen main-menu home">
+      <div class="home-head"><div class="menu-logo"><span class="logo-a">AURA</span><span class="logo-b">CLASH</span></div><div class="wallet">${prof.ryo} <small>Ryō</small></div></div>
+      <div class="home-label">JOUER</div>
+      <div class="tiles play">${play.map((t, i) => tile(t, i, 'play')).join('')}</div>
+      <div class="home-label">PROGRESSION</div>
+      <div class="tiles meta">${meta.map((t, i) => tile(t, i, 'meta')).join('')}</div>
+      <div class="home-foot">${sys.map((b, i) => `<button class="btn small ${b.cls || ''}" data-nav data-k="sys" data-i="${i}">${b.label}</button>`).join('')}
+        <span class="controls-hint">Flèches / manette : naviguer — Entrée / A : valider — Échap / B : retour</span></div>
+    </div>`);
+    const lists = { play, meta, sys };
+    el.querySelectorAll('[data-k]').forEach((b) => b.addEventListener('click', () => lists[b.dataset.k][Number(b.dataset.i)].action()));
     this.show({ el, back: () => this.title() });
+    this.focus(el.querySelector('.tile'), false);
   }
 
   // --- Préparation des combats --------------------------------------------------------------
