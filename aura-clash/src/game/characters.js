@@ -25,16 +25,16 @@ const sfx = (t, name) => ({ t, a: 'sfx', name });
 
 // Définitions de projectiles réutilisables
 const P = {
-  kiball: { kind: 'kiball', speed: 26, dmg: 22, hit: 'light', r: 0.35, life: 1.3 },
+  kiball: { kind: 'kiball', speed: 26, dmg: 19, hit: 'light', r: 0.35, life: 1.3 },
   bigki: { kind: 'bigki', speed: 15, dmg: 120, hit: 'kd', r: 0.9, life: 2, explode: { r: 2.6, dmg: 25 } },
   shuriken: { kind: 'shuriken', speed: 30, dmg: 19, hit: 'light', r: 0.3, life: 1 },
   crescent: { kind: 'crescent', speed: 21, dmg: 55, hit: 'heavy', r: 0.95, life: 0.95, pierce: true },
   fireball: { kind: 'fireball', speed: 19, dmg: 44, hit: 'heavy', r: 0.45, life: 1.4, explode: { r: 1.8, dmg: 14 } },
   iceshard: { kind: 'iceshard', speed: 30, dmg: 34, hit: 'light', r: 0.32, life: 1, slow: 1.6 },
   airfist: { kind: 'airfist', speed: 34, dmg: 46, hit: 'heavy', r: 0.75, life: 0.28 },
-  spiritorb: { kind: 'spiritorb', speed: 12, dmg: 34, hit: 'heavy', r: 0.45, life: 2.6, homing: 3.5 },
+  spiritorb: { kind: 'spiritorb', speed: 12, dmg: 26, hit: 'heavy', r: 0.45, life: 2.6, homing: 2.4 },
   palmwave: { kind: 'palmwave', speed: 17, dmg: 68, hit: 'kd', r: 1.25, life: 0.36 },
-  bolt: { kind: 'bolt', speed: 42, dmg: 38, hit: 'heavy', r: 0.38, life: 0.55 },
+  bolt: { kind: 'bolt', speed: 42, dmg: 42, hit: 'heavy', r: 0.38, life: 0.55 },
   windblade: { kind: 'windblade', speed: 25, dmg: 16, hit: 'light', r: 0.45, life: 0.8 },
   rock: { kind: 'rock', speed: 16, dmg: 66, hit: 'kd', r: 0.7, life: 1.4, explode: { r: 1.8, dmg: 14 } },
   darkorb: { kind: 'darkorb', speed: 14, dmg: 40, hit: 'heavy', r: 0.5, life: 2.2, homing: 2.5 },
@@ -46,7 +46,7 @@ export const CHARACTERS = [
     name: 'Kael Arashi',
     title: 'Guerrier à aura',
     blurb: 'Concentre son ki en sphères et en un rayon dévastateur. Se transforme pour décupler sa puissance.',
-    hp: 1000, speed: 6.6, weight: 1,
+    hp: 950, speed: 6.6, weight: 1,
     aura: '#6fc8ff', auraAlt: '#ffd23f',
     stance: 'fists', aiRange: 2.2, aiZoning: 0.35,
     look: {
@@ -86,7 +86,7 @@ export const CHARACTERS = [
     name: 'Shin Kagerō',
     title: 'Ninja de l’ombre',
     blurb: 'Insaisissable : son esquive est une téléportation. Lance des shurikens et invoque des clones d’ombre.',
-    hp: 960, speed: 7.7, weight: 0.95,
+    hp: 1040, speed: 7.7, weight: 0.95,
     aura: '#9b5cff',
     stance: 'ninja', aiRange: 2.4, aiZoning: 0.3, teleportDodge: true,
     look: {
@@ -245,7 +245,7 @@ export const CHARACTERS = [
     name: 'Sora Mikage',
     title: 'Invocatrice',
     blurb: 'Talismans et orbes spirituels à tête chercheuse. Ses renards-esprits combattent à ses côtés.',
-    hp: 920, speed: 6.4, weight: 0.9,
+    hp: 820, speed: 6.4, weight: 0.9,
     aura: '#5fffc8',
     stance: 'priestess', aiRange: 6, aiZoning: 0.65,
     look: {
@@ -257,7 +257,7 @@ export const CHARACTERS = [
       light1: { name: 'Talisman', anim: 'palm', dur: 0.28, cancel: 0.15, chain: 'light2', air: true, lunge: [[0, 0.1, 3]], actions: [hit(0.09, 26)] },
       light2: { name: 'Éventail', anim: 'slash2', dur: 0.3, cancel: 0.16, chain: 'light3', air: true, lunge: [[0, 0.1, 3]], actions: [hit(0.1, 29)] },
       light3: { name: 'Paume d’esprit', anim: 'palm', dur: 0.46, cancel: 0.3, lunge: [[0, 0.12, 4]], actions: [fx(0.13, 'spiritBurst'), hit(0.14, 46, 'heavy', { radius: 1.05 })] },
-      heavy: { name: 'Vague spirituelle', anim: 'cast', dur: 0.6, cancel: 0.42, actions: [proj(0.18, P.palmwave)] },
+      heavy: { name: 'Vague spirituelle', anim: 'cast', dur: 0.66, cancel: 0.48, actions: [proj(0.2, { ...P.palmwave, dmg: 50, hit: 'heavy' })] },
       ranged: { name: 'Orbe spirituel', anim: 'cast2', dur: 0.5, cancel: 0.36, air: true, actions: [proj(0.15, P.spiritorb)] },
       special: {
         name: 'Esprits gardiens', cost: 40, anim: 'summon', dur: 0.7, cancel: 0.55,
@@ -277,7 +277,7 @@ export const CHARACTERS = [
     title: 'Lancier du tonnerre',
     price: 1200,
     blurb: 'Une lance à la portée redoutable et des éclairs qui frappent du ciel. Il tient l’adversaire à distance.',
-    hp: 980, speed: 6.9, weight: 1,
+    hp: 1080, speed: 6.9, weight: 1,
     aura: '#ffe94a',
     stance: 'staff', aiRange: 2.6, aiZoning: 0.4,
     look: {
@@ -312,7 +312,7 @@ export const CHARACTERS = [
     title: 'Danseuse du vent',
     price: 1200,
     blurb: 'Ses éventails tranchent l’air : rafales de lames de vent, tornades et pirouettes insaisissables.',
-    hp: 900, speed: 7.6, weight: 0.85,
+    hp: 1000, speed: 7.6, weight: 0.85,
     aura: '#ff8ad8',
     stance: 'ninja', aiRange: 2.4, aiZoning: 0.5,
     look: {
@@ -385,7 +385,7 @@ export const CHARACTERS = [
     title: 'Épéiste démoniaque',
     price: 2500,
     blurb: 'Une lame maudite d’un rouge sang, des orbes de ténèbres et une éclipse qui engloutit tout.',
-    hp: 950, speed: 7.3, weight: 1,
+    hp: 900, speed: 7.3, weight: 1,
     aura: '#ff2a5a',
     stance: 'blade', aiRange: 2.3, aiZoning: 0.35,
     look: {
@@ -420,7 +420,7 @@ export const CHARACTERS = [
     title: 'Prêtresse du soleil',
     price: 1500,
     blurb: 'Gardienne du temple du Soleil. Sa naginata de feu tient l’adversaire à distance et fait pleuvoir les braises.',
-    hp: 940, speed: 7.0, weight: 0.95,
+    hp: 1060, speed: 7.0, weight: 0.95,
     aura: '#ff9a2a', auraAlt: '#fff0a0',
     stance: 'staff', aiRange: 2.5, aiZoning: 0.45,
     look: {
@@ -429,9 +429,9 @@ export const CHARACTERS = [
       extras: ['spear', 'kimono', 'sleeves', 'hakama', 'ribbons'], body: 'f', emblem: '陽', emblemColor: '#e05a10',
     },
     moves: {
-      light1: { name: 'Estoc ardent', anim: 'thrust', dur: 0.28, cancel: 0.15, chain: 'light2', air: true, lunge: [[0, 0.1, 4]], actions: [hit(0.09, 26, 'light', { reach: 1.6 })] },
-      light2: { name: 'Fauche', anim: 'staff1', dur: 0.3, cancel: 0.16, chain: 'light3', air: true, lunge: [[0, 0.1, 4]], actions: [hit(0.1, 28, 'light', { reach: 1.55 })] },
-      light3: { name: 'Roue de flammes', anim: 'staff2', dur: 0.48, cancel: 0.3, lunge: [[0, 0.12, 5]], actions: [fx(0.1, 'flameburst'), hit(0.15, 46, 'heavy', { reach: 1.4, radius: 1.3 })] },
+      light1: { name: 'Estoc ardent', anim: 'thrust', dur: 0.28, cancel: 0.15, chain: 'light2', air: true, lunge: [[0, 0.1, 4]], actions: [hit(0.09, 31, 'light', { reach: 1.6 })] },
+      light2: { name: 'Fauche', anim: 'staff1', dur: 0.3, cancel: 0.16, chain: 'light3', air: true, lunge: [[0, 0.1, 4]], actions: [hit(0.1, 33, 'light', { reach: 1.55 })] },
+      light3: { name: 'Roue de flammes', anim: 'staff2', dur: 0.48, cancel: 0.3, lunge: [[0, 0.12, 5]], actions: [fx(0.1, 'flameburst'), hit(0.15, 54, 'heavy', { reach: 1.4, radius: 1.3 })] },
       heavy: { name: 'Lame solaire', anim: 'rising', dur: 0.62, cancel: 0.42, actions: [fx(0.02, 'kiCharge'), hit(0.18, 70, 'launch', { reach: 1.55, hy: 1.4 })] },
       ranged: { name: 'Braise', anim: 'cast2', dur: 0.5, cancel: 0.38, air: true, actions: [proj(0.13, P.fireball)] },
       special: {
@@ -451,7 +451,7 @@ export const CHARACTERS = [
     title: 'Moine de fer',
     price: 2000,
     blurb: 'Un moine au corps d’acier. Ses paumes projettent des ondes spirituelles et sa cloche fait trembler la terre.',
-    hp: 1080, speed: 6.4, weight: 1.15,
+    hp: 1150, speed: 6.4, weight: 1.15,
     aura: '#ffd8a0',
     stance: 'fists', aiRange: 2.2, aiZoning: 0.3,
     look: {
@@ -460,8 +460,8 @@ export const CHARACTERS = [
       extras: ['gi', 'bandages', 'barefoot', 'sash', 'wristbands'], build: 1.08, body: 'm', emblem: '鉄', emblemColor: '#7a3a10',
     },
     moves: {
-      light1: { name: 'Paume', anim: 'palm', dur: 0.3, cancel: 0.16, chain: 'light2', air: true, lunge: [[0, 0.1, 3]], actions: [hit(0.1, 30)] },
-      light2: { name: 'Coude de fer', anim: 'cross', dur: 0.32, cancel: 0.17, chain: 'light3', air: true, lunge: [[0, 0.1, 3]], actions: [hit(0.1, 33)] },
+      light1: { name: 'Paume', anim: 'palm', dur: 0.3, cancel: 0.16, chain: 'light2', air: true, lunge: [[0, 0.1, 3]], actions: [hit(0.1, 34)] },
+      light2: { name: 'Coude de fer', anim: 'cross', dur: 0.32, cancel: 0.17, chain: 'light3', air: true, lunge: [[0, 0.1, 3]], actions: [hit(0.1, 37)] },
       light3: { name: 'Genou du moine', anim: 'kick', dur: 0.48, cancel: 0.3, lunge: [[0, 0.15, 4]], actions: [hit(0.15, 50, 'heavy', { radius: 1.05 })] },
       heavy: { name: 'Paume du ciel', anim: 'uppercut', dur: 0.62, cancel: 0.42, lunge: [[0.08, 0.22, 5]], actions: [hit(0.2, 74, 'launch', { radius: 1, hy: 1.3 })] },
       ranged: { name: 'Onde spirituelle', anim: 'palm', dur: 0.55, cancel: 0.42, actions: [proj(0.18, P.palmwave)] },

@@ -785,7 +785,7 @@ export class Match {
         this.add({
           kind: 'minion', type: act.kind, owner: f.id, team: f.team,
           x: f.x + sx, y: act.kind === 'fox' ? 0.5 : 0, z: f.z + sz, vx: 0, vz: 0, yaw: f.yaw,
-          life: act.kind === 'fox' ? 9 : 1.7, cd: 0.6 + i * 0.4, side: side || 1,
+          life: act.kind === 'fox' ? 6 : 1.7, cd: 0.6 + i * 0.4, side: side || 1,
         });
       }
     }

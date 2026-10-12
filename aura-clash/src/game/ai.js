@@ -118,7 +118,14 @@ export class CpuBrain {
         this.mx = ux * 0.3; this.mz = uz * 0.3;
         if (d > range) { this.mx = ux; this.mz = uz; }
         const pick = Math.random();
-        if (pick < 0.6) { this.press(BTN.LIGHT); this.comboT = 0.9; }
+        // Hors de portée du corps à corps : attaques à distance (ou lourd s'il frappe à distance)
+        const melee = d < 2.6;
+        const remoteHeavy = me.def.moves.heavy.actions.some((x) => x.a === 'aoe' || x.a === 'proj');
+        if (!melee) {
+          if (remoteHeavy && pick < 0.45) this.press(BTN.HEAVY);
+          else this.press(BTN.RANGED);
+          if (range < 4) { this.mx = ux; this.mz = uz; } // les combattants au contact se rapprochent
+        } else if (pick < 0.6) { this.press(BTN.LIGHT); this.comboT = 0.9; }
         else if (pick < 0.82) this.press(BTN.HEAVY);
         else this.press(BTN.RANGED);
       } else {
