@@ -57,11 +57,16 @@ Le `.exe` Windows peut aussi être construit depuis Linux ou macOS. Il faut alor
   plans de caméra, dialogues, effets), chacun suivi d'un combat. Certains chapitres se jouent en 2v2
   avec un allié, le dernier oppose le héros à un boss renforcé. Récompenses : Ryō, et le déblocage
   de Raiden (chap. 3), Garo (chap. 5), Hana (chap. 6) et Yami (chap. 8). On peut rejouer un chapitre.
+- **Récits des combattants** : un chapitre par personnage, joué avec lui, ouvert dès qu'il est possédé.
+  Le chapitre 8 de l'histoire se termine par un **choix** qui mène à l'une des deux fins.
 - **Mode Vagues** : 30 niveaux de 3 à 10 vagues de fléaux, de démons et de monstres, de plus en plus
-  forts (voir plus bas). Un boss tous les 5 niveaux.
+  forts (voir plus bas). Un boss tous les 5 niveaux, bénédictions entre les vagues, et **mode Infini**
+  après le niveau 30.
+- **Tutoriel** : 13 étapes guidées, des déplacements à la parade parfaite (+300 Ryō la première fois).
 - **Versus contre l'IA**, en 3 niveaux (facile, normal, difficile), et **Versus local** à deux joueurs.
 - **2 contre 2** : toi + une IA contre deux IA, deux joueurs ensemble, ou J1 + IA contre J2 + IA.
 - **Réseau local (LAN)** : de 2 à 4 joueurs, en 1v1 ou en 2v2. L'IA prend les places libres.
+- Ces modes (versus, 2 contre 2, réseau local, entraînement) sont regroupés dans **Combat libre**.
 - **Entraînement** : mannequin configurable (immobile, garde, saut, combat), énergie infinie,
   dégâts du dernier combo, liste des coups.
 - Chaque combat se joue en **2 manches gagnantes** (best of 3), avec un minuteur réglable (60, 99 ou 150 s).
@@ -102,6 +107,16 @@ utilise la première manette branchée, le joueur 2 la seconde. F11 bascule en p
 - **Ultimes.** Une cinématique se lance : zoom de caméra, bandes noires, lignes de vitesse, nom du coup.
   À l'impact, un flash et une onomatopée manga apparaissent.
 - **K.O.** La dernière frappe passe au ralenti, avec la caméra sur la victime.
+- **Parade parfaite.** Lever la garde au tout dernier moment avant un coup l'annule : ralenti, l'attaquant
+  vacille, et le coup suivant est une **riposte** (+50 % de dégâts).
+- **Poursuite aérienne.** Après un coup qui envoie l'adversaire en l'air, Saut te téléporte à sa hauteur ;
+  enchaîne en l'air, puis **Lourd en l'air** : la frappe plongeante le rabat au sol.
+- **Aura.** Elle flambe autour du combattant selon son énergie, et chacun a la sienne (flamme, ombre,
+  lames, givre, esprits, foudre, pétales, pierre, sang). En charge : sol fissuré, éclairs, débris qui
+  lévitent ; au maximum : colonne de lumière et yeux qui brillent. Deux auras embrasées face à face s'entrechoquent.
+- **Arènes interactives.** Falaises : piliers destructibles. Temple : lanternes qui explosent. Glacier : sol
+  glissant et stalagmites. Toits : zones électrifiées annoncées au sol. Volcan : la lave déborde du bord par vagues.
+- **Replays.** Après un combat local, « Revoir le combat » le rejoue (ralenti ×¼ à accéléré ×2, pause).
 
 ### Les combattants
 
@@ -122,6 +137,12 @@ utilise la première manette branchée, le joueur 2 la seconde. F11 bascule en p
 | **Hana Kazemiya**, danseuse du vent | Éventails, lames de vent en éventail | Tornade | Typhon Céleste | 1200 Ryō |
 | **Garo le Colosse**, géant de pierre | Poings de roche, rocher lancé, encaisse les coups légers | Séisme | Éruption Titanesque | 1800 Ryō |
 | **Yami Kurosaki**, épéiste démoniaque | Lame maudite, orbe à tête chercheuse | Frappe d'ombre | Éclipse Infernale | 2500 Ryō |
+| **Akane Hinomura**, prêtresse du soleil | Naginata de feu, braises | Colonnes du soleil | Soleil Levant | 1500 Ryō |
+| **Jin Takeda**, moine de fer | Paumes, ondes spirituelles | Cloche de fer | Cloche du Nirvana | 2000 Ryō |
+
+**Techniques alternatives.** Chaque combattant a un second spécial (600 Ryō) et un second ultime avec sa
+propre cinématique (1200 Ryō), à débloquer puis à choisir (A ou B) dans **Améliorations**. On y achète aussi
+deux **tenues** (ombre, céleste : 400 Ryō chacune) qui changent les couleurs et l'aura.
 
 ### Boutique et Ryō
 La monnaie du jeu est le **Ryō**. On démarre avec 500 Ryō. Chaque match rapporte : victoire +300,
@@ -147,6 +168,22 @@ agressifs. À partir du niveau 16, les anciens boss reviennent en élites. Deux 
 attaquent en même temps (un seul s'il s'agit d'un démon ou d'un monstre) ; les autres tournent autour et
 harcèlent à distance. Le **Bestiaire** décrit chaque créature. Récompense : 100 + 30 × niveau Ryō
 (+250 pour un boss), 30 % en rejouant un niveau réussi, 25 Ryō par vague repoussée en cas d'échec.
+
+### Mode Vagues : bénédictions, boss, mode Infini, difficulté
+- Après chaque vague, on choisit une **bénédiction** parmi trois (dégâts, vie, vol de vie, explosions,
+  bouclier, parade facilitée…) ; elles se cumulent jusqu'à la fin du niveau.
+- À la moitié de sa vie, chaque boss entre dans sa **seconde phase** : cinématique, changement d'arène,
+  transformation, pouvoir plus dangereux et musique propre.
+- **Difficulté** : facile, normale ou cauchemar (vie et dégâts des ennemis, récompenses × 0,7 / × 1 / × 1,6).
+- **Mode Infini** (ouvert après le niveau 30) : vagues sans fin, un boss toutes les 10 vagues, tableau des records.
+
+### Défis, galerie, options
+- **Défis** : 16 objectifs (victoires, parades, combos, boss, vagues, collection…), chacun récompensé en Ryō.
+- **Galerie** : tous les modèles en 3D (les créatures une fois rencontrées), avec poses, expressions,
+  aura et ultime, rotation et zoom.
+- **Options** : qualité graphique **automatique** (vise 60 images par seconde), commandes tactiles
+  réglables (boutons déplaçables, taille, sensibilité, joystick fixe ou flottant) et **code de sauvegarde**
+  pour transférer sa progression entre le PC et l'iPad.
 
 ### Améliorations
 Le menu **Améliorations** permet de renforcer chaque personnage possédé sur 5 axes, de 5 niveaux chacun :
@@ -225,7 +262,9 @@ aura-clash/
 │   ├── battle.js         déroulement d'un combat : local, hôte ou invité
 │   ├── game/             LOGIQUE PURE (sans Three.js, testable sous Node)
 │   │   ├── constants.js  pas de simulation, boutons, types de coups
-│   │   ├── characters.js les 10 personnages : stats, apparence, coups (données)
+│   │   ├── characters.js les 12 personnages : stats, apparence, coups (données)
+│   │   ├── techniques.js spéciaux et ultimes alternatifs, tenues
+│   │   ├── hazards.js    règles des arènes interactives
 │   │   ├── fighter.js    états, physique, exécution des coups, esquive, garde
 │   │   ├── match.js      manches, vagues, coups, projectiles, rayons, zones, invocations, K.O.
 │   │   ├── monsters.js   bestiaire du mode Vagues (15 créatures, même format que les combattants)
@@ -233,16 +272,19 @@ aura-clash/
 │   │   └── ai.js         IA (3 niveaux) et mannequin d'entraînement
 │   ├── render/           affichage Three.js
 │   │   ├── toon.js       matériaux cel-shading, contours, bruit GLSL
-│   │   ├── model.js      modèles low-poly, poses, cheveux et vêtements à ressorts, aura
+│   │   ├── model.js      modèles, poses, expressions, cheveux et vêtements à ressorts
+│   │   ├── aura.js       aura de combat (flammes, éclairs, débris, colonne de lumière)
+│   │   ├── hazardView.js affichage des obstacles, de la lave et des zones électriques
 │   │   ├── fx.js         particules GPU, ondes de choc, éclairs, rayons, flammes
 │   │   ├── arenas.js     les 5 arènes
 │   │   ├── camera.js     caméra dynamique, cinématiques, tremblements
 │   │   ├── stage.js      moteur de rendu, bloom, ombres
 │   │   └── view.js       relie l'état du match aux modèles, aux effets, au son et au HUD
 │   ├── net/session.js    client WebSocket, instantanés, interpolation, prédiction
-│   ├── story/            mode histoire : chapitres (données) et mise en scène 3D des dialogues
+│   ├── replay.js         lecture des replays
+│   ├── story/            mode histoire : chapitres, récits des combattants, mise en scène 3D
 │   ├── core/             réglages et profil (Ryō, achats, améliorations, histoire), entrées, audio
-│   ├── ui/               menus, HUD, calque manga, portraits
+│   ├── ui/               menus, HUD, calque manga, portraits, écran VS, tutoriel
 │   ├── index.html
 │   └── style.css
 └── scripts/              bundle (esbuild), icône, zip, serveur web de test, tests
