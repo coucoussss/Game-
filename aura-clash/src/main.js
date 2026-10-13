@@ -256,6 +256,9 @@ class App {
   frame(t) {
     const dt = Math.min(0.05, Math.max(0, (t - this.last) / 1000));
     this.last = t;
+    // Temps de jeu total (profil), enregistré toutes les 30 s
+    this.playAcc = (this.playAcc || 0) + dt;
+    if (this.playAcc >= 30) { this.profile.data.playTime = (this.profile.data.playTime || 0) + this.playAcc; this.playAcc = 0; this.profile.save(); }
     this.input.poll(dt);
     const actions = this.input.menuActions();
     if (this.vsSkip && actions.includes('ok')) this.vsSkip(); // manette : A passe l'écran VS

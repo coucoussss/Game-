@@ -270,6 +270,12 @@ console.log(`Bestiaire : ${MONSTERS.length} créatures`);
   check(ss.history.length === R.HISTORY_MAX && ss.tot.matches === 25 && ss.rec.combo === 24 && ss.rec.dmg === 424 && ss.chars.kael.w + ss.chars.kael.l === 12 && ss.curve.length <= R.CURVE_MAX, 'statistiques et historique (20 derniers combats)');
   const ss2 = R.sanitizeRanked(JSON.parse(JSON.stringify(ss)));
   check(ss2.history.length === 20 && ss2.chars.ren.w === ss.chars.ren.w && ss2.tot.dmg === ss.tot.dmg, 'statistiques sauvegardées');
+  // Étape 4 : niveau de joueur (XP)
+  const L = await import('../src/core/level.js');
+  const l1 = L.levelFromXp(0), l2 = L.levelFromXp(L.xpToNext(1)), l3 = L.levelFromXp(L.xpToNext(1) + L.xpToNext(2) - 1), lmax = L.levelFromXp(1e9);
+  check(l1.level === 1 && l2.level === 2 && l2.cur === 0 && l3.level === 2 && l3.cur === L.xpToNext(2) - 1 && lmax.level === L.MAX_LEVEL && lmax.max, 'niveaux de joueur (XP)');
+  check(L.xpFor('ranked', 'win') === 120 && L.xpFor('story', 'win') === 150 && L.xpFor('endless', 'loss', 12) === 160 && L.xpFor('free', 'draw') === 60, 'XP par mode et par résultat');
+  check(L.modeOf({ ranked: {} }) === 'ranked' && L.modeOf({ waveLevel: 3 }) === 'waves' && L.modeOf({}) === 'free', 'mode de jeu d’un combat');
   // Équilibre : un joueur solide (IA difficile, sans amélioration) contre chaque rang
   const roster = CHARACTERS.filter((c) => !c.monster).map((c) => c.id);
   const rates = [];

@@ -3,6 +3,7 @@
 // Sauvegardé dans le navigateur ou la fenêtre du jeu (localStorage), sur cette machine.
 import { CHAR_BY_ID, CHARACTERS } from '../game/characters.js';
 import { newRankedState, sanitizeRanked } from '../game/ranked.js';
+import { levelFromXp } from './level.js';
 
 const KEY = 'auraclash.profile.v1';
 export const START_RYO = 500;
@@ -54,6 +55,10 @@ export class Profile {
           seen: Array.isArray(saved.seen) ? saved.seen.filter((x) => typeof x === 'string') : [],
           endless: Array.isArray(saved.endless) ? saved.endless.filter((r) => r && Number.isFinite(r.score)).slice(0, 5) : [],
           ranked: sanitizeRanked(saved.ranked),
+          xp: Number.isFinite(saved.xp) ? Math.max(0, Math.floor(saved.xp)) : 0,
+          playTime: Number.isFinite(saved.playTime) ? Math.max(0, saved.playTime) : 0,
+          avatar: typeof saved.avatar === 'string' && CHAR_BY_ID[saved.avatar] ? saved.avatar : '',
+          showcase: Array.isArray(saved.showcase) ? saved.showcase.filter((x) => typeof x === 'string').slice(0, 3) : [],
         };
       }
     } catch { /* stockage indisponible : profil de départ */ }
@@ -262,6 +267,15 @@ export class Profile {
     this.data.owned.push(id);
     this.save();
     return 'ok';
+  }
+
+  /** Ajoute de l'XP ; renvoie le niveau gagné (ou 0). */
+  addXp(n) {
+    const before = levelFromXp(this.data.xp || 0).level;
+    this.data.xp = (this.data.xp || 0) + Math.max(0, Math.floor(n));
+    this.save();
+    const after = levelFromXp(this.data.xp).level;
+    return after > before ? after : 0;
   }
 
   earn(n) {

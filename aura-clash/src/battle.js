@@ -3,6 +3,7 @@
 //   'host'   : simulation ici + envoi des instantanés aux invités du réseau local
 //   'client' : affichage des instantanés reçus de l'hôte + envoi de nos entrées
 import { auraOf, titleOf } from './game/ranked.js';
+import { modeOf, xpFor } from './core/level.js';
 import { platform } from './platform.js';
 import { Match } from './game/match.js';
 import { CpuBrain } from './game/ai.js';
@@ -389,6 +390,22 @@ export class Battle {
   onMatchEnd(team) {
     if (this.ended) return;
     this.ended = true;
+    // Profil : XP et statistiques (combats joués sur cette machine, hors entraînement et tutoriel)
+    if (this.role === 'local' && !this.cfg.training && !this.cfg.tutorial) {
+      const prof = this.app.profile;
+      const mode = modeOf(this.cfg);
+      const p1 = this.cfg.fighters.find((f) => f.ctrl.type === 'human');
+      const result = team < 0 ? 'draw' : p1 && p1.team === team ? 'win' : 'loss';
+      const waves = this.match && (this.cfg.waveLevel || this.cfg.endless) ? this.match.wave || 0 : 0;
+      const s = prof.data.stats || (prof.data.stats = {});
+      s.modes = { ...(s.modes || {}), [mode]: ((s.modes || {})[mode] || 0) + 1 };
+      if (p1) s.charFights = { ...(s.charFights || {}), [p1.charId]: ((s.charFights || {})[p1.charId] || 0) + 1 };
+      this.xpGain = xpFor(mode, result, waves);
+      this.levelUp = prof.addXp(this.xpGain);
+      if (this.levelUp) setTimeout(() => this.app.ui.toast(`⬆ Niveau ${this.levelUp} atteint !`, 4), 2400);
+      // Promotion sans perdre de manche (défi)
+      if (this.cfg.ranked && this.cfg.ranked.promo && result === 'win' && this.match && (this.match.wins || [0, 0])[1] === 0) prof.bumpStat('cleanPromos');
+    }
     if (this.rec && this.rec.snaps.length > 30) this.app.lastReplay = this.rec;
     // Sur CrazyGames, une publicité peut s'intercaler avant l'écran de résultats
     setTimeout(() => platform.midgameAd(this.app.audio, () => this.app.ui.showResults(this, team)), 1800);

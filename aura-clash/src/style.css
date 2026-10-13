@@ -561,7 +561,7 @@ body.touch-on .aslot { width: 7vw; }
 .home-label { font: italic 900 1.6vh var(--display); letter-spacing: 0.3em; color: #ffd23f; margin: 1vh 0 0.8vh; }
 .tiles { display: grid; gap: 1.4vh 1.2vw; }
 .tiles.play { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-.tiles.meta { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.tiles.meta { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .tile { position: relative; display: flex; align-items: center; gap: 1vw; text-align: left; cursor: pointer; color: #fff; border: 0;
   background: linear-gradient(135deg, color-mix(in srgb, var(--c) 35%, #14102a) 0%, rgba(14, 10, 30, 0.92) 70%); border-bottom: 5px solid var(--c);
   transform: skewX(-6deg); transition: transform 0.12s, box-shadow 0.12s; padding: 1.4vh 1.2vw; }
@@ -684,3 +684,44 @@ body.touch-on .aslot { width: 7vw; }
 .rk-curve polyline { fill: none; stroke: #7fe0ff; stroke-width: 2.5; vector-effect: non-scaling-stroke; stroke-linejoin: round; filter: drop-shadow(0 0 3px rgba(120, 220, 255, 0.7)); }
 .rk-curve-l { display: flex; justify-content: space-between; font: 600 1.3vh var(--font); color: var(--muted); }
 @media (orientation: portrait) { .rk-statgrid { grid-template-columns: 1fr; } }
+/* Profil du joueur */
+.profile-screen { gap: 1.4vh; }
+.pf-head { display: flex; align-items: center; gap: 2vw; width: min(92vw, 1200px); padding: 1.6vh 1.6vw; background: linear-gradient(90deg, color-mix(in srgb, var(--ac) 30%, rgba(10, 8, 20, 0.9)), rgba(10, 8, 20, 0.9)); border-left: 6px solid var(--ac); box-shadow: 0 0 3vh color-mix(in srgb, var(--ac) 35%, transparent); }
+.pf-avatar .pf-portrait { width: 14vh; height: 14vh; border-radius: 50%; border: 0.5vh solid var(--ac); box-shadow: 0 0 3vh var(--ac); object-fit: cover; }
+.pf-id { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.6vh; }
+.pf-name { font: italic 900 4.2vh var(--display); color: #fff; background: transparent; border: 0; border-bottom: 2px dashed rgba(255, 255, 255, 0.25); outline: none; width: min(100%, 22ch); padding: 0; }
+.pf-name:focus, .pf-name.focus { border-bottom-color: var(--gold); }
+.pf-title { font: italic 900 2.2vh var(--display); color: var(--gold); }
+.pf-title span::before { content: '« '; } .pf-title span::after { content: ' »'; }
+.pf-level { font: italic 900 2.2vh var(--display); color: #7fe0ff; } .pf-level small { font: 600 1.5vh var(--font); color: var(--muted); }
+.pf-xp { height: 1.1vh; width: min(100%, 420px); background: rgba(255, 255, 255, 0.1); border: 2px solid #000; transform: skewX(-12deg); overflow: hidden; }
+.pf-xp i { display: block; height: 100%; background: linear-gradient(90deg, #3a9cff, #7fe0ff); box-shadow: 0 0 1vh #7fe0ff; }
+.pf-rank { display: flex; flex-direction: column; align-items: flex-end; gap: 0.6vh; }
+.pf-world { font: 700 1.7vh var(--font); color: #7fe0ff; } .pf-world em { font-style: normal; color: var(--muted); font-size: 1.3vh; }
+.pf-showcase { display: flex; gap: 1vw; flex-wrap: wrap; justify-content: center; width: min(92vw, 1200px); }
+.pf-trophy { font: 700 1.8vh var(--font); padding: 0.8vh 1.2vw; background: linear-gradient(90deg, rgba(255, 210, 63, 0.25), rgba(10, 8, 20, 0.9)); border-left: 4px solid var(--gold); }
+.pf-trophy b { font: italic 900 2vh var(--display); color: var(--gold); }
+.pf-trophy.empty { color: var(--muted); border-color: rgba(255, 255, 255, 0.2); background: rgba(10, 8, 20, 0.85); }
+.pf-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.4vh 1.4vw; width: min(92vw, 1200px); }
+.pf-grid section { background: rgba(10, 8, 20, 0.86); border-left: 5px solid #7fe0ff; padding: 1.2vh 1vw; min-width: 0; }
+.pf-grid h3 { margin: 0 0 0.8vh; font: italic 900 2.1vh var(--display); color: #7fe0ff; } .pf-grid h3 em { font-style: normal; color: #fff; }
+.pf-grid .rk-kv { font-size: 1.55vh; }
+.pf-roster { display: flex; flex-wrap: wrap; gap: 0.5vh; margin-top: 1vh; }
+.pf-char { position: relative; } .pf-char .portrait.mini { width: 4.2vh; height: 4.2vh; }
+.pf-char.lock { opacity: 0.3; filter: grayscale(1); }
+.pf-char small { position: absolute; right: -0.3vh; bottom: -0.3vh; font: 900 1.2vh var(--font); background: var(--gold); color: #000; padding: 0 0.4vh; border-radius: 0.4vh; }
+.pf-ach { grid-column: 1 / -1; }
+.pf-achlist { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.7vh 0.7vw; max-height: 30vh; overflow-y: auto; }
+.pf-a { appearance: none; text-align: left; display: flex; flex-direction: column; gap: 0.2vh; padding: 0.7vh 0.7vw; background: rgba(255, 255, 255, 0.04); border: 0; border-left: 3px solid rgba(255, 255, 255, 0.15); color: var(--muted); font: 600 1.35vh var(--font); cursor: default; }
+.pf-a b { font: 800 1.6vh var(--font); color: #fff; }
+.pf-a.done { cursor: pointer; border-color: var(--gold); background: rgba(255, 210, 63, 0.08); }
+.pf-a.done:hover, .pf-a.done.focus { background: rgba(255, 210, 63, 0.2); }
+.pf-a.shown { box-shadow: inset 0 0 0 2px var(--gold); }
+.pf-a.shown b::after { content: ' ★'; color: var(--gold); }
+.pf-a:disabled { opacity: 0.55; }
+.pf-prog { color: var(--gold); font-weight: 800; }
+.pf-actions { flex-direction: row; flex-wrap: wrap; gap: 1vw; }
+.share-img { width: min(80vw, 900px); border: 3px solid var(--gold); box-shadow: 0 0 4vh rgba(255, 210, 63, 0.35); }
+a.btn { text-decoration: none; }
+@media (orientation: portrait) { .pf-grid { grid-template-columns: 1fr; } .pf-achlist { grid-template-columns: repeat(2, minmax(0, 1fr)); } .pf-head { flex-wrap: wrap; } }
+.xp-gain { font: italic 900 2.2vh var(--display); color: #7fe0ff; text-shadow: 0 2px 0 #000; }

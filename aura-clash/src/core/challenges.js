@@ -2,6 +2,7 @@
 // à réclamer. Les compteurs avancent pendant les combats joués sur cette machine.
 import { CHARACTERS } from '../game/characters.js';
 import { CHAPTERS } from '../story/chapters.js';
+import { bestTier } from '../game/ranked.js';
 
 /**
  * [identifiant, nom, description, objectif, mesure(profil) → valeur, récompense]
@@ -22,8 +23,18 @@ export const CHALLENGES = [
   ['endless-20', 'Infatigable', 'Repousse 20 vagues en mode Infini.', 20, (p) => (p.data.endless[0] ? p.data.endless[0].score : 0), 800],
   ['story', 'La Légende', 'Termine le mode histoire.', CHAPTERS.length, (p) => p.data.story.filter((id) => CHAPTERS.some((c) => c.id === id)).length, 600],
   ['roster', 'Collectionneur', 'Possède tous les combattants.', CHARACTERS.length, (p) => p.ownedIds().length, 1000],
+  ['rk-silver', 'Première promotion', 'Atteins le rang Argent en Classé.', 1, (p) => (rankTier(p) >= 1 ? 1 : 0), 300],
+  ['rk-gold', 'Ruée vers l’or', 'Atteins le rang Or en Classé.', 1, (p) => (rankTier(p) >= 2 ? 1 : 0), 600],
+  ['rk-master', 'Maître reconnu', 'Atteins le rang Maître en Classé.', 1, (p) => (rankTier(p) >= 5 ? 1 : 0), 1500],
+  ['rk-legend', 'Légende vivante', 'Atteins le rang Légende de l’Aura.', 1, (p) => (rankTier(p) >= 6 ? 1 : 0), 3000],
+  ['rk-streak', 'Inarrêtable', 'Gagne 10 combats classés d’affilée.', 10, (p) => (p.data.ranked ? p.data.ranked.bestStreak : 0), 800],
+  ['rk-clean', 'Promotion éclatante', 'Réussis une promotion sans perdre de manche.', 1, (p) => st(p, 'cleanPromos'), 600],
   ['blessed', 'Béni des dieux', 'Cumule 5 bénédictions dans une même partie.', 5, (p) => st(p, 'maxBless'), 400],
 ];
+
+function rankTier(p) {
+  return p.data.ranked ? bestTier(p.data.ranked) : 0;
+}
 
 function st(p, k) {
   return (p.data.stats && p.data.stats[k]) || 0;

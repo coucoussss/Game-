@@ -15,8 +15,9 @@ import { TECH_PRICES, COSTUMES, COSTUME_PRICE } from '../game/techniques.js';
 import { CHALLENGES, challengeState, pendingChallenges } from '../core/challenges.js';
 import { WAVE_LEVELS, WAVE_HEAL, buildLevel, levelReward, isBossLevel, regionOf, DIFFICULTIES, withDifficulty, endlessWave, endlessReward, BLESSINGS } from '../game/waves.js';
 import { MONSTERS, TIERS } from '../game/monsters.js';
-import { lang, setLang } from '../i18n/i18n.js';
-import { RANKS, LEGEND, DIVISIONS, DIV_POINTS, DAILY_RYO, RANK_TITLES, RANK_AURAS, POPULATION, estimate, formatTop, recordStats, opponentFor, applyResult, dailyAvailable, stepName, bestTier, unlockedTitles, unlockedAuras, titleOf, auraOf } from '../game/ranked.js';
+import { lang, setLang, tr } from '../i18n/i18n.js';
+import { levelFromXp } from '../core/level.js';
+import { RANKS, LEGEND, DIVISIONS, DIV_POINTS, DAILY_RYO, RANK_TITLES, RANK_AURAS, POPULATION, estimate, formatTop, recordStats, opponentFor, applyResult, dailyAvailable, stepName, rankName, bestTier, unlockedTitles, unlockedAuras, titleOf, auraOf } from '../game/ranked.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const h = (html) => {
@@ -206,6 +207,7 @@ export class UI {
       { kanji: '強', label: 'Améliorations', hint: 'stats, techniques, tenues', action: () => this.upgrades() },
       { kanji: '店', label: 'Boutique', hint: 'nouveaux combattants', action: () => this.shop() },
       { kanji: '賞', label: 'Défis', hint: `${CHALLENGES.filter((c) => challengeState(prof, c).claimed).length} / ${CHALLENGES.length} réclamés`, badge: pending ? String(pending) : '', action: () => this.challenges() },
+      { kanji: '己', label: 'Profil', hint: `${esc(this.app.settings.data.game.playerName || 'Joueur')} · niv. ${levelFromXp(prof.data.xp).level}`, color: '#7fe0ff', action: () => this.profileScreen() },
       { kanji: '画', label: 'Galerie', hint: 'modèles 3D et auras', action: () => this.gallery() },
     ];
     const sys = [
@@ -662,6 +664,7 @@ export class UI {
       { label: r.promo ? 'Combat de promotion' : 'Combattre', hint: r.promo ? (opp.boss ? `boss : ${esc(CHAR_BY_ID[opp.boss].name)}` : 'un adversaire plus coriace') : 'adversaire et arène au hasard', cls: r.promo ? 'gold' : '', action: () => this.charSelect([{ label: 'CLASSÉ', team: 0, ctrl: { type: 'human', player: 0 } }], (fs) => this.startRanked(fs[0].charId), () => this.rankedMenu()) },
       ...this.rankRewardButtons(r),
       { label: 'Statistiques', hint: 'classement estimé, personnages, records, historique', action: () => this.rankedStats() },
+      { label: 'Profil', hint: 'niveau, succès, vitrine, carte à partager', action: () => this.profileScreen(() => this.rankedMenu()) },
       { label: 'Retour', cls: 'ghost', action: () => this.mainMenu() },
     ], {
       cls: 'ranked-menu',
@@ -788,6 +791,167 @@ export class UI {
       <div class="rk-curve-l"><span>${esc(curve[0].d)}</span><span>${esc(curve[curve.length - 1].d)}</span></div>`;
   }
 
+  // --- Profil du joueur -------------------------------------------------------------------------
+
+  /** Personnage affiché sur le profil : celui choisi, sinon le plus joué, sinon Kael. */
+  avatarOf() {
+    const prof = this.app.profile;
+    if (prof.data.avatar && CHAR_BY_ID[prof.data.avatar]) return prof.data.avatar;
+    const fights = (prof.data.stats && prof.data.stats.charFights) || {};
+    const fav = Object.entries(fights).filter(([id]) => CHAR_BY_ID[id]).sort((a, b) => b[1] - a[1])[0];
+    return fav ? fav[0] : 'kael';
+  }
+
+  fmtTime(sec) {
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    return h ? `${h} h ${String(m).padStart(2, '0')}` : `${m} min`;
+  }
+
+  profileScreen(onBack = () => this.mainMenu()) {
+    this.app.setBackdrop('menu');
+    const app = this.app;
+    const prof = app.profile;
+    const r = prof.data.ranked;
+    const st = prof.data.stats || {};
+    const lv = levelFromXp(prof.data.xp);
+    const name = app.settings.data.game.playerName || 'Joueur';
+    const avatar = this.avatarOf();
+    const title = titleOf(r);
+    const aura = RANK_AURAS.find((a) => a.id === auraOf(r));
+    const est = estimate(r);
+    const chStates = CHALLENGES.map((c) => ({ c, s: challengeState(prof, c) }));
+    const doneN = chStates.filter((x) => x.s.done).length;
+    const show = (prof.data.showcase || []).map((id) => chStates.find((x) => x.c[0] === id)).filter((x) => x && x.s.done);
+    const modes = st.modes || {};
+    const fights = Object.values(modes).reduce((a, b) => a + b, 0);
+    const charFights = Object.entries(st.charFights || {}).filter(([id]) => CHAR_BY_ID[id]).sort((a, b) => b[1] - a[1]);
+    const storyDone = CHAPTERS.filter((c) => prof.hasCleared(c.id)).length;
+    const seen = MONSTERS.filter((m) => (prof.data.seen || []).includes(m.id)).length;
+    const owned = prof.ownedIds();
+    const costumes = Object.values(prof.data.costumes || {}).reduce((n, l) => n + (Array.isArray(l) ? l.length : 0), 0);
+    const nm = (id) => esc(CHAR_BY_ID[id] ? CHAR_BY_ID[id].name : '—');
+    const kv = (k, v) => `<li><span>${k}</span><b>${v}</b></li>`;
+    const el = h(`<div class="screen menu profile-screen">
+      <div class="pf-head" style="--ac:${aura ? aura.color : CHAR_BY_ID[avatar].aura}">
+        <div class="pf-avatar">${this.portrait(avatar, 'pf-portrait')}</div>
+        <div class="pf-id">
+          <input class="pf-name" type="text" maxlength="16" value="${esc(name)}" aria-label="Pseudo" data-nav>
+          ${title ? `<div class="pf-title"><span>${esc(title)}</span></div>` : ''}
+          <div class="pf-level"><b><span>Niveau</span> ${lv.level}</b>${lv.max ? ' <span>(maximum)</span>' : ` <small>${lv.cur} / ${lv.need} XP</small>`}</div>
+          <div class="pf-xp"><i style="width:${lv.max ? 100 : Math.round((lv.cur / lv.need) * 100)}%"></i></div>
+        </div>
+        <div class="pf-rank">${this.rankBadge(r, false)}<div class="pf-world">🌍 Top ${this.fmtTop(est.top)} % <em>(estimé)</em></div></div>
+      </div>
+      <div class="pf-showcase">${show.length ? show.map(({ c }) => `<div class="pf-trophy">🏆 <b>${esc(c[1])}</b></div>`).join('') : '<div class="pf-trophy empty"><span>Vitrine vide : choisis jusqu’à 3 succès ci-dessous</span></div>'}</div>
+      <div class="pf-grid">
+        <section><h3>Classé</h3><ul class="rk-kv">
+          ${kv('Rang', `${RANKS[r.tier].icon} <span>${esc(rankName(r))}</span>`)}${kv('Meilleur rang', esc(stepName(r.best)))}
+          ${kv('Victoires / défaites', `${r.wins} / ${r.losses}`)}${kv('Meilleure série', r.bestStreak)}
+          ${kv('Meilleur classement', `Top ${this.fmtTop(r.bestTop)} %`)}${kv('Aura équipée', aura ? `<span class="rk-aura" style="--ac:${aura.color}">${esc(aura.name)}</span>` : '—')}</ul></section>
+        <section><h3>Statistiques</h3><ul class="rk-kv">
+          ${kv('Temps de jeu', this.fmtTime((prof.data.playTime || 0) + (app.playAcc || 0)))}${kv('Combats joués', fights)}
+          ${kv('Victoires (tous modes)', st.wins || 0)}
+          ${kv('Classé · Histoire · Vagues · Infini · Libre', `${modes.ranked || 0} · ${modes.story || 0} · ${modes.waves || 0} · ${modes.endless || 0} · ${modes.free || 0}`)}
+          ${kv('Personnage favori', charFights[0] ? `${nm(charFights[0][0])} (${charFights[0][1]})` : '—')}
+          ${kv('Plus long combo', st.maxCombo || 0)}${kv('Parades parfaites', st.parries || 0)}${kv('Ultimes décisifs', st.ultFinish || 0)}
+          ${kv('Boss vaincus', st.bosses || 0)}${kv('Meilleur niveau en Vagues', Math.max(0, prof.levelUnlocked() - 1))}
+          ${kv('Record en Infini', prof.data.endless[0] ? prof.data.endless[0].score : 0)}</ul></section>
+        <section><h3>Progression</h3><ul class="rk-kv">
+          ${kv('Histoire', `${storyDone} / ${CHAPTERS.length}${prof.data.ending ? ` · <span>${prof.data.ending === 'redemption' ? 'La Rédemption' : 'Le Sceau'}</span>` : ''}`)}
+          ${kv('Combattants', `${owned.length} / ${CHARACTERS.length}`)}${kv('Bestiaire', `${seen} / ${MONSTERS.length}`)}
+          ${kv('Tenues achetées', costumes)}${kv('Titres et auras de rang', `${unlockedTitles(r).length} · ${unlockedAuras(r).length}`)}</ul>
+          <div class="pf-roster">${CHARACTERS.map((c) => `<span class="pf-char ${owned.includes(c.id) ? '' : 'lock'}">${this.portrait(c.id, 'mini')}${owned.includes(c.id) && prof.rank(c.id) ? `<small>${prof.rank(c.id)}</small>` : ''}</span>`).join('')}</div></section>
+        <section class="pf-ach"><h3><span>Succès</span> <em>${doneN} / ${CHALLENGES.length}</em></h3>
+          <p class="rk-note">Touche un succès obtenu pour l’ajouter à ta vitrine (3 au maximum).</p>
+          <div class="pf-achlist">${chStates.map(({ c, s }) => `<button class="pf-a ${s.done ? 'done' : ''} ${show.some((x) => x.c[0] === c[0]) ? 'shown' : ''}" ${s.done ? `data-nav data-show="${c[0]}"` : 'disabled'}>
+            <b>${s.done ? '🏆' : '🔒'} <span>${esc(c[1])}</span></b><small>${esc(c[2])}</small>${s.done ? '' : `<span class="pf-prog">${s.value} / ${s.goal}</span>`}</button>`).join('')}</div></section>
+      </div>
+      <div class="menu-list pf-actions">
+        <button class="btn" data-nav data-act="avatar"><span class="opt-line"><span>Avatar</span> : <span>${nm(avatar)}</span> ▸</span><small>parmi tes combattants</small></button>
+        <button class="btn gold" data-nav data-act="share">Partager ma carte<small>image à télécharger (Discord, réseaux…)</small></button>
+        <button class="btn ghost" data-nav data-act="back">Retour</button>
+      </div>
+    </div>`);
+    const input = el.querySelector('.pf-name');
+    input.addEventListener('change', () => {
+      app.settings.data.game.playerName = input.value.trim().slice(0, 16) || 'Joueur';
+      app.settings.save();
+    });
+    input.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') input.blur(); });
+    el.querySelectorAll('[data-show]').forEach((b) => b.addEventListener('click', () => {
+      const id = b.dataset.show;
+      let list = (prof.data.showcase || []).filter((x) => x !== id);
+      if (list.length === (prof.data.showcase || []).length) list = [...list, id].slice(-3);
+      prof.data.showcase = list;
+      prof.save();
+      this.profileScreen(onBack);
+    }));
+    el.querySelector('[data-act=avatar]').addEventListener('click', () => {
+      const list = owned.length ? owned : ['kael'];
+      prof.data.avatar = list[(list.indexOf(avatar) + 1) % list.length];
+      prof.save();
+      this.profileScreen(onBack);
+      this.focus(this.screen.el.querySelector('[data-act=avatar]'), false);
+    });
+    el.querySelector('[data-act=share]').addEventListener('click', () => this.shareCard());
+    el.querySelector('[data-act=back]').addEventListener('click', () => onBack());
+    this.show({ el, back: onBack });
+  }
+
+  /** Carte de profil en image (1200 × 630), à télécharger et partager. */
+  async shareCard() {
+    const app = this.app;
+    const prof = app.profile;
+    const r = prof.data.ranked;
+    const lv = levelFromXp(prof.data.xp);
+    const avatar = this.avatarOf();
+    const def = CHAR_BY_ID[avatar];
+    const aura = RANK_AURAS.find((a) => a.id === auraOf(r));
+    const col = aura ? aura.color : def.aura;
+    const est = estimate(r);
+    const W = 1200, H = 630;
+    const cv = document.createElement('canvas');
+    cv.width = W; cv.height = H;
+    const g = cv.getContext('2d');
+    const bg = g.createLinearGradient(0, 0, W, H);
+    bg.addColorStop(0, '#120a2a'); bg.addColorStop(1, '#05060a');
+    g.fillStyle = bg; g.fillRect(0, 0, W, H);
+    const glow = g.createRadialGradient(270, 330, 20, 270, 330, 330);
+    glow.addColorStop(0, col); glow.addColorStop(1, 'rgba(0,0,0,0)');
+    g.globalAlpha = 0.55; g.fillStyle = glow; g.fillRect(0, 0, 640, H); g.globalAlpha = 1;
+    // Portrait
+    const src = this.portraits[avatar];
+    if (src) {
+      const img = new Image();
+      await new Promise((res) => { img.onload = res; img.onerror = res; img.src = src; });
+      g.save(); g.beginPath(); g.arc(270, 330, 190, 0, Math.PI * 2); g.clip();
+      g.drawImage(img, 80, 140, 380, 380); g.restore();
+    }
+    g.lineWidth = 8; g.strokeStyle = col; g.beginPath(); g.arc(270, 330, 194, 0, Math.PI * 2); g.stroke();
+    const font = (s, w = 900) => `italic ${w} ${s}px 'Dela Gothic One', 'Arial Black', sans-serif`;
+    const text = (t, x, y, f, c, stroke = true) => { g.font = f; if (stroke) { g.lineWidth = 6; g.strokeStyle = '#000'; g.strokeText(t, x, y); } g.fillStyle = c; g.fillText(t, x, y); };
+    text('AURA', 520, 92, font(54), '#ffffff'); text('CLASH', 690, 92, font(54), '#ffd23f');
+    text(app.settings.data.game.playerName || tr('Joueur'), 520, 190, font(64), '#ffffff');
+    const title = titleOf(r);
+    if (title) text(`« ${tr(title)} »`, 520, 240, font(34, 800), '#ffd23f');
+    text(`${tr('Niveau')} ${lv.level}`, 520, 300, font(34, 800), '#7fe0ff');
+    text(`${RANKS[r.tier].icon} ${tr(RANKS[r.tier].name)}${r.tier === LEGEND ? '' : ` ${DIVISIONS[r.div]}`}`, 520, 370, font(48), RANKS[r.tier].color);
+    text(`${tr('Classement mondial')} ${tr('(estimé)')} : Top ${this.fmtTop(est.top)} %`, 520, 420, font(26, 700), '#c8c0e8', false);
+    const show = (prof.data.showcase || []).map((id) => CHALLENGES.find((c) => c[0] === id)).filter((c) => c && challengeState(prof, c).done);
+    show.forEach((c, i) => text(`🏆 ${tr(c[1])}`, 520, 480 + i * 40, font(26, 800), '#ffffff', false));
+    text(`${r.wins} ${tr('Victoires')} · ${tr('Meilleur rang')} : ${tr(stepName(r.best))}`, 520, 600, font(22, 600), '#a8a4c0', false);
+    const url = cv.toDataURL('image/png');
+    const box = h(`<div class="screen menu share-screen">
+      <h2 class="menu-title">MA CARTE</h2>
+      <img class="share-img" src="${url}" alt="">
+      <p class="rk-note">Si le téléchargement ne démarre pas, fais un clic droit (ou un appui long) sur l’image pour l’enregistrer.</p>
+      <div class="menu-list"><a class="btn gold" data-nav href="${url}" download="AuraClash-carte.png">Télécharger l’image</a>
+      <button class="btn ghost" data-nav data-act="back">Retour</button></div></div>`);
+    box.querySelector('[data-act=back]').addEventListener('click', () => this.profileScreen());
+    this.show({ el: box, back: () => this.profileScreen() });
+  }
+
   startRanked(charId) {
     const app = this.app;
     const r = app.profile.data.ranked;
@@ -862,6 +1026,7 @@ export class UI {
       <div class="rk-delta ${res.delta < 0 ? 'neg' : ''}">${res.delta >= 0 ? '+' : ''}${res.delta} <span>Points d’Aura</span></div>
       ${lines ? `<ul class="rk-lines">${lines}</ul>` : ''}
       ${res.ryo ? `<div class="reward">+${res.ryo} Ryō <small>(total : ${prof.ryo})</small></div>` : ''}
+      ${battle.xpGain ? `<div class="xp-gain">+${battle.xpGain} XP</div>` : ''}
       ${this.worldRankHtml(r, battle.rankedRes.passed)}
     </div>`));
     this.show({ el });
@@ -1277,7 +1442,7 @@ export class UI {
     });
     el.prepend(h(`<div class="result-head"><div class="result-big ${team < 0 ? '' : 'win'}">${winner}</div>
       <div class="result-portraits">${winIds.map((id) => this.portrait(id, 'big')).join('')}</div>
-      <div class="result-sub">${esc(sub)}</div>${reward ? `<div class="reward">+${reward} Ryō <small>(total : ${this.app.profile.ryo})</small></div>` : ''}${role === 'client' ? '<div class="result-wait">En attente de l’hôte…</div>' : ''}</div>`));
+      <div class="result-sub">${esc(sub)}</div>${reward ? `<div class="reward">+${reward} Ryō <small>(total : ${this.app.profile.ryo})</small></div>` : ''}${battle.xpGain ? `<div class="xp-gain">+${battle.xpGain} XP</div>` : ''}${role === 'client' ? '<div class="result-wait">En attente de l’hôte…</div>' : ''}</div>`));
     this.show({ el });
   }
 
