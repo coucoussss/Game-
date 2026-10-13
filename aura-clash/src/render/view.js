@@ -803,6 +803,11 @@ export class MatchView {
           break;
         case 'hit': {
           const big = ev.kind === 'heavy' || ev.kind === 'launch' || ev.kind === 'kd';
+          // Coups qui projettent : la terre gicle sous les pieds de la victime
+          if (!ev.blocked && (ev.kind === 'launch' || ev.kind === 'kd') && ev.tgt != null) {
+            const tg = state.fighters[ev.tgt];
+            if (tg && tg.y < 0.6) this.debris.burst(tg.x, tg.z, { count: ev.dmg >= 60 ? 9 : 5, power: ev.dmg >= 60 ? 7 : 5, spread: 0.6, up: 0.75, size: [0.05, 0.2] });
+          }
           if (ev.blocked) {
             p.emit({ x: ev.x, y: ev.y, z: ev.z, count: 14, speed: 7, color: '#8ac8ff', size: 0.18, life: 0.25, drag: 5 });
             fx.burstRing(ev.x, ev.y, ev.z, 0.3, 1.0, 0.18, '#8ac8ff', cam);
@@ -896,6 +901,8 @@ export class MatchView {
           const def = this.models[ev.id] ? this.models[ev.id].def : CHAR_BY_ID[ev.charId];
           const col = f.transformed ? def.auraAlt || def.aura : def.aura;
           this.cineChar = ev.charId;
+          this.cineFighter = ev.id;
+          this.cineColor = col;
           this.director.start(this.models[ev.id].model, f, col, ev.dur);
           a.shout(def.look.body === 'f', 1, def.monster ? 'o' : 'a');
           this.overlay.cinematic(ev.text, col, def.name, ev.dur);
@@ -912,6 +919,25 @@ export class MatchView {
           // Le sabreur suspend le temps : monde en noir et blanc jusqu'à la coupe
           if (this.cineChar === 'ren') this.overlay.mono(0.85);
           a.play('ultRelease');
+          // Tous les ultimes : l'aura explose au sortir de la cinématique, le sol se fissure et des rochers
+          // se mettent à léviter (ils seront projetés par l'impact final). Kael a sa propre phase de charge.
+          if (this.cineFighter != null && this.cineChar !== 'kael') {
+            const uf = state.fighters[this.cineFighter];
+            if (uf) {
+              const col = this.cineColor || '#ffffff';
+              this.debris.levitate(uf.x, uf.z, 10, 3.5);
+              this.debris.crater(uf.x, uf.z, 2, 7);
+              fx.shockSphere(uf.x, uf.y + 1, uf.z, 0.4, 3.2, 0.4, col);
+              fx.groundRing(uf.x, 0.05, uf.z, 0.4, 6, 0.6, col);
+              fx.light(uf.x, uf.y + 1, uf.z, col, 12, 0.6, 14);
+              p.emit({ x: uf.x, y: uf.y + 1, z: uf.z, count: 70, speed: 12, color: col, size: 0.35, life: 0.6, drag: 2.5 });
+              for (let i = 0; i < 5; i++) {
+                const ang = Math.random() * Math.PI * 2;
+                fx.lightning(uf.x, uf.y + 1.2, uf.z, uf.x + Math.cos(ang) * 3, 0.05, uf.z + Math.sin(ang) * 3, col, 6);
+              }
+            }
+          }
+          this.cineFighter = null;
           break;
         case 'impact': {
           tmp.set(ev.x, ev.y, ev.z).project(cam);
@@ -922,6 +948,13 @@ export class MatchView {
           this.stage.rig.addPunch(8);
           if (this.cineChar === 'ren' || this.cineChar === 'kage') this.overlay.screenSlash(this.cineChar === 'ren' ? '#9ff8ff' : '#b07aff', this.cineChar === 'ren' ? -14 : 22);
           this.stage.effects.burstRing(ev.x, ev.y, ev.z, 0.5, 5, 0.3, '#ffffff', cam);
+          // Coup décisif d'un spécial ou d'un ultime : le sol éclate, les rochers en lévitation sont projetés
+          this.debris.release(ev.x, ev.z, 9, 15);
+          if (ev.y < 3) {
+            this.debris.burst(ev.x, ev.z, { count: 18, power: 10, spread: 1.2, up: 0.6 });
+            this.debris.crater(ev.x, ev.z, 2.2, 7);
+            this.stage.effects.groundRing(ev.x, 0.05, ev.z, 0.5, 6, 0.5, this.cineColor || '#ffffff');
+          }
           a.play('impact');
           break;
         }
@@ -1017,6 +1050,15 @@ export class MatchView {
         case 'special': {
           this.hud.moveName(ev.id, ev.name);
           const sp = state.fighters[ev.id];
+          // Tous les spéciaux : l'aura s'embrase un instant aux pieds du combattant
+          if (sp) {
+            const vmS = this.models[ev.id];
+            const col = vmS ? (sp.transformed ? vmS.def.auraAlt || vmS.def.aura : vmS.def.aura) : '#ffffff';
+            fx.groundRing(sp.x, 0.05, sp.z, 0.3, 3.2, 0.35, col);
+            fx.light(sp.x, sp.y + 1, sp.z, col, 6, 0.35, 8);
+            p.emit({ x: sp.x, y: sp.y + 1, z: sp.z, count: 30, speed: -6, spread: 2.2, color: col, size: 0.22, life: 0.3, drag: 0, hdr: 2 });
+            if (sp.y < 0.3) this.debris.burst(sp.x, sp.z, { count: 5, power: 4.5, spread: 0.8, up: 0.85, size: [0.05, 0.16] });
+          }
           if (sp && sp.def) a.shout(sp.def.look.body === 'f', 0.35, 'e');
           break;
         }
@@ -1207,6 +1249,7 @@ export class MatchView {
         break;
       }
       case 'projHit':
+        if (ev.y < 1.2) this.debris.burst(ev.x, ev.z, { count: 3, power: 4, spread: 0.3, size: [0.04, 0.14] });
         p.emit({ x: ev.x, y: ev.y, z: ev.z, count: 12, speed: 6, color: PROJ_COLORS[ev.kind] || '#ffffff', size: 0.25, life: 0.25 });
         break;
       case 'aoeBoom': {
