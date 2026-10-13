@@ -195,42 +195,47 @@ export class UI {
     const prof = this.app.profile;
     const done = CHAPTERS.filter((c) => prof.hasCleared(c.id)).length;
     const pending = pendingChallenges(prof).length;
-    // Tuiles : les modes de jeu en grand, la progression en plus petit
-    const play = [
-      { kanji: '物', label: 'Mode Histoire', hint: `${done} / ${CHAPTERS.length} chapitres · récits`, color: '#ff8a3a', action: () => this.storyMenu() },
-      { kanji: '波', label: 'Mode Vagues', hint: `niveau ${Math.min(WAVE_LEVELS, prof.levelUnlocked())} / ${WAVE_LEVELS} · boss · infini`, color: '#ff3a5a', action: () => this.wavesMenu() },
-      { kanji: '級', label: 'Classé', hint: this.rankText(this.rankedState()), color: '#ffd23f', badge: dailyAvailable(prof.data.ranked) ? '×2' : '', action: () => this.rankedMenu() },
-      { kanji: '戦', label: 'Combat libre', hint: 'versus, 2 contre 2, réseau, entraînement', color: '#5ab4ff', action: () => this.freeMenu() },
-      { kanji: '学', label: 'Tutoriel', hint: prof.data.tutorialDone ? 'revoir les techniques' : `les bases — +${TUTORIAL_REWARD} Ryō`, color: '#7fffb0', badge: prof.data.tutorialDone ? '' : 'NEW', action: () => this.charSelect([{ label: 'TUTORIEL', team: 0, ctrl: { type: 'human', player: 0 } }], (fs) => new Tutorial(this.app, fs[0].charId).start(), () => this.mainMenu()) },
+    const r = this.rankedState();
+    // Modes de jeu : une seule colonne, le Classé en tête ; le détail n'apparaît qu'au survol
+    const modes = [
+      { kanji: '級', label: 'Classé', hint: this.rankText(r), color: '#ffd23f', badge: dailyAvailable(r) ? '×2' : '', hero: true, action: () => this.rankedMenu() },
+      { kanji: '物', label: 'Mode Histoire', hint: `${done} / ${CHAPTERS.length} chapitres`, color: '#ff8a3a', action: () => this.storyMenu() },
+      { kanji: '波', label: 'Mode Vagues', hint: `niveau ${Math.min(WAVE_LEVELS, prof.levelUnlocked())} / ${WAVE_LEVELS}`, color: '#ff3a5a', action: () => this.wavesMenu() },
+      { kanji: '戦', label: 'Combat libre', hint: 'versus, 2 contre 2, entraînement', color: '#5ab4ff', action: () => this.freeMenu() },
+      { kanji: '学', label: 'Tutoriel', hint: prof.data.tutorialDone ? 'revoir les techniques' : `+${TUTORIAL_REWARD} Ryō`, color: '#7fffb0', badge: prof.data.tutorialDone ? '' : 'NEW', action: () => this.charSelect([{ label: 'TUTORIEL', team: 0, ctrl: { type: 'human', player: 0 } }], (fs) => new Tutorial(this.app, fs[0].charId).start(), () => this.mainMenu()) },
     ];
-    const meta = [
-      { kanji: '強', label: 'Améliorations', hint: 'stats, techniques, tenues', action: () => this.upgrades() },
-      { kanji: '店', label: 'Boutique', hint: 'nouveaux combattants', action: () => this.shop() },
-      { kanji: '賞', label: 'Défis', hint: `${CHALLENGES.filter((c) => challengeState(prof, c).claimed).length} / ${CHALLENGES.length} réclamés`, badge: pending ? String(pending) : '', action: () => this.challenges() },
-      { kanji: '己', label: 'Profil', hint: `${esc(this.app.settings.data.game.playerName || 'Joueur')} · niv. ${levelFromXp(prof.data.xp).level}`, color: '#7fe0ff', action: () => this.profileScreen() },
-      { kanji: '画', label: 'Galerie', hint: 'modèles 3D et auras', action: () => this.gallery() },
+    // Barre du bas : progression et réglages, en petites icônes
+    const bar = [
+      { icon: '強', label: 'Améliorations', action: () => this.upgrades() },
+      { icon: '店', label: 'Boutique', action: () => this.shop() },
+      { icon: '賞', label: 'Défis', badge: pending ? String(pending) : '', action: () => this.challenges() },
+      { icon: '画', label: 'Galerie', action: () => this.gallery() },
+      { icon: '⚙', label: 'Options', action: () => this.options(() => this.mainMenu()) },
+      { icon: '🌐', label: lang === 'fr' ? 'English' : 'Français', action: () => setLang(lang === 'fr' ? 'en' : 'fr') },
+      ...(electron ? [{ icon: '⏻', label: 'Quitter', action: () => window.auraNative.quit() }] : []),
     ];
-    const sys = [
-      { label: 'Options', action: () => this.options(() => this.mainMenu()) },
-      { label: lang === 'fr' ? '🌐 English' : '🌐 Français', cls: 'ghost', action: () => setLang(lang === 'fr' ? 'en' : 'fr') },
-      ...(electron ? [{ label: 'Quitter', cls: 'ghost', action: () => window.auraNative.quit() }] : []),
-    ];
-    const tile = (t, i, kind) => `<button class="tile ${kind}" data-nav data-k="${kind}" data-i="${i}" style="--c:${t.color || '#ffd23f'}">
-      <span class="t-kanji">${t.kanji}</span><span class="t-txt"><b>${t.label}</b><small>${t.hint}</small></span>
-      ${t.badge ? `<span class="t-badge">${t.badge}</span>` : ''}</button>`;
-    const el = h(`<div class="screen main-menu home">
-      <div class="home-head"><div class="menu-logo"><span class="logo-a">AURA</span><span class="logo-b">CLASH</span></div><div class="wallet">${prof.ryo} <small>Ryō</small>${titleOf(prof.data.ranked) ? `<div class="wallet-title"><span>${esc(titleOf(prof.data.ranked))}</span></div>` : ''}</div></div>
-      <div class="home-label">JOUER</div>
-      <div class="tiles play">${play.map((t, i) => tile(t, i, 'play')).join('')}</div>
-      <div class="home-label">PROGRESSION</div>
-      <div class="tiles meta">${meta.map((t, i) => tile(t, i, 'meta')).join('')}</div>
-      <div class="home-foot">${sys.map((b, i) => `<button class="btn small ${b.cls || ''}" data-nav data-k="sys" data-i="${i}">${b.label}</button>`).join('')}
-        <span class="controls-hint">Flèches / manette : naviguer — Entrée / A : valider — Échap / B : retour</span></div>
+    const lv = levelFromXp(prof.data.xp);
+    const title = titleOf(r);
+    const el = h(`<div class="screen main-menu home2">
+      <header class="h2-top">
+        <div class="menu-logo"><span class="logo-a">AURA</span><span class="logo-b">CLASH</span></div>
+        <button class="h2-player" data-nav data-k="profile">
+          ${this.portrait(this.avatarOf(), 'h2-avatar')}
+          <span class="h2-who"><b>${esc(this.app.settings.data.game.playerName || 'Joueur')}</b><small><span>Niv.</span> ${lv.level}${title ? ` · <span>${esc(title)}</span>` : ''}</small></span>
+          <span class="h2-ryo">${prof.ryo} <small>Ryō</small></span>
+        </button>
+      </header>
+      <nav class="h2-modes">${modes.map((m, i) => `<button class="h2-mode ${m.hero ? 'hero' : ''}" data-nav data-k="modes" data-i="${i}" style="--c:${m.color}">
+        <span class="h2-k">${m.kanji}</span><span class="h2-t"><b>${m.label}</b><small>${m.hint}</small></span>${m.badge ? `<span class="h2-badge">${m.badge}</span>` : ''}</button>`).join('')}</nav>
+      <footer class="h2-bar">${bar.map((b, i) => `<button class="h2-ico" data-nav data-k="bar" data-i="${i}"><span class="h2-ico-k">${b.icon}</span><span class="h2-ico-l">${b.label}</span>${b.badge ? `<span class="h2-badge">${b.badge}</span>` : ''}</button>`).join('')}</footer>
     </div>`);
-    const lists = { play, meta, sys };
-    el.querySelectorAll('[data-k]').forEach((b) => b.addEventListener('click', () => lists[b.dataset.k][Number(b.dataset.i)].action()));
+    const lists = { modes, bar };
+    el.querySelectorAll('[data-k]').forEach((b) => b.addEventListener('click', () => {
+      if (b.dataset.k === 'profile') this.profileScreen();
+      else lists[b.dataset.k][Number(b.dataset.i)].action();
+    }));
     this.show({ el, back: () => this.title() });
-    this.focus(el.querySelector('.tile'), false);
+    this.focus(el.querySelector('.h2-mode'), false);
   }
 
   // --- Préparation des combats --------------------------------------------------------------
@@ -1045,25 +1050,28 @@ export class UI {
       promoFailed: '<div class="rk-banner fail"><span>Promotion ratée — retente ta chance !</span></div>',
       divUp: `<div class="rk-banner up">▲ <span>Division supérieure</span> : <span>${esc(RANKS[r.tier].name)}</span> ${DIVISIONS[r.div]}</div>`,
     }[res.event] || '';
-    const lines = res.lines.map(([label, n]) => `<li><span>${esc(label)}</span><b class="${n < 0 ? 'neg' : ''}">${n >= 0 ? '+' : ''}${n}</b></li>`).join('');
-    const el = this.menu('', [
-      { label: r.promo ? 'Combat de promotion' : 'Combat suivant', cls: r.promo ? 'gold' : '', action: () => this.startRanked(charId) },
-      { label: 'Changer de combattant', action: () => { app.endBattle(false); this.charSelect([{ label: 'CLASSÉ', team: 0, ctrl: { type: 'human', player: 0 } }], (fs) => this.startRanked(fs[0].charId), () => this.rankedMenu()); } },
-      ...(battle.rec && app.lastReplay === battle.rec ? [{ label: 'Revoir le combat', hint: 'replay : ralenti, pause', action: () => app.startReplay(() => this.rankedMenu()) }] : []),
-      { label: 'Menu Classé', action: () => { app.endBattle(false); this.rankedMenu(); } },
-      { label: 'Menu principal', cls: 'ghost', action: () => app.endBattle() },
-    ], { cls: 'results ranked-result' });
-    el.prepend(h(`<div class="result-head">
-      <div class="result-big ${team === 0 ? 'win' : ''}">${big}</div>
-      ${banner}
-      <div class="rk-result">${this.rankBadge(r, false)}${this.rankBar(r, from)}</div>
-      <div class="rk-delta ${res.delta < 0 ? 'neg' : ''}">${res.delta >= 0 ? '+' : ''}${res.delta} <span>Points d’Aura</span></div>
-      ${lines ? `<ul class="rk-lines">${lines}</ul>` : ''}
-      ${res.ryo ? `<div class="reward">+${res.ryo} Ryō <small>(total : ${prof.ryo})</small></div>` : ''}
-      ${battle.xpGain ? `<div class="xp-gain">+${battle.xpGain} XP</div>` : ''}
-      ${this.worldRankHtml(r, battle.rankedRes.passed)}
-    </div>`));
-    this.show({ el });
+    // Détail des points : pastilles discrètes (seulement les bonus, la victoire est implicite)
+    const bonus = res.lines.filter(([label]) => label !== 'Victoire' && label !== 'Défaite').map(([label, n]) => `<span class="r2-bonus ${n < 0 ? 'neg' : ''}"><span>${esc(label)}</span> ${n >= 0 ? '+' : ''}${n}</span>`).join('');
+    const est = estimate(r);
+    const passed = battle.rankedRes.passed;
+    const el = this.resultScreen({
+      big, win: team === 0, banner,
+      card: `<div class="rk-result">${this.rankBadge(r, false)}${this.rankBar(r, from)}</div>
+        <div class="rk-delta ${res.delta < 0 ? 'neg' : ''}">${res.delta >= 0 ? '+' : ''}${res.delta} <span>Points d’Aura</span></div>
+        ${bonus ? `<div class="r2-bonuses">${bonus}</div>` : ''}`,
+      chips: [
+        res.ryo ? [`+${res.ryo} Ryō`, 'gold'] : null,
+        battle.xpGain ? [`+${battle.xpGain} XP`, 'xp'] : null,
+        [`🌍 Top ${this.fmtTop(est.top)} %${passed > 0 ? ` · ▲ ${this.fmtNum(passed)}` : ''}`, 'world'],
+      ],
+      primary: { label: r.promo ? 'Combat de promotion' : 'Combat suivant', cls: r.promo ? 'gold' : '', action: () => this.startRanked(charId) },
+      secondary: [
+        { label: 'Changer de combattant', action: () => { app.endBattle(false); this.charSelect([{ label: 'CLASSÉ', team: 0, ctrl: { type: 'human', player: 0 } }], (fs) => this.startRanked(fs[0].charId), () => this.rankedMenu()); } },
+        ...(battle.rec && app.lastReplay === battle.rec ? [{ label: 'Revoir le combat', action: () => app.startReplay(() => this.rankedMenu()) }] : []),
+        { label: 'Menu Classé', action: () => { app.endBattle(false); this.rankedMenu(); } },
+        { label: 'Menu principal', action: () => app.endBattle() },
+      ],
+    });
     this.animateBars(el);
   }
 
@@ -1455,6 +1463,20 @@ export class UI {
     }
     let buttons;
     if (role === 'local') {
+      const replay = battle.rec && this.app.lastReplay === battle.rec;
+      this.resultScreen({
+        big: winner, win: team >= 0, sub: `<div class="result-portraits">${winIds.map((id) => this.portrait(id, 'big')).join('')}</div><span>${esc(sub)}</span>`,
+        chips: [reward ? [`+${reward} Ryō`, 'gold'] : null, battle.xpGain ? [`+${battle.xpGain} XP`, 'xp'] : null],
+        primary: { label: 'Revanche', action: () => this.app.restartBattle() },
+        secondary: [
+          ...(replay ? [{ label: 'Revoir le combat', action: () => this.app.startReplay(() => this.mainMenu()) }] : []),
+          { label: 'Changer de combattants', action: () => { this.app.endBattle(false); this.reselect(battle.cfg); } },
+          { label: 'Menu principal', action: () => this.app.endBattle() },
+        ],
+      });
+      return;
+    }
+    if (role === 'local') {
       buttons = [
         { label: 'Revanche', action: () => this.app.restartBattle() },
         ...(battle.rec && this.app.lastReplay === battle.rec ? [{ label: 'Revoir le combat', hint: 'replay : ralenti, pause', action: () => this.app.startReplay(() => this.mainMenu()) }] : []),
@@ -1478,6 +1500,28 @@ export class UI {
       <div class="result-portraits">${winIds.map((id) => this.portrait(id, 'big')).join('')}</div>
       <div class="result-sub">${esc(sub)}</div>${reward ? `<div class="reward">+${reward} Ryō <small>(total : ${this.app.profile.ryo})</small></div>` : ''}${battle.xpGain ? `<div class="xp-gain">+${battle.xpGain} XP</div>` : ''}${role === 'client' ? '<div class="result-wait">En attente de l’hôte…</div>' : ''}</div>`));
     this.show({ el });
+  }
+
+  /**
+   * Écran d'après-match épuré : grand titre, une carte (rang, gains), une rangée de pastilles,
+   * un bouton principal et des actions secondaires plus discrètes.
+   * opts : { big, win, sub, banner, card, chips: [[texte, classe]], primary: { label, action, cls }, secondary: [{ label, action }] }
+   */
+  resultScreen(opts) {
+    const chips = (opts.chips || []).filter(Boolean).map(([t, c]) => `<span class="r2-chip ${c || ''}">${t}</span>`).join('');
+    const el = h(`<div class="screen results r2">
+      <div class="r2-head"><div class="result-big ${opts.win ? 'win' : ''}">${opts.big}</div>${opts.sub ? `<div class="r2-sub">${opts.sub}</div>` : ''}${opts.banner || ''}</div>
+      ${opts.card ? `<div class="r2-card">${opts.card}</div>` : ''}
+      ${chips ? `<div class="r2-chips">${chips}</div>` : ''}
+      <div class="r2-actions">
+        <button class="btn r2-primary ${opts.primary.cls || ''}" data-nav data-r="p">${opts.primary.label}</button>
+        <div class="r2-row">${(opts.secondary || []).map((b, i) => `<button class="btn small ghost" data-nav data-r="${i}">${b.label}</button>`).join('')}</div>
+      </div>
+    </div>`);
+    el.querySelectorAll('[data-r]').forEach((b) => b.addEventListener('click', () => (b.dataset.r === 'p' ? opts.primary.action() : opts.secondary[Number(b.dataset.r)].action())));
+    this.show({ el });
+    this.focus(el.querySelector('.r2-primary'), false);
+    return el;
   }
 
   reselect(cfg) {
