@@ -1,5 +1,6 @@
 // Affichage d'un match : relie l'état de la simulation (local, ou reçu de l'hôte en LAN)
 // aux modèles 3D, aux effets, au son et à l'interface. Ne modifie jamais la simulation.
+import { DebrisSystem } from './debris.js';
 import { withRankAura } from '../game/ranked.js';
 import * as THREE from 'three';
 import { CharacterModel, buildFox, buildDragon, strikeTime, ANIMS } from './model.js';
@@ -34,6 +35,7 @@ export class MatchView {
     this.ghosts = [];
     this.cineChar = null;
     this.hazardView = new HazardView(stage);
+    this.debris = new DebrisSystem(stage);
   }
 
   /** Crée les modèles des combattants. `fighters` : [{ charId, team }] */
@@ -53,6 +55,7 @@ export class MatchView {
 
   detach() {
     this.hazardView.clear();
+    this.debris.clear();
     for (const m of this.models) {
       this.stage.scene.remove(m.model.root);
       m.model.dispose();
@@ -72,6 +75,7 @@ export class MatchView {
   update(dt, state) {
     const p = this.stage.particles;
     this.director.update(dt);
+    this.debris.update(dt);
     this.updateGhosts(dt);
     const cineId = state.cine ? state.cine.id : -1;
     state.fighters.forEach((f, i) => {
@@ -95,6 +99,16 @@ export class MatchView {
         intro: state.phase === 'intro' && !state.training,
       });
       this.fighterFx(dt, vm, f, p, frozen);
+      // Un combattant projeté s'écrase au sol : débris et poussière (plus il tombe de haut, plus c'est violent)
+      if (!frozen && vm.prevY !== undefined && vm.prevY > 0.8 && f.y < 0.25 && (f.state === 'knockdown' || f.state === 'ko' || f.state === 'hitstun')) {
+        const k = Math.min(1.8, 0.5 + vm.peakY / 3);
+        this.debris.burst(f.x, f.z, { count: 7 * k, power: 4.5 * k, spread: 0.8, up: 0.75 });
+        p.emit({ x: f.x, y: 0.1, z: f.z, count: Math.round(14 * k), flat: true, speed: 4 * k, color: '#c8b8a0', size: 0.6, sizeEnd: 1.1, life: 0.5, hdr: 0.45, drag: 3 });
+        if (vm.peakY > 2.2) this.debris.crater(f.x, f.z, 0.7 * k, 5);
+        vm.peakY = 0;
+      }
+      if (f.y > 0.3) vm.peakY = Math.max(vm.peakY || 0, f.y);
+      vm.prevY = f.y;
     });
     if (dt > 0) this.auraClash(dt, state);
     this.hazardView.update(dt, state);
@@ -420,9 +434,29 @@ export class MatchView {
       const bv = new BeamVisual(scene, e.color || auraColor);
       let pt = 0;
       let ringT = 0;
+      let trenchT = 0;
+      let scorchT = 0;
+      let last = null;
       return {
         update: (dt, en) => {
           bv.update(dt, en);
+          last = { x: en.x + en.dx * en.len, y: en.y + en.dy * en.len, z: en.z + en.dz * en.len, col: en.color || auraColor };
+          // Le rayon rase le sol : il arrache la terre sur son passage et laisse une tranchée brûlée
+          if (en.y < 2.6 && dt > 0) {
+            trenchT -= dt;
+            scorchT -= dt;
+            const dl = Math.hypot(en.dx, en.dz) || 1;
+            if (trenchT <= 0) {
+              trenchT = 0.035;
+              const d = 0.8 + Math.random() * Math.max(0.5, en.len - 0.8);
+              this.debris.burst(en.x + en.dx * d, en.z + en.dz * d, { count: 2, power: 6.5, spread: en.width * 0.8, up: 0.8, dir: [en.dx / dl, en.dz / dl], dirAmt: 3.5, size: [0.06, 0.24] });
+            }
+            if (scorchT <= 0) {
+              scorchT = 0.12;
+              const d = 1 + Math.random() * Math.max(0.5, en.len - 1);
+              this.debris.crater(en.x + en.dx * d, en.z + en.dz * d, en.width * 1.3, 6);
+            }
+          }
           pt -= dt;
           if (pt <= 0) {
             pt = 0.016;
@@ -441,7 +475,20 @@ export class MatchView {
             this.stage.rig.addShake(0.04);
           }
         },
-        dispose: () => bv.dispose(),
+        dispose: () => {
+          bv.dispose();
+          // Fin du rayon : explosion au point d'impact
+          if (last) {
+            const fx = this.stage.effects;
+            fx.shockSphere(last.x, Math.max(0.5, last.y), last.z, 0.6, 4.5, 0.55, last.col);
+            fx.groundRing(last.x, 0.05, last.z, 0.5, 7, 0.7, last.col);
+            fx.flash(last.x, last.y, last.z, 9, 0.25, '#ffffff');
+            fx.light(last.x, last.y, last.z, last.col, 18, 0.7, 22);
+            p.emit({ x: last.x, y: last.y, z: last.z, count: 120, speed: 18, color: last.col, size: 0.5, life: 0.7, drag: 2.5 });
+            if (last.y < 3) { this.debris.burst(last.x, last.z, { count: 30, power: 12, spread: 1.4, up: 0.55 }); this.debris.crater(last.x, last.z, 2.6, 8); }
+            this.stage.rig.addShake(0.6);
+          }
+        },
       };
     }
 
@@ -456,6 +503,7 @@ export class MatchView {
         g.scale.set(en.r, 1, en.r);
         mat.opacity = Math.max(0, 1 - en.r / (en.maxR || 8));
         const a = Math.random() * Math.PI * 2;
+        if (Math.random() < 0.6) this.debris.burst(en.x + Math.sin(a) * en.r, en.z + Math.cos(a) * en.r, { count: 1, power: 6, spread: 0.2, up: 0.6, dir: [Math.sin(a), Math.cos(a)], dirAmt: 4 });
         p.emit({ x: en.x + Math.sin(a) * en.r, y: 0.2, z: en.z + Math.cos(a) * en.r, count: 3, dir: [Math.sin(a), 0.8, Math.cos(a)], cone: 0.3, speed: 4, color: '#d8c8a8', size: 0.35, life: 0.4, hdr: 0.6 });
       });
     }
@@ -886,6 +934,15 @@ export class MatchView {
           const def = CHAR_BY_ID[f.charId];
           fx.shockSphere(ev.x, ev.y, ev.z, 0.5, 6, 0.6, def.auraAlt || def.aura);
           fx.groundRing(ev.x, 0, ev.z, 0.5, 9, 0.7, def.auraAlt || def.aura);
+          fx.groundRing(ev.x, 0.04, ev.z, 0.3, 5, 0.45, '#ffffff');
+          this.debris.release(ev.x, ev.z, 7.5, 16);
+          this.debris.burst(ev.x, ev.z, { count: 26, power: 11, spread: 1.4, up: 0.45 });
+          this.debris.crater(ev.x, ev.z, 3, 8);
+          for (let i = 0; i < 10; i++) {
+            const a = (i / 10) * Math.PI * 2;
+            fx.lightning(ev.x, ev.y, ev.z, ev.x + Math.cos(a) * 5, 0.1, ev.z + Math.sin(a) * 5, def.auraAlt || def.aura, 7);
+          }
+          this.stage.rig.addPunch(6);
           fx.light(ev.x, ev.y + 1, ev.z, def.auraAlt || def.aura, 12.0, 0.8, 16);
           p.emit({ x: ev.x, y: ev.y, z: ev.z, count: 120, speed: 16, color: def.auraAlt || def.aura, size: 0.4, life: 0.8, drag: 2 });
           this.overlay.flash(def.auraAlt || '#ffffff', 0.3);
@@ -955,6 +1012,72 @@ export class MatchView {
         p.emit({ x: ev.x, y: ev.y, z: ev.z, count: 14, speed: 8, color: c, size: 0.2, life: 0.3 });
         fx.burstRing(ev.x, ev.y, ev.z, 0.2, 1.4, 0.15, c, cam);
         break;
+      case 'powerupGather': {
+        // Kael libère son aura : les rochers se détachent du sol et lévitent, des éclairs crépitent,
+        // une colonne de lumière dorée s'élève
+        this.debris.levitate(ev.x, ev.z, 16, 3.4);
+        p.emit({ x: ev.x, y: ev.y, z: ev.z, count: 90, speed: -10, spread: 4.5, color: '#ffd23f', size: 0.28, life: 0.45, drag: 0, hdr: 2.2 });
+        fx.groundRing(ev.x, 0.05, ev.z, 5.5, 0.6, 0.9, '#ffd23f');
+        fx.light(ev.x, ev.y + 1.5, ev.z, '#ffd23f', 10, 1.1, 14);
+        for (let i = 0; i < 6; i++) {
+          const a = Math.random() * Math.PI * 2;
+          fx.lightning(ev.x + Math.cos(a) * 0.6, ev.y + 1.6, ev.z + Math.sin(a) * 0.6, ev.x + Math.cos(a) * 3, 0.05, ev.z + Math.sin(a) * 3, '#fff3a0', 7);
+        }
+        const col = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.3, 14, 20, 1, true), glowMat('#ffd23f', 2.4, 0.5));
+        col.position.set(ev.x, 7, ev.z);
+        fx.add(col, (k) => {
+          col.scale.set(0.4 + k * 1.2, Math.min(1, k * 4), 0.4 + k * 1.2);
+          col.material.opacity = 0.55 * (k < 0.8 ? 1 : (1 - k) / 0.2);
+          col.rotation.y = k * 6;
+        }, 1.05);
+        this.overlay.manga('ゴゴゴ', 30, 65);
+        this.stage.rig.addShake(0.25);
+        break;
+      }
+      case 'kiOrbCharge': {
+        // Super sphère : un orbe de ki grossit entre les mains de Kael, des éclairs s'y enroulent
+        const f = ev.id != null ? state.fighters[ev.id] : null;
+        const yaw = f ? f.yaw : 0;
+        const ox = ev.x + Math.sin(yaw) * 0.7, oz = ev.z + Math.cos(yaw) * 0.7, oy = ev.y + 0.2;
+        const orb = new THREE.Group();
+        const core = new THREE.Mesh(fx.sphereGeo, glowMat('#ffffff', 3));
+        const shell = new THREE.Mesh(fx.sphereGeo, glowMat('#ffe05a', 2, 0.55));
+        shell.scale.setScalar(1.6);
+        orb.add(core, shell);
+        orb.position.set(ox, oy, oz);
+        fx.add(orb, (k) => {
+          const s = 0.1 + k * 0.75;
+          orb.scale.setScalar(s * (1 + Math.sin(k * 60) * 0.06));
+          shell.material.opacity = 0.55 * (1 - Math.max(0, k - 0.85) / 0.15);
+          if (Math.random() < 0.5) fx.lightning(ox, oy, oz, ox + (Math.random() - 0.5) * 2.4, oy + (Math.random() - 0.5) * 2, oz + (Math.random() - 0.5) * 2.4, '#fff3a0', 4);
+        }, 0.33);
+        p.emit({ x: ox, y: oy, z: oz, count: 60, speed: -7, spread: 2.6, color: '#ffe05a', size: 0.22, life: 0.35, drag: 0, hdr: 2 });
+        fx.light(ox, oy, oz, '#ffe05a', 8, 0.5, 10);
+        break;
+      }
+      case 'beamCharge': {
+        // Rayon Dévastateur : charge du ki, rochers qui lévitent, sol qui se fissure, sphère d'énergie
+        const f = ev.id != null ? state.fighters[ev.id] : null;
+        const yaw = f ? f.yaw : 0;
+        const ox = ev.x - Math.sin(yaw) * 0.2, oz = ev.z - Math.cos(yaw) * 0.2, oy = ev.y + 0.15;
+        this.debris.levitate(ev.x, ev.z, 14, 3);
+        this.debris.crater(ev.x, ev.z, 2.2, 6);
+        const ball = new THREE.Group();
+        const core = new THREE.Mesh(fx.sphereGeo, glowMat('#ffffff', 3.4));
+        const shell = new THREE.Mesh(fx.sphereGeo, glowMat(c, 2.2, 0.6));
+        shell.scale.setScalar(1.8);
+        ball.add(core, shell);
+        ball.position.set(ox, oy, oz);
+        fx.add(ball, (k) => {
+          ball.scale.setScalar(0.1 + k * 0.5 * (1 + Math.sin(k * 80) * 0.08));
+          if (Math.random() < 0.6) fx.lightning(ox, oy, oz, ox + (Math.random() - 0.5) * 3, oy + (Math.random() - 0.5) * 2.4, oz + (Math.random() - 0.5) * 3, '#c8f0ff', 5);
+        }, 0.4);
+        p.emit({ x: ox, y: oy, z: oz, count: 120, speed: -9, spread: 3.5, color: c, size: 0.25, life: 0.4, drag: 0, hdr: 2.4 });
+        fx.groundRing(ev.x, 0.05, ev.z, 0.4, 5, 0.6, c);
+        fx.light(ox, oy, oz, c, 14, 0.9, 16);
+        this.stage.rig.addShake(0.3);
+        break;
+      }
       case 'novaGather':
         // Lyra rassemble le feu et la glace : deux spirales de particules convergent vers ses mains
         p.emit({ x: ev.x, y: ev.y + 0.5, z: ev.z, count: 70, speed: -9, spread: 3, color: '#ffa04a', size: 0.3, life: 0.4, drag: 0, hdr: 2 });
@@ -991,6 +1114,8 @@ export class MatchView {
         p.emit({ x: ev.x, y: 0.1, z: ev.z, count: 50, flat: true, speed: 9, color: '#c8b8a0', size: 0.8, sizeEnd: 1.2, life: 0.6, hdr: 0.45, drag: 3 });
         p.emit({ x: ev.x, y: 0.2, z: ev.z, count: 24, dir: [0, 1, 0], cone: 0.6, speed: 8, color: '#8a7a68', size: 0.25, life: 0.7 });
         fx.groundRing(ev.x, 0, ev.z, 0.3, 4.5, 0.45, '#ffffff');
+        this.debris.burst(ev.x, ev.z, { count: 22, power: 9, spread: 1, up: 0.65 });
+        this.debris.crater(ev.x, ev.z, 1.8, 6);
         this.overlay.impactFrame(0.08);
         this.stage.rig.addPunch(4);
         break;
@@ -1008,6 +1133,7 @@ export class MatchView {
       case 'explosion': {
         const col = ev.kind === 'fireball' ? '#ff6a1a' : ev.kind === 'beam' ? '#ffffff' : '#ffe05a';
         const r = ev.r || 2;
+        if (ev.y < 2.2) { this.debris.burst(ev.x, ev.z, { count: 6 + r * 5, power: 5 + r * 2, spread: r * 0.4 }); if (r >= 2.5) this.debris.crater(ev.x, ev.z, r * 0.7, 6); }
         p.emit({ x: ev.x, y: ev.y, z: ev.z, count: 70, speed: r * 6, color: col, size: 0.6, life: 0.5, drag: 3 });
         fx.shockSphere(ev.x, ev.y, ev.z, 0.3, r, 0.35, col);
         fx.flash(ev.x, ev.y, ev.z, r * 2, 0.2, col);
@@ -1019,6 +1145,12 @@ export class MatchView {
         break;
       case 'aoeBoom': {
         const r = ev.r || 2;
+        {
+          const big = ['meteor', 'dragon', 'darkblast', 'rockblast', 'windburst', 'supernova', 'rockpillar'].includes(ev.type) || r > 3;
+          const ice = ev.type === 'icepillar';
+          this.debris.burst(ev.x, ev.z, { count: big ? 10 + r * 6 : 6 + r * 2, power: big ? 7 + r * 2 : 6, spread: r * 0.5, color: ice ? '#cdf2ff' : undefined });
+          if (big) this.debris.crater(ev.x, ev.z, r * 0.8, 7);
+        }
         if (ev.type === 'supernova') {
           // Explosion en deux temps : éclair blanc, puis onde de feu et onde de glace qui s'écartent
           p.emit({ x: ev.x, y: 3, z: ev.z, count: 260, speed: 30, color: '#ffffff', size: 0.7, life: 0.6, drag: 3, hdr: 3 });

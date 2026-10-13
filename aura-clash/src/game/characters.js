@@ -68,16 +68,16 @@ export const CHARACTERS = [
       },
       special: {
         name: 'Transformation', cost: 50, anim: 'powerup', dur: 1.05, invuln: [0, 1.05], alt: 'special2',
-        actions: [sfx(0.05, 'charge'), { t: 0.55, a: 'buff', buff: 'transform', dur: 16 }, { t: 0.55, a: 'ring', maxR: 4.5, speed: 22, dmg: 20, type: 'kd', fxColor: '#ffd23f' }],
+        actions: [sfx(0.05, 'charge'), fx(0.03, 'powerupGather'), { t: 0.55, a: 'buff', buff: 'transform', dur: 16 }, { t: 0.55, a: 'ring', maxR: 4.5, speed: 22, dmg: 20, type: 'kd', fxColor: '#ffd23f' }],
       },
       special2: {
         name: 'Super sphère de ki', cost: 35, anim: 'beam', dur: 0.8, cancel: 0.62,
-        actions: [fx(0.05, 'kiCharge'), proj(0.36, P.bigki)],
+        actions: [fx(0.03, 'kiOrbCharge'), proj(0.36, P.bigki)],
       },
       ultimate: {
         name: 'Rayon Dévastateur', cost: 100, anim: 'beam', dur: 2.3, hold: [0.35, 1.95], armor: 'full',
         cine: { text: 'RAYON DÉVASTATEUR', dur: 1.35 },
-        actions: [fx(0.02, 'kiCharge'), { t: 0.4, a: 'beam', dur: 1.5, width: 0.95, tick: 0.08, dmg: 16, finalDmg: 60, impact: 'ドォン!!' }],
+        actions: [fx(0.02, 'beamCharge'), { t: 0.4, a: 'beam', dur: 1.5, width: 0.95, tick: 0.08, dmg: 16, finalDmg: 60, impact: 'ドォン!!' }],
       },
     },
   },

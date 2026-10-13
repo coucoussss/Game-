@@ -400,7 +400,9 @@ export class BeamVisual {
     geo.translate(0, 0, 0.5);
     this.outer = new THREE.Mesh(geo, this.mat);
     this.inner = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: new THREE.Color('#ffffff').multiplyScalar(1.6), transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false }));
-    this.group.add(this.outer, this.inner);
+    // Halo extérieur qui pulse (plus large, plus diffus)
+    this.halo = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(1.3), transparent: true, opacity: 0.14, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+    this.group.add(this.outer, this.inner, this.halo);
     const sm = new THREE.SpriteMaterial({ map: radialTexture(), color: new THREE.Color(color).multiplyScalar(1.6), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true });
     this.head = new THREE.Sprite(sm);
     this.tail = new THREE.Sprite(sm);
@@ -418,7 +420,11 @@ export class BeamVisual {
     const grow = Math.min(1, e.t / 0.15);
     const fade = e.t > e.dur - 0.2 ? Math.max(0, (e.dur - e.t) / 0.2) : 1;
     this.outer.scale.set(w * grow, w * grow, Math.max(0.01, e.len));
-    this.inner.scale.set(w * 0.4 * grow, w * 0.4 * grow, Math.max(0.01, e.len));
+    this.inner.scale.set(w * 0.45 * grow, w * 0.45 * grow, Math.max(0.01, e.len));
+    const pulse = 1.9 + Math.sin(this.time * 22) * 0.25;
+    this.halo.scale.set(w * pulse * grow, w * pulse * grow, Math.max(0.01, e.len));
+    this.halo.material.opacity = 0.14 * fade;
+    this.inner.material.opacity = 0.85 * fade;
     this.mat.uniforms.uTime.value = this.time;
     this.mat.uniforms.uFade.value = fade;
     this.head.position.set(0, 0, e.len);
@@ -430,6 +436,8 @@ export class BeamVisual {
   dispose() {
     this.scene.remove(this.group);
     this.mat.dispose();
+    this.halo.material.dispose();
+    this.inner.material.dispose();
   }
 }
 
