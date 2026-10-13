@@ -236,7 +236,7 @@ export class UI {
       { label: 'Versus contre l’IA', hint: '1 joueur, best of 3', action: () => this.setupVersus('cpu') },
       { label: 'Versus local', hint: '2 joueurs sur le même appareil', action: () => this.setupVersus('local2') },
       { label: '2 contre 2', hint: 'avec ou sans partenaire humain', action: () => this.setup2v2() },
-      ...(window.AURA_PLATFORM === 'crazygames' ? [] : [{ label: 'Réseau local (LAN)', hint: WEB_ONLY ? 'disponible dans la version PC (.exe)' : 'créer ou rejoindre une partie', disabled: WEB_ONLY, action: () => this.lanMenu() }]),
+      ...(window.AURA_PLATFORM ? [] : [{ label: 'Réseau local (LAN)', hint: WEB_ONLY ? 'disponible dans la version PC (.exe)' : 'créer ou rejoindre une partie', disabled: WEB_ONLY, action: () => this.lanMenu() }]),
       { label: 'Entraînement', hint: 'mannequin configurable', action: () => this.setupTraining() },
       { label: 'Retour', cls: 'ghost', action: () => this.mainMenu() },
     ]);
