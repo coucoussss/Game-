@@ -206,5 +206,80 @@ console.log(`Bestiaire : ${MONSTERS.length} créatures`);
   console.log(`${ok ? '✔' : '✘'} seconde phase du boss`);
 }
 
+// --- Mode Classé : points, divisions, promotions, protections ---
+{
+  const R = await import('../src/game/ranked.js');
+  const check = (ok, label) => { if (!ok) failures++; console.log(`${ok ? '✔' : '✘'} classé : ${label}`); };
+  const win = { result: 'win' };
+  let st = R.newRankedState();
+  // Bonus du jour : la première victoire du jour compte double
+  let r = R.applyResult(st, win, '2026-01-01');
+  check(r.delta === 40 && r.daily && r.ryo === R.RANKED_RYO.win + R.DAILY_RYO, 'bonus du jour (×2)');
+  r = R.applyResult(r.state, win, '2026-01-01');
+  check(r.delta === 20 && !r.daily, 'pas de second bonus le même jour');
+  // Une défaite ne fait jamais descendre de division
+  st = { ...R.newRankedState(), tier: 2, div: 1, pts: 5, lastDaily: '2026-01-01' };
+  r = R.applyResult(st, { result: 'loss' }, '2026-01-01');
+  check(r.state.pts === 0 && r.state.div === 1 && r.state.tier === 2 && r.delta === -5, 'défaite plafonnée à 0 point');
+  // Passage de division avec report des points
+  st = { ...R.newRankedState(), pts: 90, lastDaily: '2026-01-01' };
+  r = R.applyResult(st, { result: 'win', perfect: true }, '2026-01-01');
+  check(r.state.div === 1 && r.state.pts === 15 && r.event === 'divUp', 'division suivante (points reportés)');
+  // Division I pleine : combat de promotion
+  st = { ...R.newRankedState(), tier: 1, div: 2, pts: 95, lastDaily: '2026-01-01' };
+  r = R.applyResult(st, win, '2026-01-01');
+  check(r.state.promo && r.state.pts === 100 && r.event === 'promoStart', 'combat de promotion débloqué');
+  const promoFail = R.applyResult(r.state, { result: 'loss' }, '2026-01-01');
+  check(!promoFail.state.promo && promoFail.state.pts === 75 && promoFail.state.tier === 1 && promoFail.event === 'promoFailed', 'promotion ratée : retour à 75 points');
+  const promoOk = R.applyResult(r.state, win, '2026-01-01');
+  check(promoOk.state.tier === 2 && promoOk.state.div === 0 && promoOk.state.pts === 0 && promoOk.event === 'promoted' && promoOk.ryo === R.RANKED_RYO.win + R.RANKS[2].reward, 'promotion réussie (récompense du rang)');
+  // Séries de victoires
+  st = { ...R.newRankedState(), streak: 4, lastDaily: '2026-01-01' };
+  r = R.applyResult(st, win, '2026-01-01');
+  check(r.delta === 30 && r.state.bestStreak === 5, 'série de 5 victoires (+10)');
+  // Légende : score sans limite, jamais négatif
+  st = { ...R.newRankedState(), tier: R.LEGEND, legendPts: 10, lastDaily: '2026-01-01' };
+  r = R.applyResult(st, { result: 'loss' }, '2026-01-01');
+  check(r.state.legendPts === 0 && r.state.tier === R.LEGEND, 'Légende : points jamais négatifs');
+  // Sauvegarde corrompue remise dans les bornes
+  const bad = R.sanitizeRanked({ tier: 99, div: -3, pts: 1e9, promo: true, streak: 'x' });
+  check(bad.tier === R.LEGEND && bad.div === 0 && bad.pts <= 100 && !bad.promo && bad.streak === 0, 'sauvegarde invalide corrigée');
+  check(R.rankName({ tier: 2, div: 1 }) === 'Or II' && R.stepName(18) === R.RANKS[6].name, 'noms des rangs');
+  // Adversaires : de plus en plus forts, boss pour les deux dernières promotions
+  const opp = R.RANKS.map((_, t) => R.opponentFor({ tier: t, div: 0, promo: false }));
+  const LV = { easy: 0, normal: 1, hard: 2 };
+  check(opp.every((o, i) => i === 0 || LV[o.level] > LV[opp[i - 1].level] || (o.level === opp[i - 1].level && o.mods.hp >= opp[i - 1].mods.hp)), 'adversaires de plus en plus forts');
+  check(R.opponentFor({ tier: 4, div: 2, promo: true }).boss === 'shogun-oni' && R.opponentFor({ tier: 5, div: 2, promo: true }).boss === 'roi-fleau', 'boss des promotions');
+  // Équilibre : un joueur solide (IA difficile, sans amélioration) contre chaque rang
+  const roster = CHARACTERS.filter((c) => !c.monster).map((c) => c.id);
+  const rates = [];
+  for (let t = 0; t < R.RANKS.length; t++) {
+    let wins = 0, n = 0;
+    for (let k = 0; k < 8; k++) {
+      const o = R.opponentFor({ tier: t, div: 0, promo: false });
+      const me = roster[(k * 5 + t) % roster.length];
+      const foe = roster[(k * 7 + t + 3) % roster.length];
+      const m = new Match({ fighters: [{ charId: me, team: 0 }, { charId: foe, team: 1, mods: o.mods }], arenaRadius: 18, roundTime: 99 });
+      const brains = [new CpuBrain(0, 'hard'), new CpuBrain(1, o.level)];
+      for (let i = 0; i < 60 * 60 * 6 && m.phase !== 'matchEnd'; i++) { m.step(TICK, brains.map((b) => b.think(m, TICK))); m.events.length = 0; }
+      n++;
+      if (m.winner === 0) wins++;
+    }
+    rates.push(Math.round((wins / n) * 100));
+  }
+  console.log(`  victoires d'un joueur solide par rang : ${rates.map((x, i) => `${R.RANKS[i].name} ${x} %`).join(' · ')}`);
+  for (const [t, boss] of Object.entries(R.PROMO_BOSSES)) {
+    let wins = 0;
+    for (let k = 0; k < 6; k++) {
+      const o = R.opponentFor({ tier: Number(t) - 1, div: 2, promo: true });
+      const m = new Match({ fighters: [{ charId: roster[k % roster.length], team: 0 }, { charId: boss, team: 1, mods: o.mods }], arenaRadius: 18, roundTime: 99 });
+      const brains = [new CpuBrain(0, 'hard'), new CpuBrain(1, o.level)];
+      for (let i = 0; i < 60 * 60 * 6 && m.phase !== 'matchEnd'; i++) { m.step(TICK, brains.map((b) => b.think(m, TICK))); m.events.length = 0; }
+      if (m.winner === 0) wins++;
+    }
+    console.log(`  promotion contre ${boss} : ${wins} / 6 victoires`);
+  }
+}
+
 if (failures) { console.error(`${failures} échec(s)`); process.exit(1); }
 console.log('Simulation OK');

@@ -2,6 +2,7 @@
 // améliorations, progression du mode histoire et du mode Vagues.
 // Sauvegardé dans le navigateur ou la fenêtre du jeu (localStorage), sur cette machine.
 import { CHAR_BY_ID, CHARACTERS } from '../game/characters.js';
+import { newRankedState, sanitizeRanked } from '../game/ranked.js';
 
 const KEY = 'auraclash.profile.v1';
 export const START_RYO = 500;
@@ -31,7 +32,7 @@ function checksum(str) {
 
 export class Profile {
   constructor() {
-    this.data = { ryo: START_RYO, owned: [], upgrades: {}, story: [], waves: [], difficulty: 'normal', endless: [] };
+    this.data = { ryo: START_RYO, owned: [], upgrades: {}, story: [], waves: [], difficulty: 'normal', endless: [], ranked: newRankedState() };
     try {
       const saved = JSON.parse(localStorage.getItem(KEY) || 'null');
       if (saved && Number.isFinite(saved.ryo) && Array.isArray(saved.owned)) {
@@ -52,6 +53,7 @@ export class Profile {
           claimed: Array.isArray(saved.claimed) ? saved.claimed : [],
           seen: Array.isArray(saved.seen) ? saved.seen.filter((x) => typeof x === 'string') : [],
           endless: Array.isArray(saved.endless) ? saved.endless.filter((r) => r && Number.isFinite(r.score)).slice(0, 5) : [],
+          ranked: sanitizeRanked(saved.ranked),
         };
       }
     } catch { /* stockage indisponible : profil de départ */ }

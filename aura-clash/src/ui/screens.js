@@ -16,6 +16,7 @@ import { CHALLENGES, challengeState, pendingChallenges } from '../core/challenge
 import { WAVE_LEVELS, WAVE_HEAL, buildLevel, levelReward, isBossLevel, regionOf, DIFFICULTIES, withDifficulty, endlessWave, endlessReward, BLESSINGS } from '../game/waves.js';
 import { MONSTERS, TIERS } from '../game/monsters.js';
 import { lang, setLang } from '../i18n/i18n.js';
+import { RANKS, LEGEND, DIVISIONS, DIV_POINTS, DAILY_RYO, opponentFor, applyResult, dailyAvailable, stepName } from '../game/ranked.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const h = (html) => {
@@ -197,6 +198,7 @@ export class UI {
     const play = [
       { kanji: '物', label: 'Mode Histoire', hint: `${done} / ${CHAPTERS.length} chapitres · récits`, color: '#ff8a3a', action: () => this.storyMenu() },
       { kanji: '波', label: 'Mode Vagues', hint: `niveau ${Math.min(WAVE_LEVELS, prof.levelUnlocked())} / ${WAVE_LEVELS} · boss · infini`, color: '#ff3a5a', action: () => this.wavesMenu() },
+      { kanji: '級', label: 'Classé', hint: this.rankText(prof.data.ranked), color: '#ffd23f', badge: dailyAvailable(prof.data.ranked) ? '×2' : '', action: () => this.rankedMenu() },
       { kanji: '戦', label: 'Combat libre', hint: 'versus, 2 contre 2, réseau, entraînement', color: '#5ab4ff', action: () => this.freeMenu() },
       { kanji: '学', label: 'Tutoriel', hint: prof.data.tutorialDone ? 'revoir les techniques' : `les bases — +${TUTORIAL_REWARD} Ryō`, color: '#7fffb0', badge: prof.data.tutorialDone ? '' : 'NEW', action: () => this.charSelect([{ label: 'TUTORIEL', team: 0, ctrl: { type: 'human', player: 0 } }], (fs) => new Tutorial(this.app, fs[0].charId).start(), () => this.mainMenu()) },
     ];
@@ -618,6 +620,129 @@ export class UI {
     this.show({ el, back: () => this.wavesMenu() });
   }
 
+  // --- Mode Classé ----------------------------------------------------------------------------
+
+  /** Rang en texte court (tuile du menu). */
+  rankText(r) {
+    return r.tier === LEGEND ? `${RANKS[LEGEND].icon} ${r.legendPts} pts` : `${RANKS[r.tier].icon} ${DIVISIONS[r.div]} · ${r.pts} / ${DIV_POINTS}`;
+  }
+
+  /** Emblème du rang (nom et division dans des éléments séparés, pour la traduction). */
+  rankBadge(r, big = true) {
+    const rank = RANKS[r.tier];
+    return `<div class="rk-badge ${big ? 'big' : ''}" style="--rc:${rank.color}"><span class="rk-icon">${rank.icon}</span>
+      <span class="rk-name"><b>${esc(rank.name)}</b>${r.tier === LEGEND ? '' : ` <i>${DIVISIONS[r.div]}</i>`}</span></div>`;
+  }
+
+  /** Jauge de points (de `from` à la valeur actuelle, animée). */
+  rankBar(r, from = null) {
+    const pct = r.tier === LEGEND ? 100 : (r.pts / DIV_POINTS) * 100;
+    const start = from === null ? pct : from;
+    return `<div class="rk-bar ${r.promo ? 'promo' : ''}" style="--rc:${RANKS[r.tier].color}"><i style="width:${start}%" data-to="${pct}"></i></div>
+      <div class="rk-pts">${r.tier === LEGEND ? `<b>${r.legendPts}</b> <span>points de Légende</span>` : `<b>${r.pts}</b> / ${DIV_POINTS} <span>Points d’Aura</span>`}</div>`;
+  }
+
+  animateBars(el) {
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      el.querySelectorAll('.rk-bar i[data-to]').forEach((i) => { i.style.width = `${i.dataset.to}%`; });
+    }));
+  }
+
+  rankedMenu() {
+    const prof = this.app.profile;
+    const r = prof.data.ranked;
+    const opp = opponentFor(r);
+    const next = r.tier < LEGEND ? RANKS[r.tier + 1] : null;
+    const daily = dailyAvailable(r);
+    const total = r.wins + r.losses;
+    const el = this.menu('CLASSÉ', [
+      { label: r.promo ? 'Combat de promotion' : 'Combattre', hint: r.promo ? (opp.boss ? `boss : ${esc(CHAR_BY_ID[opp.boss].name)}` : 'un adversaire plus coriace') : 'adversaire et arène au hasard', cls: r.promo ? 'gold' : '', action: () => this.charSelect([{ label: 'CLASSÉ', team: 0, ctrl: { type: 'human', player: 0 } }], (fs) => this.startRanked(fs[0].charId), () => this.rankedMenu()) },
+      { label: 'Retour', cls: 'ghost', action: () => this.mainMenu() },
+    ], {
+      cls: 'ranked-menu',
+      subtitle: 'Gagne des Points d’Aura contre une IA de plus en plus forte. 100 points pour changer de division, un combat de promotion pour changer de rang. Une défaite ne te fait jamais descendre de division.',
+      footer: `<div class="rk-info">
+        <div class="rk-chips">
+          ${r.promo && next ? `<span class="rk-chip promo">⚔ <span>Combat de promotion</span> → ${next.icon} <span>${esc(next.name)}</span></span>` : ''}
+          <span class="rk-chip ${daily ? 'daily' : 'off'}">${daily ? `☀ <span>Bonus du jour : points ×2 et +${DAILY_RYO} Ryō</span>` : '☾ <span>Bonus du jour obtenu — reviens demain</span>'}</span>
+          ${r.streak >= 2 ? `<span class="rk-chip streak">🔥 <span>Série de ${r.streak} victoires</span></span>` : ''}
+        </div>
+        <div class="rk-stats"><span><span>Victoires</span> <b>${r.wins}</b></span><span><span>Défaites</span> <b>${r.losses}</b></span><span><span>Taux de victoire</span> <b>${total ? Math.round((r.wins / total) * 100) : 0} %</b></span><span><span>Meilleur rang</span> <b>${esc(stepName(r.best))}</b></span><span><span>Meilleure série</span> <b>${r.bestStreak}</b></span></div>
+        ${next ? `<div class="rk-next"><span>Rang suivant</span> ${next.icon} <b>${esc(next.name)}</b> <span>+${next.reward} Ryō</span></div>` : '<div class="rk-next"><span>Tu as atteint le rang suprême. Chaque victoire fait grimper ton score.</span></div>'}
+      </div>`,
+    });
+    const head = h(`<div class="rk-head">${this.rankBadge(r)}${this.rankBar(r)}</div>`);
+    el.insertBefore(head, el.querySelector('.menu-list'));
+    this.show({ el, back: () => this.mainMenu() });
+  }
+
+  startRanked(charId) {
+    const app = this.app;
+    const r = app.profile.data.ranked;
+    const opp = opponentFor(r);
+    const pool = CHARACTERS.filter((c) => !c.monster && c.id !== charId).map((c) => c.id);
+    const foe = opp.boss || pool[Math.floor(Math.random() * pool.length)];
+    const arenas = ['cliffs', 'temple', 'neon', 'glacier', 'volcano'];
+    app.startBattle({
+      role: 'local',
+      arena: arenas[Math.floor(Math.random() * arenas.length)],
+      roundTime: 99,
+      ranked: { promo: r.promo, boss: !!opp.boss },
+      fighters: [
+        { charId, team: 0, ctrl: { type: 'human', player: 0 } },
+        { charId: foe, team: 1, ctrl: { type: 'cpu', level: opp.level }, mods: opp.mods, boss: !!opp.boss },
+      ],
+    });
+  }
+
+  rankedEnd(battle, team) {
+    const app = this.app;
+    const prof = app.profile;
+    const charId = battle.cfg.fighters[0].charId;
+    if (!battle.rankedRes) {
+      const st = prof.data.stats || {};
+      const s0 = battle.rankedStart || {};
+      const d = (k) => (st[k] || 0) - (s0[k] || 0);
+      const result = team < 0 ? 'draw' : team === 0 ? 'win' : 'loss';
+      const before = { ...prof.data.ranked };
+      const res = applyResult(before, { result, perfect: d('perfects') > 0, ultFinish: d('ultFinish') > 0, parries: d('parries'), maxCombo: battle.rankedCombo || 0 });
+      prof.data.ranked = res.state;
+      if (result === 'win') prof.bumpStat('wins');
+      prof.earn(res.ryo);
+      battle.rankedRes = { res, before };
+      if (res.event === 'promoted') app.audio.play('ui_start');
+    }
+    const { res, before } = battle.rankedRes;
+    const r = res.state;
+    const sameDiv = before.tier === r.tier && before.div === r.div;
+    const from = r.tier === LEGEND ? 100 : sameDiv ? (before.pts / DIV_POINTS) * 100 : 0;
+    const big = team < 0 ? 'MATCH NUL' : team === 0 ? 'VICTOIRE' : 'DÉFAITE';
+    const banner = {
+      promoted: `<div class="rk-banner up">⚡ <span>PROMOTION !</span> ${RANKS[r.tier].icon} <span>${esc(RANKS[r.tier].name)}</span></div>`,
+      promoStart: '<div class="rk-banner promo">⚔ <span>COMBAT DE PROMOTION DÉBLOQUÉ !</span></div>',
+      promoFailed: '<div class="rk-banner fail"><span>Promotion ratée — retente ta chance !</span></div>',
+      divUp: `<div class="rk-banner up">▲ <span>Division supérieure</span> : <span>${esc(RANKS[r.tier].name)}</span> ${DIVISIONS[r.div]}</div>`,
+    }[res.event] || '';
+    const lines = res.lines.map(([label, n]) => `<li><span>${esc(label)}</span><b class="${n < 0 ? 'neg' : ''}">${n >= 0 ? '+' : ''}${n}</b></li>`).join('');
+    const el = this.menu('', [
+      { label: r.promo ? 'Combat de promotion' : 'Combat suivant', cls: r.promo ? 'gold' : '', action: () => this.startRanked(charId) },
+      { label: 'Changer de combattant', action: () => { app.endBattle(false); this.charSelect([{ label: 'CLASSÉ', team: 0, ctrl: { type: 'human', player: 0 } }], (fs) => this.startRanked(fs[0].charId), () => this.rankedMenu()); } },
+      ...(battle.rec && app.lastReplay === battle.rec ? [{ label: 'Revoir le combat', hint: 'replay : ralenti, pause', action: () => app.startReplay(() => this.rankedMenu()) }] : []),
+      { label: 'Menu Classé', action: () => { app.endBattle(false); this.rankedMenu(); } },
+      { label: 'Menu principal', cls: 'ghost', action: () => app.endBattle() },
+    ], { cls: 'results ranked-result' });
+    el.prepend(h(`<div class="result-head">
+      <div class="result-big ${team === 0 ? 'win' : ''}">${big}</div>
+      ${banner}
+      <div class="rk-result">${this.rankBadge(r, false)}${this.rankBar(r, from)}</div>
+      <div class="rk-delta ${res.delta < 0 ? 'neg' : ''}">${res.delta >= 0 ? '+' : ''}${res.delta} <span>Points d’Aura</span></div>
+      ${lines ? `<ul class="rk-lines">${lines}</ul>` : ''}
+      ${res.ryo ? `<div class="reward">+${res.ryo} Ryō <small>(total : ${prof.ryo})</small></div>` : ''}
+    </div>`));
+    this.show({ el });
+    this.animateBars(el);
+  }
+
   startEndless(charId) {
     const app = this.app;
     const diff = app.profile.data.difficulty;
@@ -939,12 +1064,15 @@ export class UI {
         { label: `Énergie infinie : ${b.match.infiniteEnergy ? 'oui' : 'non'}`, action: () => { b.match.infiniteEnergy = !b.match.infiniteEnergy; this.reopenPause(); } },
         { label: 'Replacer les combattants', action: () => { b.resetPositions(); close(); } },
       );
-    } else {
+    } else if (!b.cfg.ranked) {
       buttons.push({ label: 'Recommencer le combat', action: () => this.app.restartBattle() });
     }
     buttons.push(
       { label: 'Options', action: () => this.options(() => this.reopenPause()) },
-      { label: 'Quitter le combat', cls: 'danger', action: () => this.app.endBattle() },
+      // En Classé, quitter un combat compte comme une défaite (sinon on pourrait fuir les défaites)
+      b.cfg.ranked
+        ? { label: 'Abandonner', hint: 'compte comme une défaite', cls: 'danger', action: () => { b.ended = true; this.rankedEnd(b, 1); } }
+        : { label: 'Quitter le combat', cls: 'danger', action: () => this.app.endBattle() },
     );
     const el = this.menu('PAUSE', buttons, { cls: 'pause' });
     this.show({ el, back: close, onNav: (a) => false });
@@ -983,6 +1111,7 @@ export class UI {
     if (battle.cfg.story) { this.storyFightEnd(battle, team); return; }
     if (battle.cfg.waveLevel) { this.wavesEnd(battle, team); return; }
     if (battle.cfg.endless) { this.endlessEnd(battle); return; }
+    if (battle.cfg.ranked) { this.rankedEnd(battle, team); return; }
     const names = battle.winnerNames(team);
     const role = battle.role;
     const winner = team < 0 ? 'MATCH NUL' : `VICTOIRE`;
