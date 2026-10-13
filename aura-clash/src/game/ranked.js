@@ -23,12 +23,56 @@ export const POINTS = {
   promoFailBack: 75, // points retrouvés après une promotion ratée
 };
 export const DAILY_RYO = 100;
+
+/** Titres gagnés en atteignant un rang (clé : rang). */
+export const RANK_TITLES = { 1: 'Combattant', 3: 'Maître d’armes', 5: 'Sensei', 6: 'Légende de l’Aura' };
+/**
+ * Auras exclusives gagnées en atteignant un rang : couleur, style de flamme (voir render/aura.js)
+ * et, pour l'arc-en-ciel, une couleur qui change sans cesse.
+ */
+export const RANK_AURAS = [
+  { id: 'or', tier: 2, name: 'Aura dorée', color: '#ffd23f', alt: '#fff2a0', style: 'flame' },
+  { id: 'cristal', tier: 4, name: 'Aura de cristal', color: '#8ae8ff', alt: '#e0fbff', style: 'frost' },
+  { id: 'flammes-noires', tier: 5, name: 'Flammes noires', color: '#a0102e', alt: '#ff2a4a', style: 'abyss' },
+  { id: 'arc-en-ciel', tier: 6, name: 'Aura arc-en-ciel', color: '#ff5ad8', alt: '#ffffff', style: 'storm', rainbow: true },
+];
+export const RANK_AURA_BY_ID = Object.fromEntries(RANK_AURAS.map((a) => [a.id, a]));
+
+/** Rang le plus haut jamais atteint (0 = Bronze … 6 = Légende). */
+export function bestTier(s) {
+  return Math.min(LEGEND, Math.floor((s.best || 0) / 3));
+}
+
+export function unlockedTitles(s) {
+  return Object.keys(RANK_TITLES).map(Number).filter((t) => bestTier(s) >= t);
+}
+
+export function unlockedAuras(s) {
+  return RANK_AURAS.filter((a) => bestTier(s) >= a.tier);
+}
+
+/** Titre équipé (texte) ou chaîne vide. */
+export function titleOf(s) {
+  return s.title && unlockedTitles(s).includes(s.title) ? RANK_TITLES[s.title] : '';
+}
+
+/** Aura équipée (identifiant) si elle est bien débloquée, sinon null. */
+export function auraOf(s) {
+  return s.aura && unlockedAuras(s).some((a) => a.id === s.aura) ? s.aura : null;
+}
+
+/** Applique une aura de rang à la fiche d'un combattant (couleur et style de flamme). */
+export function withRankAura(def, auraId) {
+  const a = RANK_AURA_BY_ID[auraId];
+  if (!a) return def;
+  return { ...def, aura: a.color, auraAlt: a.alt, auraStyle: a.style, rankAura: a.id, rainbow: !!a.rainbow };
+}
 /** Gains en Ryō d'un combat classé (en plus des points). */
 export const RANKED_RYO = { win: 250, loss: 100, draw: 150 };
 
 /** État de départ. */
 export function newRankedState() {
-  return { tier: 0, div: 0, pts: 0, promo: false, streak: 0, bestStreak: 0, best: 0, wins: 0, losses: 0, lastDaily: '', legendPts: 0 };
+  return { tier: 0, div: 0, pts: 0, promo: false, streak: 0, bestStreak: 0, best: 0, wins: 0, losses: 0, lastDaily: '', legendPts: 0, title: 0, aura: '' };
 }
 
 /** Remet un état sauvegardé dans les bornes (sauvegarde ancienne ou modifiée à la main). */
@@ -48,6 +92,8 @@ export function sanitizeRanked(s) {
   d.legendPts = int(s.legendPts, 0, 1e9, 0);
   d.lastDaily = typeof s.lastDaily === 'string' ? s.lastDaily.slice(0, 10) : '';
   d.best = Math.max(stepOf(d), int(s.best, 0, LEGEND * 3, 0));
+  d.title = Number.isInteger(s.title) && RANK_TITLES[s.title] ? s.title : 0;
+  d.aura = typeof s.aura === 'string' && RANK_AURA_BY_ID[s.aura] ? s.aura : '';
   return d;
 }
 
@@ -160,6 +206,10 @@ export function applyResult(prev, res, day = today()) {
       s.promo = false;
       event = 'promoted';
       ryo += RANKS[s.tier].reward;
+      // Les récompenses du nouveau rang sont équipées d'office
+      if (RANK_TITLES[s.tier]) s.title = s.tier;
+      const newAura = RANK_AURAS.find((a) => a.tier === s.tier);
+      if (newAura) s.aura = newAura.id;
       if (s.tier === LEGEND) s.legendPts = 0;
     } else {
       s.promo = false;

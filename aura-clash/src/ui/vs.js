@@ -11,7 +11,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
  * @param onDone  appelé quand l'écran disparaît
  */
 export function showVs(app, cfg, onDone) {
-  const side = (team) => cfg.fighters.filter((f) => f.team === team).slice(0, 4).map((f) => CHAR_BY_ID[f.charId]);
+  const side = (team) => cfg.fighters.filter((f) => f.team === team).slice(0, 4).map((f) => ({ ...CHAR_BY_ID[f.charId], playerTitle: f.playerTitle || '' }));
   const left = side(0);
   const right = side(1);
   const arena = ARENAS.find((a) => a.id === cfg.arena);
@@ -20,10 +20,11 @@ export function showVs(app, cfg, onDone) {
   if (cfg.waveLevel) title = `NIVEAU ${cfg.waveLevel}`;
   else if (cfg.endless) title = 'MODE INFINI';
   else if (cfg.storyTitle) title = cfg.storyTitle;
+  else if (cfg.ranked) title = cfg.ranked.promo ? 'COMBAT DE PROMOTION' : 'CLASSÉ';
   if (cfg.waveLevel && cfg.regionName) caption = cfg.regionName;
   const card = (d, i, n, cls) => `<div class="vs-card ${cls}" style="--c:${d.aura};--i:${i};--n:${n}">
     ${app.ui.portrait(d.id, 'vs-portrait')}
-    <div class="vs-name">${esc(d.name)}</div><div class="vs-title">${esc(d.title)}</div></div>`;
+    <div class="vs-name">${esc(d.name)}</div><div class="vs-title">${esc(d.title)}</div>${d.playerTitle ? `<div class="vs-ptitle"><span>${esc(d.playerTitle)}</span></div>` : ''}</div>`;
   const el = document.createElement('div');
   el.className = 'vs-screen';
   el.innerHTML = `

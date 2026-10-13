@@ -631,3 +631,22 @@ body.touch-on .aslot { width: 7vw; }
 @keyframes rk-pop { from { transform: skewX(-10deg) scale(0.4); opacity: 0; } }
 .ranked-result .result-big { font-size: 9vh; }
 @media (orientation: portrait) { .rk-bar { width: 80vw; } .rk-badge.big .rk-name { font-size: 3.6vh; } }
+/* Récompenses du Classé : titres, auras, séries */
+.pname .pstreak { margin-left: 0.5vw; font: italic 900 1.8vh var(--display); color: #ffb08a; text-shadow: 0 0 1vh #ff6a3a; }
+.ptitle { font: italic 800 1.4vh var(--display); color: var(--gold); letter-spacing: 0.06em; text-shadow: 0 1px 0 #000; margin: -0.2vh 0 0.3vh; }
+.side.right .ptitle { text-align: right; }
+.ptitle span::before, .vs-ptitle span::before, .wallet-title span::before { content: '« '; }
+.ptitle span::after, .vs-ptitle span::after, .wallet-title span::after { content: ' »'; }
+.vs-ptitle { font: italic 900 2.2vh var(--display); color: var(--gold); text-shadow: 0 2px 0 #000; margin-top: 0.4vh; }
+.wallet-title { font: italic 800 1.6vh var(--display); color: var(--gold); text-align: right; margin-top: 0.2vh; }
+.rk-rewards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5vh 1.6vw; font: 600 1.6vh var(--font); width: 100%; }
+.rk-rewards li { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3vh 0.6vw; padding: 0.5vh 0.8vw; background: rgba(10, 8, 20, 0.8); border-left: 3px solid rgba(255, 255, 255, 0.15); }
+.rk-rewards li.got { border-color: var(--gold); }
+.rk-rewards li.lock { opacity: 0.55; }
+.rk-rewards li b { font: italic 900 1.8vh var(--display); color: #fff; margin-right: 0.4vw; }
+.rk-aura { color: var(--ac); filter: brightness(1.7) saturate(1.2); text-shadow: 0 0 1vh var(--ac), 0 1px 0 #000; font-weight: 800; }
+.rk-unlock { display: flex; flex-direction: column; align-items: center; gap: 0.3vh; margin-top: 0.8vh; font: italic 800 2vh var(--display); color: var(--gold); text-shadow: 0 2px 0 #000; }
+.rk-unlock small { font: 600 1.4vh var(--font); color: var(--muted); text-shadow: none; }
+@media (orientation: portrait) { .rk-rewards { grid-template-columns: 1fr; } }
+.btn .opt-line { display: block; white-space: nowrap; }
+.btn .opt-line span { display: inline; }

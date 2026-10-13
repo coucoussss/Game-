@@ -2,6 +2,7 @@
 //   'local'  : simulation sur cette machine (versus IA, deux joueurs, 2v2, entraînement)
 //   'host'   : simulation ici + envoi des instantanés aux invités du réseau local
 //   'client' : affichage des instantanés reçus de l'hôte + envoi de nos entrées
+import { auraOf, titleOf } from './game/ranked.js';
 import { platform } from './platform.js';
 import { Match } from './game/match.js';
 import { CpuBrain } from './game/ai.js';
@@ -54,6 +55,9 @@ export class Battle {
         if (f.ctrl.type !== 'human') continue;
         f.loadout = f.loadout || app.profile.loadoutFor(f.charId);
         f.costume = f.costume === undefined ? app.profile.outfitFor(f.charId) : f.costume;
+        // Récompenses du mode Classé : aura exclusive et titre (pour le joueur 1)
+        if (f.ctrl.player === 0 && f.rankAura === undefined) f.rankAura = auraOf(app.profile.data.ranked);
+        if (f.ctrl.player === 0 && f.playerTitle === undefined) f.playerTitle = titleOf(app.profile.data.ranked);
       }
     }
     app.view.attach(cfg.fighters, cfg.training || cfg.tutorial ? null : cfg.arena, cfg.hazards !== false);
@@ -148,6 +152,7 @@ export class Battle {
     list.sort((a, b) => (a.f.team - b.f.team) || ((b.f.boss ? 1 : 0) - (a.f.boss ? 1 : 0)));
     app.hud.setup(list.map(({ f, i }) => ({
       id: i, name: CHAR_BY_ID[f.charId].name, team: f.team, color: CHAR_BY_ID[f.charId].aura, label: label(f), boss: !!f.boss,
+      title: f.playerTitle || '', streak: cfg.ranked && f.ctrl.type === 'human' ? app.profile.data.ranked.streak : 0,
     })), { training: cfg.training, waves: !!(cfg.waves || cfg.endless) });
     if (this.match) for (const f of this.match.fighters) if (f.team === 0 && Object.keys(f.bless).length) app.hud.setBlessings(f.id, f.bless);
     // Barre des attaques : une par joueur de cette machine

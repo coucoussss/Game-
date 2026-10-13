@@ -250,6 +250,15 @@ console.log(`Bestiaire : ${MONSTERS.length} créatures`);
   const LV = { easy: 0, normal: 1, hard: 2 };
   check(opp.every((o, i) => i === 0 || LV[o.level] > LV[opp[i - 1].level] || (o.level === opp[i - 1].level && o.mods.hp >= opp[i - 1].mods.hp)), 'adversaires de plus en plus forts');
   check(R.opponentFor({ tier: 4, div: 2, promo: true }).boss === 'shogun-oni' && R.opponentFor({ tier: 5, div: 2, promo: true }).boss === 'roi-fleau', 'boss des promotions');
+  // Étape 2 : titres et auras exclusives, équipés d'office à la promotion
+  const toMaster = R.applyResult({ ...R.newRankedState(), tier: 4, div: 2, pts: 100, promo: true, best: 14, lastDaily: '2026-01-01' }, win, '2026-01-01');
+  check(toMaster.state.title === 5 && toMaster.state.aura === 'flammes-noires' && R.titleOf(toMaster.state) === 'Sensei', 'promotion Maître : titre et aura équipés');
+  const st2 = { ...R.newRankedState(), best: 7, title: 5, aura: 'arc-en-ciel' };
+  check(R.titleOf(st2) === '' && R.auraOf(st2) === null && R.unlockedAuras(st2).map((x) => x.id).join() === 'or' && R.unlockedTitles(st2).join() === '1', 'récompenses non débloquées refusées');
+  const kept = R.sanitizeRanked({ ...toMaster.state });
+  check(kept.title === 5 && kept.aura === 'flammes-noires' && R.sanitizeRanked({ title: 42, aura: 'xx' }).aura === '', 'titre et aura sauvegardés (et validés)');
+  const gold = R.withRankAura(CHARACTERS[0], 'or');
+  check(gold.aura === '#ffd23f' && gold.auraStyle === 'flame' && R.withRankAura(CHARACTERS[0], null) === CHARACTERS[0], 'aura de rang appliquée au combattant');
   // Équilibre : un joueur solide (IA difficile, sans amélioration) contre chaque rang
   const roster = CHARACTERS.filter((c) => !c.monster).map((c) => c.id);
   const rates = [];

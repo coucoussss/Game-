@@ -1,5 +1,6 @@
 // Affichage d'un match : relie l'état de la simulation (local, ou reçu de l'hôte en LAN)
 // aux modèles 3D, aux effets, au son et à l'interface. Ne modifie jamais la simulation.
+import { withRankAura } from '../game/ranked.js';
 import * as THREE from 'three';
 import { CharacterModel, buildFox, buildDragon, strikeTime, ANIMS } from './model.js';
 import { BeamVisual, flameMaterial, Trail } from './fx.js';
@@ -39,12 +40,12 @@ export class MatchView {
   attach(fighters, arena = null, hazards = true) {
     this.detach();
     if (arena && hazards) this.hazardView.setup(arena);
-    for (const f of fighters) this.addFighter(f.charId, f.costume);
+    for (const f of fighters) this.addFighter(f.charId, f.costume, f.rankAura);
   }
 
   /** Ajoute le modèle d'un combattant (mode Vagues : les ennemis arrivent en cours de combat). */
-  addFighter(charId, costume = null) {
-    const def = dressed(CHAR_BY_ID[charId], costume);
+  addFighter(charId, costume = null, rankAura = null) {
+    const def = withRankAura(dressed(CHAR_BY_ID[charId], costume), rankAura);
     const model = new CharacterModel(def);
     this.stage.scene.add(model.root);
     this.models.push({ model, def, prevMt: 0, prevMove: '', trailT: 0 });

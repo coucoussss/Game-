@@ -16,7 +16,7 @@ import { CHALLENGES, challengeState, pendingChallenges } from '../core/challenge
 import { WAVE_LEVELS, WAVE_HEAL, buildLevel, levelReward, isBossLevel, regionOf, DIFFICULTIES, withDifficulty, endlessWave, endlessReward, BLESSINGS } from '../game/waves.js';
 import { MONSTERS, TIERS } from '../game/monsters.js';
 import { lang, setLang } from '../i18n/i18n.js';
-import { RANKS, LEGEND, DIVISIONS, DIV_POINTS, DAILY_RYO, opponentFor, applyResult, dailyAvailable, stepName } from '../game/ranked.js';
+import { RANKS, LEGEND, DIVISIONS, DIV_POINTS, DAILY_RYO, RANK_TITLES, RANK_AURAS, opponentFor, applyResult, dailyAvailable, stepName, bestTier, unlockedTitles, unlockedAuras, titleOf, auraOf } from '../game/ranked.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const h = (html) => {
@@ -217,7 +217,7 @@ export class UI {
       <span class="t-kanji">${t.kanji}</span><span class="t-txt"><b>${t.label}</b><small>${t.hint}</small></span>
       ${t.badge ? `<span class="t-badge">${t.badge}</span>` : ''}</button>`;
     const el = h(`<div class="screen main-menu home">
-      <div class="home-head"><div class="menu-logo"><span class="logo-a">AURA</span><span class="logo-b">CLASH</span></div><div class="wallet">${prof.ryo} <small>Ryō</small></div></div>
+      <div class="home-head"><div class="menu-logo"><span class="logo-a">AURA</span><span class="logo-b">CLASH</span></div><div class="wallet">${prof.ryo} <small>Ryō</small>${titleOf(prof.data.ranked) ? `<div class="wallet-title"><span>${esc(titleOf(prof.data.ranked))}</span></div>` : ''}</div></div>
       <div class="home-label">JOUER</div>
       <div class="tiles play">${play.map((t, i) => tile(t, i, 'play')).join('')}</div>
       <div class="home-label">PROGRESSION</div>
@@ -624,7 +624,8 @@ export class UI {
 
   /** Rang en texte court (tuile du menu). */
   rankText(r) {
-    return r.tier === LEGEND ? `${RANKS[LEGEND].icon} ${r.legendPts} pts` : `${RANKS[r.tier].icon} ${DIVISIONS[r.div]} · ${r.pts} / ${DIV_POINTS}`;
+    const streak = r.streak >= 2 ? ` · 🔥${r.streak}` : '';
+    return (r.tier === LEGEND ? `${RANKS[LEGEND].icon} ${r.legendPts} pts` : `${RANKS[r.tier].icon} ${DIVISIONS[r.div]} · ${r.pts} / ${DIV_POINTS}`) + streak;
   }
 
   /** Emblème du rang (nom et division dans des éléments séparés, pour la traduction). */
@@ -657,6 +658,7 @@ export class UI {
     const total = r.wins + r.losses;
     const el = this.menu('CLASSÉ', [
       { label: r.promo ? 'Combat de promotion' : 'Combattre', hint: r.promo ? (opp.boss ? `boss : ${esc(CHAR_BY_ID[opp.boss].name)}` : 'un adversaire plus coriace') : 'adversaire et arène au hasard', cls: r.promo ? 'gold' : '', action: () => this.charSelect([{ label: 'CLASSÉ', team: 0, ctrl: { type: 'human', player: 0 } }], (fs) => this.startRanked(fs[0].charId), () => this.rankedMenu()) },
+      ...this.rankRewardButtons(r),
       { label: 'Retour', cls: 'ghost', action: () => this.mainMenu() },
     ], {
       cls: 'ranked-menu',
@@ -668,12 +670,47 @@ export class UI {
           ${r.streak >= 2 ? `<span class="rk-chip streak">🔥 <span>Série de ${r.streak} victoires</span></span>` : ''}
         </div>
         <div class="rk-stats"><span><span>Victoires</span> <b>${r.wins}</b></span><span><span>Défaites</span> <b>${r.losses}</b></span><span><span>Taux de victoire</span> <b>${total ? Math.round((r.wins / total) * 100) : 0} %</b></span><span><span>Meilleur rang</span> <b>${esc(stepName(r.best))}</b></span><span><span>Meilleure série</span> <b>${r.bestStreak}</b></span></div>
+        ${this.rankRewardsList(r)}
         ${next ? `<div class="rk-next"><span>Rang suivant</span> ${next.icon} <b>${esc(next.name)}</b> <span>+${next.reward} Ryō</span></div>` : '<div class="rk-next"><span>Tu as atteint le rang suprême. Chaque victoire fait grimper ton score.</span></div>'}
       </div>`,
     });
     const head = h(`<div class="rk-head">${this.rankBadge(r)}${this.rankBar(r)}</div>`);
     el.insertBefore(head, el.querySelector('.menu-list'));
     this.show({ el, back: () => this.mainMenu() });
+  }
+
+  /** Boutons pour équiper un titre et une aura exclusive (s'il y en a de débloqués). */
+  rankRewardButtons(r) {
+    const prof = this.app.profile;
+    const titles = unlockedTitles(r);
+    const auras = unlockedAuras(r);
+    const out = [];
+    if (titles.length) {
+      const opts = [0, ...titles];
+      const cur = opts.indexOf(titleOf(r) ? r.title : 0);
+      out.push({ label: `<span class="opt-line"><span>Titre</span> : <span>${titleOf(r) ? esc(titleOf(r)) : 'aucun'}</span> ▸</span>`, hint: 'affiché au menu, à l’écran VS et en combat', action: () => { r.title = opts[(cur + 1) % opts.length]; prof.save(); this.rankedMenu(); } });
+    }
+    if (auras.length) {
+      const opts = ['', ...auras.map((a) => a.id)];
+      const cur = opts.indexOf(auraOf(r) || '');
+      const a = RANK_AURAS.find((x) => x.id === auraOf(r));
+      out.push({ label: `<span class="opt-line"><span>Aura</span> : <span>${a ? esc(a.name) : 'celle du personnage'}</span> ▸</span>`, hint: 'aura exclusive en combat (tous les modes)', action: () => { r.aura = opts[(cur + 1) % opts.length]; prof.save(); this.rankedMenu(); } });
+    }
+    return out;
+  }
+
+  /** Les récompenses de chaque rang, débloquées ou non. */
+  rankRewardsList(r) {
+    const have = bestTier(r);
+    const items = RANKS.map((rank, t) => {
+      if (t === 0) return '';
+      const aura = RANK_AURAS.find((a) => a.tier === t);
+      const parts = [`<span>+${rank.reward} Ryō</span>`];
+      if (RANK_TITLES[t]) parts.push(`<span>« <span>${esc(RANK_TITLES[t])}</span> »</span>`);
+      if (aura) parts.push(`<span class="rk-aura" style="--ac:${aura.color}"><span>${esc(aura.name)}</span></span>`);
+      return `<li class="${have >= t ? 'got' : 'lock'}"><b>${rank.icon} <span>${esc(rank.name)}</span></b>${parts.join(' ')}${have >= t ? ' ✔' : ' 🔒'}</li>`;
+    }).join('');
+    return `<ul class="rk-rewards">${items}</ul>`;
   }
 
   startRanked(charId) {
@@ -693,6 +730,15 @@ export class UI {
         { charId: foe, team: 1, ctrl: { type: 'cpu', level: opp.level }, mods: opp.mods, boss: !!opp.boss },
       ],
     });
+  }
+
+  /** Récompenses débloquées en atteignant un rang (affichées après une promotion). */
+  newRewardsHtml(tier) {
+    const aura = RANK_AURAS.find((a) => a.tier === tier);
+    const bits = [];
+    if (RANK_TITLES[tier]) bits.push(`<span><span>Nouveau titre</span> : « <span>${esc(RANK_TITLES[tier])}</span> »</span>`);
+    if (aura) bits.push(`<span class="rk-aura" style="--ac:${aura.color}"><span>Nouvelle aura</span> : <span>${esc(aura.name)}</span></span>`);
+    return bits.length ? `<div class="rk-unlock">${bits.join('')}<small>équipé automatiquement</small></div>` : '';
   }
 
   rankedEnd(battle, team) {
@@ -718,7 +764,7 @@ export class UI {
     const from = r.tier === LEGEND ? 100 : sameDiv ? (before.pts / DIV_POINTS) * 100 : 0;
     const big = team < 0 ? 'MATCH NUL' : team === 0 ? 'VICTOIRE' : 'DÉFAITE';
     const banner = {
-      promoted: `<div class="rk-banner up">⚡ <span>PROMOTION !</span> ${RANKS[r.tier].icon} <span>${esc(RANKS[r.tier].name)}</span></div>`,
+      promoted: `<div class="rk-banner up">⚡ <span>PROMOTION !</span> ${RANKS[r.tier].icon} <span>${esc(RANKS[r.tier].name)}</span></div>${this.newRewardsHtml(r.tier)}`,
       promoStart: '<div class="rk-banner promo">⚔ <span>COMBAT DE PROMOTION DÉBLOQUÉ !</span></div>',
       promoFailed: '<div class="rk-banner fail"><span>Promotion ratée — retente ta chance !</span></div>',
       divUp: `<div class="rk-banner up">▲ <span>Division supérieure</span> : <span>${esc(RANKS[r.tier].name)}</span> ${DIVISIONS[r.div]}</div>`,

@@ -217,6 +217,8 @@ function reshapeBolt(bolt, h) {
   bolt.rotation.y = a;
 }
 
+const RAINBOW = new THREE.Color();
+
 export class AuraFX {
   /**
    * @param model  CharacterModel (on se greffe sur sa racine et sa tête)
@@ -319,6 +321,11 @@ export class AuraFX {
    * @param max    0..1 : intensité maximale (colonne de lumière, yeux)
    */
   update(dt, level, charge, max) {
+    // Aura arc-en-ciel (rang Légende) : la couleur tourne sans cesse
+    if (this.def.rainbow) {
+      this.hue = ((this.hue || 0) + dt * 0.25) % 1;
+      this.setColor(RAINBOW.setHSL(this.hue, 1, 0.6));
+    }
     this.time += dt;
     const k = Math.min(1, dt * 8);
     this.level += (level - this.level) * k;

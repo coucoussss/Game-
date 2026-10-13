@@ -33,7 +33,8 @@ export class Hud {
     this.teamNames = sides.map((list) => (list.length === 1 ? list[0].name.split(' ')[0].toUpperCase() : list === sides[0] ? 'ÉQUIPE BLEUE' : 'ÉQUIPE ROUGE'));
     const side = (list, cls) => `<div class="side ${cls}">${list.map((f, i) => `
       <div class="panel ${i > 0 ? 'small' : ''} ${f.boss ? 'boss' : ''}" data-id="${f.id}" style="--c:${f.color}">
-        <div class="pname"><span class="tag">${esc(f.label || '')}</span>${esc(f.name)}</div>
+        <div class="pname"><span class="tag">${esc(f.label || '')}</span>${esc(f.name)}${f.streak >= 2 ? `<span class="pstreak">🔥${f.streak}</span>` : ''}</div>
+        ${f.title ? `<div class="ptitle"><span>${esc(f.title)}</span></div>` : ''}
         <div class="hp"><div class="hp-lag"></div><div class="hp-fill"></div><div class="hp-shield"></div></div>
         <div class="row2"><div class="energy"><div class="en-fill"></div><div class="en-mark" style="left:40%"></div></div><div class="en-num">0</div></div>
         <div class="guard"><div class="guard-fill"></div></div>

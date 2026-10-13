@@ -974,5 +974,21 @@
 "Changer de combattant": "Change fighter",
 "Menu Classé": "Ranked menu",
 "Abandonner": "Forfeit",
-"compte comme une défaite": "counts as a loss"
+"compte comme une défaite": "counts as a loss",
+"Titre": "Title",
+"aucun": "none",
+"affiché au menu, à l’écran VS et en combat": "shown in the menu, on the VS screen and in battle",
+"celle du personnage": "the character's own",
+"aura exclusive en combat (tous les modes)": "exclusive aura in battle (every mode)",
+"Nouveau titre": "New title",
+"Nouvelle aura": "New aura",
+"équipé automatiquement": "equipped automatically",
+"Combattant": "Fighter",
+"Maître d’armes": "Weapon Master",
+"Sensei": "Sensei",
+"Aura dorée": "Golden aura",
+"Aura de cristal": "Crystal aura",
+"Flammes noires": "Black flames",
+"Aura arc-en-ciel": "Rainbow aura",
+"COMBAT DE PROMOTION": "PROMOTION FIGHT"
 }
