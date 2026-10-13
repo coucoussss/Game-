@@ -45,7 +45,7 @@ export class Battle {
     this.humans = cfg.fighters.filter((f) => f.ctrl.type === 'human').length;
     this.pendingBefore = new Set(pendingChallenges(app.profile).map((c) => c[0]));
     // Mode Classé : statistiques du joueur au début du combat (pour les bonus de points)
-    if (cfg.ranked) { this.rankedStart = { ...(app.profile.data.stats || {}) }; this.rankedCombo = 0; }
+    if (cfg.ranked) { this.rankedStart = { ...(app.profile.data.stats || {}) }; this.rankedCombo = 0; this.rankedDmg = 0; }
 
     const stage = app.stage;
     stage.setArena(cfg.arena);
@@ -244,7 +244,11 @@ export class Battle {
     }
     this.trackCombo(events);
     if (this.cfg.ranked) {
-      for (const e of events) if (e.type === 'hit' && !e.blocked && app.view.localIds.has(e.att)) this.rankedCombo = Math.max(this.rankedCombo, e.combo || 0);
+      for (const e of events) {
+        if (e.type !== 'hit' || e.blocked || !app.view.localIds.has(e.att)) continue;
+        this.rankedCombo = Math.max(this.rankedCombo, e.combo || 0);
+        this.rankedDmg += e.dmg || 0;
+      }
     }
     if (this.role !== 'client' && !this.cfg.training) trackEvents(app.profile, events, this.match, this.app.view.localIds);
     if (this.cfg.tutorial && app.tutorial) app.tutorial.update(this.paused ? 0 : dt, events, this.match);

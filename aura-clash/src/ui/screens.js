@@ -16,7 +16,7 @@ import { CHALLENGES, challengeState, pendingChallenges } from '../core/challenge
 import { WAVE_LEVELS, WAVE_HEAL, buildLevel, levelReward, isBossLevel, regionOf, DIFFICULTIES, withDifficulty, endlessWave, endlessReward, BLESSINGS } from '../game/waves.js';
 import { MONSTERS, TIERS } from '../game/monsters.js';
 import { lang, setLang } from '../i18n/i18n.js';
-import { RANKS, LEGEND, DIVISIONS, DIV_POINTS, DAILY_RYO, RANK_TITLES, RANK_AURAS, opponentFor, applyResult, dailyAvailable, stepName, bestTier, unlockedTitles, unlockedAuras, titleOf, auraOf } from '../game/ranked.js';
+import { RANKS, LEGEND, DIVISIONS, DIV_POINTS, DAILY_RYO, RANK_TITLES, RANK_AURAS, POPULATION, estimate, formatTop, recordStats, opponentFor, applyResult, dailyAvailable, stepName, bestTier, unlockedTitles, unlockedAuras, titleOf, auraOf } from '../game/ranked.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const h = (html) => {
@@ -650,6 +650,8 @@ export class UI {
   }
 
   rankedMenu() {
+    this.app.setBackdrop('menu');
+    this.app.audio.music('menu');
     const prof = this.app.profile;
     const r = prof.data.ranked;
     const opp = opponentFor(r);
@@ -659,6 +661,7 @@ export class UI {
     const el = this.menu('CLASSÉ', [
       { label: r.promo ? 'Combat de promotion' : 'Combattre', hint: r.promo ? (opp.boss ? `boss : ${esc(CHAR_BY_ID[opp.boss].name)}` : 'un adversaire plus coriace') : 'adversaire et arène au hasard', cls: r.promo ? 'gold' : '', action: () => this.charSelect([{ label: 'CLASSÉ', team: 0, ctrl: { type: 'human', player: 0 } }], (fs) => this.startRanked(fs[0].charId), () => this.rankedMenu()) },
       ...this.rankRewardButtons(r),
+      { label: 'Statistiques', hint: 'classement estimé, personnages, records, historique', action: () => this.rankedStats() },
       { label: 'Retour', cls: 'ghost', action: () => this.mainMenu() },
     ], {
       cls: 'ranked-menu',
@@ -674,7 +677,7 @@ export class UI {
         ${next ? `<div class="rk-next"><span>Rang suivant</span> ${next.icon} <b>${esc(next.name)}</b> <span>+${next.reward} Ryō</span></div>` : '<div class="rk-next"><span>Tu as atteint le rang suprême. Chaque victoire fait grimper ton score.</span></div>'}
       </div>`,
     });
-    const head = h(`<div class="rk-head">${this.rankBadge(r)}${this.rankBar(r)}</div>`);
+    const head = h(`<div class="rk-head">${this.rankBadge(r)}${this.rankBar(r)}${this.worldRankHtml(r)}</div>`);
     el.insertBefore(head, el.querySelector('.menu-list'));
     this.show({ el, back: () => this.mainMenu() });
   }
@@ -711,6 +714,78 @@ export class UI {
       return `<li class="${have >= t ? 'got' : 'lock'}"><b>${rank.icon} <span>${esc(rank.name)}</span></b>${parts.join(' ')}${have >= t ? ' ✔' : ' 🔒'}</li>`;
     }).join('');
     return `<ul class="rk-rewards">${items}</ul>`;
+  }
+
+  fmtNum(n) { return n.toLocaleString(lang === 'fr' ? 'fr-FR' : 'en-US'); }
+  fmtTop(t) { return lang === 'fr' ? formatTop(t) : formatTop(t).replace(',', '.'); }
+  fmtPos(n) { return lang === 'fr' ? `≈ ${this.fmtNum(n)}<sup>e</sup>` : `≈ #${this.fmtNum(n)}`; }
+
+  /** Classement mondial estimé (toujours présenté comme une estimation). */
+  worldRankHtml(r, passed = 0) {
+    const est = estimate(r);
+    return `<div class="rk-world" title="Position estimée d’après la répartition habituelle des rangs.">
+      <span class="rk-world-l">🌍 <span>Classement mondial</span> <em>(estimé)</em></span>
+      <b>Top ${this.fmtTop(est.top)} %</b> <span class="rk-world-pos">${this.fmtPos(est.pos)} / ${this.fmtNum(POPULATION)}</span>
+      ${passed > 0 ? `<div class="rk-passed">▲ <span>Tu as dépassé environ ${this.fmtNum(passed)} joueurs !</span></div>` : ''}
+    </div>`;
+  }
+
+  rankedStats() {
+    this.app.setBackdrop('menu');
+    const prof = this.app.profile;
+    const r = prof.data.ranked;
+    const est = estimate(r);
+    const total = r.wins + r.losses;
+    const pct = (w, l) => (w + l ? Math.round((w / (w + l)) * 100) : 0);
+    const chars = Object.entries(r.chars || {}).filter(([id, v]) => CHAR_BY_ID[id] && v.w + v.l > 0)
+      .sort((a, b) => (b[1].w + b[1].l) - (a[1].w + a[1].l));
+    const fav = chars[0];
+    const best = chars.filter(([, v]) => v.w + v.l >= 3).sort((a, b) => pct(b[1].w, b[1].l) - pct(a[1].w, a[1].l))[0];
+    const m = r.tot.matches || 0;
+    const avg = (n) => (m ? Math.round(n / m) : 0);
+    const name = (id) => esc(CHAR_BY_ID[id] ? CHAR_BY_ID[id].name : '?');
+    const charRows = chars.map(([id, v]) => `<tr><td>${this.portrait(id, 'mini')} ${name(id)}</td><td>${v.w}</td><td>${v.l}</td><td><b>${pct(v.w, v.l)} %</b></td></tr>`).join('');
+    const hist = [...r.history].reverse().map((x) => `<li class="${x.r}"><span class="rk-h-res">${x.r === 'win' ? '✔' : x.r === 'loss' ? '✘' : '='}</span>
+      <span>${name(x.c)}</span> <em>vs</em> <span>${name(x.o)}</span>
+      <b class="${x.delta < 0 ? 'neg' : ''}">${x.delta >= 0 ? '+' : ''}${x.delta}</b><span class="rk-h-rank">${esc(stepName(x.step))}</span><small>${esc(x.d)}</small></li>`).join('');
+    const el = this.menu('STATISTIQUES', [{ label: 'Retour', cls: 'ghost', action: () => this.rankedMenu() }], {
+      cls: 'ranked-stats',
+      footer: `<div class="rk-statgrid">
+        <section><h3>Classement mondial <em>(estimé)</em></h3>
+          <div class="rk-big">Top ${this.fmtTop(est.top)} %</div>
+          <p><span>Meilleur que</span> <b>${this.fmtTop(100 - est.top)} %</b> <span>des joueurs</span> · ${this.fmtPos(est.pos)}</p>
+          <p><span>Meilleur classement</span> : <b>Top ${this.fmtTop(r.bestTop)} %</b></p>
+          ${this.rankCurve(r.curve)}
+          <p class="rk-note">Position estimée d’après la répartition habituelle des rangs (le jeu n’a pas de serveur).</p></section>
+        <section><h3>Résumé</h3>
+          <ul class="rk-kv">
+            <li><span>Combats classés</span><b>${total}</b></li>
+            <li><span>Taux de victoire</span><b>${pct(r.wins, r.losses)} %</b></li>
+            <li><span>Meilleur rang</span><b>${esc(stepName(r.best))}</b></li>
+            <li><span>Meilleure série</span><b>${r.bestStreak}</b></li>
+            <li><span>Personnage favori</span><b>${fav ? name(fav[0]) : '—'}</b></li>
+            <li><span>Personnage le plus efficace</span><b>${best ? `${name(best[0])} (${pct(best[1].w, best[1].l)} %)` : '—'}</b></li>
+            <li><span>Dégâts moyens par combat</span><b>${avg(r.tot.dmg)}</b></li>
+            <li><span>Parades parfaites par combat</span><b>${m ? (Math.round((r.tot.parries / m) * 10) / 10).toString().replace('.', ',') : 0}</b></li>
+            <li><span>Plus long combo</span><b>${r.rec.combo}</b></li>
+            <li><span>Plus de dégâts en un combat</span><b>${r.rec.dmg}</b></li>
+          </ul></section>
+        <section><h3>Par personnage</h3>${charRows ? `<table class="rk-table"><thead><tr><th></th><th>${lang === 'fr' ? 'V' : 'W'}</th><th>${lang === 'fr' ? 'D' : 'L'}</th><th>%</th></tr></thead><tbody>${charRows}</tbody></table>` : '<p class="rk-note">Aucun combat classé pour l’instant.</p>'}</section>
+        <section><h3>Derniers combats</h3>${hist ? `<ol class="rk-hist">${hist}</ol>` : '<p class="rk-note">Aucun combat classé pour l’instant.</p>'}</section>
+      </div>`,
+    });
+    this.show({ el, back: () => this.rankedMenu() });
+  }
+
+  /** Courbe du classement estimé (un point par jour joué) ; plus haut = meilleur. */
+  rankCurve(curve) {
+    if (!curve || curve.length < 2) return '<p class="rk-note">La courbe de progression apparaîtra après deux jours de combats classés.</p>';
+    const W = 300, H = 90;
+    // Échelle logarithmique : passer de 50 % à 10 % compte autant que de 1 % à 0,2 %
+    const y = (top) => { const v = Math.log10(Math.max(0.001, top)); return 6 + ((v + 3) / 5) * (H - 12); };
+    const pts = curve.map((c, i) => `${(6 + (i / (curve.length - 1)) * (W - 12)).toFixed(1)},${y(c.top).toFixed(1)}`).join(' ');
+    return `<svg class="rk-curve" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><polyline points="${pts}" /></svg>
+      <div class="rk-curve-l"><span>${esc(curve[0].d)}</span><span>${esc(curve[curve.length - 1].d)}</span></div>`;
   }
 
   startRanked(charId) {
@@ -752,10 +827,13 @@ export class UI {
       const result = team < 0 ? 'draw' : team === 0 ? 'win' : 'loss';
       const before = { ...prof.data.ranked };
       const res = applyResult(before, { result, perfect: d('perfects') > 0, ultFinish: d('ultFinish') > 0, parries: d('parries'), maxCombo: battle.rankedCombo || 0 });
+      const oppId = battle.cfg.fighters[1] ? battle.cfg.fighters[1].charId : '';
+      res.state = recordStats(res.state, { result, charId, oppId, delta: res.delta, dmg: battle.rankedDmg || 0, parries: d('parries'), maxCombo: battle.rankedCombo || 0 });
+      const passed = estimate(before).pos - estimate(res.state).pos;
       prof.data.ranked = res.state;
       if (result === 'win') prof.bumpStat('wins');
       prof.earn(res.ryo);
-      battle.rankedRes = { res, before };
+      battle.rankedRes = { res, before, passed };
       if (res.event === 'promoted') app.audio.play('ui_start');
     }
     const { res, before } = battle.rankedRes;
@@ -784,6 +862,7 @@ export class UI {
       <div class="rk-delta ${res.delta < 0 ? 'neg' : ''}">${res.delta >= 0 ? '+' : ''}${res.delta} <span>Points d’Aura</span></div>
       ${lines ? `<ul class="rk-lines">${lines}</ul>` : ''}
       ${res.ryo ? `<div class="reward">+${res.ryo} Ryō <small>(total : ${prof.ryo})</small></div>` : ''}
+      ${this.worldRankHtml(r, battle.rankedRes.passed)}
     </div>`));
     this.show({ el });
     this.animateBars(el);

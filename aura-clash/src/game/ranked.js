@@ -72,7 +72,10 @@ export const RANKED_RYO = { win: 250, loss: 100, draw: 150 };
 
 /** État de départ. */
 export function newRankedState() {
-  return { tier: 0, div: 0, pts: 0, promo: false, streak: 0, bestStreak: 0, best: 0, wins: 0, losses: 0, lastDaily: '', legendPts: 0, title: 0, aura: '' };
+  return {
+    tier: 0, div: 0, pts: 0, promo: false, streak: 0, bestStreak: 0, best: 0, wins: 0, losses: 0, lastDaily: '', legendPts: 0, title: 0, aura: '',
+    history: [], chars: {}, tot: { matches: 0, dmg: 0, parries: 0 }, rec: { combo: 0, dmg: 0 }, curve: [], bestTop: 100,
+  };
 }
 
 /** Remet un état sauvegardé dans les bornes (sauvegarde ancienne ou modifiée à la main). */
@@ -94,6 +97,21 @@ export function sanitizeRanked(s) {
   d.best = Math.max(stepOf(d), int(s.best, 0, LEGEND * 3, 0));
   d.title = Number.isInteger(s.title) && RANK_TITLES[s.title] ? s.title : 0;
   d.aura = typeof s.aura === 'string' && RANK_AURA_BY_ID[s.aura] ? s.aura : '';
+  // Statistiques (étape 3)
+  const str = (v, n = 24) => (typeof v === 'string' ? v.slice(0, n) : '');
+  if (Array.isArray(s.history)) {
+    d.history = s.history.filter((h) => h && typeof h === 'object').slice(-HISTORY_MAX).map((h) => ({
+      d: str(h.d, 10), r: ['win', 'loss', 'draw'].includes(h.r) ? h.r : 'loss', c: str(h.c), o: str(h.o), delta: int(h.delta, -1000, 1000, 0), step: int(h.step, 0, LEGEND * 3, 0),
+    }));
+  }
+  if (s.chars && typeof s.chars === 'object') {
+    for (const [id, v] of Object.entries(s.chars)) if (v && typeof v === 'object') d.chars[str(id)] = { w: int(v.w, 0, 1e9, 0), l: int(v.l, 0, 1e9, 0) };
+  }
+  if (s.tot && typeof s.tot === 'object') d.tot = { matches: int(s.tot.matches, 0, 1e9, 0), dmg: int(s.tot.dmg, 0, 1e12, 0), parries: int(s.tot.parries, 0, 1e9, 0) };
+  if (s.rec && typeof s.rec === 'object') d.rec = { combo: int(s.rec.combo, 0, 1e6, 0), dmg: int(s.rec.dmg, 0, 1e9, 0) };
+  if (Array.isArray(s.curve)) d.curve = s.curve.filter((c) => c && Number.isFinite(c.top)).slice(-CURVE_MAX).map((c) => ({ d: str(c.d, 10), top: Math.max(0.001, Math.min(100, c.top)) }));
+  d.bestTop = Number.isFinite(s.bestTop) ? Math.max(0.001, Math.min(100, s.bestTop)) : 100;
+  d.bestTop = Math.min(d.bestTop, estimate(d).top);
   return d;
 }
 
@@ -245,4 +263,60 @@ export function applyResult(prev, res, day = today()) {
   }
   s.best = Math.max(s.best, stepOf(s));
   return { state: s, delta, lines, event, daily, ryo };
+}
+
+
+// --- Classement mondial estimé et statistiques (étape 3) -----------------------------------
+
+/**
+ * Le jeu n'a pas de serveur : la position mondiale est ESTIMÉE à partir d'une répartition
+ * habituelle des joueurs par rang (beaucoup en bas, très peu en haut), sur une population fictive.
+ * L'interface l'indique toujours clairement (« estimé »).
+ */
+export const DISTRIBUTION = [35, 25, 18, 11, 7, 3.5, 0.5]; // % des joueurs par rang
+export const POPULATION = 50000;
+export const HISTORY_MAX = 20;
+export const CURVE_MAX = 30;
+
+/** Position estimée : { top: pourcentage (Top x %), pos: rang approximatif sur POPULATION }. */
+export function estimate(s) {
+  let top;
+  if (s.tier === LEGEND) {
+    // Légende : chaque point de score fait grimper vers le sommet
+    top = DISTRIBUTION[LEGEND] * Math.exp(-(s.legendPts || 0) / 400);
+  } else {
+    const above = DISTRIBUTION.slice(s.tier + 1).reduce((a, b) => a + b, 0);
+    const prog = s.promo ? 1 : Math.min(1, (s.div * DIV_POINTS + s.pts) / (DIV_POINTS * 3));
+    top = above + DISTRIBUTION[s.tier] * (1 - prog * 0.98);
+  }
+  top = Math.max(1 / POPULATION * 100, Math.min(100, top));
+  return { top, pos: Math.max(1, Math.round((top / 100) * POPULATION)) };
+}
+
+/** Pourcentage lisible : « 12 », « 3,4 », « 0,08 ». */
+export function formatTop(top) {
+  const v = top >= 10 ? Math.round(top) : top >= 1 ? Math.round(top * 10) / 10 : top >= 0.1 ? Math.round(top * 100) / 100 : Math.round(top * 1000) / 1000;
+  return String(v).replace('.', ',');
+}
+
+/**
+ * Enregistre un combat classé dans les statistiques (historique, personnages, moyennes,
+ * records, courbe du classement). info : { result, charId, oppId, delta, dmg, parries, maxCombo }
+ */
+export function recordStats(prev, info, day = today()) {
+  const s = { ...prev };
+  s.history = [...(prev.history || []), { d: day, r: info.result, c: info.charId, o: info.oppId, delta: info.delta, step: stepOf(s) }].slice(-HISTORY_MAX);
+  const c = { ...((prev.chars || {})[info.charId] || { w: 0, l: 0 }) };
+  if (info.result === 'win') c.w += 1;
+  else if (info.result === 'loss') c.l += 1;
+  s.chars = { ...(prev.chars || {}), [info.charId]: c };
+  const t = prev.tot || { matches: 0, dmg: 0, parries: 0 };
+  s.tot = { matches: t.matches + 1, dmg: t.dmg + Math.max(0, Math.round(info.dmg || 0)), parries: t.parries + Math.max(0, info.parries || 0) };
+  const r = prev.rec || { combo: 0, dmg: 0 };
+  s.rec = { combo: Math.max(r.combo, info.maxCombo || 0), dmg: Math.max(r.dmg, Math.round(info.dmg || 0)) };
+  const est = estimate(s);
+  const curve = (prev.curve || []).filter((p) => p.d !== day);
+  s.curve = [...curve, { d: day, top: est.top }].slice(-CURVE_MAX);
+  s.bestTop = Math.min(prev.bestTop ?? 100, est.top);
+  return s;
 }

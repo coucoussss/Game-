@@ -259,6 +259,17 @@ console.log(`Bestiaire : ${MONSTERS.length} créatures`);
   check(kept.title === 5 && kept.aura === 'flammes-noires' && R.sanitizeRanked({ title: 42, aura: 'xx' }).aura === '', 'titre et aura sauvegardés (et validés)');
   const gold = R.withRankAura(CHARACTERS[0], 'or');
   check(gold.aura === '#ffd23f' && gold.auraStyle === 'flame' && R.withRankAura(CHARACTERS[0], null) === CHARACTERS[0], 'aura de rang appliquée au combattant');
+  // Étape 3 : classement mondial estimé et statistiques
+  const e0 = R.estimate(R.newRankedState()), eOr = R.estimate({ tier: 2, div: 1, pts: 60 }), eLeg = R.estimate({ tier: R.LEGEND, legendPts: 3000 });
+  check(e0.top === 100 && Math.round(eOr.top) === 31 && eLeg.top < 0.01 && eLeg.pos >= 1, 'classement estimé (Bronze 100 %, Or II ≈ top 31 %, Légende proche du sommet)');
+  let mono = true, prevTop = 101;
+  for (let t = 0; t < R.LEGEND; t++) for (let dv = 0; dv < 3; dv++) for (const pts of [0, 50, 100]) { const tp = R.estimate({ tier: t, div: dv, pts }).top; if (tp > prevTop + 1e-9) mono = false; prevTop = tp; }
+  check(mono, 'classement estimé toujours meilleur en montant');
+  let ss = R.newRankedState();
+  for (let k = 0; k < 25; k++) ss = R.recordStats(ss, { result: k % 3 ? 'win' : 'loss', charId: k % 2 ? 'kael' : 'ren', oppId: 'yami', delta: 20, dmg: 400 + k, parries: 2, maxCombo: k }, `2026-01-${String(1 + (k % 28)).padStart(2, '0')}`);
+  check(ss.history.length === R.HISTORY_MAX && ss.tot.matches === 25 && ss.rec.combo === 24 && ss.rec.dmg === 424 && ss.chars.kael.w + ss.chars.kael.l === 12 && ss.curve.length <= R.CURVE_MAX, 'statistiques et historique (20 derniers combats)');
+  const ss2 = R.sanitizeRanked(JSON.parse(JSON.stringify(ss)));
+  check(ss2.history.length === 20 && ss2.chars.ren.w === ss.chars.ren.w && ss2.tot.dmg === ss.tot.dmg, 'statistiques sauvegardées');
   // Équilibre : un joueur solide (IA difficile, sans amélioration) contre chaque rang
   const roster = CHARACTERS.filter((c) => !c.monster).map((c) => c.id);
   const rates = [];
