@@ -87,6 +87,7 @@ export class Stage {
     const a = buildArena(id);
     this.arena = a;
     this.scene.add(a.group);
+    this.collectOccluders(a);
     this.scene.fog = new THREE.Fog(a.fog[0], a.fog[1], a.fog[2]);
     this.sun.color.set(a.sun.color);
     this.sun.intensity = a.sun.intensity;
@@ -99,11 +100,48 @@ export class Stage {
     return a;
   }
 
+  /** Éléments de décor (arbres, rochers, lanternes…) susceptibles de masquer le combat. */
+  collectOccluders(a) {
+    this.occluders = [];
+    const box = new THREE.Box3();
+    const sphere = new THREE.Sphere();
+    a.group.updateMatrixWorld(true);
+    for (const o of a.group.children) {
+      if (o.renderOrder < 0) continue; // ciel
+      box.setFromObject(o);
+      if (box.isEmpty()) continue;
+      box.getBoundingSphere(sphere);
+      // Sol, montagnes lointaines et décors géants ne sont pas concernés
+      if (sphere.radius > 7 || sphere.center.length() > 45) continue;
+      this.occluders.push({ o, c: sphere.center.clone(), r: sphere.radius });
+    }
+  }
+
+  /** Cache les éléments de décor placés entre la caméra et les combattants (ou collés à la caméra). */
+  hideOccluders() {
+    if (!this.occluders) return;
+    const cam = this.camera.position;
+    const look = this.rig.look;
+    const lx = look.x - cam.x, ly = look.y + 1 - cam.y, lz = look.z - cam.z;
+    const len2 = lx * lx + ly * ly + lz * lz || 1;
+    for (const oc of this.occluders) {
+      const cx = oc.c.x - cam.x, cy = oc.c.y - cam.y, cz = oc.c.z - cam.z;
+      const t = Math.max(0, Math.min(1, (cx * lx + cy * ly + cz * lz) / len2));
+      const dx = cx - lx * t, dy = cy - ly * t, dz = cz - lz * t;
+      const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      // Marge plus large quand l'objet est proche de la caméra (il occupe alors tout l'écran)
+      const margin = oc.r + 1.2 + (1 - t) * 2;
+      const hide = t < 0.92 && d < margin;
+      oc.o.visible = !hide;
+    }
+  }
+
   /** Avance les éléments animés du décor et les effets. */
   update(dt) {
     this.time += dt;
     const a = this.arena;
     if (a) {
+      this.hideOccluders();
       if (a.update) a.update(this.time);
       if (a.sky.material.uniforms.uTime) a.sky.material.uniforms.uTime.value = this.time;
       if (a.ambient && this.settings.data.gfx.quality !== 'low') a.ambient(this.particles, dt);
