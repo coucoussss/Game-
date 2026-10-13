@@ -29,7 +29,7 @@ export const ARCS = [
     ],
     fight: { enemies: [{ charId: 'demon-lame', level: 'normal', mods: { hp: 1.6 } }] },
     outro: [
-      { who: null, text: 'Le démon se dissout en cendres. Le sabre tombe sur le toit mouillé.', shot: 'wide', fx: 'flash' },
+      { who: null, text: 'Le démon se dissout en cendres. Le sabre tombe sur le toit mouillé.', shot: 'wide', vanish: { who: 'demon-lame', style: 'ash' } },
       { who: 'kage', text: 'Repose en paix, maître. Ton ombre veillera encore sur cette ville.', pose: 'idle', shot: 'close' },
     ],
     reward: { ryo: 300 },
@@ -90,7 +90,7 @@ export const ARCS = [
     ],
     fight: { enemies: [{ charId: 'goule', level: 'normal', mods: { hp: 1.5 } }, { charId: 'goule', level: 'easy' }] },
     outro: [
-      { who: null, text: 'Des lucioles s’élèvent des corps immobiles et disparaissent dans le ciel.', shot: 'wide', fx: 'flash' },
+      { who: null, text: 'Des lucioles s’élèvent des corps immobiles et disparaissent dans le ciel.', shot: 'wide', vanish: { who: 'goule', style: 'fireflies' } },
       { who: 'sora', text: 'Allez en paix. Les renards du temple vous montreront le chemin.', pose: 'victory', shot: 'close' },
     ],
     reward: { ryo: 300 },
@@ -120,7 +120,7 @@ export const ARCS = [
     ],
     fight: { boss: true, enemies: [{ charId: 'imperatrice', level: 'normal', mods: { hp: 0.8 } }] },
     outro: [
-      { who: null, text: 'La reine se dissout dans un tourbillon de pétales.', shot: 'wide', fx: 'flash' },
+      { who: null, text: 'La reine se dissout dans un tourbillon de pétales.', shot: 'wide', vanish: { who: 'imperatrice', style: 'petals' } },
       { who: 'hana', text: 'Cette danse, je l’ai finie à ma façon. Elle ne réveillera plus jamais personne.', pose: 'victory', shot: 'close' },
     ],
     reward: { ryo: 400 },
@@ -135,7 +135,7 @@ export const ARCS = [
     ],
     fight: { enemies: [{ charId: 'golem', level: 'normal', mods: { hp: 1.3 } }] },
     outro: [
-      { who: null, text: 'Le golem s’effondre en un tas de pierres paisibles.', shot: 'wide', fx: 'flash' },
+      { who: null, text: 'Le golem s’effondre en un tas de pierres paisibles.', shot: 'wide', vanish: { who: 'golem', style: 'stone' } },
       { who: 'garo', text: 'Dors, petit frère. Je bâtirai un abri avec tes pierres.', pose: 'idle', shot: 'close' },
     ],
     reward: { ryo: 300 },
@@ -165,7 +165,7 @@ export const ARCS = [
     ],
     fight: { boss: true, enemies: [{ charId: 'shogun-oni', level: 'normal', mods: { hp: 0.75 } }] },
     outro: [
-      { who: null, text: 'L’aube se lève sur le temple. L’armée des démons fond comme la neige.', shot: 'wide', fx: 'flash' },
+      { who: null, text: 'L’aube se lève sur le temple. L’armée des démons fond comme la neige.', shot: 'wide', vanish: { who: 'shogun-oni', style: 'light' } },
       { who: 'akane', text: 'Tant qu’une flamme brûle ici, aucune nuit ne durera.', pose: 'victory', shot: 'close' },
     ],
     reward: { ryo: 400 },

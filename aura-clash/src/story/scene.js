@@ -128,6 +128,7 @@ export class StoryScene {
     dlg.querySelector('.dl-portrait').innerHTML = def ? this.app.ui.portrait(def.id) : '';
     dlg.querySelector('.dl-text').textContent = '';
     this.fx(line.fx, speaker);
+    if (line.vanish) this.startVanish(line.vanish);
     if (line.choice) this.showChoice(line);
   }
 
@@ -174,6 +175,84 @@ export class StoryScene {
       app.audio.play('transform');
     }
     if (kind === 'dark') { app.overlay.mono(0.9); app.overlay.flash('#2a0010', 0.4); app.audio.play('ultCharge'); }
+  }
+
+  /**
+   * Un personnage vaincu disparaît (fin d'un récit) : il se fige, se teinte puis se désagrège en
+   * particules selon le style : cendres, pétales, pierres, lucioles ou lumière.
+   */
+  startVanish(v) {
+    const m = this.models.find((x) => x.id === v.who);
+    if (!m || m.vanish) return;
+    // Matériaux propres à ce modèle (ils peuvent être partagés avec d'autres personnages)
+    m.model.root.traverse((o) => {
+      if (!o.material) return;
+      o.material = Array.isArray(o.material) ? o.material.map((x) => x.clone()) : o.material.clone();
+      for (const mat of Array.isArray(o.material) ? o.material : [o.material]) {
+        mat.transparent = true;
+        mat.userData.baseOpacity = mat.opacity ?? 1;
+        if (mat.color) mat.userData.baseColor = mat.color.clone();
+      }
+    });
+    m.vanish = { t: 0, dur: v.style === 'stone' ? 2.6 : 2.3, style: v.style || 'ash', acc: 0 };
+    const st = this.app.stage;
+    const tint = { ash: '#ff7a3a', petals: '#ffb0d8', stone: '#d8c8a8', fireflies: '#d8ff8a', light: '#fff4d0' }[m.vanish.style] || '#ffffff';
+    st.effects.light(m.f.x, 1.2, m.f.z, tint, 8, 1.4, 10);
+    st.effects.groundRing(m.f.x, 0.05, m.f.z, 0.3, 3.5, 0.9, tint);
+    if (m.vanish.style === 'stone') { st.rig.addShake(0.5); this.app.audio.play('thud'); } else this.app.audio.play('teleport');
+  }
+
+  updateVanish(m, dt) {
+    const v = m.vanish;
+    if (v.done) return;
+    v.t += dt;
+    const k = Math.min(1, v.t / v.dur);
+    const p = this.app.stage.particles;
+    const { x, z } = m.f;
+    // Teinte : cendres → noir charbonneux, lumière → blanc, pierres → gris
+    const toward = { ash: new THREE.Color('#1a1214'), stone: new THREE.Color('#6a6058'), light: new THREE.Color('#ffffff'), petals: new THREE.Color('#ffd0e8'), fireflies: new THREE.Color('#2a3a2a') }[v.style];
+    const fade = Math.max(0, (k - 0.35) / 0.65); // disparition dans la seconde moitié
+    m.model.root.traverse((o) => {
+      if (!o.material) return;
+      for (const mat of Array.isArray(o.material) ? o.material : [o.material]) {
+        if (mat.userData.baseColor && toward) mat.color.copy(mat.userData.baseColor).lerp(toward, Math.min(1, k * 1.8));
+        mat.opacity = (mat.userData.baseOpacity ?? 1) * (1 - fade);
+      }
+    });
+    if (v.style === 'stone') m.model.root.position.y = -fade * 0.9; // le golem s'affaisse
+    if (v.style === 'light') m.model.root.position.y = fade * 0.6; // l'armée s'élève en lumière
+    // Particules qui s'échappent du corps, du bas vers le haut au fil de la désagrégation
+    v.acc += dt;
+    while (v.acc > 0.016) {
+      v.acc -= 0.016;
+      const n = k < 0.95 ? 6 : 0;
+      for (let i = 0; i < n; i++) {
+        const y = 0.2 + Math.random() * 2 * (0.4 + k);
+        const px = x + (Math.random() - 0.5) * 0.9, pz = z + (Math.random() - 0.5) * 0.9;
+        if (v.style === 'ash') {
+          p.emit({ x: px, y, z: pz, count: 1, dir: [0.5, 1, 0.2], cone: 0.5, speed: 1.2 + Math.random() * 2, color: Math.random() < 0.25 ? '#ff8a3a' : '#2a2224', size: 0.12 + Math.random() * 0.14, life: 1.6, drag: 0.4, hdr: Math.random() < 0.25 ? 2 : 0.6 });
+        } else if (v.style === 'petals') {
+          const a = v.t * 6 + i;
+          p.emit({ x: x + Math.cos(a) * 0.7, y, z: z + Math.sin(a) * 0.7, count: 1, dir: [-Math.sin(a), 0.7, Math.cos(a)], cone: 0.3, speed: 3, color: Math.random() < 0.5 ? '#ffb0d8' : '#ffe0f0', size: 0.16, life: 1.4, drag: 0.6, hdr: 1.2 });
+        } else if (v.style === 'stone') {
+          p.emit({ x: px, y, z: pz, count: 1, dir: [Math.random() - 0.5, -0.2, Math.random() - 0.5], cone: 0.8, speed: 2, color: Math.random() < 0.5 ? '#8a7a68' : '#5a5048', size: 0.2 + Math.random() * 0.2, life: 1, gravity: 9, drag: 0.5, hdr: 0.5 });
+        } else if (v.style === 'fireflies') {
+          if (Math.random() < 0.5) p.emit({ x: px, y, z: pz, count: 1, dir: [0, 1, 0], cone: 0.4, speed: 0.8 + Math.random(), color: '#d8ff8a', size: 0.14, life: 2.6, drag: 0.1, hdr: 2.5 });
+        } else {
+          p.emit({ x: px, y, z: pz, count: 1, dir: [0, 1, 0], cone: 0.3, speed: 2.5, color: Math.random() < 0.5 ? '#ffffff' : '#fff0c0', size: 0.14, life: 1.2, drag: 0.3, hdr: 2.2 });
+        }
+      }
+    }
+    if (k >= 1) {
+      v.done = true;
+      m.model.root.visible = false;
+      // Dernier souffle : petite gerbe finale
+      const col = { ash: '#ff8a3a', petals: '#ffb0d8', stone: '#b8a890', fireflies: '#d8ff8a', light: '#ffffff' }[v.style];
+      p.emit({ x, y: 1, z, count: 40, speed: 4, color: col, size: 0.18, life: 1, drag: 1.5, hdr: 1.5 });
+      if (v.style === 'stone') {
+        for (let i = 0; i < 8; i++) p.emit({ x: x + (Math.random() - 0.5) * 1.2, y: 0.25, z: z + (Math.random() - 0.5) * 1.2, count: 1, speed: 0.2, color: '#7a6a5a', size: 0.5 + Math.random() * 0.4, life: 3, drag: 4, hdr: 0.4 });
+      }
+    }
   }
 
   /** Calcule le plan de caméra de la réplique courante. */
@@ -245,6 +324,7 @@ export class StoryScene {
       Object.assign(m.f, { state: ps.state, moveId: ps.moveId || '', mt: ps.mt || 0 });
       m.f.st += dt;
       m.model.update(dt, m.f, { cine: !!ps.cine, react: ps.react || null });
+      if (m.vanish) this.updateVanish(m, dt);
     }
     // Caméra
     const rig = this.app.stage.rig;
