@@ -177,6 +177,11 @@ harcèlent à distance. Le **Bestiaire** décrit chaque créature. Récompense :
 - **Difficulté** : facile, normale ou cauchemar (vie et dégâts des ennemis, récompenses × 0,7 / × 1 / × 1,6).
 - **Mode Infini** (ouvert après le niveau 30) : vagues sans fin, un boss toutes les 10 vagues, tableau des records.
 
+### Musique de combat
+Les combats ont un **thème épique** composé pour le jeu (taiko, cordes, cuivres, chœur ; `src/assets/battle-epic.mp3`,
+joué en boucle). Les boss gardent leur propre thème. Options > Son > Musique de combat permet de revenir à la
+musique de chaque arène.
+
 ### Mode Classé
 Une échelle de rangs contre l'IA, hors ligne : Bronze, Argent, Or, Platine, Diamant, Maître (3 divisions chacun)
 et Légende de l'Aura. Chaque victoire rapporte des Points d'Aura (+20, plus des bonus : manche parfaite,

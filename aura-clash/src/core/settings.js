@@ -55,7 +55,7 @@ const clone = (o) => JSON.parse(JSON.stringify(o));
 
 function defaults() {
   return {
-    audio: { master: 0.8, music: 0.55, sfx: 0.85 },
+    audio: { master: 0.8, music: 0.55, sfx: 0.85, battleMusic: 'epic' },
     gfx: { quality: 'auto', bloom: true, shadows: true, shake: true, fullscreen: false },
     game: { difficulty: 'normal', roundTime: 99, playerName: 'Joueur' },
     keys: clone(DEFAULT_KEYS),

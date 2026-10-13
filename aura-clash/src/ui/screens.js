@@ -1497,7 +1497,8 @@ export class UI {
     let body = '';
     if (tab === 'audio') {
       const slider = (key, label) => `<label class="opt" data-nav data-slider><span>${label}</span><input type="range" min="0" max="1" step="0.05" value="${d.audio[key]}" data-key="${key}"><em>${Math.round(d.audio[key] * 100)}%</em></label>`;
-      body = slider('master', 'Volume général') + slider('music', 'Musique') + slider('sfx', 'Bruitages');
+      body = slider('master', 'Volume général') + slider('music', 'Musique') + slider('sfx', 'Bruitages')
+        + `<button class="opt" data-nav data-cycle data-akey="battleMusic" data-values='${JSON.stringify([['epic', 'Thème épique'], ['arena', 'Musique de l’arène']])}'><span>Musique de combat</span><b>${d.audio.battleMusic === 'arena' ? 'Musique de l’arène' : 'Thème épique'}</b></button>`;
     } else if (tab === 'gfx') {
       const cyc = (key, label, values) => `<button class="opt" data-nav data-cycle data-key="${key}" data-values='${JSON.stringify(values)}'><span>${label}</span><b>${values.find((v) => v[0] === d.gfx[key])?.[1] ?? d.gfx[key]}</b></button>`;
       body = cyc('quality', 'Qualité', [['auto', 'Automatique'], ['low', 'Basse'], ['medium', 'Moyenne'], ['high', 'Haute']])
@@ -1554,8 +1555,8 @@ export class UI {
     }));
     el.querySelectorAll('[data-cycle]').forEach((b) => {
       const values = JSON.parse(b.dataset.values);
-      const sect = b.dataset.key ? 'gfx' : 'game';
-      const key = b.dataset.key || b.dataset.gkey;
+      const sect = b.dataset.key ? 'gfx' : b.dataset.akey ? 'audio' : 'game';
+      const key = b.dataset.key || b.dataset.gkey || b.dataset.akey;
       const step = (dir) => {
         const i = values.findIndex((v) => v[0] === d[sect][key]);
         const next = values[(i + dir + values.length) % values.length];

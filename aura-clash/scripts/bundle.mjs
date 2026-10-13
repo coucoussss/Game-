@@ -22,6 +22,7 @@ const options = {
   minify: !watch,
   sourcemap: watch ? 'inline' : false,
   legalComments: 'none',
+  loader: { '.mp3': 'dataurl' }, // la musique de combat est intégrée au jeu
   logLevel: 'info',
 };
 

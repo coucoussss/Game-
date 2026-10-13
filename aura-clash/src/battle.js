@@ -120,7 +120,8 @@ export class Battle {
     stage.rig.focus = null;
     stage.rig.snapTo(this.state.fighters);
     const arenaInfo = ARENAS.find((a) => a.id === cfg.arena);
-    this.arenaMusic = arenaInfo ? arenaInfo.music : 0;
+    // Musique de combat : le thème épique (par défaut) ou celle de l'arène (Options > Son)
+    this.arenaMusic = app.settings.data.audio.battleMusic === 'arena' ? (arenaInfo ? arenaInfo.music : 0) : 'epic';
     // Un boss dès le début (histoire, première vague) : son thème
     const boss0 = cfg.fighters.find((f) => CHAR_BY_ID[f.charId].boss);
     app.audio.music(boss0 ? `boss:${boss0.charId}` : this.arenaMusic);

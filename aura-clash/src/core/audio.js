@@ -1,6 +1,8 @@
-// Audio entièrement généré par code (Web Audio API) : aucun fichier son, donc aucun problème de droits.
+// Audio généré par code (Web Audio API), plus un morceau composé pour le jeu (le thème épique de combat,
+// assets/battle-epic.mp3, synthétisé lui aussi) : aucun son externe, donc aucun problème de droits.
 //  - bruitages synthétisés (impacts, souffles, rayons, explosions…)
 //  - musique procédurale : batterie, basse, nappes et mélodie, un thème par arène + un thème de menu.
+import EPIC_URL from '../assets/battle-epic.mp3';
 
 const midiHz = (m) => 440 * 2 ** ((m - 69) / 12);
 
@@ -60,6 +62,17 @@ const DRUMS = {
   soft: { kick: [0, 10], snare: [8], hat: 4 },
   epic: { kick: [0, 3, 6, 8, 11, 14], snare: [4, 12], hat: 2 },
 };
+
+// Boucle du thème épique (en secondes) : de la montée des cordes (mesure 5) à la fin de l'apogée (mesure 40)
+/** Décode une URL « data: » en tampon binaire (sans fetch : aucune règle réseau ne peut la bloquer). */
+function dataUrlToBuffer(url) {
+  const bin = atob(url.slice(url.indexOf(',') + 1));
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out.buffer;
+}
+
+const EPIC_LOOP = [0.6 + 4 * (240 / 140), 0.6 + 40 * (240 / 140)];
 
 export class AudioEngine {
   constructor(settings) {
@@ -350,6 +363,15 @@ export class AudioEngine {
     const idx = theme;
     if (!this.ctx) { this.pendingTheme = theme; return; }
     if (idx === this.themeIndex) return;
+    this.stopFile();
+    // Thème épique de combat : morceau enregistré, joué en boucle (de la montée à l'apogée)
+    if (idx === 'epic') {
+      this.themeIndex = idx;
+      clearInterval(this.timer);
+      this.timer = null;
+      this.playFile(EPIC_URL, EPIC_LOOP);
+      return;
+    }
     const th = idx === null || idx === undefined ? null : themeFor(idx);
     if (idx !== null && idx !== undefined && !th) return; // thème inconnu : on garde la musique en cours
     this.themeIndex = idx;
@@ -365,6 +387,40 @@ export class AudioEngine {
     this.step = 0;
     this.nextTime = t + 0.1;
     this.timer = setInterval(() => this.schedule(), 25);
+  }
+
+  /** Joue un morceau enregistré en boucle sur le bus musique (décodé une seule fois). */
+  playFile(url, loop) {
+    const ctx = this.ctx;
+    const token = (this.fileToken = (this.fileToken || 0) + 1);
+    this.fileBuffers = this.fileBuffers || {};
+    const buf = this.fileBuffers[url] || (this.fileBuffers[url] = Promise.resolve().then(() => ctx.decodeAudioData(dataUrlToBuffer(url))));
+    buf.then((audio) => {
+      if (token !== this.fileToken) return; // un autre thème a été demandé entre-temps
+      const t = ctx.currentTime;
+      this.musicBus.gain.cancelScheduledValues(t);
+      this.musicBus.gain.setValueAtTime(0.0001, t);
+      this.musicBus.gain.linearRampToValueAtTime(this.settings.data.audio.music * 0.55, t + 0.8);
+      const src = ctx.createBufferSource();
+      src.buffer = audio;
+      src.loop = true;
+      src.loopStart = loop[0];
+      src.loopEnd = Math.min(loop[1], audio.duration);
+      const g = ctx.createGain();
+      g.gain.value = 0.5; // le morceau est mixé plus fort que les thèmes synthétisés
+      src.connect(g).connect(this.musicBus);
+      src.start(t + 0.05);
+      this.fileSrc = src;
+    }).catch(() => { /* décodage impossible : pas de musique, le jeu continue */ });
+  }
+
+  stopFile() {
+    this.fileToken = (this.fileToken || 0) + 1;
+    if (this.fileSrc) {
+      const src = this.fileSrc;
+      this.fileSrc = null;
+      try { src.stop(this.ctx.currentTime + 0.3); } catch { /* déjà arrêté */ }
+    }
   }
 
   /** Prépare 4 mesures : accords, ligne de basse et mélodie (déterministes pour un thème). */
