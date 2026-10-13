@@ -53,9 +53,66 @@ export class MatchView {
     this.models.push({ model, def, prevMt: 0, prevMove: '', trailT: 0 });
   }
 
+  /** Sphère d'énergie qui se charge entre les mains d'un combattant (suit ses mains). */
+  addHandOrb(vm, id, color) {
+    this.handOrbs = this.handOrbs || [];
+    const fx = this.stage.effects;
+    const g = new THREE.Group();
+    const core = new THREE.Mesh(fx.sphereGeo, glowMat('#ffffff', 3.6));
+    const shell = new THREE.Mesh(fx.sphereGeo, glowMat(color, 2.4, 0.55));
+    const outer = new THREE.Mesh(fx.sphereGeo, glowMat(color, 1.4, 0.18));
+    shell.scale.setScalar(1.7);
+    outer.scale.setScalar(2.8);
+    g.add(core, shell, outer);
+    g.scale.setScalar(0.01);
+    this.stage.scene.add(g);
+    this.handOrbs.push({ vm, id, g, shell, outer, color, t: 0, boltT: 0 });
+  }
+
+  updateHandOrbs(dt, state) {
+    if (!this.handOrbs || !this.handOrbs.length) return;
+    const p = this.stage.particles;
+    const fx = this.stage.effects;
+    const a = new THREE.Vector3(), b = new THREE.Vector3();
+    for (const o of this.handOrbs) {
+      const f = state.fighters[o.id];
+      const mv = f && f.state === 'move' && f.moveId ? CHAR_BY_ID[f.charId].moves[f.moveId] : null;
+      const ch = mv && mv.charging;
+      if (!ch || f.mt >= ch[1]) { o.done = true; continue; }
+      const k = Math.max(0, Math.min(1, (f.mt - ch[0]) / (ch[1] - ch[0])));
+      o.vm.model.handL.getWorldPosition(a);
+      o.vm.model.handR.getWorldPosition(b);
+      a.add(b).multiplyScalar(0.5);
+      o.g.position.copy(a);
+      o.t += dt;
+      const size = 0.12 + k * k * 0.42;
+      o.g.scale.setScalar(size * (1 + Math.sin(o.t * 50) * 0.07 * (0.3 + k)));
+      o.outer.material.opacity = 0.12 + k * 0.2;
+      o.g.rotation.y += dt * 6;
+      if (dt <= 0) continue;
+      // L'énergie converge vers les mains, de plus en plus vite
+      p.emit({ x: a.x, y: a.y, z: a.z, count: 3 + Math.round(k * 6), speed: -(5 + k * 7), spread: 2.4 + k * 1.5, color: Math.random() < 0.3 ? '#ffffff' : o.color, size: 0.18, life: 0.3, drag: 0, hdr: 2.2 });
+      o.boltT -= dt;
+      if (o.boltT <= 0) {
+        o.boltT = 0.09 - k * 0.05;
+        const r = 0.6 + k * 1.4;
+        fx.lightning(a.x, a.y, a.z, a.x + (Math.random() - 0.5) * r * 2, a.y + (Math.random() - 0.5) * r * 1.6, a.z + (Math.random() - 0.5) * r * 2, Math.random() < 0.5 ? '#ffffff' : o.color, 5);
+        this.stage.rig.addShake(0.03 + k * 0.05);
+      }
+    }
+    for (const o of this.handOrbs) {
+      if (!o.done) continue;
+      this.stage.scene.remove(o.g);
+      o.g.traverse((m) => { if (m.material) m.material.dispose(); });
+    }
+    this.handOrbs = this.handOrbs.filter((o) => !o.done);
+  }
+
   detach() {
     this.hazardView.clear();
     this.debris.clear();
+    for (const o of this.handOrbs || []) this.stage.scene.remove(o.g);
+    this.handOrbs = [];
     for (const m of this.models) {
       this.stage.scene.remove(m.model.root);
       m.model.dispose();
@@ -76,6 +133,7 @@ export class MatchView {
     const p = this.stage.particles;
     this.director.update(dt);
     this.debris.update(dt);
+    this.updateHandOrbs(dt, state);
     this.updateGhosts(dt);
     const cineId = state.cine ? state.cine.id : -1;
     state.fighters.forEach((f, i) => {
@@ -1056,26 +1114,34 @@ export class MatchView {
         break;
       }
       case 'beamCharge': {
-        // Rayon Dévastateur : charge du ki, rochers qui lévitent, sol qui se fissure, sphère d'énergie
-        const f = ev.id != null ? state.fighters[ev.id] : null;
-        const yaw = f ? f.yaw : 0;
-        const ox = ev.x - Math.sin(yaw) * 0.2, oz = ev.z - Math.cos(yaw) * 0.2, oy = ev.y + 0.15;
-        this.debris.levitate(ev.x, ev.z, 14, 3);
-        this.debris.crater(ev.x, ev.z, 2.2, 6);
-        const ball = new THREE.Group();
-        const core = new THREE.Mesh(fx.sphereGeo, glowMat('#ffffff', 3.4));
-        const shell = new THREE.Mesh(fx.sphereGeo, glowMat(c, 2.2, 0.6));
-        shell.scale.setScalar(1.8);
-        ball.add(core, shell);
-        ball.position.set(ox, oy, oz);
-        fx.add(ball, (k) => {
-          ball.scale.setScalar(0.1 + k * 0.5 * (1 + Math.sin(k * 80) * 0.08));
-          if (Math.random() < 0.6) fx.lightning(ox, oy, oz, ox + (Math.random() - 0.5) * 3, oy + (Math.random() - 0.5) * 2.4, oz + (Math.random() - 0.5) * 3, '#c8f0ff', 5);
-        }, 0.4);
-        p.emit({ x: ox, y: oy, z: oz, count: 120, speed: -9, spread: 3.5, color: c, size: 0.25, life: 0.4, drag: 0, hdr: 2.4 });
-        fx.groundRing(ev.x, 0.05, ev.z, 0.4, 5, 0.6, c);
-        fx.light(ox, oy, oz, c, 14, 0.9, 16);
-        this.stage.rig.addShake(0.3);
+        // Rayon Dévastateur, phase 1 : Kael ramène les mains sur le côté ; une sphère de ki naît entre
+        // ses mains et grossit (elle suit ses mains), les rochers lévitent, le sol se fissure
+        const vm = ev.id != null ? this.models[ev.id] : null;
+        if (!vm) break;
+        this.debris.levitate(ev.x, ev.z, 12, 3);
+        this.debris.crater(ev.x, ev.z, 2, 7);
+        fx.groundRing(ev.x, 0.05, ev.z, 0.4, 4, 0.5, c);
+        fx.light(ev.x, ev.y, ev.z, c, 8, 0.6, 12);
+        this.addHandOrb(vm, ev.id, c);
+        break;
+      }
+      case 'beamCharge2': {
+        // Phase 2 : l'aura explose, onde de choc, encore plus de rochers arrachés
+        this.debris.levitate(ev.x, ev.z, 10, 4.5);
+        fx.shockSphere(ev.x, ev.y, ev.z, 0.5, 3.5, 0.45, c);
+        fx.groundRing(ev.x, 0.05, ev.z, 0.5, 6.5, 0.6, c);
+        p.emit({ x: ev.x, y: 0.2, z: ev.z, count: 40, flat: true, speed: 9, color: '#c8b8a0', size: 0.7, sizeEnd: 1.2, life: 0.6, hdr: 0.45, drag: 3 });
+        this.overlay.manga('ハァァァ…', 28, 70);
+        this.stage.rig.addShake(0.35);
+        this.audio.play('charge');
+        break;
+      }
+      case 'beamCharge3': {
+        // Phase 3 : instant de silence avant le tir, l'énergie se concentre (flash)
+        fx.groundRing(ev.x, 0.05, ev.z, 6, 0.5, 0.18, '#ffffff');
+        fx.light(ev.x, ev.y, ev.z, '#ffffff', 16, 0.35, 16);
+        this.overlay.flash(c, 0.12);
+        this.stage.rig.addPunch(3);
         break;
       }
       case 'novaGather':

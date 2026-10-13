@@ -75,9 +75,11 @@ export const CHARACTERS = [
         actions: [fx(0.03, 'kiOrbCharge'), proj(0.36, P.bigki)],
       },
       ultimate: {
-        name: 'Rayon Dévastateur', cost: 100, anim: 'beam', dur: 2.3, hold: [0.35, 1.95], armor: 'full',
+        name: 'Rayon Dévastateur', cost: 100, anim: 'beam', dur: 3.1, hold: [1.2, 2.8], armor: 'full',
+        // Charge : Kael concentre son ki et son aura dans ses mains avant de propulser le rayon
+        charging: [0.02, 1.25],
         cine: { text: 'RAYON DÉVASTATEUR', dur: 1.35 },
-        actions: [fx(0.02, 'beamCharge'), { t: 0.4, a: 'beam', dur: 1.5, width: 0.95, tick: 0.08, dmg: 16, finalDmg: 60, impact: 'ドォン!!' }],
+        actions: [fx(0.02, 'beamCharge'), fx(0.6, 'beamCharge2'), fx(1.08, 'beamCharge3'), { t: 1.25, a: 'beam', dur: 1.5, width: 0.95, tick: 0.08, dmg: 16, finalDmg: 60, impact: 'ドォン!!' }],
       },
     },
   },

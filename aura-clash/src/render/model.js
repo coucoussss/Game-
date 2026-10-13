@@ -1030,8 +1030,14 @@ export class CharacterModel {
     if (t < s) {
       commit = (t / s) * 0.35;
       // Anticipation : on arme lentement puis on se « charge » juste avant de frapper
-      const k = clamp(t / (s * 0.85), 0, 1);
+      const k = clamp(t / (s * (mv.charging ? 0.35 : 0.85)), 0, 1);
       p = lerpPose(base, wind, k * k * (3 - 2 * k) * 1.04);
+      // Charge d'énergie : tout le corps tremble, de plus en plus fort
+      if (mv.charging) {
+        const c = clamp(t / s, 0, 1) * 0.05;
+        p.torso[0] += Math.sin(t * 71) * c; p.torso[2] += Math.sin(t * 53) * c;
+        p.shL[0] += Math.sin(t * 67) * c; p.shR[0] += Math.sin(t * 59) * c; p.hy -= c * 0.6;
+      }
     } else if (t < holdEnd) {
       // Frappe : passage très rapide de l'armé au coup, avec un léger dépassement (élan)
       const k = clamp((t - s) / 0.07, 0, 1);
@@ -1146,15 +1152,17 @@ export class CharacterModel {
       const ult = f.state === 'move' && f.moveId === 'ultimate';
       const charge = f.state === 'charge' ? 1 : 0;
       let max = 0;
-      if ((f.state === 'charge' && (f.energy >= 90 || f.transformed)) || (ult && f.mt < 0.5)) max = 1;
+      const mvDef = f.state === 'move' ? this.def.moves[f.moveId] : null;
+      const charging = !!(mvDef && mvDef.charging && f.mt >= mvDef.charging[0] && f.mt < mvDef.charging[1]);
+      if ((f.state === 'charge' && (f.energy >= 90 || f.transformed)) || (ult && f.mt < 0.5) || charging) max = 1;
       else if (f.transformed) max = 0.3;
       // Cinématique : yeux allumés, mais pas de colonne de lumière devant l'objectif
       if (extra.cine) max = 0;
-      let level = Math.max(aura, full && f.state !== 'ko' ? 0.14 : 0);
+      let level = Math.max(aura, full && f.state !== 'ko' ? 0.14 : 0, charging ? 0.6 + 0.4 * Math.min(1, (f.mt - mvDef.charging[0]) / (mvDef.charging[1] - mvDef.charging[0])) : 0);
       if (extra.intro) level = Math.max(level, 0.65);
       if (this.def.boss && f.state !== 'ko') level = Math.max(level, 0.3); // les boss fument en permanence
       if (extra.cine) level = Math.min(level, 0.5); // gros plans : l'aura borde la silhouette sans la voiler
-      this.auraFx.update(dt, level, charge, max);
+      this.auraFx.update(dt, level, charging ? 1 : charge, max);
       if (extra.cine && this.auraFx.eyeMat) this.auraFx.eyeMat.opacity = 1;
       this.auraLevel = this.auraFx.level;
       // Aura à son maximum : les cheveux s'illuminent à sa couleur
