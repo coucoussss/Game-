@@ -511,7 +511,7 @@ export class MatchView {
     const p = this.stage.particles;
     const g = new THREE.Group();
     const warnColor = {
-      meteor: '#ff4a1a', icepillar: '#7ad8ff', thunder: '#fff38a', tornado: '#ffc8ec', windburst: '#ffc8ec',
+      meteor: '#ff4a1a', supernova: '#ffffff', icepillar: '#7ad8ff', thunder: '#fff38a', tornado: '#ffc8ec', windburst: '#ffc8ec',
       darkblast: '#ff2a5a', rockpillar: '#e0a85a', rockblast: '#e0a85a',
     }[e.type] || '#ff8a2a';
     const warn = new THREE.Mesh(new THREE.RingGeometry(0.85, 1, 40), new THREE.MeshBasicMaterial({ color: new THREE.Color(warnColor).multiplyScalar(2), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
@@ -533,6 +533,24 @@ export class MatchView {
       meteor.add(rock);
       meteor.add(new THREE.Mesh(new THREE.IcosahedronGeometry(3.4, 1), glowMat('#ff6a1a', 1.2, 0.35)));
       g.add(meteor);
+    }
+    let nova = null;
+    if (e.type === 'supernova') {
+      // Étoile : deux orbes (feu, glace) qui spiralent l'un vers l'autre et fusionnent en un cœur blanc
+      this.director.seal(e.x, e.z, e.r * 1.1, '#ffffff', e.delay + 0.7, 1.2);
+      nova = new THREE.Group();
+      const core = new THREE.Mesh(new THREE.IcosahedronGeometry(1, 2), glowMat('#ffffff', 2.2));
+      const halo = new THREE.Mesh(new THREE.IcosahedronGeometry(1.8, 2), glowMat('#ffd8a0', 0.9, 0.3));
+      const fire = new THREE.Mesh(new THREE.IcosahedronGeometry(0.7, 1), glowMat('#ff5a1a', 3));
+      const ice = new THREE.Mesh(new THREE.IcosahedronGeometry(0.7, 1), glowMat('#5ad8ff', 3));
+      const rings = [0, 1, 2].map((i) => {
+        const r = new THREE.Mesh(new THREE.TorusGeometry(2.4 + i * 0.6, 0.06, 6, 48), glowMat(i === 1 ? '#5ad8ff' : '#ff8a3a', 2.5, 0.8));
+        r.rotation.set(Math.random() * 3, Math.random() * 3, 0);
+        return r;
+      });
+      nova.add(core, halo, fire, ice, ...rings);
+      nova.userData = { core, halo, fire, ice, rings };
+      g.add(nova);
     }
     let column = null;
     if (e.type === 'thunder') {
@@ -594,6 +612,36 @@ export class MatchView {
         if (!en.done && pt <= 0) {
           pt = 0.016;
           p.emit({ x: en.x + meteor.position.x, y: meteor.position.y, z: en.z + meteor.position.z, count: 8, speed: 3, spread: 1.5, color: '#ff7a2a', size: 1.2, life: 0.6, up: 4 });
+        }
+      }
+      if (nova) {
+        const u = nova.userData;
+        nova.visible = !en.done;
+        if (!en.done) {
+          // 0 → 0,7 : les orbes tournent et se rapprochent ; 0,7 → 0,9 : fusion et gonflement ;
+          // 0,9 → 1 : implosion (l'étoile se contracte d'un coup avant d'exploser)
+          const spin = t * (6 + k * 18);
+          const rr = 3.2 * Math.max(0, 1 - k / 0.7);
+          nova.position.y = 3.8 - k * 1.2;
+          u.fire.position.set(Math.cos(spin) * rr, Math.sin(spin * 0.5) * rr * 0.3, Math.sin(spin) * rr);
+          u.ice.position.set(-u.fire.position.x, -u.fire.position.y, -u.fire.position.z);
+          const grow = k < 0.7 ? 0.3 + k * 0.6 : k < 0.9 ? 0.72 + (k - 0.7) * 6 : 1.92 * (1 - (k - 0.9) * 8);
+          u.core.scale.setScalar(Math.max(0.05, grow));
+          u.halo.scale.setScalar(Math.max(0.05, grow) * (1 + Math.sin(t * 40) * 0.08));
+          u.rings.forEach((r, i) => { r.rotation.x += dt * (2 + i); r.rotation.y += dt * (3 - i); r.scale.setScalar(Math.max(0.05, 1.2 - k)); });
+          pt -= dt;
+          if (pt <= 0) {
+            pt = 0.02;
+            // Matière aspirée vers l'étoile depuis tout autour
+            for (let i = 0; i < 3; i++) {
+              const a = Math.random() * Math.PI * 2;
+              const d = 6 + Math.random() * 4;
+              const px = en.x + Math.cos(a) * d, pz = en.z + Math.sin(a) * d, py = nova.position.y + rand(-3, 3);
+              const len = Math.hypot(en.x - px, nova.position.y - py, en.z - pz);
+              p.emit({ x: px, y: py, z: pz, count: 1, dir: [(en.x - px) / len, (nova.position.y - py) / len, (en.z - pz) / len], cone: 0.05, speed: len * 2.2, color: i % 2 ? '#7ae0ff' : '#ffa04a', size: 0.3, life: 0.45, hdr: 2 });
+            }
+          }
+          if (Math.random() < dt * 8) this.stage.effects.lightning(en.x + rand(-2, 2), nova.position.y, en.z + rand(-2, 2), en.x + rand(-1, 1), 0.1, en.z + rand(-1, 1), Math.random() < 0.5 ? '#ff8a3a' : '#7ae0ff', 3);
         }
       }
       if (column) {
@@ -906,6 +954,13 @@ export class MatchView {
         p.emit({ x: ev.x, y: ev.y, z: ev.z, count: 14, speed: 8, color: c, size: 0.2, life: 0.3 });
         fx.burstRing(ev.x, ev.y, ev.z, 0.2, 1.4, 0.15, c, cam);
         break;
+      case 'novaGather':
+        // Lyra rassemble le feu et la glace : deux spirales de particules convergent vers ses mains
+        p.emit({ x: ev.x, y: ev.y + 0.5, z: ev.z, count: 70, speed: -9, spread: 3, color: '#ffa04a', size: 0.3, life: 0.4, drag: 0, hdr: 2 });
+        p.emit({ x: ev.x, y: ev.y + 0.5, z: ev.z, count: 70, speed: -9, spread: 3, color: '#7ae0ff', size: 0.3, life: 0.4, drag: 0, hdr: 2 });
+        fx.groundRing(ev.x, 0.05, ev.z, 4, 0.3, 0.5, '#ffffff');
+        fx.light(ev.x, ev.y + 1, ev.z, '#fff0d0', 5, 0.6, 10);
+        break;
       case 'kiCharge':
         p.emit({ x: ev.x, y: ev.y, z: ev.z, count: 18, speed: -6, spread: 1.4, color: c, size: 0.2, life: 0.25, drag: 0 });
         fx.light(ev.x, ev.y, ev.z, c, 2.4, 0.3);
@@ -963,7 +1018,26 @@ export class MatchView {
         break;
       case 'aoeBoom': {
         const r = ev.r || 2;
-        if (['meteor', 'dragon', 'darkblast', 'rockblast', 'windburst'].includes(ev.type) || (ev.type === 'thunder' && r > 3)) {
+        if (ev.type === 'supernova') {
+          // Explosion en deux temps : éclair blanc, puis onde de feu et onde de glace qui s'écartent
+          p.emit({ x: ev.x, y: 3, z: ev.z, count: 260, speed: 30, color: '#ffffff', size: 0.7, life: 0.6, drag: 3, hdr: 3 });
+          p.emit({ x: ev.x, y: 1, z: ev.z, count: 180, speed: 22, color: '#ff6a1a', size: 1, life: 1, drag: 2.5, gravity: 3 });
+          p.emit({ x: ev.x, y: 1, z: ev.z, count: 180, speed: 22, color: '#7ae0ff', size: 0.8, life: 1.1, drag: 2.5, gravity: 6 });
+          p.emit({ x: ev.x, y: 0.2, z: ev.z, count: 80, flat: true, speed: 20, color: '#c8b8d8', size: 1.8, sizeEnd: 3, life: 1.2, hdr: 0.5 });
+          p.emit({ x: ev.x, y: 0.5, z: ev.z, count: 60, dir: [0, 1, 0], cone: 0.25, speed: 30, color: '#ffe0a0', size: 0.8, life: 0.9, hdr: 2 });
+          fx.shockSphere(ev.x, 2, ev.z, 0.5, r * 1.3, 0.35, '#ffffff');
+          fx.shockSphere(ev.x, 0, ev.z, 1, r * 2, 0.8, '#ff6a1a');
+          fx.shockSphere(ev.x, 0, ev.z, 1, r * 1.6, 1.0, '#5ad8ff');
+          fx.groundRing(ev.x, 0, ev.z, 1, r * 3.2, 0.9, '#ff8a3a');
+          fx.groundRing(ev.x, 0.02, ev.z, 0.5, r * 2.4, 1.1, '#7ae0ff');
+          fx.flash(ev.x, 3, ev.z, r * 4, 0.3, '#ffffff');
+          fx.light(ev.x, 4, ev.z, '#fff0d0', 18.0, 0.8, 30);
+          for (let i = 0; i < 8; i++) {
+            const a = (i / 8) * Math.PI * 2;
+            fx.lightning(ev.x, 0.5, ev.z, ev.x + Math.cos(a) * r * 2, 0.2, ev.z + Math.sin(a) * r * 2, i % 2 ? '#7ae0ff' : '#ff8a3a', 5);
+          }
+          this.overlay.flash('#ffffff', 0.35);
+        } else if (['meteor', 'dragon', 'darkblast', 'rockblast', 'windburst'].includes(ev.type) || (ev.type === 'thunder' && r > 3)) {
           const col = { meteor: '#ff6a1a', darkblast: '#ff2a5a', rockblast: '#e0a85a', windburst: '#ffc8ec', thunder: '#fff38a' }[ev.type] || c;
           p.emit({ x: ev.x, y: 0.5, z: ev.z, count: 200, speed: 24, color: col, size: 0.9, life: 0.9, drag: 2.5, gravity: 4 });
           p.emit({ x: ev.x, y: 0.2, z: ev.z, count: 60, flat: true, speed: 18, color: '#8a7a6a', size: 1.6, sizeEnd: 2.5, life: 1, hdr: 0.5 });

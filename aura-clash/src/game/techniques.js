@@ -57,9 +57,16 @@ export const TECHNIQUES = {
       actions: [0, 120, 240].map((deg) => aoe(0.15, 'icepillar', 0.4, 1.4, 34, 'launch', { offset: ring(deg, 1.6) })),
     },
     ultimate: {
-      name: 'Supernova', cost: 100, anim: 'summon', dur: 1.9, armor: 'full',
+      name: 'Supernova', cost: 100, anim: 'summon', dur: 2.1, armor: 'full',
       cine: { text: 'SUPERNOVA', dur: 1.3 },
-      actions: [aoe(0.2, 'firepillar', 0.5, 2, 60, 'launch'), aoe(0.2, 'icepillar', 0.7, 2, 60, 'launch', { offset: [2, 0] }), aoe(0.2, 'meteor', 1.2, 4.6, 230, 'kd', { chip: 0.3, impact: '爆!!' })],
+      // Lyra rassemble le feu et la glace ; des piliers alternés encerclent l'adversaire,
+      // puis une étoile se forme au-dessus de lui, implose et explose
+      actions: [
+        fx(0.02, 'novaGather'),
+        ...[0, 60, 120, 180, 240, 300].map((deg, i) => aoe(0.2 + i * 0.07, i % 2 ? 'icepillar' : 'firepillar', 0.35, 1.1, 16, 'light', { offset: ring(deg, 2.8) })),
+        aoe(0.25, 'supernova', 1.35, 4.8, 230, 'kd', { chip: 0.3, impact: '爆!!' }),
+        { t: 1.6, a: 'shake', amt: 1.4 },
+      ],
     },
   },
   goro: {
