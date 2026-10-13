@@ -9,11 +9,13 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 const exeName = `AuraClash-${pkg.version}-portable.exe`;
 const exePath = join(root, 'release', exeName);
-if (!existsSync(exePath)) {
+// « node scripts/zip.mjs crazygames » : archive de la version web pour CrazyGames
+const CRAZY = process.argv[2] === 'crazygames';
+if (!CRAZY && !existsSync(exePath)) {
   console.error(`Fichier introuvable : release/${exeName}\nLance d'abord « npm run build ».`);
   process.exit(1);
 }
-const entries = [
+const entries = CRAZY ? [[join(root, 'release', 'crazygames', 'index.html'), 'index.html']] : [
   [exePath, exeName],
   [join(root, 'LISEZMOI.txt'), 'LISEZMOI.txt'],
   [join(root, 'firewall.bat'), 'firewall.bat'],
@@ -66,6 +68,6 @@ const end = Buffer.alloc(22);
 end.writeUInt32LE(0x06054b50, 0);
 end.writeUInt16LE(centrals.length / 2, 8); end.writeUInt16LE(centrals.length / 2, 10);
 end.writeUInt32LE(central.length, 12); end.writeUInt32LE(offset, 16);
-const out = join(root, 'release', `AuraClash-${pkg.version}-windows.zip`);
+const out = join(root, 'release', CRAZY ? 'AuraClash-crazygames.zip' : `AuraClash-${pkg.version}-windows.zip`);
 writeFileSync(out, Buffer.concat([...locals, central, end]));
 console.log(`Archive prête : release/${basename(out)}`);

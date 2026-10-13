@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { CharacterModel } from '../render/model.js';
 import { CHAR_BY_ID } from '../game/characters.js';
+import { tr } from '../i18n/i18n.js';
 import { ARENAS } from '../render/arenas.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -226,7 +227,8 @@ export class StoryScene {
       if (this.titleT <= 0) { this.hideTitle(); this.next(); }
     }
     const line = this.lines[this.i];
-    // Texte qui s'écrit
+    // Texte qui s'écrit (traduit avant d'être écrit lettre à lettre)
+    if (line && !line.trDone) { line.text = tr(line.text); line.trDone = true; }
     if (line && this.shown < line.text.length) {
       const before = Math.floor(this.shown);
       this.shown = Math.min(line.text.length, this.shown + dt * 48);

@@ -18,7 +18,8 @@
     "zip": "node scripts/zip.mjs",
     "html": "node scripts/bundle.mjs && node scripts/single-html.mjs",
     "artifact": "node scripts/bundle.mjs && node scripts/artifact.mjs",
-    "dist": "npm run build && npm run zip"
+    "dist": "npm run build && npm run zip",
+    "crazygames": "node scripts/bundle.mjs && node scripts/single-html.mjs && node scripts/crazygames.mjs && node scripts/zip.mjs crazygames"
   },
   "dependencies": {
     "ws": "8.21.3"
@@ -27,6 +28,7 @@
     "electron": "43.7.7",
     "electron-builder": "26.15.3",
     "esbuild": "0.28.1",
+    "javascript-obfuscator": "^4.1.1",
     "three": "0.185.1"
   },
   "build": {
@@ -46,7 +48,9 @@
       "target": [
         {
           "target": "portable",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "build/icon.png"

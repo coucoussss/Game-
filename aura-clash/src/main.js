@@ -19,6 +19,8 @@ import { Battle } from './battle.js';
 import { CpuBrain } from './game/ai.js';
 import { CHARACTERS, CHAR_BY_ID } from './game/characters.js';
 import { dressed } from './game/techniques.js';
+import { startDomTranslation } from './i18n/i18n.js';
+import { platform } from './platform.js';
 
 class App {
   constructor() {
@@ -258,6 +260,8 @@ class App {
     const actions = this.input.menuActions();
     if (this.vsSkip && actions.includes('ok')) this.vsSkip(); // manette : A passe l'écran VS
     else if (this.ui.screen) this.ui.handle(actions);
+    // Signale au site hôte (CrazyGames) quand le joueur est réellement en combat
+    if (this.battle && !this.ui.screen && !this.replay) platform.gameplayStart(); else platform.gameplayStop();
     if (this.battle) this.battle.frame(dt);
     else if (this.scene) this.scene.update(dt);
     else this.updateBackdrop(dt);
@@ -270,6 +274,8 @@ class App {
 }
 
 function boot() {
+  startDomTranslation();
+  platform.init();
   try {
     window.app = new App();
   } catch (err) {

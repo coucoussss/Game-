@@ -2,6 +2,7 @@
 //   'local'  : simulation sur cette machine (versus IA, deux joueurs, 2v2, entraînement)
 //   'host'   : simulation ici + envoi des instantanés aux invités du réseau local
 //   'client' : affichage des instantanés reçus de l'hôte + envoi de nos entrées
+import { platform } from './platform.js';
 import { Match } from './game/match.js';
 import { CpuBrain } from './game/ai.js';
 import { CHAR_BY_ID, SLOTS, withLoadout } from './game/characters.js';
@@ -375,7 +376,8 @@ export class Battle {
     if (this.ended) return;
     this.ended = true;
     if (this.rec && this.rec.snaps.length > 30) this.app.lastReplay = this.rec;
-    setTimeout(() => this.app.ui.showResults(this, team), 1800);
+    // Sur CrazyGames, une publicité peut s'intercaler avant l'écran de résultats
+    setTimeout(() => platform.midgameAd(this.app.audio, () => this.app.ui.showResults(this, team)), 1800);
   }
 
   winnerNames(team) {

@@ -129,10 +129,16 @@ export class AudioEngine {
     return buf;
   }
 
+  /** Coupe ou rétablit tout le son (pendant une publicité, par exemple). */
+  setMuted(m) {
+    this.muted = m;
+    this.applyVolumes();
+  }
+
   applyVolumes() {
     if (!this.ctx) return;
     const a = this.settings.data.audio;
-    this.master.gain.value = a.master;
+    this.master.gain.value = this.muted ? 0 : a.master;
     this.sfxBus.gain.value = a.sfx;
     this.musicBus.gain.value = a.music * 0.55;
   }

@@ -15,6 +15,7 @@ import { TECH_PRICES, COSTUMES, COSTUME_PRICE } from '../game/techniques.js';
 import { CHALLENGES, challengeState, pendingChallenges } from '../core/challenges.js';
 import { WAVE_LEVELS, WAVE_HEAL, buildLevel, levelReward, isBossLevel, regionOf, DIFFICULTIES, withDifficulty, endlessWave, endlessReward, BLESSINGS } from '../game/waves.js';
 import { MONSTERS, TIERS } from '../game/monsters.js';
+import { lang, setLang } from '../i18n/i18n.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const h = (html) => {
@@ -207,6 +208,7 @@ export class UI {
     ];
     const sys = [
       { label: 'Options', action: () => this.options(() => this.mainMenu()) },
+      { label: lang === 'fr' ? '🌐 English' : '🌐 Français', cls: 'ghost', action: () => setLang(lang === 'fr' ? 'en' : 'fr') },
       ...(electron ? [{ label: 'Quitter', cls: 'ghost', action: () => window.auraNative.quit() }] : []),
     ];
     const tile = (t, i, kind) => `<button class="tile ${kind}" data-nav data-k="${kind}" data-i="${i}" style="--c:${t.color || '#ffd23f'}">
@@ -234,7 +236,7 @@ export class UI {
       { label: 'Versus contre l’IA', hint: '1 joueur, best of 3', action: () => this.setupVersus('cpu') },
       { label: 'Versus local', hint: '2 joueurs sur le même appareil', action: () => this.setupVersus('local2') },
       { label: '2 contre 2', hint: 'avec ou sans partenaire humain', action: () => this.setup2v2() },
-      { label: 'Réseau local (LAN)', hint: WEB_ONLY ? 'disponible dans la version PC (.exe)' : 'créer ou rejoindre une partie', disabled: WEB_ONLY, action: () => this.lanMenu() },
+      ...(window.AURA_PLATFORM === 'crazygames' ? [] : [{ label: 'Réseau local (LAN)', hint: WEB_ONLY ? 'disponible dans la version PC (.exe)' : 'créer ou rejoindre une partie', disabled: WEB_ONLY, action: () => this.lanMenu() }]),
       { label: 'Entraînement', hint: 'mannequin configurable', action: () => this.setupTraining() },
       { label: 'Retour', cls: 'ghost', action: () => this.mainMenu() },
     ]);
