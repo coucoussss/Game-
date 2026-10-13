@@ -112,8 +112,10 @@ export class Stage {
       if (box.isEmpty()) continue;
       box.getBoundingSphere(sphere);
       // Sol, montagnes lointaines et décors géants ne sont pas concernés
-      if (sphere.radius > 7 || sphere.center.length() > 45) continue;
-      this.occluders.push({ o, c: sphere.center.clone(), r: sphere.radius });
+      // Sol, montagnes lointaines et décors géants ne sont pas concernés (les pitons hauts mais fins, si)
+      const hr = Math.max(box.max.x - box.min.x, box.max.z - box.min.z) / 2;
+      if (hr > 6 || sphere.center.length() > 45 || sphere.radius > 20) continue;
+      this.occluders.push({ o, c: sphere.center.clone(), r: sphere.radius, hr });
     }
   }
 
@@ -131,7 +133,11 @@ export class Stage {
       const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
       // Marge plus large quand l'objet est proche de la caméra (il occupe alors tout l'écran)
       const margin = oc.r + 1.2 + (1 - t) * 2;
-      const hide = t < 0.92 && d < margin;
+      // Élément collé à la caméra (même sur le côté) : il remplirait une bonne partie de l'écran
+      const dist = Math.sqrt(cx * cx + cy * cy + cz * cz);
+      const ahead = (cx * lx + cy * ly + cz * lz) / Math.sqrt(len2) > -oc.r;
+      const near = Math.hypot(cx, cz) < oc.hr + 4.5 && dist < oc.r + 6;
+      const hide = (t < 0.92 && d < margin) || (near && ahead);
       oc.o.visible = !hide;
     }
   }
