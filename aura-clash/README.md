@@ -177,6 +177,22 @@ harcèlent à distance. Le **Bestiaire** décrit chaque créature. Récompense :
 - **Difficulté** : facile, normale ou cauchemar (vie et dégâts des ennemis, récompenses × 0,7 / × 1 / × 1,6).
 - **Mode Infini** (ouvert après le niveau 30) : vagues sans fin, un boss toutes les 10 vagues, tableau des records.
 
+### Mode Classé
+Une échelle de rangs contre l'IA, hors ligne : Bronze, Argent, Or, Platine, Diamant, Maître (3 divisions chacun)
+et Légende de l'Aura. Chaque victoire rapporte des Points d'Aura (+20, plus des bonus : manche parfaite,
+finish à l'ultime, parades, combo, séries, conditions spéciales) ; une défaite en retire 15 sans jamais faire
+descendre de division. 100 points font passer à la division suivante ; la division I pleine ouvre un combat
+de promotion (boss pour devenir Maître puis Légende). La première victoire du jour compte double.
+- **Récompenses** : Ryō, titres (Combattant, Maître d'armes, Sensei, Légende de l'Aura) et auras exclusives
+  (dorée, cristal, flammes noires, arc-en-ciel), à équiper dans l'écran Classé.
+- **Conditions spéciales** : au rang Maître, chaque combat en a une (deux en Légende) : adversaire chargé ou
+  éveillé, arène de lave, sans améliorations, manches de 45 s.
+- **Saisons** : une par mois ; à la fin, un badge selon le meilleur rang atteint et le rang redescend d'un cran.
+- **Classement mondial estimé** (le jeu n'a pas de serveur) et **statistiques** : par personnage, records,
+  20 derniers combats, courbe de progression.
+- **Profil** : pseudo, avatar, niveau de joueur (XP gagnée dans tous les modes), vitrine de 3 succès,
+  statistiques, collection et carte de profil à télécharger.
+
 ### Défis, galerie, options
 - **Défis** : 16 objectifs (victoires, parades, combos, boss, vagues, collection…), chacun récompensé en Ryō.
 - **Galerie** : tous les modèles en 3D (les créatures une fois rencontrées), avec poses, expressions,

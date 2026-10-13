@@ -276,6 +276,19 @@ console.log(`Bestiaire : ${MONSTERS.length} créatures`);
   check(l1.level === 1 && l2.level === 2 && l2.cur === 0 && l3.level === 2 && l3.cur === L.xpToNext(2) - 1 && lmax.level === L.MAX_LEVEL && lmax.max, 'niveaux de joueur (XP)');
   check(L.xpFor('ranked', 'win') === 120 && L.xpFor('story', 'win') === 150 && L.xpFor('endless', 'loss', 12) === 160 && L.xpFor('free', 'draw') === 60, 'XP par mode et par résultat');
   check(L.modeOf({ ranked: {} }) === 'ranked' && L.modeOf({ waveLevel: 3 }) === 'waves' && L.modeOf({}) === 'free', 'mode de jeu d’un combat');
+  // Étape 5 : conditions spéciales et saisons
+  check(R.pickConditions({ tier: 4 }).length === 0 && R.pickConditions({ tier: 5 }).length === 1 && R.pickConditions({ tier: R.LEGEND }).length === 2 && R.pickConditions({ tier: 5, promo: true }).length === 0, 'conditions : aucune avant Maître, 1 au Maître, 2 en Légende');
+  const cw = R.applyResult({ ...R.newRankedState(), tier: 5, lastDaily: '2026-01-01' }, { result: 'win', conds: ['lava', 'raw'] }, '2026-01-01');
+  check(cw.delta === 20 + 2 * R.POINTS.condition, 'bonus de points par condition');
+  const sn = R.rolloverSeason({ ...R.newRankedState(), tier: 4, div: 1, pts: 50, season: '2026-09', seasonMatches: 5, seasonBest: 14, title: 3, aura: 'cristal', best: 14 }, '2026-10');
+  check(sn.tier === 3 && sn.div === 0 && sn.pts === 0 && sn.badges.length === 1 && sn.badges[0].step === 14 && sn.title === 3 && sn.aura === 'cristal' && sn.best === 14 && sn.seasonNotice && sn.season === '2026-10', 'fin de saison : badge, rang redescendu, récompenses gardées');
+  const sl = R.rolloverSeason({ ...R.newRankedState(), tier: R.LEGEND, legendPts: 900, season: '2026-09', seasonMatches: 2 }, '2026-10');
+  check(sl.tier === 5 && sl.legendPts === 0, 'fin de saison : Légende redescend Maître III');
+  const sz = R.rolloverSeason({ ...R.newRankedState(), tier: 2, season: '2026-09', seasonMatches: 0 }, '2026-10');
+  check(sz.tier === 2 && sz.badges.length === 0 && !sz.seasonNotice, 'saison sans combat : pas de badge ni de baisse');
+  const s0 = R.rolloverSeason(R.newRankedState(), '2026-10');
+  check(s0.season === '2026-10' && !s0.seasonNotice && R.rolloverSeason(s0, '2026-10') === s0, 'première saison et même saison');
+  check(R.sanitizeRanked(JSON.parse(JSON.stringify(sn))).badges.length === 1, 'badges sauvegardés');
   // Équilibre : un joueur solide (IA difficile, sans amélioration) contre chaque rang
   const roster = CHARACTERS.filter((c) => !c.monster).map((c) => c.id);
   const rates = [];

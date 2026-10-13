@@ -17,7 +17,7 @@ import { WAVE_LEVELS, WAVE_HEAL, buildLevel, levelReward, isBossLevel, regionOf,
 import { MONSTERS, TIERS } from '../game/monsters.js';
 import { lang, setLang, tr } from '../i18n/i18n.js';
 import { levelFromXp } from '../core/level.js';
-import { RANKS, LEGEND, DIVISIONS, DIV_POINTS, DAILY_RYO, RANK_TITLES, RANK_AURAS, POPULATION, estimate, formatTop, recordStats, opponentFor, applyResult, dailyAvailable, stepName, rankName, bestTier, unlockedTitles, unlockedAuras, titleOf, auraOf } from '../game/ranked.js';
+import { RANKS, LEGEND, DIVISIONS, DIV_POINTS, DAILY_RYO, RANK_TITLES, RANK_AURAS, POPULATION, estimate, formatTop, recordStats, opponentFor, applyResult, dailyAvailable, stepName, rankName, CONDITION_BY_ID, pickConditions, rolloverSeason, seasonOf, seasonDaysLeft, bestTier, unlockedTitles, unlockedAuras, titleOf, auraOf } from '../game/ranked.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const h = (html) => {
@@ -199,7 +199,7 @@ export class UI {
     const play = [
       { kanji: '物', label: 'Mode Histoire', hint: `${done} / ${CHAPTERS.length} chapitres · récits`, color: '#ff8a3a', action: () => this.storyMenu() },
       { kanji: '波', label: 'Mode Vagues', hint: `niveau ${Math.min(WAVE_LEVELS, prof.levelUnlocked())} / ${WAVE_LEVELS} · boss · infini`, color: '#ff3a5a', action: () => this.wavesMenu() },
-      { kanji: '級', label: 'Classé', hint: this.rankText(prof.data.ranked), color: '#ffd23f', badge: dailyAvailable(prof.data.ranked) ? '×2' : '', action: () => this.rankedMenu() },
+      { kanji: '級', label: 'Classé', hint: this.rankText(this.rankedState()), color: '#ffd23f', badge: dailyAvailable(prof.data.ranked) ? '×2' : '', action: () => this.rankedMenu() },
       { kanji: '戦', label: 'Combat libre', hint: 'versus, 2 contre 2, réseau, entraînement', color: '#5ab4ff', action: () => this.freeMenu() },
       { kanji: '学', label: 'Tutoriel', hint: prof.data.tutorialDone ? 'revoir les techniques' : `les bases — +${TUTORIAL_REWARD} Ryō`, color: '#7fffb0', badge: prof.data.tutorialDone ? '' : 'NEW', action: () => this.charSelect([{ label: 'TUTORIEL', team: 0, ctrl: { type: 'human', player: 0 } }], (fs) => new Tutorial(this.app, fs[0].charId).start(), () => this.mainMenu()) },
     ];
@@ -624,6 +624,26 @@ export class UI {
 
   // --- Mode Classé ----------------------------------------------------------------------------
 
+  /** État du Classé, après un éventuel changement de saison (enregistré). */
+  rankedState() {
+    const prof = this.app.profile;
+    const next = rolloverSeason(prof.data.ranked);
+    if (next !== prof.data.ranked) { prof.data.ranked = next; prof.save(); }
+    return prof.data.ranked;
+  }
+
+  /** Nom d'une saison : « octobre 2026 ». */
+  seasonName(id) {
+    const [y, m] = id.split('-').map(Number);
+    return new Date(y, m - 1, 1).toLocaleDateString(lang === 'fr' ? 'fr-FR' : 'en-US', { month: 'long', year: 'numeric' });
+  }
+
+  /** Badges de saison (« Saison 1 — Diamant I »). */
+  badgesHtml(r) {
+    if (!r.badges || !r.badges.length) return '';
+    return `<div class="rk-badges">${r.badges.slice().reverse().map((b) => `<span class="rk-sbadge" style="--rc:${RANKS[Math.min(LEGEND, Math.floor(b.step / 3))].color}">${RANKS[Math.min(LEGEND, Math.floor(b.step / 3))].icon} <span>Saison ${b.n}</span> · <span>${esc(stepName(b.step))}</span> <small>${esc(this.seasonName(b.s))}</small></span>`).join('')}</div>`;
+  }
+
   /** Rang en texte court (tuile du menu). */
   rankText(r) {
     const streak = r.streak >= 2 ? ` · 🔥${r.streak}` : '';
@@ -655,9 +675,11 @@ export class UI {
     this.app.setBackdrop('menu');
     this.app.audio.music('menu');
     const prof = this.app.profile;
-    const r = prof.data.ranked;
+    const r = this.rankedState();
     const opp = opponentFor(r);
     const next = r.tier < LEGEND ? RANKS[r.tier + 1] : null;
+    const notice = r.seasonNotice;
+    if (notice) { r.seasonNotice = null; prof.save(); }
     const daily = dailyAvailable(r);
     const total = r.wins + r.losses;
     const el = this.menu('CLASSÉ', [
@@ -670,6 +692,8 @@ export class UI {
       cls: 'ranked-menu',
       subtitle: 'Gagne des Points d’Aura contre une IA de plus en plus forte. 100 points pour changer de division, un combat de promotion pour changer de rang. Une défaite ne te fait jamais descendre de division.',
       footer: `<div class="rk-info">
+        <div class="rk-season"><span>Saison ${(r.badges || []).length + 1}</span> · <span>${esc(this.seasonName(r.season || seasonOf()))}</span> · <span>fin dans ${seasonDaysLeft()} jours</span>${this.badgesHtml(r)}</div>
+        ${r.tier >= 5 && !r.promo ? '<div class="rk-cond-info"><span>Rang Maître et plus : chaque combat a une condition spéciale (+3 points par condition si tu gagnes).</span></div>' : ''}
         <div class="rk-chips">
           ${r.promo && next ? `<span class="rk-chip promo">⚔ <span>Combat de promotion</span> → ${next.icon} <span>${esc(next.name)}</span></span>` : ''}
           <span class="rk-chip ${daily ? 'daily' : 'off'}">${daily ? `☀ <span>Bonus du jour : points ×2 et +${DAILY_RYO} Ryō</span>` : '☾ <span>Bonus du jour obtenu — reviens demain</span>'}</span>
@@ -682,6 +706,11 @@ export class UI {
     });
     const head = h(`<div class="rk-head">${this.rankBadge(r)}${this.rankBar(r)}${this.worldRankHtml(r)}</div>`);
     el.insertBefore(head, el.querySelector('.menu-list'));
+    if (notice) {
+      el.insertBefore(h(`<div class="rk-season-end"><b>🏁 <span>Fin de la saison</span> ${notice.n} (<span>${esc(this.seasonName(notice.s))}</span>)</b>
+        <span><span>Badge obtenu</span> : <span>${esc(stepName(notice.step))}</span></span>
+        <span><span>Nouveau départ</span> : <span>${esc(stepName(notice.to))}</span> — <span>tes titres, auras et statistiques sont conservés.</span></span></div>`), head);
+    }
     this.show({ el, back: () => this.mainMenu() });
   }
 
@@ -812,7 +841,7 @@ export class UI {
     this.app.setBackdrop('menu');
     const app = this.app;
     const prof = app.profile;
-    const r = prof.data.ranked;
+    const r = this.rankedState();
     const st = prof.data.stats || {};
     const lv = levelFromXp(prof.data.xp);
     const name = app.settings.data.game.playerName || 'Joueur';
@@ -848,7 +877,8 @@ export class UI {
         <section><h3>Classé</h3><ul class="rk-kv">
           ${kv('Rang', `${RANKS[r.tier].icon} <span>${esc(rankName(r))}</span>`)}${kv('Meilleur rang', esc(stepName(r.best)))}
           ${kv('Victoires / défaites', `${r.wins} / ${r.losses}`)}${kv('Meilleure série', r.bestStreak)}
-          ${kv('Meilleur classement', `Top ${this.fmtTop(r.bestTop)} %`)}${kv('Aura équipée', aura ? `<span class="rk-aura" style="--ac:${aura.color}">${esc(aura.name)}</span>` : '—')}</ul></section>
+          ${kv('Saison', `${(r.badges || []).length + 1} · <span>${esc(this.seasonName(r.season || seasonOf()))}</span>`)}
+          ${kv('Meilleur classement', `Top ${this.fmtTop(r.bestTop)} %`)}${kv('Aura équipée', aura ? `<span class="rk-aura" style="--ac:${aura.color}">${esc(aura.name)}</span>` : '—')}</ul>${this.badgesHtml(r)}</section>
         <section><h3>Statistiques</h3><ul class="rk-kv">
           ${kv('Temps de jeu', this.fmtTime((prof.data.playTime || 0) + (app.playAcc || 0)))}${kv('Combats joués', fights)}
           ${kv('Victoires (tous modes)', st.wins || 0)}
@@ -954,21 +984,25 @@ export class UI {
 
   startRanked(charId) {
     const app = this.app;
-    const r = app.profile.data.ranked;
+    const r = this.rankedState();
     const opp = opponentFor(r);
+    const conds = pickConditions(r);
+    const condNames = conds.map((c) => CONDITION_BY_ID[c].name);
     const pool = CHARACTERS.filter((c) => !c.monster && c.id !== charId).map((c) => c.id);
     const foe = opp.boss || pool[Math.floor(Math.random() * pool.length)];
     const arenas = ['cliffs', 'temple', 'neon', 'glacier', 'volcano'];
     app.startBattle({
       role: 'local',
-      arena: arenas[Math.floor(Math.random() * arenas.length)],
-      roundTime: 99,
-      ranked: { promo: r.promo, boss: !!opp.boss },
+      arena: conds.includes('lava') ? 'volcano' : arenas[Math.floor(Math.random() * arenas.length)],
+      roundTime: conds.includes('blitz') ? 45 : 99,
+      ranked: { promo: r.promo, boss: !!opp.boss, conds, condNames },
       fighters: [
-        { charId, team: 0, ctrl: { type: 'human', player: 0 } },
+        { charId, team: 0, ctrl: { type: 'human', player: 0 }, ...(conds.includes('raw') ? { mods: { dmg: 1, hp: 1, speed: 1, energy: 1, cd: 1 } } : {}) },
         { charId: foe, team: 1, ctrl: { type: 'cpu', level: opp.level }, mods: opp.mods, boss: !!opp.boss },
       ],
     });
+    // Conditions spéciales : rappel au début du combat
+    if (conds.length) setTimeout(() => this.toast(`⚠ ${conds.map((c) => CONDITION_BY_ID[c].desc).join(' · ')}`, 5), 2800);
   }
 
   /** Récompenses débloquées en atteignant un rang (affichées après une promotion). */
@@ -989,8 +1023,8 @@ export class UI {
       const s0 = battle.rankedStart || {};
       const d = (k) => (st[k] || 0) - (s0[k] || 0);
       const result = team < 0 ? 'draw' : team === 0 ? 'win' : 'loss';
-      const before = { ...prof.data.ranked };
-      const res = applyResult(before, { result, perfect: d('perfects') > 0, ultFinish: d('ultFinish') > 0, parries: d('parries'), maxCombo: battle.rankedCombo || 0 });
+      const before = { ...this.rankedState() };
+      const res = applyResult(before, { result, perfect: d('perfects') > 0, ultFinish: d('ultFinish') > 0, parries: d('parries'), maxCombo: battle.rankedCombo || 0, conds: battle.cfg.ranked.conds || [] });
       const oppId = battle.cfg.fighters[1] ? battle.cfg.fighters[1].charId : '';
       res.state = recordStats(res.state, { result, charId, oppId, delta: res.delta, dmg: battle.rankedDmg || 0, parries: d('parries'), maxCombo: battle.rankedCombo || 0 });
       const passed = estimate(before).pos - estimate(res.state).pos;

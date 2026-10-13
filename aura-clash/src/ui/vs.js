@@ -20,7 +20,7 @@ export function showVs(app, cfg, onDone) {
   if (cfg.waveLevel) title = `NIVEAU ${cfg.waveLevel}`;
   else if (cfg.endless) title = 'MODE INFINI';
   else if (cfg.storyTitle) title = cfg.storyTitle;
-  else if (cfg.ranked) title = cfg.ranked.promo ? 'COMBAT DE PROMOTION' : 'CLASSÉ';
+  else if (cfg.ranked) title = cfg.ranked.promo ? 'COMBAT DE PROMOTION' : ['CLASSÉ', ...(cfg.ranked.condNames || [])].join(' · ');
   if (cfg.waveLevel && cfg.regionName) caption = cfg.regionName;
   const card = (d, i, n, cls) => `<div class="vs-card ${cls}" style="--c:${d.aura};--i:${i};--n:${n}">
     ${app.ui.portrait(d.id, 'vs-portrait')}

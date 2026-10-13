@@ -90,6 +90,11 @@ export class Battle {
         blessEvery: cfg.endless ? 3 : 1,
       });
       this.state = this.match;
+      // Classé, conditions spéciales : l'adversaire commence chargé ou transformé
+      const conds = (cfg.ranked && cfg.ranked.conds) || [];
+      const foe = this.match.fighters[1];
+      if (foe && conds.includes('energized')) foe.energy = 100;
+      if (foe && conds.includes('transformed')) foe.transformT = 25;
       this.brains = cfg.fighters.map((f, i) => {
         if (f.ctrl.type === 'cpu') return new CpuBrain(i, f.ctrl.level || cfg.difficulty || 'normal');
         if (f.ctrl.type === 'dummy') return new CpuBrain(i, 'normal', f.ctrl.mode || 'stand');

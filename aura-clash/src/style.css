@@ -725,3 +725,12 @@ body.touch-on .aslot { width: 7vw; }
 a.btn { text-decoration: none; }
 @media (orientation: portrait) { .pf-grid { grid-template-columns: 1fr; } .pf-achlist { grid-template-columns: repeat(2, minmax(0, 1fr)); } .pf-head { flex-wrap: wrap; } }
 .xp-gain { font: italic 900 2.2vh var(--display); color: #7fe0ff; text-shadow: 0 2px 0 #000; }
+/* Saisons et conditions spéciales */
+.rk-season { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 0.4vh 0.6vw; font: 700 1.6vh var(--font); color: #c8c0e8; }
+.rk-badges { flex-basis: 100%; display: flex; flex-wrap: wrap; justify-content: center; gap: 0.5vh 0.6vw; margin-top: 0.5vh; }
+.rk-sbadge { font: 800 1.5vh var(--font); color: var(--rc); padding: 0.4vh 0.7vw; background: rgba(10, 8, 20, 0.85); border: 1px solid var(--rc); border-radius: 2vh; }
+.rk-sbadge small { color: var(--muted); font-weight: 600; }
+.rk-cond-info { font: 700 1.6vh var(--font); color: #ffb08a; padding: 0.5vh 1vw; background: rgba(255, 106, 58, 0.12); border-left: 4px solid #ff6a3a; }
+.rk-season-end { display: flex; flex-direction: column; align-items: center; gap: 0.4vh; padding: 1vh 2vw; margin-bottom: 1vh; font: 600 1.7vh var(--font); background: linear-gradient(90deg, rgba(255, 210, 63, 0.25), rgba(10, 8, 20, 0.92)); border-left: 5px solid var(--gold); animation: rk-pop 0.6s cubic-bezier(0.2, 1.6, 0.4, 1) both; }
+.rk-season-end b { font: italic 900 2.4vh var(--display); color: var(--gold); }
+.pf-grid .rk-badges { justify-content: flex-start; }

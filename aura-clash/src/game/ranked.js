@@ -18,7 +18,7 @@ export const DIV_POINTS = 100;
 
 export const POINTS = {
   win: 20, loss: -15,
-  perfect: 5, ultFinish: 3, parries: 2, combo: 2,
+  perfect: 5, ultFinish: 3, parries: 2, combo: 2, condition: 3,
   streak3: 5, streak5: 10,
   promoFailBack: 75, // points retrouvés après une promotion ratée
 };
@@ -75,6 +75,7 @@ export function newRankedState() {
   return {
     tier: 0, div: 0, pts: 0, promo: false, streak: 0, bestStreak: 0, best: 0, wins: 0, losses: 0, lastDaily: '', legendPts: 0, title: 0, aura: '',
     history: [], chars: {}, tot: { matches: 0, dmg: 0, parries: 0 }, rec: { combo: 0, dmg: 0 }, curve: [], bestTop: 100,
+    season: '', seasonBest: 0, seasonMatches: 0, badges: [], seasonNotice: null,
   };
 }
 
@@ -112,6 +113,12 @@ export function sanitizeRanked(s) {
   if (Array.isArray(s.curve)) d.curve = s.curve.filter((c) => c && Number.isFinite(c.top)).slice(-CURVE_MAX).map((c) => ({ d: str(c.d, 10), top: Math.max(0.001, Math.min(100, c.top)) }));
   d.bestTop = Number.isFinite(s.bestTop) ? Math.max(0.001, Math.min(100, s.bestTop)) : 100;
   d.bestTop = Math.min(d.bestTop, estimate(d).top);
+  // Saisons (étape 5)
+  d.season = /^\d{4}-\d{2}$/.test(s.season || '') ? s.season : '';
+  d.seasonBest = Math.max(stepOf(d), int(s.seasonBest, 0, LEGEND * 3, 0));
+  d.seasonMatches = int(s.seasonMatches, 0, 1e9, 0);
+  if (Array.isArray(s.badges)) d.badges = s.badges.filter((b) => b && /^\d{4}-\d{2}$/.test(b.s || '')).slice(-48).map((b) => ({ s: b.s, n: int(b.n, 1, 9999, 1), step: int(b.step, 0, LEGEND * 3, 0) }));
+  if (s.seasonNotice && typeof s.seasonNotice === 'object') d.seasonNotice = { s: str(s.seasonNotice.s, 7), n: int(s.seasonNotice.n, 1, 9999, 1), step: int(s.seasonNotice.step, 0, LEGEND * 3, 0), from: int(s.seasonNotice.from, 0, LEGEND * 3, 0), to: int(s.seasonNotice.to, 0, LEGEND * 3, 0) };
   return d;
 }
 
@@ -180,6 +187,7 @@ export function applyResult(prev, res, day = today()) {
   let daily = false;
   let ryo = RANKED_RYO[res.result] || 0;
 
+  s.seasonMatches = (s.seasonMatches || 0) + 1;
   if (res.result === 'draw') {
     return { state: s, delta: 0, lines: [['Match nul', 0]], event: null, daily: false, ryo };
   }
@@ -193,6 +201,7 @@ export function applyResult(prev, res, day = today()) {
     if (res.ultFinish) lines.push(['Finish à l’ultime', POINTS.ultFinish]);
     if (res.parries >= 3) lines.push(['Parades parfaites', POINTS.parries]);
     if (res.maxCombo >= 10) lines.push(['Combo de 10 coups', POINTS.combo]);
+    for (const c of res.conds || []) if (CONDITION_BY_ID[c]) lines.push([CONDITION_BY_ID[c].name, POINTS.condition]);
     if (s.streak >= 5) lines.push([`Série de ${s.streak} victoires`, POINTS.streak5]);
     else if (s.streak >= 3) lines.push([`Série de ${s.streak} victoires`, POINTS.streak3]);
     delta = lines.reduce((n, l) => n + l[1], 0);
@@ -237,6 +246,7 @@ export function applyResult(prev, res, day = today()) {
       event = 'promoFailed';
     }
     s.best = Math.max(s.best, stepOf(s));
+    s.seasonBest = Math.max(s.seasonBest || 0, stepOf(s));
     return { state: s, delta, lines, event, daily, ryo };
   }
 
@@ -262,6 +272,7 @@ export function applyResult(prev, res, day = today()) {
     }
   }
   s.best = Math.max(s.best, stepOf(s));
+  s.seasonBest = Math.max(s.seasonBest || 0, stepOf(s));
   return { state: s, delta, lines, event, daily, ryo };
 }
 
@@ -319,4 +330,73 @@ export function recordStats(prev, info, day = today()) {
   s.curve = [...curve, { d: day, top: est.top }].slice(-CURVE_MAX);
   s.bestTop = Math.min(prev.bestTop ?? 100, est.top);
   return s;
+}
+
+
+// --- Conditions spéciales (Maître et Légende) et saisons (étape 5) --------------------------
+
+/**
+ * Conditions spéciales des combats classés au rang Maître (une par combat) et Légende (deux).
+ * Chacune rapporte un bonus de points en cas de victoire.
+ */
+export const CONDITIONS = [
+  { id: 'energized', name: 'Adversaire chargé', desc: 'L’adversaire commence avec l’énergie pleine.' },
+  { id: 'transformed', name: 'Adversaire éveillé', desc: 'L’adversaire commence transformé (plus fort et plus rapide).' },
+  { id: 'lava', name: 'Terre de feu', desc: 'Le combat a lieu au Cœur du Volcan, sous la marée de lave.' },
+  { id: 'raw', name: 'À mains nues', desc: 'Tes améliorations ne comptent pas pour ce combat.' },
+  { id: 'blitz', name: 'Course contre la montre', desc: 'Manches de 45 secondes seulement.' },
+];
+export const CONDITION_BY_ID = Object.fromEntries(CONDITIONS.map((c) => [c.id, c]));
+
+/** Conditions du prochain combat (aucune en dessous de Maître et pendant une promotion). */
+export function pickConditions(s, rnd = Math.random) {
+  if (s.promo || s.tier < 5) return [];
+  const n = s.tier === LEGEND ? 2 : 1;
+  const pool = CONDITIONS.map((c) => c.id);
+  const out = [];
+  while (out.length < n && pool.length) out.push(pool.splice(Math.floor(rnd() * pool.length), 1)[0]);
+  return out;
+}
+
+/** Saison en cours : un mois (« 2026-10 »). */
+export function seasonOf(d = new Date()) {
+  return today(d).slice(0, 7);
+}
+
+/** Jours restants avant la fin de la saison. */
+export function seasonDaysLeft(d = new Date()) {
+  const end = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+  return Math.max(1, Math.ceil((end - d) / 86400000));
+}
+
+/** Palier de départ de la saison suivante : un rang plus bas, division III (Bronze reste Bronze). */
+export function seasonResetStep(step) {
+  const tier = Math.min(LEGEND, Math.floor(step / 3));
+  return Math.max(0, tier - 1) * 3;
+}
+
+/**
+ * Change de saison si besoin : badge de la saison passée (si on y a joué) et rang qui redescend
+ * partiellement. Les titres, auras, statistiques et le meilleur rang de tous les temps sont gardés.
+ * Renvoie l'état (inchangé si la saison est la même).
+ */
+export function rolloverSeason(prev, cur = seasonOf()) {
+  if (prev.season === cur) return prev;
+  const s = { ...prev, season: cur };
+  if (!prev.season) return { ...s, seasonBest: stepOf(prev), seasonMatches: 0 };
+  const badges = [...(prev.badges || [])];
+  let notice = null;
+  if ((prev.seasonMatches || 0) > 0) {
+    const n = badges.length + 1;
+    badges.push({ s: prev.season, n, step: prev.seasonBest || stepOf(prev) });
+    const from = stepOf(prev);
+    const to = seasonResetStep(from);
+    s.tier = Math.min(LEGEND, Math.floor(to / 3));
+    s.div = 0;
+    s.pts = 0;
+    s.promo = false;
+    s.legendPts = 0;
+    notice = { s: prev.season, n, step: prev.seasonBest || from, from, to };
+  }
+  return { ...s, badges, seasonBest: stepOf(s), seasonMatches: 0, seasonNotice: notice };
 }
