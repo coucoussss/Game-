@@ -494,11 +494,24 @@ export class MatchView {
       let ringT = 0;
       let trenchT = 0;
       let scorchT = 0;
+      let arcT = 0;
       let last = null;
       return {
         update: (dt, en) => {
           bv.update(dt, en);
           last = { x: en.x + en.dx * en.len, y: en.y + en.dy * en.len, z: en.z + en.dz * en.len, col: en.color || auraColor };
+          // Arcs électriques qui courent le long du rayon, étincelles arrachées vers l'arrière
+          if (dt > 0) {
+            arcT -= dt;
+            if (arcT <= 0 && en.len > 1) {
+              arcT = 0.05;
+              const d1 = Math.random() * en.len, d2 = Math.min(en.len, d1 + 1 + Math.random() * 2.5);
+              const off = () => (Math.random() - 0.5) * en.width * 2.4;
+              this.stage.effects.lightning(en.x + en.dx * d1 + off(), en.y + en.dy * d1 + off(), en.z + en.dz * d1 + off(), en.x + en.dx * d2 + off(), en.y + en.dy * d2 + off(), en.z + en.dz * d2 + off(), Math.random() < 0.5 ? '#ffffff' : (en.color || auraColor), 5);
+            }
+            const d = Math.random() * en.len;
+            p.emit({ x: en.x + en.dx * d, y: en.y + en.dy * d, z: en.z + en.dz * d, count: 2, dir: [-en.dx, -en.dy + 0.2, -en.dz], cone: 0.5, speed: 7, color: Math.random() < 0.4 ? '#ffffff' : (en.color || auraColor), size: 0.14, life: 0.35, drag: 1, hdr: 2.2 });
+          }
           // Le rayon rase le sol : il arrache la terre sur son passage et laisse une tranchée brûlée
           if (en.y < 2.6 && dt > 0) {
             trenchT -= dt;

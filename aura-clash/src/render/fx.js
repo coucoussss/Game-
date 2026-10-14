@@ -389,56 +389,176 @@ export function beamMaterial(color) {
   });
 }
 
-/** Rayon d'énergie : cylindre orienté le long de Z, de longueur variable. */
+/**
+ * Rayon d'énergie façon anime : corps en aplats de couleur (cel-shading) avec cœur blanc,
+ * énergie qui file le long du rayon, bords turbulents, deux spirales qui s'enroulent autour,
+ * tête lumineuse cerclée d'anneaux et éclat au départ des mains.
+ */
+function beamBodyMaterial(color) {
+  return new THREE.ShaderMaterial({
+    uniforms: { uTime: { value: 0 }, uColor: { value: new THREE.Color(color) }, uFade: { value: 1 }, uLen: { value: 1 } },
+    vertexShader: /* glsl */`
+      varying vec2 vUv; varying vec3 vN; varying vec3 vV;
+      void main() {
+        vUv = uv;
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz);
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: /* glsl */`
+      uniform float uTime; uniform vec3 uColor; uniform float uFade; uniform float uLen;
+      varying vec2 vUv; varying vec3 vN; varying vec3 vV;
+      ${GLSL_NOISE}
+      void main() {
+        float a = vUv.x * 6.2831853;
+        float along = vUv.y * uLen;
+        // Énergie qui file vers l'avant (traînées) et bords qui bouillonnent
+        float flow = vnoise(vec2(cos(a) * 1.5 + along * 1.6 - uTime * 30.0, sin(a) * 1.5));
+        float streak = smoothstep(0.55, 0.85, vnoise(vec2(a * 3.0, along * 0.7 - uTime * 18.0)));
+        float facing = abs(dot(vN, vV));
+        float e = facing + (flow - 0.5) * 0.35 + streak * 0.25;
+        // Aplats (cel-shading) : bord sombre saturé, corps vif, cœur blanc
+        // Couleur pleine (pas additive) : le rayon garde sa teinte au lieu de virer au blanc
+        // Teinte saturée : on pousse la couleur loin du blanc pour le corps et les bords
+        vec3 sat = clamp((uColor - vec3(dot(uColor, vec3(0.333)))) * 1.8 + vec3(dot(uColor, vec3(0.333))), 0.0, 1.0);
+        vec3 deep = sat * sat * 0.75;
+        vec3 edge = deep;
+        vec3 body = mix(deep, sat, 0.7);
+        vec3 core = mix(sat, vec3(1.0), 0.8);
+        vec3 col = e < 0.4 ? edge : e < 0.82 ? body : core;
+        float alpha = e < 0.16 ? 0.0 : (e < 0.38 ? 0.85 : 1.0);
+        if (alpha <= 0.0) discard;
+        gl_FragColor = vec4(col, alpha * uFade);
+      }`,
+    transparent: true, depthWrite: false, side: THREE.DoubleSide,
+  });
+}
+
+function beamSpiralMaterial(color) {
+  return new THREE.ShaderMaterial({
+    uniforms: { uTime: { value: 0 }, uColor: { value: new THREE.Color(color) }, uFade: { value: 1 }, uLen: { value: 1 } },
+    vertexShader: /* glsl */`varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: /* glsl */`
+      uniform float uTime; uniform vec3 uColor; uniform float uFade; uniform float uLen;
+      varying vec2 vUv;
+      void main() {
+        // Deux rubans en hélice qui tournent autour du rayon
+        float h = fract(vUv.x * 2.0 + vUv.y * uLen * 0.45 - uTime * 4.0);
+        float band = smoothstep(0.0, 0.05, h) * (1.0 - smoothstep(0.1, 0.16, h));
+        float head = smoothstep(0.0, 0.08, vUv.y) * (1.0 - smoothstep(0.92, 1.0, vUv.y));
+        float alpha = band * head * 0.9 * uFade;
+        gl_FragColor = vec4((uColor * 0.7 + vec3(0.35)) * alpha, alpha);
+      }`,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+  });
+}
+
 export class BeamVisual {
   constructor(scene, color) {
     this.scene = scene;
+    this.color = color;
     this.group = new THREE.Group();
-    this.mat = beamMaterial(color);
-    const geo = new THREE.CylinderGeometry(1, 1, 1, 20, 1, true);
+    const geo = new THREE.CylinderGeometry(1, 1, 1, 28, 1, true);
     geo.rotateX(Math.PI / 2);
     geo.translate(0, 0, 0.5);
+    this.geo = geo;
+    this.mat = beamBodyMaterial(color);
     this.outer = new THREE.Mesh(geo, this.mat);
-    this.inner = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: new THREE.Color('#ffffff').multiplyScalar(1.6), transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false }));
-    // Halo extérieur qui pulse (plus large, plus diffus)
-    this.halo = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(1.3), transparent: true, opacity: 0.14, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
-    this.group.add(this.outer, this.inner, this.halo);
-    const sm = new THREE.SpriteMaterial({ map: radialTexture(), color: new THREE.Color(color).multiplyScalar(1.6), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true });
+    this.spiralMat = beamSpiralMaterial(color);
+    this.spiral = new THREE.Mesh(geo, this.spiralMat);
+    this.inner = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: new THREE.Color('#ffffff').multiplyScalar(1.25), transparent: true, opacity: 0.95, depthWrite: false }));
+    this.halo = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: new THREE.Color(color), transparent: true, opacity: 0.05, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+    this.group.add(this.halo, this.outer, this.spiral, this.inner);
+    // Tête : boule d'énergie et anneaux qui tournent ; départ : éclat aux mains
+    const sm = new THREE.SpriteMaterial({ map: radialTexture(), color: new THREE.Color(color).multiplyScalar(0.9), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true });
     this.head = new THREE.Sprite(sm);
+    this.headCore = new THREE.Sprite(new THREE.SpriteMaterial({ map: radialTexture(), color: new THREE.Color('#ffffff').multiplyScalar(1.2), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
     this.tail = new THREE.Sprite(sm);
-    this.group.add(this.head, this.tail);
+    this.flare = new THREE.Sprite(new THREE.SpriteMaterial({ map: starTexture(), color: new THREE.Color(color).multiplyScalar(1.0), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
+    this.rings = [0, 1, 2].map((i) => {
+      const r = new THREE.Mesh(new THREE.TorusGeometry(1, 0.05, 6, 40), new THREE.MeshBasicMaterial({ color: new THREE.Color(i === 1 ? '#ffffff' : color).multiplyScalar(1.1), transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false }));
+      this.group.add(r);
+      return r;
+    });
+    this.group.add(this.head, this.headCore, this.tail, this.flare);
     scene.add(this.group);
     this.time = 0;
   }
 
   update(dt, e) {
     this.time += dt;
-    const w = e.width * (1 + Math.sin(this.time * 40) * 0.08);
+    const t = this.time;
+    const w = e.width * (1 + Math.sin(t * 45) * 0.06);
     const dirLen = Math.hypot(e.dx, e.dy, e.dz) || 1;
     this.group.position.set(e.x, e.y, e.z);
     this.group.lookAt(e.x + e.dx / dirLen, e.y + e.dy / dirLen, e.z + e.dz / dirLen);
-    const grow = Math.min(1, e.t / 0.15);
-    const fade = e.t > e.dur - 0.2 ? Math.max(0, (e.dur - e.t) / 0.2) : 1;
-    this.outer.scale.set(w * grow, w * grow, Math.max(0.01, e.len));
-    this.inner.scale.set(w * 0.45 * grow, w * 0.45 * grow, Math.max(0.01, e.len));
-    const pulse = 1.9 + Math.sin(this.time * 22) * 0.25;
-    this.halo.scale.set(w * pulse * grow, w * pulse * grow, Math.max(0.01, e.len));
-    this.halo.material.opacity = 0.14 * fade;
-    this.inner.material.opacity = 0.85 * fade;
-    this.mat.uniforms.uTime.value = this.time;
-    this.mat.uniforms.uFade.value = fade;
-    this.head.position.set(0, 0, e.len);
-    this.head.scale.setScalar(w * 2.6 * grow);
+    const grow = Math.min(1, e.t / 0.12);
+    const fade = e.t > e.dur - 0.25 ? Math.max(0, (e.dur - e.t) / 0.25) : 1;
+    const len = Math.max(0.01, e.len);
+    // Le rayon s'amincit en s'éteignant
+    const ww = w * grow * (0.35 + 0.65 * fade);
+    this.outer.scale.set(ww, ww, len);
+    this.inner.scale.set(ww * 0.22, ww * 0.22, len);
+    this.spiral.scale.set(ww * 1.25, ww * 1.25, len);
+    this.halo.scale.set(ww * 2.1, ww * 2.1, len);
+    for (const m of [this.mat, this.spiralMat]) {
+      m.uniforms.uTime.value = t;
+      m.uniforms.uFade.value = fade;
+      m.uniforms.uLen.value = len;
+    }
+    this.inner.material.opacity = 0.95 * fade;
+    this.halo.material.opacity = 0.05 * fade;
+    // Tête qui pulse, anneaux qui tournent autour de l'axe du rayon
+    const hs = ww * (2.6 + Math.sin(t * 30) * 0.25);
+    this.head.position.set(0, 0, len);
+    this.head.scale.setScalar(hs * 1.4);
+    this.headCore.position.set(0, 0, len);
+    this.headCore.scale.setScalar(hs * 0.7);
+    this.rings.forEach((r, i) => {
+      r.position.set(0, 0, len - 0.3 - i * 0.55);
+      const s = ww * (1.6 + i * 0.35 + Math.sin(t * 20 + i) * 0.15);
+      r.scale.set(s, s, s);
+      r.rotation.z = t * (6 + i * 3) * (i % 2 ? -1 : 1);
+      r.material.opacity = 0.85 * fade;
+    });
+    // Éclat en étoile aux mains
     this.tail.position.set(0, 0, 0);
-    this.tail.scale.setScalar(w * 2.2);
+    this.tail.scale.setScalar(ww * 2.4);
+    this.flare.position.set(0, 0, 0.05);
+    this.flare.scale.setScalar(ww * (4 + Math.sin(t * 25) * 0.8));
+    this.flare.material.rotation = t * 2;
   }
 
   dispose() {
     this.scene.remove(this.group);
-    this.mat.dispose();
-    this.halo.material.dispose();
-    this.inner.material.dispose();
+    this.group.traverse((o) => { if (o.material) o.material.dispose(); if (o.geometry && o.geometry !== this.geo) o.geometry.dispose(); });
+    this.geo.dispose();
   }
+}
+
+let _starTex = null;
+/** Étoile à 4 branches (éclat lumineux façon anime). */
+function starTexture() {
+  if (_starTex) return _starTex;
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d');
+  const grd = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  grd.addColorStop(0, 'rgba(255,255,255,1)');
+  grd.addColorStop(0.15, 'rgba(255,255,255,0.6)');
+  grd.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grd;
+  g.fillRect(0, 0, 128, 128);
+  g.globalCompositeOperation = 'lighter';
+  for (const [w, h] of [[128, 6], [6, 128]]) {
+    const lg = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+    lg.addColorStop(0, 'rgba(255,255,255,1)');
+    lg.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = lg;
+    g.fillRect(64 - w / 2, 64 - h / 2, w, h);
+  }
+  _starTex = new THREE.CanvasTexture(c);
+  return _starTex;
 }
 
 // --- Traînée de mouvement (« smear » des coups d'anime) -----------------------------------------
