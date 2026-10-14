@@ -21,6 +21,11 @@ export function parseAddress(text) {
   return { host: m[1], port: m[2] ? Number(m[2]) : LAN_PORT };
 }
 
+const LAN_ERRORS = {
+  timeout: 'Pas de réponse : vérifie l’adresse IP, que l’hôte a bien créé la partie, et le pare-feu Windows.',
+  error: 'Connexion impossible : vérifie l’adresse IP et le pare-feu Windows de l’hôte.',
+};
+
 export class NetClient {
   constructor() {
     this.ws = null;
@@ -41,7 +46,15 @@ export class NetClient {
     if (h) h(msg);
   }
 
-  connect(host, port, { name, token } = {}) {
+  connect(host, port, opts = {}) {
+    return this.connectUrl(`ws://${host.includes(':') ? `[${host}]` : host}:${port}`, opts);
+  }
+
+  /**
+   * Connexion à une URL WebSocket (LAN ou serveur en ligne).
+   * opts : name, token (hôte LAN), create (crée un salon en ligne), room (code du salon), errors.
+   */
+  connectUrl(url, { name, token, create, room, errors = LAN_ERRORS } = {}) {
     return new Promise((resolve, reject) => {
       let settled = false;
       const fail = (reason) => {
@@ -52,15 +65,15 @@ export class NetClient {
       };
       let ws;
       try {
-        ws = new WebSocket(`ws://${host.includes(':') ? `[${host}]` : host}:${port}`);
+        ws = new WebSocket(url);
       } catch {
         fail('Adresse invalide.');
         return;
       }
       this.ws = ws;
-      const timeout = setTimeout(() => fail('Pas de réponse : vérifie l’adresse IP, que l’hôte a bien créé la partie, et le pare-feu Windows.'), 6000);
-      ws.onopen = () => ws.send(JSON.stringify({ type: 'hello', name, token, protocol: NET_PROTOCOL }));
-      ws.onerror = () => { clearTimeout(timeout); fail('Connexion impossible : vérifie l’adresse IP et le pare-feu Windows de l’hôte.'); };
+      const timeout = setTimeout(() => fail(errors.timeout), 8000);
+      ws.onopen = () => ws.send(JSON.stringify({ type: 'hello', name, token, create, room, protocol: NET_PROTOCOL }));
+      ws.onerror = () => { clearTimeout(timeout); fail(errors.error); };
       ws.onclose = () => {
         clearInterval(this.pingTimer);
         if (!settled) { clearTimeout(timeout); fail('Connexion refusée.'); return; }

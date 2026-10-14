@@ -6,6 +6,7 @@ import { HAZARD_INFO } from '../game/hazards.js';
 import { ACTIONS, PAD_NAMES } from '../core/settings.js';
 import { keyLabel } from '../core/input.js';
 import { NetClient, parseAddress, LAN_PORT } from '../net/session.js';
+import { onlineConfigured, randomCode, parseCode, roomUrl, ONLINE_ERRORS } from '../net/online.js';
 import { REWARDS, UPGRADES, UPGRADE_COSTS, UPGRADE_MAX } from '../core/profile.js';
 import { CHAPTERS, STORY_TITLE } from '../story/chapters.js';
 import { ARCS } from '../story/arcs.js';
@@ -245,6 +246,7 @@ export class UI {
       { label: 'Versus contre l’IA', hint: '1 joueur, best of 3', action: () => this.setupVersus('cpu') },
       { label: 'Versus local', hint: '2 joueurs sur le même appareil', action: () => this.setupVersus('local2') },
       { label: '2 contre 2', hint: 'avec ou sans partenaire humain', action: () => this.setup2v2() },
+      { label: 'Jouer en ligne', hint: 'avec un ami, par un code de salon', action: () => this.onlineMenu() },
       ...(window.AURA_PLATFORM ? [] : [{ label: 'Réseau local (LAN)', hint: WEB_ONLY ? 'disponible dans la version PC (.exe)' : 'créer ou rejoindre une partie', disabled: WEB_ONLY, action: () => this.lanMenu() }]),
       { label: 'Entraînement', hint: 'mannequin configurable', action: () => this.setupTraining() },
       { label: 'Retour', cls: 'ghost', action: () => this.mainMenu() },
@@ -1730,8 +1732,13 @@ export class UI {
       this.toast(err.message, 5);
       return;
     }
-    this.net = net;
     this.hostInfo = info;
+    this.startHostLobby(net, name);
+  }
+
+  /** Salon côté hôte (réseau local ou en ligne). */
+  startHostLobby(net, name) {
+    this.net = net;
     this.lobbyState = {
       players: [{ id: net.id, name, charId: 'kael', team: 0, ready: true, isHost: true }],
       settings: { mode: '1v1', arena: 'cliffs', difficulty: this.app.settings.data.game.difficulty, roundTime: this.app.settings.data.game.roundTime },
@@ -1761,7 +1768,7 @@ export class UI {
       const p = this.lobbyState.players.find((x) => x.id === msg.from);
       if (p) { p.ready = !!msg.on; this.broadcastLobby(); }
     });
-    net.on('disconnect', () => { this.toast('Serveur arrêté.'); this.leaveLan(); });
+    net.on('disconnect', () => { this.toast(net.room ? 'Connexion au serveur en ligne perdue.' : 'Serveur arrêté.'); this.leaveLan(); });
     this.broadcastLobby();
   }
 
@@ -1836,6 +1843,11 @@ export class UI {
       return;
     }
     this.toast(`Connecté à ${net.serverName || host}`);
+    this.startGuestLobby(net);
+  }
+
+  /** Salon côté invité (réseau local ou en ligne). */
+  startGuestLobby(net) {
     this.net = net;
     this.lobbyState = null;
     net.on('lobby', (msg) => {
@@ -1871,12 +1883,15 @@ export class UI {
     }
     const st = L.settings;
     const me = L.players.find((p) => p.id === net.id);
-    const ips = isHost && this.hostInfo ? this.hostInfo.ips : [];
+    const ips = isHost && this.hostInfo && this.hostInfo.ips ? this.hostInfo.ips : [];
+    const room = net.room;
     const prevFocus = this.focused ? (this.focused.dataset.key || null) : null;
     const arenaName = ARENAS.find((a) => a.id === st.arena)?.name || st.arena;
     const el = h(`<div class="screen lobby">
       <h2 class="menu-title">SALON ${isHost ? '— TU ES L’HÔTE' : ''}</h2>
-      ${isHost ? `<div class="ipbox">Adresse à donner à tes amis :
+      ${room ? `<div class="ipbox">Code du salon à donner à ton ami :
+        <div class="ips"><span class="ip room-code">${esc(room)}</span></div>
+        <small>Il choisit « Jouer en ligne » puis « Rejoindre » et tape ce code.</small></div>` : isHost ? `<div class="ipbox">Adresse à donner à tes amis :
         <div class="ips">${ips.length ? ips.map((ip) => `<span class="ip">${esc(ip.address)}</span>`).join('') : '<span class="ip">aucune carte réseau trouvée</span>'}</div>
         <small>Port ${this.hostInfo.port} — ils peuvent aussi cliquer sur « Rejoindre » : la partie apparaît automatiquement.</small></div>` : ''}
       <div class="lobby-body">
@@ -1986,12 +2001,83 @@ export class UI {
     this.show({ el, back: close });
   }
 
+  // --- En ligne ---------------------------------------------------------------------------
+
+  onlineMenu() {
+    this.app.setBackdrop('menu');
+    const name = this.app.settings.data.game.playerName;
+    const ok = onlineConfigured();
+    const el = h(`<div class="screen menu lan online">
+      <h2 class="menu-title">JOUER EN LIGNE</h2>
+      <label class="opt" data-nav><span>Ton nom</span><input type="text" maxlength="16" class="name-input" value="${esc(name)}"></label>
+      <div class="menu-list">
+        <button class="btn" data-nav data-act="host" ${ok ? '' : 'disabled'}>Créer un salon<small>tu reçois un code à donner à ton ami</small></button>
+        <div class="ip-row"><label class="opt" data-nav><span>Code du salon</span><input type="text" maxlength="6" class="code-input" placeholder="ex. K7QWP" autocapitalize="characters" spellcheck="false"></label>
+        <button class="btn" data-nav data-act="join" ${ok ? '' : 'disabled'}>Rejoindre</button></div>
+        <button class="btn ghost" data-nav data-act="back">Retour</button>
+      </div>
+      <div class="help">${ok ? 'Le joueur qui crée le salon fait tourner le combat : choisissez celui qui a la meilleure connexion (de préférence en câble ou près du Wi-Fi).' : 'Le serveur en ligne n’est pas encore configuré dans cette version.'}</div>
+    </div>`);
+    const nameInput = el.querySelector('.name-input');
+    const codeInput = el.querySelector('.code-input');
+    const saveName = () => { this.app.settings.data.game.playerName = nameInput.value.trim().slice(0, 16) || 'Joueur'; this.app.settings.save(); };
+    nameInput.addEventListener('change', saveName);
+    el.querySelector('[data-act=host]').addEventListener('click', () => { saveName(); this.onlineHost(); });
+    el.querySelector('[data-act=join]').addEventListener('click', () => {
+      saveName();
+      const code = parseCode(codeInput.value);
+      if (!code) { this.toast('Le code fait 5 caractères (ex. K7QWP).'); return; }
+      this.onlineJoin(code);
+    });
+    codeInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') el.querySelector('[data-act=join]').click(); e.stopPropagation(); });
+    el.querySelector('[data-act=back]').addEventListener('click', () => this.freeMenu());
+    this.show({ el, back: () => this.freeMenu() });
+  }
+
+  async onlineHost() {
+    const name = this.app.settings.data.game.playerName;
+    this.toast('Création du salon…', 6);
+    for (let tries = 0; tries < 4; tries++) {
+      const code = randomCode();
+      const net = new NetClient();
+      try {
+        await net.connectUrl(roomUrl(code), { name, create: true, room: code, errors: ONLINE_ERRORS });
+      } catch (err) {
+        if (err.message === 'code-taken') continue;
+        this.toast(err.message, 6);
+        return;
+      }
+      net.room = code;
+      this.hostInfo = { room: code };
+      this.toast(`Salon ${code} créé`);
+      this.startHostLobby(net, name);
+      return;
+    }
+    this.toast('Impossible de créer un salon, réessaie.', 5);
+  }
+
+  async onlineJoin(code) {
+    const name = this.app.settings.data.game.playerName;
+    this.toast(`Connexion au salon ${code}…`, 6);
+    const net = new NetClient();
+    try {
+      await net.connectUrl(roomUrl(code), { name, room: code, errors: ONLINE_ERRORS });
+    } catch (err) {
+      this.toast(err.message, 6);
+      return;
+    }
+    net.room = code;
+    this.toast(`Connecté au salon ${code}`);
+    this.startGuestLobby(net);
+  }
+
   async leaveLan() {
     const net = this.net;
     this.net = null;
     this.lobbyState = null;
     if (this.app.battle) this.app.endBattle(false);
     if (net) net.close();
+    if (net && net.room) { this.onlineMenu(); return; }
     if (window.auraNative && net && net.isHost) await window.auraNative.stopHost();
     this.lanMenu();
   }

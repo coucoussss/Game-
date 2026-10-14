@@ -299,7 +299,8 @@ export class Battle {
     }
     if (this.role === 'host') {
       this.netEvents.push(...m.events.slice(before));
-      if (this.tick % SNAP_EVERY === 0) {
+      // En ligne : un instantané à chaque tick (60/s) pour réduire le retard d'affichage chez l'invité
+      if (this.tick % (this.cfg.net.room ? 1 : SNAP_EVERY) === 0) {
         this.cfg.net.send(encodeSnapshot(m, this.netEvents, this.tick));
         this.netEvents = [];
       }
@@ -317,11 +318,20 @@ export class Battle {
     this.sendAcc += dt;
     if (this.sendAcc >= TICK * 0.9) {
       this.sendAcc = 0;
-      this.cfg.net.send({ type: 'in', mx: Math.round(w.mx * 100) / 100, mz: Math.round(w.mz * 100) / 100, h: s.held, p: this.clientPressed });
-      this.clientPressed = 0;
+      const mx = Math.round(w.mx * 100) / 100, mz = Math.round(w.mz * 100) / 100;
+      const key = `${mx},${mz},${s.held}`;
+      // Envoi immédiat à chaque changement (ou appui) ; sinon un rappel toutes les 100 ms suffit
+      this.inputIdle = (this.inputIdle || 0) + 1;
+      if (key !== this.lastInputKey || this.clientPressed || this.inputIdle >= 6) {
+        this.cfg.net.send({ type: 'in', mx, mz, h: s.held, p: this.clientPressed });
+        this.lastInputKey = key;
+        this.clientPressed = 0;
+        this.inputIdle = 0;
+      }
     }
     const rtt = this.cfg.net.rtt || 0;
-    const delay = Math.min(0.2, Math.max(0.06, rtt / 2000 + 0.05));
+    // Retard d'interpolation : une demi-latence + une marge (plus petite quand l'hôte envoie 60 instantanés/s)
+    const delay = this.cfg.net.room ? Math.min(0.2, Math.max(0.035, rtt / 2000 + 0.03)) : Math.min(0.2, Math.max(0.06, rtt / 2000 + 0.05));
     const events = st.sample(dt, delay, w, (f) => CHAR_BY_ID[f.charId].speed * (f.transformed ? 1.2 : 1));
     app.view.handleEvents(events, st);
     app.view.update(dt, st);
