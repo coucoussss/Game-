@@ -1,0 +1,54 @@
+﻿AURA CLASH - jeu de combat 3D en cel-shading
+=============================================
+
+LANCER LE JEU
+-------------
+Double-clique sur AuraClash-1.0.0-portable.exe. Rien a installer.
+Le premier demarrage prend quelques secondes (le jeu se decompresse).
+
+Si Windows affiche « Windows a protege votre ordinateur » (SmartScreen) :
+clique sur « Informations complementaires », puis sur « Executer quand meme ».
+(Le jeu n'est pas signe numeriquement, d'ou cet avertissement.)
+
+F11 : plein ecran.  Echap / Start : pause.
+
+COMMANDES PAR DEFAUT (modifiables dans Options > Commandes)
+--------------------------------------------------------
+                      Joueur 1 (clavier)   Joueur 2 (clavier)   Manette
+Se deplacer           Z Q S D (AZERTY)     Fleches              Stick gauche / croix
+Sauter                Espace               Pave 0               A / Croix
+Attaque legere        J                    Pave 1               X / Carre
+Attaque lourde        K                    Pave 2               Y / Triangle
+Attaque a distance    L                    Pave 3               B / Rond
+Special               I                    Pave 5               RB / R1
+Ultime                O                    Pave 6               RT / R2
+Garde (maintenir)     U                    Pave 4               LT / L2
+Esquive               Maj gauche           Pave .               LB / L1
+Charger l'energie     H                    Pave +               L3 / R3
+
+Haut / bas = se deplacer en profondeur (tourner autour de l'adversaire).
+Le special coute de l'energie, l'ultime demande la barre pleine (100).
+
+JOUER EN RESEAU LOCAL (LAN)
+---------------------------
+1. Tous les PC doivent etre sur le meme reseau (meme box / meme Wi-Fi).
+2. L'hote : Reseau local (LAN) > Creer une partie. Son adresse IP s'affiche
+   (exemple : 192.168.1.20).
+3. Les autres : Reseau local (LAN) > Rejoindre une partie. La partie apparait
+   toute seule ; sinon, tape l'adresse IP de l'hote et clique « Se connecter ».
+4. Choisissez vos personnages dans le salon ; l'hote lance le combat.
+
+PARE-FEU WINDOWS
+----------------
+A la premiere partie en reseau, Windows peut demander l'autorisation :
+coche « Reseaux prives » puis clique « Autoriser l'acces ».
+
+Si vos amis ne trouvent toujours pas la partie :
+ - verifiez que le reseau est en profil « Prive »
+   (Parametres > Reseau et Internet > proprietes du reseau) ;
+ - chez l'hote : clic droit sur firewall.bat > « Executer en tant qu'administrateur »
+   (ouvre les ports TCP 41234-41243 et UDP 41235) ;
+ - test : depuis un autre PC, ouvrez http://IP-DE-L-HOTE:41234 dans un navigateur,
+   la page doit afficher « Aura Clash - serveur LAN actif ».
+
+Bon combat !
