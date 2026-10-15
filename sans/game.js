@@ -1031,7 +1031,7 @@ function updateBattle(dt) {
   if (S.fade > 0) S.fade = Math.max(0, S.fade - dt * 2);
   updateBox(dt); updateSans(dt); updateFx(dt);
   if (B.flash > 0) B.flash -= dt;
-  if (B.p2 && B.p2ghost > B.p2hp) B.p2ghost = Math.max(B.p2hp, B.p2ghost - P2_MAX * 0.25 * dt);
+  if (B.hpBar) { B.hpBar.t += dt; if (B.hpBar.t > 1.8) B.hpBar = null; }
   if (B.hurtCD > 0) B.hurtCD -= dt;
   krTick(dt);
   const s = B.sans;
@@ -1097,8 +1097,9 @@ function updateBattle(dt) {
           if (fb.t > 2.4) { B.boxT = { ...MENU_BOX }; talk(RISE_TALK, () => { B.phase = 'rise'; B.timer = 0; B.fb = null; }); }
         } else if (fb.dmg) {
           if (fb.t > 0.45 && !fb.applied) {
-            fb.applied = true; B.p2hp = Math.max(0, B.p2hp - fb.dmg); Snd.bigHit(); B.flash = 0.12;
-            B.fx.push({ kind: 'dmg', t: 0, life: 1.6, x: SANS_X, y: 60, vy: -160, g: 600, val: fb.dmg.toLocaleString('fr-FR'), crit: fb.crit });
+            fb.applied = true; B.hpBar = { t: 0, from: B.p2hp, to: Math.max(0, B.p2hp - fb.dmg) };
+            B.p2hp = B.hpBar.to; Snd.bigHit(); B.flash = 0.12;
+            B.fx.push({ kind: 'dmg', t: 0, life: 1.6, x: SANS_X, y: 30, vy: -160, g: 600, val: fb.dmg.toLocaleString('fr-FR'), crit: fb.crit });
           }
           if (fb.t > 1.7) { if (B.p2hp <= 0) p2End(); else afterPlayer(); }
         } else if (fb.t > 1.15) afterPlayer();
@@ -1351,7 +1352,7 @@ function drawFx() {
   for (const f of B.fx) {
     if (f.kind === 'miss') txt('MISS', f.x, f.y - f.t * 10, { font: F(30, F_UI), color: '#c0c0c0', align: 'center' });
     else if (f.kind === 'dmg') {
-      const y = Math.min(f.y, B.p2 ? 60 : 22);
+      const y = Math.min(f.y, B.p2 ? 30 : 22);
       ctx.font = F(f.crit ? 40 : 34, F_UI); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
       ctx.lineWidth = 6; ctx.strokeStyle = '#000'; ctx.strokeText(String(f.val), f.x, y);
       ctx.fillStyle = f.crit ? COL.yellow : COL.red; ctx.fillText(String(f.val), f.x, y);
@@ -1366,21 +1367,39 @@ function drawFx() {
     }
   }
 }
-function drawP2Bar() {
-  const x = 150, y = 34, w = 340, h = 14;
-  const fill = B.p2 ? B.p2hp / P2_MAX : clamp((B.timer - 1.4) / 1.6, 0, 1);
-  const ghost = B.p2 ? B.p2ghost / P2_MAX : fill;
-  txt('SANS', x, y - 20, { font: F(14, F_UI), color: '#ff5060' });
-  const hp = B.p2 ? B.p2hp : Math.round(P2_MAX * fill);
-  txt(`${hp.toLocaleString('fr-FR')} / ${P2_MAX.toLocaleString('fr-FR')}`, x + w, y - 20, { font: F(14, F_UI), align: 'right' });
-  ctx.fillStyle = '#000'; ctx.fillRect(x - 3, y - 3, w + 6, h + 6);
-  ctx.strokeStyle = '#ff2840'; ctx.lineWidth = 2; ctx.strokeRect(x - 3, y - 3, w + 6, h + 6);
-  ctx.fillStyle = '#3a0008'; ctx.fillRect(x, y, w, h);
-  ctx.fillStyle = '#fff'; ctx.fillRect(x, y, w * ghost, h);
-  const gr = ctx.createLinearGradient(0, y, 0, y + h); gr.addColorStop(0, '#ff6070'); gr.addColorStop(1, '#a00018');
-  ctx.fillStyle = gr; ctx.fillRect(x, y, w * fill, h);
-  ctx.fillStyle = 'rgba(255,255,255,0.35)';
-  for (let i = 1; i < 10; i++) ctx.fillRect(x + w * i / 10, y, 1, h);
+function drawEnemyBar() {
+  const hb = B.hpBar; if (!hb) return;
+  const v = lerp(hb.from, hb.to, ease(hb.t / 0.9)) / P2_MAX, x = SANS_X - 60, y = 74;
+  ctx.fillStyle = '#404040'; ctx.fillRect(x, y, 120, 13);
+  ctx.fillStyle = '#00ff00'; ctx.fillRect(x, y, 120 * v, 13);
+}
+// Deux Gaster Blasters géants qui flottent de chaque côté de Sans en phase 2.
+function drawGuardians(alpha) {
+  const t = S.t, sz = 3.2;
+  for (const side of [-1, 1]) {
+    const x = SANS_X + side * 175, y = 120 + Math.sin(t * 1.8 + side) * 9;
+    const open = 0.35 + 0.3 * Math.sin(t * 2.6 + side);
+    ctx.save(); ctx.globalAlpha = alpha;
+    const g = ctx.createRadialGradient(x, y, 10, x, y, 110);
+    g.addColorStop(0, 'rgba(255,30,60,0.35)'); g.addColorStop(1, 'rgba(255,30,60,0)');
+    ctx.fillStyle = g; ctx.fillRect(x - 110, y - 110, 220, 220);
+    ctx.translate(x, y); ctx.rotate(-side * (0.32 + Math.sin(t * 1.3) * 0.05));
+    ctx.drawImage(SPR.blJaw, -20 * sz, (15 + open * 7) * sz, 40 * sz, 10 * sz);
+    ctx.drawImage(SPR.blTopOpen, -20 * sz, -17 * sz, 40 * sz, 34 * sz);
+    for (const [ex, col] of [[-6.5, side < 0 ? '80,200,255' : '255,40,60'], [6.5, side < 0 ? '255,40,60' : '80,200,255']]) {
+      const eg = ctx.createRadialGradient(ex * sz, -4.5 * sz, 0, ex * sz, -4.5 * sz, 7 * sz);
+      eg.addColorStop(0, `rgba(${col},0.95)`); eg.addColorStop(1, `rgba(${col},0)`);
+      ctx.fillStyle = eg; ctx.fillRect((ex - 7) * sz, -11.5 * sz, 14 * sz, 14 * sz);
+    }
+    // énergie aspirée dans la gueule
+    const my = (17 + open * 4) * sz;
+    for (let i = 0; i < 8; i++) {
+      const ph = (t * 1.5 + i / 8) % 1, a = i * 0.8 + t;
+      ctx.fillStyle = i % 2 ? '#fff' : '#ff4060'; ctx.globalAlpha = alpha * ph;
+      ctx.fillRect(Math.cos(a) * 40 * (1 - ph), my + 12 + Math.sin(a) * 30 * (1 - ph), 3, 3);
+    }
+    ctx.restore();
+  }
 }
 function renderBattle() {
   const b = B.box, s = B.sans, ph = B.phase;
@@ -1390,6 +1409,7 @@ function renderBattle() {
     gr.addColorStop(0, `rgba(170,0,30,${0.35 + 0.1 * Math.sin(S.t * 3)})`); gr.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = gr; ctx.fillRect(0, 0, W, 250);
   }
+  if (s.p2) drawGuardians(ph === 'rise' ? clamp((B.timer - 1.2) / 1.5, 0, 1) : s.alpha);
   if (s.alpha > 0) {
     ctx.globalAlpha = s.alpha;
     const so = { eyes: sansEyes(), sweat: s.sweat, arm: s.arm, armT: s.armT, hurt: s.hurt, p2: s.p2, aura: s.p2 || (ph === 'rise' && B.timer > 0.8), still: s.sleep || s.hurt, alpha: s.alpha,
@@ -1410,7 +1430,7 @@ function renderBattle() {
     ctx.fillStyle = '#404040'; ctx.fillRect(SANS_X - 50, 62, 100, 12);
     ctx.fillStyle = '#00ff00'; ctx.fillRect(SANS_X - 50, 62, 100 * s.hp, 12);
   }
-  if (s.p2 && (B.p2 || ph === 'rise')) drawP2Bar();
+  if (s.p2) drawEnemyBar();
   drawFx();
   // boîte
   ctx.fillStyle = '#000'; ctx.fillRect(b.l, b.t, b.r - b.l, b.b - b.t);
