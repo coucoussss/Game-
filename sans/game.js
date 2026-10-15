@@ -242,22 +242,23 @@ function gArm() {
   return g;
 }
 function gBlTop(open) {
-  const g = new PG(40, 34);
-  g.poly([[2, 0], [11, 6], [7, 14]], 1); g.poly([[38, 0], [29, 6], [33, 14]], 1);
-  g.ell(20, 13, 14, 12, 1);
-  g.poly([[9, 15], [31, 15], [28, 34], [12, 34]], 1);
-  g.ell(13.5, 12, 4.5, 4, 2); g.ell(26.5, 12, 4.5, 4, 2);
-  if (open) { g.rect(12, 11, 3, 3, 1); g.rect(25, 11, 3, 3, 1); }
-  g.rect(17, 25, 2, 3, 2); g.rect(21, 25, 2, 3, 2);
-  g.line(10, 19, 12, 30, 2); g.line(30, 19, 28, 30, 2);
-  g.rect(12, 33, 16, 1, 2);
-  for (let x = 14; x <= 26; x += 4) g.rect(x, 31, 1, 2, 2);
+  const g = part(40, 36, p => {
+    p.poly([[0, 0], [4, 1], [12, 8], [8, 15]], 1); p.poly([[40, 0], [36, 1], [28, 8], [32, 15]], 1);   // cornes
+    p.ell(20, 12, 13.5, 11.5, 1);                                                                      // crâne
+    p.poly([[9, 13], [31, 13], [28, 28], [25, 35], [15, 35], [12, 28]], 1);                            // museau effilé
+  });
+  g.poly([[7, 8], [17, 11.5], [16.5, 16.5], [10, 15.5]], 2); g.poly([[33, 8], [23, 11.5], [23.5, 16.5], [30, 15.5]], 2);   // orbites en biais
+  if (open) { g.rect(12, 12, 3, 3, 1); g.rect(25, 12, 3, 3, 1); }
+  g.line(20, 3, 20, 7, 2); g.line(17, 5, 15, 4, 2); g.line(23, 5, 25, 4, 2);                          // arête du front
+  g.rect(17, 23, 2, 3, 2); g.rect(21, 23, 2, 3, 2); g.set(18, 26, 2); g.set(21, 26, 2);              // naseaux
+  g.line(12, 18, 14, 27, 2); g.line(28, 18, 26, 27, 2);                                              // pommettes
+  for (let x = 15; x <= 25; x++) g.set(x, 33 - (x % 2), 2);                                          // dents en zigzag
   return g;
 }
 function gBlJaw() {
-  const g = new PG(40, 10);
-  g.poly([[12, 0], [28, 0], [26, 9], [14, 9]], 1);
-  for (let x = 15; x <= 25; x += 4) g.rect(x, 0, 1, 2, 2);
+  const g = part(40, 14, p => p.poly([[13, 0], [27, 0], [25.5, 7], [22, 13.5], [18, 13.5], [14.5, 7]], 1));
+  for (let x = 15; x <= 25; x++) g.set(x, 1 + (x % 2), 2);
+  g.line(16, 5, 19, 11, 2); g.line(24, 5, 21, 11, 2);
   return g;
 }
 const HEART_ROWS = ['..XXXX....XXXX..', '.XXXXXX..XXXXXX.', 'XXXXXXXXXXXXXXXX', 'XXXXXXXXXXXXXXXX', 'XXXXXXXXXXXXXXXX', '.XXXXXXXXXXXXXX.',
@@ -634,8 +635,8 @@ function mkBlaster(tx, ty, ang, o = {}) {
     }
     ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.rot - Math.PI / 2);
     const s = size * (b.t < 0.32 ? 0.6 + 0.4 * ease(b.t / 0.32) : 1) * (1 + (b.open > 0 && !b.fired ? Math.sin(b.t * 80) * 0.02 : 0));
-    ctx.drawImage(SPR.blJaw, -20 * s, (15 + b.open * 7) * s, 40 * s, 10 * s);
-    ctx.drawImage(b.open > 0.5 ? SPR.blTopOpen : SPR.blTop, -20 * s, -17 * s, 40 * s, 34 * s);
+    ctx.drawImage(SPR.blJaw, -20 * s, (14 + b.open * 8) * s, 40 * s, 14 * s);
+    ctx.drawImage(b.open > 0.5 ? SPR.blTopOpen : SPR.blTop, -20 * s, -18 * s, 40 * s, 36 * s);
     ctx.restore();
   };
   return b;
@@ -1383,13 +1384,16 @@ function drawGuardians(alpha) {
     const g = ctx.createRadialGradient(x, y, 10, x, y, 110);
     g.addColorStop(0, 'rgba(255,30,60,0.35)'); g.addColorStop(1, 'rgba(255,30,60,0)');
     ctx.fillStyle = g; ctx.fillRect(x - 110, y - 110, 220, 220);
-    ctx.translate(x, y); ctx.rotate(-side * (0.32 + Math.sin(t * 1.3) * 0.05));
-    ctx.drawImage(SPR.blJaw, -20 * sz, (15 + open * 7) * sz, 40 * sz, 10 * sz);
-    ctx.drawImage(SPR.blTopOpen, -20 * sz, -17 * sz, 40 * sz, 34 * sz);
-    for (const [ex, col] of [[-6.5, side < 0 ? '80,200,255' : '255,40,60'], [6.5, side < 0 ? '255,40,60' : '80,200,255']]) {
-      const eg = ctx.createRadialGradient(ex * sz, -4.5 * sz, 0, ex * sz, -4.5 * sz, 7 * sz);
+    ctx.translate(x, y); ctx.rotate(side * (0.38 + Math.sin(t * 1.3) * 0.05));
+    const mg = ctx.createRadialGradient(0, 20 * sz, 0, 0, 20 * sz, 12 * sz);
+    mg.addColorStop(0, `rgba(255,255,255,${0.5 + open * 0.5})`); mg.addColorStop(1, 'rgba(255,60,90,0)');
+    ctx.fillStyle = mg; ctx.fillRect(-12 * sz, 8 * sz, 24 * sz, 24 * sz);
+    ctx.drawImage(SPR.blJaw, -20 * sz, (14 + open * 9) * sz, 40 * sz, 14 * sz);
+    ctx.drawImage(SPR.blTopOpen, -20 * sz, -18 * sz, 40 * sz, 36 * sz);
+    for (const [ex, col] of [[-7.5, side < 0 ? '80,200,255' : '255,40,60'], [7.5, side < 0 ? '255,40,60' : '80,200,255']]) {
+      const eg = ctx.createRadialGradient(ex * sz, -4.5 * sz, 0, ex * sz, -4.5 * sz, 6 * sz);
       eg.addColorStop(0, `rgba(${col},0.95)`); eg.addColorStop(1, `rgba(${col},0)`);
-      ctx.fillStyle = eg; ctx.fillRect((ex - 7) * sz, -11.5 * sz, 14 * sz, 14 * sz);
+      ctx.fillStyle = eg; ctx.fillRect((ex - 6) * sz, -10.5 * sz, 12 * sz, 12 * sz);
     }
     // énergie aspirée dans la gueule
     const my = (17 + open * 4) * sz;
