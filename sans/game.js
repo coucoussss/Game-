@@ -480,7 +480,10 @@ const P2_TURNS = [
   { atk: 'combo1', lines: ['ma détermination ?', '[blue]je l\'ai trouvée en te regardant les tuer.'] },
   { atk: 'final', lines: ['[blue]un dernier effort...', '[blue]tiens bon, sans. tiens bon.'] },
 ];
-const P2_FLAVOR = ['* Sans s\'est relevé. Son aura brûle.', '* La plaie de Sans saigne, mais il sourit.', '* Sans vacille... puis se redresse.', '* Sa volonté de te tuer le tient debout.'];
+const P2_POOL = ['blasterStorm', 'slamCombo2', 'combo1', 'crossSweep', 'platforms2', 'boneTunnel', 'blasterBurst', 'slamCombo', 'boneRain'];
+const P2_TAUNT = [['[blue]c\'est tout ?'], ['heh. ça chatouille.'], ['[blue]frappe plus fort, gamin.'], ['[dark]je sens rien.'], ['[blue]encore.'], ['tu fatigues ?', '[blue]moi non.']];
+const P2_MAX = 2500000;
+const P2_FLAVOR = ['* Sans s\'est relevé. Son aura brûle.', '* Sans encaisse sans sourciller.', '* La plaie de Sans saigne, mais il sourit.', '* Sa volonté de te tuer le tient debout.', '* Sans ne recule pas d\'un pas.'];
 const CHECK = ['* SANS - ATQ 1 DÉF 1\n* L\'ennemi le plus facile.\n* Ne peut infliger que 1 dégât.'];
 const ITEMS0 = [
   { name: 'Tarte', heal: 999, eat: '* Tu manges la Tarte au caramel.' },
@@ -881,7 +884,7 @@ function narr(pages, done) { B.phase = 'narr'; B.boxT = { ...MENU_BOX }; B.typer
 function toMenu() {
   B.phase = 'menu'; B.boxT = { ...MENU_BOX }; B.bullets = [];
   setSoulMode('red', 'down', true);
-  B.typer.set([B.p2 ? P2_FLAVOR[Math.min(B.p2i - 1, 3)] : FLAVOR[Math.min(B.turn, FLAVOR.length - 1)]]);
+  B.typer.set([B.p2 ? (B.p2hp < P2_MAX * 0.25 ? '* Sans tient à peine debout.\n* Son aura brûle plus fort que jamais.' : P2_FLAVOR[B.p2i % P2_FLAVOR.length]) : FLAVOR[Math.min(B.turn, FLAVOR.length - 1)]]);
 }
 function startAttack(name, done) {
   const def = ATK[name];
@@ -895,13 +898,14 @@ function startAttack(name, done) {
   def.run(B.A);
 }
 function enemyTurn() {
-  const T = B.p2 ? P2_TURNS[B.p2i] : TURNS[B.turn];
+  const T = !B.p2 ? TURNS[B.turn] : B.p2i < P2_TURNS.length - 1 ? P2_TURNS[B.p2i]
+    : { atk: P2_POOL[B.p2i % P2_POOL.length], lines: B.p2hp < P2_MAX * 0.25 ? ['[blue]...pas encore.', '[blue]je. tomberai. pas.'] : P2_TAUNT[B.p2i % P2_TAUNT.length] };
   if (T.atk) { B.boxT = boxRect(...ATK[T.atk].box); B.soul.x = 320; B.soul.y = B.boxT.cy; }
   else B.boxT = { ...MENU_BOX };
   talk(T.lines, () => {
     if (T.spare) { B.turn++; toMenu(); B.spareOffer = true; return; }
     startAttack(T.atk, () => {
-      if (B.p2) { B.p2i++; if (B.p2i >= P2_TURNS.length) p2End(); else toMenu(); return; }
+      if (B.p2) { B.p2i++; toMenu(); return; }
       B.turn++; if (T.final) finalSequence(); else toMenu();
     });
   });
@@ -1010,6 +1014,8 @@ function updateBattle(dt) {
   B.time += dt;
   if (S.fade > 0) S.fade = Math.max(0, S.fade - dt * 2);
   updateBox(dt); updateSans(dt); updateFx(dt);
+  if (B.flash > 0) B.flash -= dt;
+  if (B.p2 && B.p2ghost > B.p2hp) B.p2ghost = Math.max(B.p2hp, B.p2ghost - P2_MAX * 0.25 * dt);
   if (B.hurtCD > 0) B.hurtCD -= dt;
   krTick(dt);
   const s = B.sans;
@@ -1035,7 +1041,7 @@ function updateBattle(dt) {
       break;
     case 'actOpt':
       if (hit('x')) { B.phase = 'actSel'; break; }
-      if (hit('z')) { Snd.select(); narr(CHECK, afterPlayer); }
+      if (hit('z')) { Snd.select(); narr(B.p2 ? ['* SANS - ATQ ??? DÉF ???\n* Il refuse de mourir.\n* Il n\'a jamais été aussi dangereux.'] : CHECK, afterPlayer); }
       break;
     case 'itemSel':
       B.sub = gridNav(B.items.length, 2, B.sub);
@@ -1058,7 +1064,11 @@ function updateBattle(dt) {
         if (pressed || fb.x > MENU_BOX.r - 8) {
           fb.stop = true; fb.t = 0; fb.hit = pressed || fb.final;
           if (fb.hit) slashFx();
-          if (!fb.final) { s.dodgeT = 0; Snd.dodge(); B.fx.push({ kind: 'miss', t: 0, life: 1.0, x: SANS_X, y: 40 }); }
+          if (B.p2 && fb.hit) {
+            const off = Math.abs(fb.x - 320) / 283, crit = off < 0.05;
+            fb.dmg = Math.round(((1 - off) * 80000 + 60000 + Math.random() * 9999) * (crit ? 1.6 : 1));
+            fb.crit = crit;
+          } else if (!fb.final) { s.dodgeT = 0; Snd.dodge(); B.fx.push({ kind: 'miss', t: 0, life: 1.0, x: SANS_X, y: 40 }); }
         }
       } else {
         fb.t += dt;
@@ -1069,6 +1079,12 @@ function updateBattle(dt) {
           }
           if (s.hp > 0 && fb.hitDone) s.hp = Math.max(0, s.hp - dt * 0.8);
           if (fb.t > 2.4) { B.boxT = { ...MENU_BOX }; talk(RISE_TALK, () => { B.phase = 'rise'; B.timer = 0; B.fb = null; }); }
+        } else if (fb.dmg) {
+          if (fb.t > 0.45 && !fb.applied) {
+            fb.applied = true; B.p2hp = Math.max(0, B.p2hp - fb.dmg); Snd.bigHit(); B.flash = 0.12;
+            B.fx.push({ kind: 'dmg', t: 0, life: 1.6, x: SANS_X, y: 60, vy: -160, g: 600, val: fb.dmg.toLocaleString('fr-FR'), crit: fb.crit });
+          }
+          if (fb.t > 1.7) { if (B.p2hp <= 0) p2End(); else afterPlayer(); }
         } else if (fb.t > 1.15) afterPlayer();
       }
       break;
@@ -1092,7 +1108,7 @@ function updateBattle(dt) {
       // Sans se relève, porté par sa volonté de te tuer.
       B.timer += dt; S.shake = Math.max(S.shake, 0.05);
       if (B.timer > 1.2 && !s.p2) { s.p2 = true; s.hurt = false; s.sleep = false; s.sweat = 0; Snd.bigHit(); S.shake = 0.5; }
-      if (B.timer > 3) { B.p2 = true; B.p2i = 0; Snd.music('battle'); enemyTurn(); }
+      if (B.timer > 3.2) { B.p2 = true; B.p2i = 0; B.p2hp = P2_MAX; B.p2ghost = P2_MAX; Snd.music('battle'); enemyTurn(); }
       break;
     case 'trap':
       B.timer += dt;
@@ -1272,7 +1288,14 @@ function drawFightTarget(fb) {
 function drawFx() {
   for (const f of B.fx) {
     if (f.kind === 'miss') txt('MISS', f.x, f.y - f.t * 10, { font: F(30, F_UI), color: '#c0c0c0', align: 'center' });
-    else if (f.kind === 'dmg') txt(String(f.val), f.x, Math.min(f.y, 22), { font: F(34, F_UI), color: COL.red, align: 'center' }); else if (f.kind === 'slash') {
+    else if (f.kind === 'dmg') {
+      const y = Math.min(f.y, B.p2 ? 60 : 22);
+      ctx.font = F(f.crit ? 40 : 34, F_UI); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.lineWidth = 6; ctx.strokeStyle = '#000'; ctx.strokeText(String(f.val), f.x, y);
+      ctx.fillStyle = f.crit ? COL.yellow : COL.red; ctx.fillText(String(f.val), f.x, y);
+      if (f.crit) txt('CRITIQUE !', f.x, y + 44, { font: F(16, F_UI), color: COL.yellow, align: 'center' });
+      ctx.textAlign = 'left';
+    } else if (f.kind === 'slash') {
       const p = clamp(f.t / 0.3, 0, 1);
       ctx.strokeStyle = COL.red; ctx.lineWidth = 8 * (1 - clamp((f.t - 0.3) / 0.2, 0, 1)) + 1; ctx.lineCap = 'round';
       ctx.beginPath(); ctx.moveTo(SANS_X + 40, 80); ctx.lineTo(SANS_X + 40 - 80 * p, 80 + 110 * p); ctx.stroke();
@@ -1281,9 +1304,30 @@ function drawFx() {
     }
   }
 }
+function drawP2Bar() {
+  const x = 150, y = 34, w = 340, h = 14;
+  const fill = B.p2 ? B.p2hp / P2_MAX : clamp((B.timer - 1.4) / 1.6, 0, 1);
+  const ghost = B.p2 ? B.p2ghost / P2_MAX : fill;
+  txt('SANS', x, y - 20, { font: F(14, F_UI), color: '#ff5060' });
+  const hp = B.p2 ? B.p2hp : Math.round(P2_MAX * fill);
+  txt(`${hp.toLocaleString('fr-FR')} / ${P2_MAX.toLocaleString('fr-FR')}`, x + w, y - 20, { font: F(14, F_UI), align: 'right' });
+  ctx.fillStyle = '#000'; ctx.fillRect(x - 3, y - 3, w + 6, h + 6);
+  ctx.strokeStyle = '#ff2840'; ctx.lineWidth = 2; ctx.strokeRect(x - 3, y - 3, w + 6, h + 6);
+  ctx.fillStyle = '#3a0008'; ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = '#fff'; ctx.fillRect(x, y, w * ghost, h);
+  const gr = ctx.createLinearGradient(0, y, 0, y + h); gr.addColorStop(0, '#ff6070'); gr.addColorStop(1, '#a00018');
+  ctx.fillStyle = gr; ctx.fillRect(x, y, w * fill, h);
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  for (let i = 1; i < 10; i++) ctx.fillRect(x + w * i / 10, y, 1, h);
+}
 function renderBattle() {
   const b = B.box, s = B.sans, ph = B.phase;
   ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+  if (s.p2) {
+    const gr = ctx.createRadialGradient(SANS_X, 160, 10, SANS_X, 160, 260);
+    gr.addColorStop(0, `rgba(170,0,30,${0.35 + 0.1 * Math.sin(S.t * 3)})`); gr.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = gr; ctx.fillRect(0, 0, W, 250);
+  }
   if (s.alpha > 0) {
     ctx.globalAlpha = s.alpha;
     const so = { eyes: sansEyes(), sweat: s.sweat, arm: s.arm, armT: s.armT, hurt: s.hurt, p2: s.p2, aura: s.p2 || (ph === 'rise' && B.timer > 0.8), still: s.sleep || s.hurt, alpha: s.alpha,
@@ -1304,6 +1348,7 @@ function renderBattle() {
     ctx.fillStyle = '#404040'; ctx.fillRect(SANS_X - 50, 62, 100, 12);
     ctx.fillStyle = '#00ff00'; ctx.fillRect(SANS_X - 50, 62, 100 * s.hp, 12);
   }
+  if (s.p2 && (B.p2 || ph === 'rise')) drawP2Bar();
   drawFx();
   // boîte
   ctx.fillStyle = '#000'; ctx.fillRect(b.l, b.t, b.r - b.l, b.b - b.t);
@@ -1342,6 +1387,7 @@ function renderBattle() {
   if (ph === 'talk' || (ph === 'trap')) drawBubble(B.bubble, SANS_X + 64 + s.dx, 62);
   drawHUD();
   drawButtons(['menu', 'fightSel', 'actSel', 'actOpt', 'itemSel', 'mercySel', 'finalMenu'].includes(ph), B.btn);
+  if (B.flash > 0) { ctx.fillStyle = `rgba(255,255,255,${B.flash * 3})`; ctx.fillRect(0, 0, W, H); }
   if (B.practice) txt('ENTRAÎNEMENT · X pour quitter', 320, 8, { font: F(14, F_UI), color: COL.grey, align: 'center' });
 }
 

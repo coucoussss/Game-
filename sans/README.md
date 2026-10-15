@@ -32,6 +32,6 @@ Pour partager le jeu (par e-mail, clé USB…), utilisez `sans/jugement-final.ht
 - **Gaster Blasters** : ils entrent en tournoyant, se chargent, puis tirent un rayon et reculent.
 - **15 attaques**, dont l'attaque finale de 30 secondes pendant laquelle Sans s'épuise.
 - **Le piège de la clémence** à mi-combat.
-- **L'« attaque spéciale »** de Sans, puis une **phase 2** : Sans se relève avec une grande entaille, une aura rouge et l'œil en flammes, et enchaîne 4 attaques plus rapides avant de tomber pour de bon.
+- **L'« attaque spéciale »** de Sans, puis une **phase 2** : Sans se relève avec une grande entaille, une aura rouge et l'œil en flammes, avec une barre de 2 500 000 PV. Il encaisse tous vos coups sans broncher (coups critiques au centre de la cible) et enchaîne des attaques plus rapides jusqu'à ce que sa barre soit vide.
 - **Game over** : l'âme se brise, puis un message vous encourage à rester déterminé. Sans commente vos morts successives quand vous revenez.
 - **Mode entraînement** pour rejouer n'importe quelle attaque, et un **mode facile** qui réduit les dégâts.
