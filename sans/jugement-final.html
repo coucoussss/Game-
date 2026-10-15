@@ -600,6 +600,13 @@ function gHead(e) {
     if (e === 'blue' || e === 'yellow') { g.ell(10.5, 13.5, 3, 3, e === 'blue' ? 3 : 4); g.rect(10, 13, 2, 2, 1); }
     if (e === 'tired') { g.rect(10, 14, 2, 1, 1); g.rect(22, 14, 2, 1, 1); g.rect(6, 10, 9, 1, 2); g.rect(19, 10, 9, 1, 2); }
   }
+  if (e === 'p2b' || e === 'p2y') {
+    g.ell(10.5, 13.5, 4.8, 4.4, 2); g.ell(23.5, 13.5, 4.8, 4.4, 2);
+    g.ell(10.5, 13.5, 3.2, 3.2, e === 'p2b' ? 3 : 4); g.rect(10, 13, 2, 2, 1);
+    g.rect(22, 12, 3, 3, 5); g.set(23, 13, 1);
+    for (const [x, y] of [[16, 0], [16, 1], [15, 2], [15, 3], [14, 4], [14, 5], [15, 6], [14, 7], [13, 8], [12, 1], [13, 3], [19, 4], [20, 5], [21, 6], [20, 7]]) g.set(x, y, 2);
+    g.rect(5, 9, 10, 1, 2); g.rect(19, 9, 10, 1, 2); g.set(14, 10, 2); g.set(19, 10, 2);
+  }
   // nez
   g.rect(15, 19, 4, 1, 2); g.rect(16, 20, 2, 1, 2);
   // grand sourire, fossettes et dents
@@ -625,6 +632,12 @@ function gTorso(hurt) {
   g.rect(16, 25, 4, 1, 2); g.rect(32, 25, 4, 1, 2);                                          // poches
   g.rect(2, 29, 18, 1, 2); g.rect(32, 29, 18, 1, 2);                                         // ourlet
   if (hurt === 'p2') {
+    for (let x = 1; x < W; x++) {
+      const d = [0, 2, 3, 1, 3, 2, 0, 1][x % 8];
+      for (let y = 32 - d; y < 32; y++) g.set(x, y, 0);
+      if (g.d[(31 - d) * W + x]) g.set(x, 31 - d, 2);
+    }
+    for (const [x, y] of [[42, 18], [43, 19], [44, 18], [6, 21], [7, 22]]) g.set(x, y, 2);
     for (let k = -2; k < 4; k++) g.line(6 + k, 30, 44 + k, 6, 5);
     g.line(8, 29, 45, 6, 2);
     for (const [x, l] of [[14, 4], [22, 6], [30, 3], [37, 5]]) g.rect(x, 26 - (x - 6) * 0.63 + 3, 1, l, 5);
@@ -722,6 +735,9 @@ function buildSprites() {
   SPR.arm = gArm().img();
   SPR.torsoP2 = gTorso('p2').img();
   const AURA = { 1: [255, 40, 60], 2: [255, 40, 60], 3: [255, 40, 60], 4: [255, 40, 60], 5: [255, 40, 60] };
+  SPR.head_p2b = gHead('p2b').img(); SPR.head_p2y = gHead('p2y').img();
+  const CYAN = { 1: [40, 220, 255], 2: [40, 220, 255], 3: [40, 220, 255], 4: [40, 220, 255], 5: [40, 220, 255] };
+  SPR.legsC = gLegs().img(CYAN); SPR.torsoC = gTorso(false).img(CYAN); SPR.headC = gHead('normal').img(CYAN);
   SPR.legsA = gLegs().img(AURA); SPR.torsoA = gTorso(false).img(AURA); SPR.headA = gHead('normal').img(AURA);
   SPR.torso = gTorso(false).img(); SPR.torsoHurt = gTorso(true).img(); SPR.legs = gLegs().img();
   SPR.blTop = gBlTop(false).img(); SPR.blTopOpen = gBlTop(true).img(); SPR.blJaw = gBlJaw().img();
@@ -1603,6 +1619,44 @@ function drawSans(cx, baseY, sc, o = {}) {
     ctx.fillRect(Math.round(cx + Math.sin(i * 2.4) * 28 * sc), Math.round(baseY - ph * 85 * sc), sz, sz);
     ctx.globalAlpha = o.alpha ?? 1;
   }
+  const orbit = front => {
+    for (let i = 0; i < 6; i++) {
+      const a = t * 1.6 + i * Math.PI / 3, z = Math.sin(a);
+      if ((z > 0) !== front) continue;
+      ctx.save(); ctx.translate(cx + Math.cos(a) * 46 * sc, baseY - 50 * sc + z * 10 * sc); ctx.rotate(t * 4 + i);
+      ctx.globalAlpha = (o.alpha ?? 1) * (front ? 1 : 0.55); drawBone(-11, -4, 22, 8, i % 2 ? 'white' : 'blue');
+      ctx.restore();
+    }
+    ctx.globalAlpha = o.alpha ?? 1;
+  };
+  if (o.p2) {
+    // ondes de choc au sol
+    for (let i = 0; i < 2; i++) {
+      const ph = (t * 0.8 + i / 2) % 1;
+      ctx.strokeStyle = `rgba(255,40,70,${(1 - ph) * 0.6})`; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.ellipse(cx, baseY - 2, 20 + ph * 90, 4 + ph * 14, 0, 0, Math.PI * 2); ctx.stroke();
+    }
+    // flammes de l'aura
+    for (let layer = 0; layer < 2; layer++) {
+      ctx.fillStyle = layer ? 'rgba(255,90,60,0.35)' : 'rgba(200,0,40,0.4)';
+      for (let i = 0; i < 9; i++) {
+        const fx = cx + (i - 4) * 9 * sc * (layer ? 0.7 : 1), hh = (layer ? 48 : 70) * sc * (0.75 + 0.25 * Math.sin(t * 7 + i * 1.9 + layer));
+        const sw = Math.sin(t * 5 + i) * 6 * sc, bw = 9 * sc;
+        ctx.beginPath(); ctx.moveTo(fx - bw, baseY);
+        ctx.quadraticCurveTo(fx - bw * 0.6 + sw * 0.5, baseY - hh * 0.5, fx + sw, baseY - hh);
+        ctx.quadraticCurveTo(fx + bw * 0.6 + sw * 0.5, baseY - hh * 0.5, fx + bw, baseY);
+        ctx.fill();
+      }
+    }
+    orbit(false);
+    // glitch rouge / cyan
+    if ((t % 1.7) < 0.09) {
+      const a0 = ctx.globalAlpha; ctx.globalAlpha = 0.6;
+      dImg(SPR.legsA, cx - 17 * sc - 4 * sc, ly, sc); dImg(SPR.torsoA, cx - 26 * sc - 4 * sc, ly - 28 * sc, sc); dImg(SPR.headA, cx - 17 * sc - 4 * sc, ly - 51 * sc, sc);
+      dImg(SPR.legsC, cx - 17 * sc + 4 * sc, ly, sc); dImg(SPR.torsoC, cx - 26 * sc + 4 * sc, ly - 28 * sc, sc); dImg(SPR.headC, cx - 17 * sc + 4 * sc, ly - 51 * sc, sc);
+      ctx.globalAlpha = a0;
+    }
+  }
   aura(SPR.legsA, cx - 17 * sc, ly);
   dImg(SPR.legs, cx - 17 * sc, ly, sc);
   const tx = cx - 26 * sc + px(sway + lx), ty = ly - 28 * sc + px(breath + lyy);
@@ -1624,21 +1678,29 @@ function drawSans(cx, baseY, sc, o = {}) {
   const hy = ty - 23 * sc + px(hbob - talk + (o.headDY || 0) + (tired ? 1 : 0) + lyy * 0.5);
   const eyes = o.eyes || 'normal';
   aura(SPR.headA, hx, hy);
-  dImg(SPR['head_' + (tired && eyes === 'normal' ? 'tired' : eyes)] || SPR.head_normal, hx, hy, sc);
+  const hk = o.p2 ? (eyes === 'yellow' ? 'p2y' : 'p2b') : tired && eyes === 'normal' ? 'tired' : eyes;
+  dImg(SPR['head_' + hk] || SPR.head_normal, hx, hy, sc);
+  if (o.p2) {
+    const rx = hx + 23.5 * sc, ry = hy + 13.5 * sc;
+    const rg = ctx.createRadialGradient(rx, ry, 0, rx, ry, 8 * sc);
+    rg.addColorStop(0, 'rgba(255,30,50,0.7)'); rg.addColorStop(1, 'rgba(255,30,50,0)');
+    ctx.fillStyle = rg; ctx.fillRect(rx - 8 * sc, ry - 8 * sc, 16 * sc, 16 * sc);
+  }
   if (eyes === 'blue' || eyes === 'yellow') {
     // Œil gauche qui flambe : halo et traînée de flammes bleues et jaunes.
     const ex = hx + 10.5 * sc, ey = hy + 13.5 * sc;
     const gr = ctx.createRadialGradient(ex, ey, 0, ex, ey, 9 * sc);
     gr.addColorStop(0, 'rgba(80,200,255,0.55)'); gr.addColorStop(1, 'rgba(80,200,255,0)');
     ctx.fillStyle = gr; ctx.fillRect(ex - 9 * sc, ey - 9 * sc, 18 * sc, 18 * sc);
-    for (let i = 0; i < 7; i++) {
-      const ph = (t * 2.6 + i / 7) % 1, sz = Math.max(1, Math.round((1 - ph) * 4)) * sc;
+    for (let i = 0; i < (o.p2 ? 14 : 7); i++) {
+      const ph = (t * 2.6 + i / (o.p2 ? 14 : 7)) % 1, sz = Math.max(1, Math.round((1 - ph) * 4)) * sc;
       ctx.globalAlpha = (o.alpha ?? 1) * (1 - ph);
       ctx.fillStyle = i % 3 === 0 ? COL.yellow : COL.blue;
       ctx.fillRect(Math.round(ex - ph * 14 * sc - sz / 2 + Math.sin(ph * 9 + i) * sc), Math.round(ey - ph * 16 * sc - sz / 2), sz, sz);
     }
     ctx.globalAlpha = o.alpha ?? 1;
   }
+  if (o.p2) orbit(true);
   if (o.sweat) {
     ctx.fillStyle = '#6fd3ff';
     for (let i = 0; i < Math.ceil(o.sweat); i++) {
