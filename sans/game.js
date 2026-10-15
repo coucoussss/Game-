@@ -206,7 +206,11 @@ function gTorso(hurt) {
   for (const x of [18, 34]) { g.rect(x, 10, 1, 9, 2); g.rect(x - 1, 19, 3, 3, 2); g.set(x, 20, 1); }   // cordons
   g.rect(16, 25, 4, 1, 2); g.rect(32, 25, 4, 1, 2);                                          // poches
   g.rect(2, 29, 18, 1, 2); g.rect(32, 29, 18, 1, 2);                                         // ourlet
-  if (hurt) for (let k = 0; k < 3; k++) g.line(9 + k, 25, 41 + k, 10, 5);
+  if (hurt === 'p2') {
+    for (let k = -2; k < 4; k++) g.line(6 + k, 30, 44 + k, 6, 5);
+    g.line(8, 29, 45, 6, 2);
+    for (const [x, l] of [[14, 4], [22, 6], [30, 3], [37, 5]]) g.rect(x, 26 - (x - 6) * 0.63 + 3, 1, l, 5);
+  } else if (hurt) for (let k = 0; k < 3; k++) g.line(9 + k, 25, 41 + k, 10, 5);
   return g;
 }
 function gLegs() {
@@ -298,6 +302,9 @@ const SPR = {};
 function buildSprites() {
   for (const e of ['normal', 'dark', 'blue', 'yellow', 'wink', 'closed', 'tired']) SPR['head_' + e] = gHead(e).img();
   SPR.arm = gArm().img();
+  SPR.torsoP2 = gTorso('p2').img();
+  const AURA = { 1: [255, 40, 60], 2: [255, 40, 60], 3: [255, 40, 60], 4: [255, 40, 60], 5: [255, 40, 60] };
+  SPR.legsA = gLegs().img(AURA); SPR.torsoA = gTorso(false).img(AURA); SPR.headA = gHead('normal').img(AURA);
   SPR.torso = gTorso(false).img(); SPR.torsoHurt = gTorso(true).img(); SPR.legs = gLegs().img();
   SPR.blTop = gBlTop(false).img(); SPR.blTopOpen = gBlTop(true).img(); SPR.blJaw = gBlJaw().img();
   SPR.heart = gHeart(5).img(); SPR.heartBlue = gHeart(3).img();
@@ -466,6 +473,14 @@ const ENDING_TALK = [
   '[closed]...', 'bon.', 'on dirait que...', 'c\'est la fin.', '[closed]...', 'pas grave.', 'j\'ai fait ce que j\'ai pu.',
   'je crois que je vais aller faire un tour chez grillby.', '[closed]papyrus...', '[closed]...tu veux quelque chose ?',
 ];
+const RISE_TALK = ['[closed]...', '[closed]heh...', 'tu croyais vraiment...', '[dark]...que j\'allais te laisser passer ?'];
+const P2_TURNS = [
+  { atk: 'blasterStorm', lines: ['papyrus... les autres...', 'tout le monde comptait sur moi.', '[blue]alors je tomberai pas. pas maintenant.'] },
+  { atk: 'slamCombo2', lines: ['ça fait mal, tu sais.', '[blue]mais c\'est rien à côté de ce que tu leur as fait.'] },
+  { atk: 'combo1', lines: ['ma détermination ?', '[blue]je l\'ai trouvée en te regardant les tuer.'] },
+  { atk: 'final', lines: ['[blue]un dernier effort...', '[blue]tiens bon, sans. tiens bon.'] },
+];
+const P2_FLAVOR = ['* Sans s\'est relevé. Son aura brûle.', '* La plaie de Sans saigne, mais il sourit.', '* Sans vacille... puis se redresse.', '* Sa volonté de te tuer le tient debout.'];
 const CHECK = ['* SANS - ATQ 1 DÉF 1\n* L\'ennemi le plus facile.\n* Ne peut infliger que 1 dégât.'];
 const ITEMS0 = [
   { name: 'Tarte', heal: 999, eat: '* Tu manges la Tarte au caramel.' },
@@ -866,7 +881,7 @@ function narr(pages, done) { B.phase = 'narr'; B.boxT = { ...MENU_BOX }; B.typer
 function toMenu() {
   B.phase = 'menu'; B.boxT = { ...MENU_BOX }; B.bullets = [];
   setSoulMode('red', 'down', true);
-  B.typer.set([FLAVOR[Math.min(B.turn, FLAVOR.length - 1)]]);
+  B.typer.set([B.p2 ? P2_FLAVOR[Math.min(B.p2i - 1, 3)] : FLAVOR[Math.min(B.turn, FLAVOR.length - 1)]]);
 }
 function startAttack(name, done) {
   const def = ATK[name];
@@ -880,13 +895,21 @@ function startAttack(name, done) {
   def.run(B.A);
 }
 function enemyTurn() {
-  const T = TURNS[B.turn];
+  const T = B.p2 ? P2_TURNS[B.p2i] : TURNS[B.turn];
   if (T.atk) { B.boxT = boxRect(...ATK[T.atk].box); B.soul.x = 320; B.soul.y = B.boxT.cy; }
   else B.boxT = { ...MENU_BOX };
   talk(T.lines, () => {
     if (T.spare) { B.turn++; toMenu(); B.spareOffer = true; return; }
-    startAttack(T.atk, () => { B.turn++; if (T.final) finalSequence(); else toMenu(); });
+    startAttack(T.atk, () => {
+      if (B.p2) { B.p2i++; if (B.p2i >= P2_TURNS.length) p2End(); else toMenu(); return; }
+      B.turn++; if (T.final) finalSequence(); else toMenu();
+    });
   });
+}
+function p2End() {
+  const s = B.sans;
+  Snd.stopMusic(1.2); s.glow = false; s.p2 = false; s.hurt = true; s.sweat = 3; B.boxT = { ...MENU_BOX };
+  talk(ENDING_TALK, () => { B.phase = 'dust'; B.timer = 0; Snd.dust(); });
 }
 function afterPlayer() { B.spareOffer = false; enemyTurn(); }
 function finalSequence() {
@@ -936,6 +959,7 @@ function updateSans(dt) {
 function sansEyes() {
   const s = B.sans, flick = Math.floor(S.t * 12) % 2 ? 'yellow' : 'blue';
   if (s.sleep) return 'closed';
+  if (s.p2) return flick;
   if (s.eyeT > 0 || s.glow) return flick;
   if (B.phase === 'talk' || B.phase === 'trap') { const e = B.bubble.eyes; if (e === 'blue') return flick; if (e) return e; }
   if (B.phase === 'trap' && B.timer > 0) return 'dark';
@@ -1044,15 +1068,15 @@ function updateBattle(dt) {
             B.fx.push({ kind: 'dmg', t: 0, life: 2.2, x: SANS_X, y: 22, vy: -120, g: 500, val: 9999999 });
           }
           if (s.hp > 0 && fb.hitDone) s.hp = Math.max(0, s.hp - dt * 0.8);
-          if (fb.t > 2.4) { B.boxT = { ...MENU_BOX }; talk(ENDING_TALK, () => { B.phase = 'dust'; B.timer = 0; Snd.dust(); }); }
+          if (fb.t > 2.4) { B.boxT = { ...MENU_BOX }; talk(RISE_TALK, () => { B.phase = 'rise'; B.timer = 0; B.fb = null; }); }
         } else if (fb.t > 1.15) afterPlayer();
       }
       break;
     }
     case 'attack': {
-      const A = B.A;
-      A.update(dt);
-      updateBullets(dt);
+      const A = B.A, k = B.p2 ? 1.15 : 1;
+      A.update(dt * k);
+      updateBullets(dt * k);
       updateSoul(dt);
       collide();
       if (S.scene !== 'battle') return;
@@ -1064,6 +1088,12 @@ function updateBattle(dt) {
       }
       break;
     }
+    case 'rise':
+      // Sans se relève, porté par sa volonté de te tuer.
+      B.timer += dt; S.shake = Math.max(S.shake, 0.05);
+      if (B.timer > 1.2 && !s.p2) { s.p2 = true; s.hurt = false; s.sleep = false; s.sweat = 0; Snd.bigHit(); S.shake = 0.5; }
+      if (B.timer > 3) { B.p2 = true; B.p2i = 0; Snd.music('battle'); enemyTurn(); }
+      break;
     case 'trap':
       B.timer += dt;
       B.bubble.update(dt);
@@ -1125,9 +1155,25 @@ function drawSans(cx, baseY, sc, o = {}) {
   let lx = 0, lyy = 0;
   if (o.arm) { const d = GDIR[o.arm]; lx = d[0] * 2; lyy = d[1] * 1.5; }
   const ly = baseY - 23 * sc;
+  const aura = (img, x, y) => {
+    if (!o.aura) return;
+    const a0 = ctx.globalAlpha, f = 2 + Math.round(Math.sin(t * 9));
+    ctx.globalAlpha = a0 * (0.45 + 0.2 * Math.sin(t * 13));
+    for (const [dx, dy] of [[-f, 0], [f, 0], [0, -f - 1], [0, f]]) dImg(img, x + dx * sc, y + dy * sc, sc);
+    ctx.globalAlpha = a0;
+  };
+  if (o.aura) for (let i = 0; i < 10; i++) {
+    const ph = (t * 0.9 + i / 10) % 1, sz = Math.max(1, Math.round((1 - ph) * 3)) * sc;
+    ctx.globalAlpha = (o.alpha ?? 1) * (1 - ph) * 0.8;
+    ctx.fillStyle = i % 4 ? '#ff2840' : COL.blue;
+    ctx.fillRect(Math.round(cx + Math.sin(i * 2.4) * 28 * sc), Math.round(baseY - ph * 85 * sc), sz, sz);
+    ctx.globalAlpha = o.alpha ?? 1;
+  }
+  aura(SPR.legsA, cx - 17 * sc, ly);
   dImg(SPR.legs, cx - 17 * sc, ly, sc);
   const tx = cx - 26 * sc + px(sway + lx), ty = ly - 28 * sc + px(breath + lyy);
-  dImg(o.hurt ? SPR.torsoHurt : SPR.torso, tx, ty, sc);
+  aura(SPR.torsoA, tx, ty);
+  dImg(o.p2 ? SPR.torsoP2 : o.hurt ? SPR.torsoHurt : SPR.torso, tx, ty, sc);
   if (o.arm) {
     const left = o.arm === 'left';
     const sx = tx + (left ? 8 : 44) * sc, sy = ty + 13 * sc, a = ARM_ANG[o.arm];
@@ -1143,6 +1189,7 @@ function drawSans(cx, baseY, sc, o = {}) {
   const hx = cx - 17 * sc + px(hsway + lx * 1.4);
   const hy = ty - 23 * sc + px(hbob - talk + (o.headDY || 0) + (tired ? 1 : 0) + lyy * 0.5);
   const eyes = o.eyes || 'normal';
+  aura(SPR.headA, hx, hy);
   dImg(SPR['head_' + (tired && eyes === 'normal' ? 'tired' : eyes)] || SPR.head_normal, hx, hy, sc);
   if (eyes === 'blue' || eyes === 'yellow') {
     // Œil gauche qui flambe : halo et traînée de flammes bleues et jaunes.
@@ -1239,7 +1286,7 @@ function renderBattle() {
   ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
   if (s.alpha > 0) {
     ctx.globalAlpha = s.alpha;
-    const so = { eyes: sansEyes(), sweat: s.sweat, arm: s.arm, armT: s.armT, hurt: s.hurt, still: s.sleep || s.hurt, alpha: s.alpha,
+    const so = { eyes: sansEyes(), sweat: s.sweat, arm: s.arm, armT: s.armT, hurt: s.hurt, p2: s.p2, aura: s.p2 || (ph === 'rise' && B.timer > 0.8), still: s.sleep || s.hurt, alpha: s.alpha,
       headDY: s.sleep ? 2 + Math.round(Math.sin(S.t * 1.5)) : 0, talking: ph === 'talk' && !B.bubble.pageDone };
     if (s.dodgeT >= 0 && s.dodgeT < 1.05) for (const k of [0.66, 0.33]) {
       ctx.globalAlpha = 0.22 * s.alpha; drawSans(SANS_X + s.dx * k, SANS_BASE, 2, { ...so, alpha: 0.22 }); ctx.globalAlpha = s.alpha;
