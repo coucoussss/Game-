@@ -1126,7 +1126,7 @@ function updateBattle(dt) {
       // Sans se relève, porté par sa volonté de te tuer.
       B.timer += dt; S.shake = Math.max(S.shake, 0.05);
       if (B.timer > 1.2 && !s.p2) { s.p2 = true; s.hurt = false; s.sleep = false; s.sweat = 0; Snd.bigHit(); S.shake = 0.5; }
-      if (B.timer > 3.2) { B.p2 = true; B.p2i = 0; B.p2hp = P2_MAX; B.p2ghost = P2_MAX; Snd.music('battle'); enemyTurn(); }
+      if (B.timer > 3.2) { B.p2 = true; B.p2i = 0; B.p2hp = P2_MAX; B.p2ghost = P2_MAX; Snd.music('battle2'); enemyTurn(); }
       break;
     case 'trap':
       B.timer += dt;

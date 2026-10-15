@@ -93,10 +93,10 @@ const Snd = (() => {
     comp.threshold.value = -10; comp.knee.value = 6; comp.ratio.value = 4;
     comp.attack.value = 0.003; comp.release.value = 0.2;
     master.connect(comp); comp.connect(ac.destination);
-    sfx = gain(0.8, master); mus = gain(0.5, master);
+    sfx = gain(0.8, master); mus = gain(0.55, master);
     // Écho léger sur la mélodie (typique des musiques de boss 8-bit)
-    delayNode = ac.createDelay(1); delayNode.delayTime.value = 0.36;
-    const fb = gain(0.28), wet = gain(0.3, mus);
+    delayNode = ac.createDelay(1); delayNode.delayTime.value = 0.32;
+    const fb = gain(0.28), wet = gain(0.28, mus);
     delayIn = gain(1); delayIn.connect(delayNode); delayNode.connect(fb); fb.connect(delayNode); delayNode.connect(wet);
     noiseBuf = ac.createBuffer(1, ac.sampleRate * 2, ac.sampleRate);
     const d = noiseBuf.getChannelData(0);
@@ -133,6 +133,7 @@ const Snd = (() => {
     if (o.send) g.connect(o.send);
     osc.start(t); osc.stop(t + dur + 0.05);
   }
+
   function nz(dur, o = {}) {
     const t = o.t ?? ac.currentTime;
     const s = ac.createBufferSource(); s.buffer = noiseBuf; s.loop = true;
@@ -150,6 +151,7 @@ const Snd = (() => {
     node.connect(g); g.connect(o.bus || sfx);
     s.start(t, Math.random() * 1.5); s.stop(t + dur + 0.05);
   }
+
   // Empêche un même son de se superposer des dizaines de fois par seconde.
   function busy(name, ms) {
     const now = performance.now();
@@ -236,13 +238,15 @@ const Snd = (() => {
   // ---------- Musique ----------
   const CH = {
     Dm: [38, [62, 65, 69]], C: [36, [60, 64, 67]], B: [35, [59, 62, 67]], Bb: [34, [58, 62, 65]], A: [33, [57, 61, 64]],
-    F: [41, [65, 69, 72]], G: [43, [67, 71, 74]], Am: [33, [57, 60, 64]], Em: [40, [64, 67, 71]],
+    Gm: [43, [62, 67, 70]], F: [41, [65, 69, 72]], G: [43, [67, 71, 74]], Am: [33, [57, 60, 64]], Em: [40, [64, 67, 71]],
   };
+
   function midi(n) {
     const m = /^([A-G])(#|b)?(-?\d)$/.exec(n);
     return { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }[m[1]] + (m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0) + (+m[3] + 1) * 12;
   }
   const mf = m => 440 * Math.pow(2, (m - 69) / 12);
+
   function parseMel(str) {
     const out = []; let p = 0;
     if (!str) return out;
@@ -253,6 +257,7 @@ const Snd = (() => {
     }
     return out;
   }
+
   function song(def) {
     const bars = def.bars.map(b => {
       const o = Array.isArray(b) ? { ch: b[0], mel: b[1], dr: b[2], arp: b[3] } : b;
@@ -261,33 +266,128 @@ const Snd = (() => {
     return { ...def, bars, total: bars.length * 16, loopStep: (def.loop || 0) * 16 };
   }
 
-  // « Jugement dernier » : thème de combat original, ré mineur, 120 BPM,
-  // sur la descente de basse ré – do – si – si bémol.
-  const PROG = ['Dm', 'C', 'B', 'Bb'];
-  const HOOK = [
-    'F5:1 E5:1 D5:2 A5:2 r:1 A5:1 C6:2 A5:1 G5:1 F5:2 E5:2',
-    'E5:1 D5:1 C5:2 G5:2 r:1 G5:1 Bb5:2 G5:1 F5:1 E5:2 C5:2',
-    'D5:1 C5:1 B4:2 G5:2 r:1 G5:1 B5:2 D6:2 C6:1 B5:1 G5:2',
-    'D5:2 F5:2 Bb5:2 D6:2 C6:1 Bb5:1 A5:2 G5:2 A5:2',
+  // =========================================================================
+  // PHASE 1 : « JUGEMENT DERNIER » (138 BPM — Épique, nerveux et implacable)
+  // =========================================================================
+  const PROG1 = ['Dm', 'C', 'B', 'Bb'];
+  const INTRO_P1 = [
+    'D5:1 D5:1 A5:2 D6:2 r:1 A5:1 Ab5:2 G5:2 F5:2 D5:1 F5:1',
+    'C5:1 C5:1 G5:2 C6:2 r:1 G5:1 F#5:2 F5:2 E5:2 C5:1 E5:1',
+    'B4:1 B4:1 G5:2 B5:2 r:1 G5:1 F#5:2 F5:2 D5:2 B4:1 D5:1',
+    'Bb4:1 Bb4:1 F5:2 Bb5:2 C6:2 C#6:2 D6:2 E6:1 F6:1 G6:1 A6:1',
   ];
-  const RUN = 'Bb5:1 A5:1 G5:1 F5:1 E5:1 D5:1 C#5:1 D5:1 E5:1 F5:1 G5:1 A5:1 Bb5:1 C6:1 C#6:2';
-  const SOAR = [
-    'D6:6 C6:2 A5:4 F5:4', 'E6:6 D6:2 C6:4 G5:4', 'D6:4 B5:2 G5:2 B5:2 D6:2 G6:4', 'F6:6 E6:2 D6:2 C6:2 Bb5:2 A5:2',
-    'A6:4 G6:2 F6:2 E6:2 F6:2 D6:4', 'G6:4 F6:2 E6:2 D6:2 E6:2 C6:4', 'F6:3 E6:1 D6:4 B5:4 G5:4', 'A5:2 Bb5:2 C6:2 D6:2 E6:2 F6:2 G6:2 A6:2',
+  const HOOK1 = [
+    'D5:1 D5:1 A5:2 D6:2 A5:1 Ab5:1 G5:2 F5:2 D5:1 F5:1 G5:1 A5:1',
+    'C5:1 C5:1 G5:2 C6:2 G5:1 F#5:1 F5:2 E5:2 C5:1 E5:1 F5:1 G5:1',
+    'B4:1 B4:1 G5:2 B5:2 D6:2 C6:1 B5:1 G5:2 D5:1 G5:1 A5:1 B5:1',
+    'Bb4:1 Bb4:1 F5:2 Bb5:2 D6:2 C#6:1 D6:1 E6:2 F6:1 E6:1 D6:1 C#6:1',
   ];
-  const BREAK = ['A5:2 r:2 A5:2 r:2 G5:2 F5:2 E5:2 D5:2', 'G5:2 r:2 G5:2 r:2 F5:2 E5:2 D5:2 C5:2', 'G5:2 r:2 G5:2 r:2 B5:2 D6:2 C6:2 B5:2', 'D5:2 E5:2 F5:2 G5:2 A5:2 Bb5:2 C6:2 C#6:2'];
+  const RUN1 = 'Bb5:1 A5:1 G5:1 F5:1 E5:1 D5:1 C#5:1 D5:1 E5:1 F5:1 G5:1 A5:1 Bb5:1 C6:1 C#6:1 E6:1';
+  const ASSAULT1 = [
+    'F5:2 D5:1 F5:1 A5:2 G5:1 F5:1 E5:2 D5:2 A5:2 G5:1 F5:1',
+    'E5:2 C5:1 E5:1 G5:2 F5:1 E5:1 D5:2 C5:2 G5:2 F5:1 E5:1',
+    'D5:2 B4:1 D5:1 G5:2 B5:2 D6:2 C6:2 B5:1 A5:1 G5:2',
+    'D5:2 F5:2 Bb5:2 D6:2 C#6:2 A5:2 E6:2 A5:2',
+  ];
+  const SOAR1 = [
+    'D6:6 C6:2 A5:4 F5:4',
+    'E6:6 D6:2 C6:4 G5:4',
+    'D6:4 B5:2 G5:2 B5:2 D6:2 G6:4',
+    'F6:6 E6:2 D6:2 C6:2 Bb5:2 A5:2',
+    'A6:4 G6:2 F6:2 E6:2 F6:2 D6:4',
+    'G6:4 F6:2 E6:2 D6:2 E6:2 C6:4',
+    'F6:3 E6:1 D6:4 B5:4 G5:4',
+    'A5:2 Bb5:2 C6:2 D6:2 E6:2 F6:2 G6:2 A6:2',
+  ];
+  const BREAK1 = [
+    'A5:2 r:2 A5:2 r:2 G5:2 F5:2 E5:2 D5:2',
+    'G5:2 r:2 G5:2 r:2 F5:2 E5:2 D5:2 C5:2',
+    'G5:2 r:2 G5:2 r:2 B5:2 D6:2 C6:2 B5:2',
+    'D5:1 E5:1 F5:1 G5:1 A5:1 Bb5:1 C6:1 C#6:1 D6:1 E6:1 F6:1 G6:1 A6:2 C#6:2',
+  ];
+
   const battleBars = [
-    ...PROG.map((ch, i) => ({ ch, dr: i < 2 ? 'intro1' : 'intro2', bass: 'drive' })),
-    ...PROG.map((ch, i) => ({ ch, mel: HOOK[i], dr: 'full', crash: i === 0 })),
-    ...PROG.map((ch, i) => ({ ch, mel: i === 3 ? RUN : HOOK[i], dr: i === 3 ? 'fill' : 'full' })),
-    ...SOAR.map((mel, i) => ({ ch: PROG[i % 4], mel, dr: i === 7 ? 'fill' : 'drive', harm: true, pad: true, crash: i % 4 === 0 })),
-    ...BREAK.map((mel, i) => ({ ch: PROG[i], mel, dr: i === 3 ? 'roll' : 'half', bass: i === 3 ? 'drive' : 'half', arp: true })),
-    ...PROG.map((ch, i) => ({ ch, mel: HOOK[i], dr: 'drive', harm: true, saw: true, pad: true, crash: i === 0 })),
-    ...PROG.map((ch, i) => ({ ch, mel: i === 3 ? RUN : HOOK[i], dr: i === 3 ? 'fill' : 'drive', harm: true, saw: true, pad: true })),
+    // Intro (4 mesures)
+    ...PROG1.map((ch, i) => ({ ch, mel: INTRO_P1[i], dr: i < 2 ? 'intro1' : i === 2 ? 'intro2' : 'roll', bass: i < 2 ? 'half' : 'drive', arp: i >= 2 })),
+    // Thème principal A (8 mesures)
+    ...PROG1.map((ch, i) => ({ ch, mel: HOOK1[i], dr: 'full', bass: 'drive', crash: i === 0 })),
+    ...PROG1.map((ch, i) => ({ ch, mel: i === 3 ? RUN1 : HOOK1[i], dr: i === 3 ? 'fill' : 'drive', bass: 'drive', harm: true, arp: i >= 2 })),
+    // Section B : Assaut rythmique (8 mesures)
+    ...PROG1.map((ch, i) => ({ ch, mel: ASSAULT1[i], dr: 'drive', bass: 'oct', harm: true, crash: i === 0 })),
+    ...PROG1.map((ch, i) => ({ ch, mel: i === 3 ? RUN1 : ASSAULT1[i], dr: i === 3 ? 'fill' : 'drive', bass: 'drive', harm: true, saw: true, arp: true })),
+    // Section C : Envolée mélodique héroïque (8 mesures)
+    ...SOAR1.map((mel, i) => ({ ch: PROG1[i % 4], mel, dr: i === 7 ? 'fill' : 'drive', bass: 'drive', harm: true, saw: true, pad: true, arp: i >= 4, crash: i % 4 === 0 })),
+    // Section D : Break sous tension (4 mesures)
+    ...BREAK1.map((mel, i) => ({ ch: PROG1[i], mel, dr: i === 3 ? 'roll' : 'half', bass: i === 3 ? 'drive' : 'half', arp: true, pad: true })),
+    // Climax Phase 1 (8 mesures)
+    ...PROG1.map((ch, i) => ({ ch, mel: HOOK1[i], dr: 'blast', bass: 'gallop', harm: true, saw: true, pad: true, arp: true, crash: i === 0 })),
+    ...PROG1.map((ch, i) => ({ ch, mel: i === 3 ? RUN1 : HOOK1[i], dr: i === 3 ? 'fill' : 'blast', bass: 'gallop', harm: true, saw: true, pad: true, arp: true })),
+  ];
+
+  // =========================================================================
+  // PHASE 2 : « DERNIER SOUFFLE » (154 BPM — Transcendant, furieux et tragique)
+  // =========================================================================
+  const PROG2 = ['Dm', 'Bb', 'Gm', 'A'];
+  const PROG2_ALT = ['Dm', 'C', 'Bb', 'A'];
+  const PROG2_HERO = ['F', 'C', 'Dm', 'Bb', 'Gm', 'Dm', 'Bb', 'A'];
+
+  const INTRO_P2 = [
+    'D5:2 A5:2 F5:2 D5:2 Bb5:2 A5:2 F5:2 D5:2',
+    'D5:2 Bb5:2 F5:2 D5:2 C6:2 Bb5:2 F5:2 D5:2',
+    'G5:2 Bb5:2 D6:2 G6:2 F6:2 D6:2 Bb5:2 G5:2',
+    'A5:1 G5:1 A5:1 Bb5:1 A5:1 G5:1 A5:1 C#6:1 D6:1 C#6:1 E6:1 F6:1 G6:1 A6:1 Bb6:1 C#7:1',
+  ];
+  const HOOK2 = [
+    'D6:2 A5:1 D6:1 F6:2 E6:1 D6:1 C#6:2 A5:2 G5:1 A5:1 Bb5:1 C6:1',
+    'D6:2 Bb5:1 D6:1 F6:2 E6:1 D6:1 C6:2 F5:2 G5:1 A5:1 Bb5:1 C6:1',
+    'Bb5:2 G5:1 Bb5:1 D6:2 C6:1 Bb5:1 A5:2 D5:2 E5:1 F#5:1 G5:1 A5:1',
+    'A5:2 C#6:2 E6:2 G6:2 F6:1 E6:1 D6:1 C#6:1 E6:2 A5:2',
+  ];
+  const RUN2 = 'A5:1 B5:1 C#6:1 D6:1 E6:1 F6:1 G6:1 A6:1 Bb6:1 A6:1 G6:1 F6:1 E6:1 D6:1 C#6:2';
+  const SHRED2 = [
+    'F6:1 D6:1 A5:1 D6:1 F6:1 D6:1 A5:1 D6:1 G6:1 E6:1 A5:1 E6:1 F6:2 D6:2',
+    'E6:1 C6:1 G5:1 C6:1 E6:1 C6:1 G5:1 C6:1 F6:1 D6:1 G5:1 D6:1 E6:2 C6:2',
+    'D6:1 Bb5:1 F5:1 Bb5:1 D6:1 Bb5:1 F5:1 Bb5:1 E6:1 C6:1 F5:1 C6:1 D6:2 Bb5:2',
+    'C#6:1 A5:1 E5:1 A5:1 C#6:1 E6:1 G6:1 F6:1 E6:1 D6:1 C#6:1 B5:1 A5:2 G5:1 E5:1',
+  ];
+  const SOAR2 = [
+    'A6:4 G6:2 F6:2 C6:4 F6:2 G6:2',
+    'G6:4 F6:2 E6:2 C6:4 E6:2 G6:2',
+    'F6:4 E6:2 D6:2 A5:4 D6:2 F6:2',
+    'D6:6 C6:2 Bb5:4 D6:2 F6:2',
+    'G6:4 F6:2 D6:2 Bb5:4 D6:2 G6:2',
+    'F6:4 E6:2 D6:2 A5:4 D6:2 F6:2',
+    'E6:4 F6:4 G6:4 Bb6:4',
+    'A6:6 G6:2 F6:2 E6:2 D6:2 C#6:2',
+  ];
+  const BREAK2 = [
+    'D6:3 r:1 A5:2 F5:2 D5:4 A5:2 C6:2',
+    'D6:3 r:1 Bb5:2 F5:2 D5:4 Bb5:2 D6:2',
+    'Bb5:2 A5:2 G5:2 Bb5:2 D6:2 C6:2 Bb5:2 D6:2',
+    'C#6:1 D6:1 E6:1 F6:1 G6:1 A6:1 Bb6:1 A6:1 G6:1 A6:1 Bb6:1 C#7:1 D7:4',
+  ];
+
+  const battle2Bars = [
+    // Intro d'éveil Phase 2 (4 mesures pendant que Sans se relève)
+    ...PROG2.map((ch, i) => ({ ch, mel: INTRO_P2[i], dr: i < 2 ? 'intro1' : i === 2 ? 'intro2' : 'roll', bass: i < 3 ? 'half' : 'gallop', arp: true, pad: true, bell: true, crash: i === 0 })),
+    // Thème principal Phase 2 : Colère Écarlate (8 mesures)
+    ...PROG2.map((ch, i) => ({ ch, mel: HOOK2[i], dr: 'blast', bass: 'gallop', harm: true, saw: true, pad: true, crash: i === 0 })),
+    ...PROG2.map((ch, i) => ({ ch, mel: i === 3 ? RUN2 : HOOK2[i], dr: i === 3 ? 'fill' : 'blast', bass: 'gallop', harm: true, saw: true, pad: true, arp: true })),
+    // Section B : Tempête de Gaster Blasters en doubles-croches (8 mesures)
+    ...PROG2_ALT.map((ch, i) => ({ ch, mel: SHRED2[i], dr: 'blast', bass: 'gallop', harm: true, arp: true, crash: i === 0 })),
+    ...PROG2_ALT.map((ch, i) => ({ ch, mel: i === 3 ? RUN2 : SHRED2[i], dr: i === 3 ? 'fill' : 'blast', bass: 'gallop', harm: true, saw: true, arp: true, bell: true })),
+    // Section C : Détermination Infinie / Chœur Héroïque (8 mesures)
+    ...SOAR2.map((mel, i) => ({ ch: PROG2_HERO[i], mel, dr: i === 7 ? 'fill' : 'drive', bass: 'gallop', harm: true, saw: true, pad: true, arp: true, bell: true, crash: i % 4 === 0 })),
+    // Section D : L'Écho du Vide (4 mesures mystérieuses + montée furieuse)
+    ...BREAK2.map((mel, i) => ({ ch: PROG2[i], mel, dr: i === 3 ? 'roll' : 'half', bass: i === 3 ? 'gallop' : 'half', arp: true, pad: true, bell: true })),
+    // Section E : Apothéose Finale Phase 2 (8 mesures)
+    ...PROG2.map((ch, i) => ({ ch, mel: HOOK2[i], dr: 'blast', bass: 'gallop', harm: true, saw: true, pad: true, arp: true, bell: true, crash: i === 0 })),
+    ...PROG2.map((ch, i) => ({ ch, mel: i === 3 ? RUN2 : HOOK2[i], dr: i === 3 ? 'fill' : 'blast', bass: 'gallop', harm: true, saw: true, pad: true, arp: true, bell: true })),
   ];
 
   const SONGS = {
-    battle: song({ bpm: 120, bass: 'drive', lead: 'battle', loop: 4, bars: battleBars }),
+    battle: song({ bpm: 138, bass: 'drive', lead: 'battle', loop: 4, bars: battleBars }),
+    battle2: song({ bpm: 154, bass: 'gallop', lead: 'battle2', loop: 4, bars: battle2Bars }),
     // Boîte à musique de l'écran titre
     title: song({
       bpm: 84, bass: 'hold', lead: 'box', bars: [
@@ -317,12 +417,21 @@ const Snd = (() => {
     for (const d of [3, 4]) if (sc.includes(((m - d) % 12 + 12) % 12)) return m - d;
     return m - 5;
   }
+
   function lead(sg, bar, m, dur, t, g) {
     if (sg.lead === 'battle') {
-      tone(mf(m), dur * 0.92, { w: 'p25', v: 0.07, t, bus: g, send: delayIn, vib: dur > 0.25 ? [6, 6] : null });
-      tone(mf(m) * 1.005, dur * 0.9, { w: 'p25', v: 0.028, t, bus: g });
-      if (bar.harm) tone(mf(harmony(m, bar.chName)), dur * 0.9, { w: 'p50', v: 0.032, t, bus: g });
-      if (bar.saw) tone(mf(m + 12), dur * 0.9, { w: 'sawtooth', v: 0.03, t, bus: g, lp: 3200, vib: dur > 0.25 ? [6, 8] : null });
+      tone(mf(m), dur * 0.92, { w: 'p25', v: 0.075, t, bus: g, send: delayIn, vib: dur > 0.22 ? [6, 6] : null });
+      tone(mf(m) * 1.005, dur * 0.9, { w: 'p12', v: 0.032, t, bus: g });
+      if (bar.harm) tone(mf(harmony(m, bar.chName)), dur * 0.9, { w: 'p50', v: 0.036, t, bus: g });
+      if (bar.saw) tone(mf(m + 12), dur * 0.9, { w: 'sawtooth', v: 0.032, t, bus: g, lp: 3400, vib: dur > 0.22 ? [6, 8] : null });
+    } else if (sg.lead === 'battle2') {
+      // Son de boss Phase 2 : double lead agressif + sub-octave + harmonie + carillon cristallin
+      tone(mf(m), dur * 0.94, { w: 'p25', v: 0.08, t, bus: g, send: delayIn, vib: dur > 0.18 ? [7, 8] : null });
+      tone(mf(m) * 0.996, dur * 0.92, { w: 'sawtooth', v: 0.042, t, bus: g, lp: 3800 });
+      tone(mf(m - 12), dur * 0.88, { w: 'p50', v: 0.028, t, bus: g });
+      if (bar.harm) tone(mf(harmony(m, bar.chName)), dur * 0.9, { w: 'p25', v: 0.04, t, bus: g });
+      if (bar.saw) tone(mf(m + 12), dur * 0.9, { w: 'sawtooth', v: 0.034, t, bus: g, lp: 4200, vib: dur > 0.18 ? [7, 10] : null });
+      if (bar.bell) tone(mf(m + 12), Math.min(0.35, dur * 1.3), { w: 'triangle', v: 0.045, t, bus: g, decay: true, send: delayIn });
     } else if (sg.lead === 'box') {
       tone(mf(m), dur * 1.6, { w: 'triangle', v: 0.13, t, bus: g, decay: true });
       tone(mf(m + 12), dur, { w: 'sine', v: 0.04, t, bus: g, decay: true });
@@ -331,48 +440,72 @@ const Snd = (() => {
       tone(mf(m), dur * 0.95, { w: 'triangle', v: 0.08, t, bus: g, a: 0.06, r: 0.25 });
     }
   }
+
   function drums(p, s, t, g, sd) {
     if (p === 'none') return;
-    const kick = (v = 0.45) => { tone(160, 0.2, { w: 'sine', to: 40, toT: 0.12, v, t, bus: g, decay: true }); nz(0.02, { ft: 'highpass', f: 2000, v: 0.05, t, bus: g }); };
-    const snare = (v = 0.2) => { nz(0.16, { ft: 'highpass', f: 1100, v, t, bus: g }); tone(200, 0.09, { w: 'triangle', to: 150, v: v * 0.6, t, bus: g, decay: true }); };
-    const hat = v => nz(0.03, { ft: 'highpass', f: 7500, v, t, bus: g });
-    const tom = f => tone(f, 0.18, { w: 'sine', to: f * 0.6, v: 0.3, t, bus: g, decay: true });
+    const kick = (v = 0.45) => { tone(165, 0.2, { w: 'sine', to: 38, toT: 0.12, v, t, bus: g, decay: true }); nz(0.02, { ft: 'highpass', f: 2200, v: 0.06, t, bus: g }); };
+    const snare = (v = 0.22) => { nz(0.16, { ft: 'highpass', f: 1100, v, t, bus: g }); tone(205, 0.09, { w: 'triangle', to: 145, v: v * 0.65, t, bus: g, decay: true }); };
+    const hat = (v, open = false) => nz(open ? 0.09 : 0.03, { ft: 'highpass', f: 7500, v, t, bus: g });
+    const tom = f => tone(f, 0.18, { w: 'sine', to: f * 0.6, v: 0.32, t, bus: g, decay: true });
     switch (p) {
       case 'intro1': if (s === 0 || s === 8) kick(); if (s % 2 === 0) hat(0.03); break;
       case 'intro2': if (s % 4 === 0) kick(); hat(s % 2 ? 0.015 : 0.04); if (s >= 12) snare(0.06 + (s - 12) * 0.04); break;
-      case 'full': if (s === 0 || s === 8 || s === 10) kick(); if (s === 4 || s === 12) snare(); if (s === 15) snare(0.05); hat(s % 4 === 2 ? 0.05 : s % 2 ? 0.015 : 0.03); break;
-      case 'drive': if ([0, 3, 6, 8, 11, 14].includes(s)) kick(0.4); if (s === 4 || s === 12) snare(0.22); hat(s % 2 ? 0.02 : 0.045); break;
-      case 'half': if (s === 0) kick(); if (s === 8) snare(0.22); if (s % 2 === 0) hat(0.03); break;
-      case 'roll': if (s === 0 || s === 8) kick(); snare(0.04 + s * 0.012); break;
+      case 'full': if (s === 0 || s === 8 || s === 10) kick(); if (s === 4 || s === 12) snare(); if (s === 15) snare(0.06); hat(s % 4 === 2 ? 0.05 : s % 2 ? 0.015 : 0.03, s % 4 === 2); break;
+      case 'drive': if ([0, 3, 6, 8, 11, 14].includes(s)) kick(0.42); if (s === 4 || s === 12) snare(0.24); hat(s % 2 ? 0.02 : 0.045, s === 6 || s === 14); break;
+      case 'blast':
+        if (s % 2 === 0 || s === 3 || s === 11 || s === 15) kick(0.44);
+        if (s === 4 || s === 12) snare(0.27);
+        if (s === 7 || s === 15) snare(0.11);
+        hat(s % 2 === 0 ? 0.05 : 0.025, s % 4 === 2);
+        break;
+      case 'half': if (s === 0) kick(0.5); if (s === 8) snare(0.24); if (s % 2 === 0) hat(0.03); break;
+      case 'roll': if (s % 4 === 0) kick(0.45); snare(0.05 + s * 0.014); break;
       case 'fill':
         if (s === 0 || s === 4) kick(); if (s === 2 || s === 6) snare();
-        if (s === 8) tom(220); if (s === 10) tom(180); if (s === 12) tom(140);
-        if (s >= 13) snare(0.15 + (s - 13) * 0.04);
-        hat(0.02); break;
+        if (s === 8) tom(240); if (s === 10) tom(190); if (s === 12) tom(145);
+        if (s >= 13) snare(0.16 + (s - 13) * 0.04);
+        hat(0.025); break;
     }
     void sd;
   }
+
   const DRIVE = [0, 0, 12, 0, 0, 12, 0, 0, 0, 0, 12, 0, 0, 12, 0, 12];
+  const GALLOP = [0, 0, 12, 0, 7, 12, 0, 12, 0, 0, 12, 0, 7, 12, 15, 12];
+
   function playStep(sg, step, t, sd, g) {
     const bar = sg.bars[Math.floor(step / 16)], s = step % 16;
-    if (bar.crash && s === 0) nz(1.4, { ft: 'highpass', f: 5000, v: 0.13, t, bus: g });
+    if (bar.crash && s === 0) nz(1.5, { ft: 'highpass', f: 4800, v: 0.15, t, bus: g });
     for (const n of bar.mel) if (n.s === s) lead(sg, bar, n.m, n.len * sd, t, g);
     const bass = bar.bass || sg.bass, root = bar.ch[0];
     if (bass === 'drive') {
-      tone(mf(root + DRIVE[s]), sd * 0.8, { w: 'p50', v: 0.085, t, bus: g, r: 0.02 });
-      if (s % 8 === 0) tone(mf(root - 12), sd * 4, { w: 'triangle', v: 0.16, t, bus: g, r: 0.05 });
+      tone(mf(root + DRIVE[s]), sd * 0.8, { w: 'p50', v: 0.09, t, bus: g, r: 0.02 });
+      if (s % 8 === 0) tone(mf(root - 12), sd * 4, { w: 'triangle', v: 0.17, t, bus: g, r: 0.05 });
+    } else if (bass === 'gallop') {
+      tone(mf(root + GALLOP[s]), sd * 0.78, { w: 'sawtooth', v: 0.075, t, bus: g, lp: 1500, r: 0.015 });
+      tone(mf(root + (s % 2 ? 12 : 0)), sd * 0.75, { w: 'p50', v: 0.06, t, bus: g, r: 0.015 });
+      if (s % 4 === 0) tone(mf(root - 12), sd * 2.5, { w: 'triangle', v: 0.18, t, bus: g, r: 0.04 });
     } else if (bass === 'half') {
-      if (s % 8 === 0) { tone(mf(root), sd * 7, { w: 'p50', v: 0.07, t, bus: g, r: 0.1 }); tone(mf(root - 12), sd * 7, { w: 'triangle', v: 0.16, t, bus: g, r: 0.1 }); }
+      if (s % 8 === 0) { tone(mf(root), sd * 7, { w: 'p50', v: 0.075, t, bus: g, r: 0.1 }); tone(mf(root - 12), sd * 7, { w: 'triangle', v: 0.17, t, bus: g, r: 0.1 }); }
     } else if (bass === 'oct') {
       if (s % 2 === 0) tone(mf(root + (s % 4 === 2 ? 12 : 0)), sd * 1.7, { w: 'p50', v: 0.1, t, bus: g, r: 0.03 });
     } else if (s === 0) {
       tone(mf(root + 12), sd * 16, { w: 'triangle', v: 0.12, t, bus: g, a: 0.05, r: 0.4 });
       for (const m of bar.ch[1]) tone(mf(m), sd * 16, { w: 'sine', v: 0.018, t, bus: g, a: 0.3, r: 0.6 });
     }
-    if (bar.pad && s === 0) for (const m of bar.ch[1]) tone(mf(m), sd * 16, { w: 'sawtooth', v: 0.014, t, bus: g, a: 0.15, r: 0.3, lp: 1600 });
-    if (bar.arp) tone(mf(bar.ch[1][s % 3] + 12 + (s % 6 >= 3 ? 12 : 0)), sd * 0.9, { w: 'p12', v: 0.035, t, bus: g, send: delayIn });
+    if (bar.pad && s === 0) {
+      for (const m of bar.ch[1]) {
+        tone(mf(m), sd * 16, { w: 'sawtooth', v: sg.lead === 'battle2' ? 0.02 : 0.015, t, bus: g, a: 0.12, r: 0.3, lp: 1800 });
+      }
+    }
+    if (bar.arp) {
+      const notes = bar.ch[1];
+      const idx = sg.lead === 'battle2' ? [0, 1, 2, 1][s % 4] : s % 3;
+      const oct = sg.lead === 'battle2' ? (s % 8 >= 4 ? 24 : 12) : (s % 6 >= 3 ? 24 : 12);
+      tone(mf(notes[idx] + oct), sd * 0.85, { w: 'p12', v: 0.038, t, bus: g, send: delayIn });
+    }
     drums(bar.dr, s, t, g, sd);
   }
+
   function tick() {
     if (!cur || !ac || ac.state !== 'running') return;
     const sg = cur.sg, sd = 60 / sg.bpm / 4;
@@ -384,6 +517,7 @@ const Snd = (() => {
       cur.next += sd;
     }
   }
+
   function music(name) {
     if (!ac) { wanted = name; return; }
     if (cur && cur.name === name) return;
@@ -392,6 +526,7 @@ const Snd = (() => {
     delayNode.delayTime.setValueAtTime(60 / sg.bpm * 0.75, ac.currentTime);
     cur = { name, sg, g: gain(1, mus), pos: 0, next: ac.currentTime + 0.08 };
   }
+
   function stopMusic(fade = 0.3) {
     if (!ac) { wanted = null; return; }
     if (!cur) return;
@@ -1544,7 +1679,7 @@ function updateBattle(dt) {
       // Sans se relève, porté par sa volonté de te tuer.
       B.timer += dt; S.shake = Math.max(S.shake, 0.05);
       if (B.timer > 1.2 && !s.p2) { s.p2 = true; s.hurt = false; s.sleep = false; s.sweat = 0; Snd.bigHit(); S.shake = 0.5; }
-      if (B.timer > 3.2) { B.p2 = true; B.p2i = 0; B.p2hp = P2_MAX; B.p2ghost = P2_MAX; Snd.music('battle'); enemyTurn(); }
+      if (B.timer > 3.2) { B.p2 = true; B.p2i = 0; B.p2hp = P2_MAX; B.p2ghost = P2_MAX; Snd.music('battle2'); enemyTurn(); }
       break;
     case 'trap':
       B.timer += dt;
