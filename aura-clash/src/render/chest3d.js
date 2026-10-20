@@ -407,7 +407,7 @@ export function buildChest(rarity) {
 
 // --- Scène commune (éclairage studio) ----------------------------------------------------------------
 
-function makeScene(renderer, rarity) {
+export function makeScene(renderer, rarity) {
   const scene = new THREE.Scene();
   const pm = new THREE.PMREMGenerator(renderer);
   scene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture;
@@ -426,7 +426,7 @@ function makeScene(renderer, rarity) {
   return scene;
 }
 
-function setupRenderer(canvas, w, h, keep = false) {
+export function setupRenderer(canvas, w, h, keep = false) {
   const r = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: keep });
   r.setPixelRatio(1);
   r.setSize(w, h, false);

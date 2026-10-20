@@ -14,6 +14,7 @@ import { grant, flatten, rewardLabel, rewardRarity, rewardIcon } from '../core/r
 import { platform } from '../platform.js';
 import { chestSvg } from './chestArt.js';
 import { ChestViewer } from '../render/chest3d.js';
+import { objectIcon, skinIcon } from '../render/icons3d.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const h = (html) => {
@@ -51,14 +52,34 @@ export const liveScreens = {
     else this.toast('Publicité indisponible pour le moment, réessaie plus tard.', 3.5);
   },
 
+  /** Miniature d'une récompense : objet 3D, combattant vêtu du skin, portrait, coffre… */
+  rewardVisual(r) {
+    const img = (src, cls = '') => (src ? `<img class="rw-thumb ${cls}" src="${src}" alt="" draggable="false">` : '');
+    const who = this.avatarOf();
+    switch (r.t) {
+      case 'chest': return chestSvg(r.r, { cls: 'rw-chest' });
+      case 'char': return this.portrait(r.id, 'rw-portrait big');
+      case 'frag': return r.id
+        ? `<span class="rw-stack">${this.portrait(r.id, 'rw-portrait')}${img(objectIcon('frag'), 'rw-badge')}</span>`
+        : `<span class="rw-stack">${img(objectIcon('frag'))}<b class="rw-q">?</b></span>`;
+      case 'skin': return r.id
+        ? `<span class="rw-stack skin" style="--a:${SKIN_BY_ID[r.id].aura}">${img(skinIcon(r.id, who))}</span>`
+        : `<span class="rw-stack skin mystery">${img(skinIcon('neant', who))}<b class="rw-q">?</b></span>`;
+      case 'frame': return `<span class="rw-stack"><span class="rw-frame ${r.id ? `frame-${r.id}` : 'mystery'}">${this.portrait(who, 'rw-portrait')}</span>${r.id ? '' : '<b class="rw-q">?</b>'}</span>`;
+      case 'title': return `<span class="rw-stack">${img(objectIcon('title'))}${r.id ? '' : '<b class="rw-q">?</b>'}</span>`;
+      case 'ryo': return img(objectIcon(r.n >= 600 ? 'ryoPile' : 'ryo'));
+      case 'xp': return img(objectIcon('xp'));
+      case 'boost': return img(objectIcon('boost'));
+      default: return '';
+    }
+  },
+
   /** Carte d'une récompense (pas encore concrète : aperçu). */
   rewardCard(r, cls = '') {
     const rar = rewardRarity(r);
-    const img = r.t === 'char' || (r.t === 'frag' && r.id) ? this.portrait(r.id, 'rw-portrait') : '';
-    const sw = r.t === 'skin' && r.id ? `<i class="rw-swatch" style="--a:${SKIN_BY_ID[r.id].aura};--b:${SKIN_BY_ID[r.id].tint}"></i>`
-      : r.t === 'chest' ? chestSvg(r.r, { cls: 'rw-chest' }) : '';
-    return `<div class="rw-card r-${rar} ${cls}" style="--rc:${RARITY_BY_ID[rar].color}">
-      ${img || sw || `<span class="rw-ico">${rewardIcon(r)}</span>`}
+    const vis = this.rewardVisual(r);
+    return `<div class="rw-card r-${rar} t-${r.t} ${cls}" style="--rc:${RARITY_BY_ID[rar].color}">
+      ${vis || `<span class="rw-ico">${rewardIcon(r)}</span>`}
       <span class="rw-lbl">${esc(rewardLabel(r))}</span></div>`;
   },
 
@@ -578,7 +599,7 @@ export const liveScreens = {
         const own = live.skins.includes(k.id);
         const on = prof.outfitFor(this.avatarOf()) === k.id;
         return `<button class="sh-skin r-${k.rarity} ${own ? 'own' : ''} ${on ? 'on' : ''}" data-nav data-skin="${k.id}" style="--rc:${RARITY_BY_ID[k.rarity].color};--a:${k.aura};--b:${k.tint}">
-          <i class="rw-swatch"></i><b>${esc(k.name)}</b><small>${esc(RARITY_BY_ID[k.rarity].name)}</small>
+          <span class="sh-skin-art">${skinIcon(k.id, this.avatarOf()) ? `<img src="${skinIcon(k.id, this.avatarOf())}" alt="">` : '<i class="rw-swatch"></i>'}</span><b>${esc(k.name)}</b><small>${esc(RARITY_BY_ID[k.rarity].name)}</small>
           <span class="sh-state">${on ? 'ÉQUIPÉ' : own ? 'Équiper' : '🔒'}</span></button>`;
       }).join('')}</div>`;
     } else {
