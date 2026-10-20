@@ -2,12 +2,15 @@
 // Front d'Acier : combat de chars 5 contre 5, vue de dessus.
 (() => {
   // ===================== Outils =====================
-  const TAU = Math.PI * 2;
+  const TAU = Math.PI * 2, D2R = Math.PI / 180;
   const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
   const angNorm = a => { while (a > Math.PI) a -= TAU; while (a < -Math.PI) a += TAU; return a; };
   const rnd = (a, b) => a + Math.random() * (b - a);
   const gauss = () => (Math.random() + Math.random() + Math.random() - 1.5) * 2;
   const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  const norm3 = v => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; };
+  const dot3 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const rotZ = (v, a) => { const c = Math.cos(a), s = Math.sin(a); return [v[0] * c - v[1] * s, v[0] * s + v[1] * c, v[2]]; };
   function mulberry32(a) {
     return () => {
       a |= 0; a = a + 0x6D2B79F5 | 0;
@@ -43,35 +46,80 @@
     }
     return { t: tmin, nx, ny };
   }
+  // Même chose en 3D : renvoie [entrée, sortie] le long du rayon, ou null
+  function ray3(o, d, mn, mx) {
+    let t0 = -1e9, t1 = 1e9;
+    for (let k = 0; k < 3; k++) {
+      if (Math.abs(d[k]) < 1e-9) { if (o[k] < mn[k] || o[k] > mx[k]) return null; continue; }
+      let a = (mn[k] - o[k]) / d[k], b = (mx[k] - o[k]) / d[k];
+      if (a > b) { const t = a; a = b; b = t; }
+      if (a > t0) t0 = a;
+      if (b < t1) t1 = b;
+      if (t0 > t1) return null;
+    }
+    return [t0, t1];
+  }
 
   // ===================== Données =====================
+  const PX = 7;    // pixels de jeu par mètre (taille des chars)
+  const RK = 0.5;  // mètres de balistique par pixel (distances de tir)
   const TYPES = {
     light: {
-      id: 'light', name: 'Lynx', cls: 'Char léger', len: 40, wid: 26, hp: 420, armor: [45, 30, 20],
-      pen: 125, dmg: 115, reload: 2.3, speed: 150, rev: 70, accel: 230, turn: 2.3, tturn: 3.2,
-      shell: 640, disp: 0.016, barrel: 22, bw: 4, tr: 9, piv: 0.05, view: 760, range: 470,
+      id: 'light', name: 'Lynx', cls: 'Char léger', kmh: 60, speed: 150, rev: 70, accel: 230, turn: 2.3, tturn: 2.6,
+      reload: 3.2, shell: 640, disp: 0.016, view: 760, range: 470,
+      caliber: 50, apPen: 95, heatPen: 60, hePen: 6, kin: 110, obs: 60,
+      ammo: { AP: 20, APHE: 30, APCR: 10, HEAT: 6, HE: 20 },
     },
     medium: {
-      id: 'medium', name: 'Panthère', cls: 'Char moyen', len: 46, wid: 30, hp: 650, armor: [100, 55, 40],
-      pen: 180, dmg: 190, reload: 3.3, speed: 112, rev: 52, accel: 170, turn: 1.6, tturn: 2.0,
-      shell: 700, disp: 0.011, barrel: 30, bw: 5, tr: 11, piv: 0, view: 680, range: 420,
+      id: 'medium', name: 'Panthère', cls: 'Char moyen', kmh: 46, speed: 112, rev: 52, accel: 170, turn: 1.6, tturn: 1.4,
+      reload: 5.5, shell: 720, disp: 0.011, view: 680, range: 420,
+      caliber: 75, apPen: 185, heatPen: 90, hePen: 9, kin: 170, obs: 110,
+      ammo: { AP: 15, APHE: 35, APCR: 10, HEAT: 5, HE: 15 },
     },
     heavy: {
-      id: 'heavy', name: 'Tigre', cls: 'Char lourd', len: 52, wid: 34, hp: 950, armor: [160, 95, 60],
-      pen: 225, dmg: 280, reload: 4.6, speed: 80, rev: 38, accel: 115, turn: 1.1, tturn: 1.3,
-      shell: 720, disp: 0.010, barrel: 34, bw: 6, tr: 13, piv: 0, view: 620, range: 320,
+      id: 'heavy', name: 'Tigre', cls: 'Char lourd', kmh: 38, speed: 80, rev: 38, accel: 115, turn: 1.1, tturn: 1.0,
+      reload: 7.0, shell: 680, disp: 0.010, view: 620, range: 330,
+      caliber: 88, apPen: 175, heatPen: 110, hePen: 12, kin: 200, obs: 150,
+      ammo: { AP: 12, APHE: 40, APCR: 8, HEAT: 10, HE: 22 },
     },
     destroyer: {
-      id: 'destroyer', name: 'Jagd', cls: 'Chasseur de chars', len: 50, wid: 32, hp: 720, armor: [140, 50, 35],
-      pen: 270, dmg: 340, reload: 5.0, speed: 95, rev: 45, accel: 145, turn: 1.4, tturn: 1.1,
-      shell: 780, disp: 0.007, barrel: 36, bw: 6, tr: 7, piv: 0.2, view: 720, range: 600, arc: 0.21,
+      id: 'destroyer', name: 'Jagd', cls: 'Chasseur de chars', kmh: 46, speed: 95, rev: 45, accel: 145, turn: 1.4, tturn: 0.9,
+      reload: 7.5, shell: 780, disp: 0.007, view: 720, range: 600, arc: 0.21,
+      caliber: 88, apPen: 240, heatPen: 110, hePen: 12, kin: 220, obs: 160,
+      ammo: { AP: 12, APHE: 25, APCR: 10, HEAT: 5, HE: 5 },
     },
   };
-  // Marge de points de vie pour des combats un peu plus longs
-  for (const T of Object.values(TYPES)) T.hp = Math.round(T.hp * 1.3);
+  // Géométrie de jeu tirée des modèles 3D
+  for (const T of Object.values(TYPES)) {
+    const I = TankModels.info(T.id);
+    T.I = I; T.S = I.S;
+    T.len = I.S.L * PX; T.wid = I.S.W * PX;
+    T.pivX = I.pivotX * PX; T.pivY = -I.pivotY * PX;
+    T.gunEnd = I.gunEnd * PX;
+    T.tb = I.turretBox ? { x0: I.turretBox.x0 * PX, x1: I.turretBox.x1 * PX, y0: -I.turretBox.y1 * PX, y1: -I.turretBox.y0 * PX } : null;
+    T.tr = T.tb ? (T.tb.y1 - T.tb.y0) / 2 : 5;
+    T.barrel = I.S.gun.len * PX; T.bw = Math.max(2.5, I.S.gun.r * 2 * PX * 1.6);
+    T.crewN = I.S.crew.length;
+  }
+
+  const SHELLS = {
+    AP: { key: 'AP', n: 1, name: 'Perforant', full: 'Perforant (AP)', pen: 1.0, vel: 1.0, drop: 0.15, ric: 70 },
+    APHE: { key: 'APHE', n: 2, name: 'Perf. explosif', full: 'Perforant explosif (APHE)', pen: 0.92, vel: 0.98, drop: 0.15, ric: 70, fuse: 1.2, sens: 15 },
+    APCR: { key: 'APCR', n: 3, name: 'Sous-calibré', full: 'Sous-calibré (APCR)', pen: 1.32, vel: 1.25, drop: 0.45, ric: 62 },
+    HEAT: { key: 'HEAT', n: 4, name: 'Charge creuse', full: 'Charge creuse (HEAT)', vel: 0.72, drop: 0, ric: 80 },
+    HE: { key: 'HE', n: 5, name: 'Explosif', full: 'Explosif (HE)', vel: 0.82, drop: 0, ric: 90 },
+  };
+  const SHELL_KEYS = ['AP', 'APHE', 'APCR', 'HEAT', 'HE'];
+  function penAt(T, key, dpx) {
+    if (key === 'HEAT') return T.heatPen;
+    if (key === 'HE') return T.hePen;
+    const sh = SHELLS[key];
+    return T.apPen * sh.pen * Math.max(0.4, 1 - sh.drop * dpx * RK / 1000);
+  }
+
   const TEAM = [
-    { hull: '#56663a', top: '#66794a', dark: '#3d4a28', accent: '#4aa3ff', label: 'Allié' },
-    { hull: '#6a6964', top: '#7d7c76', dark: '#4a4945', accent: '#ff4a3d', label: 'Ennemi' },
+    { accent: '#4aa3ff', label: 'Allié', camo: [[0.33, 0.36, 0.22], [0.20, 0.25, 0.15], [0.36, 0.27, 0.17]], hull: '#56663a', top: '#66794a', dark: '#3d4a28' },
+    { accent: '#ff4a3d', label: 'Ennemi', camo: [[0.62, 0.55, 0.36], [0.40, 0.22, 0.15], [0.25, 0.30, 0.18]], hull: '#8a7d55', top: '#9a8d62', dark: '#5a4f35' },
   ];
 
   const W_ = (a, b, c, d, e) => [a, b, c, d, e];
@@ -115,7 +163,7 @@
   const WAVES = 3;
   const WW = 2600, WH = 1700, CELL = 20, STEP = 1 / 60;
 
-  // Réglages de développement : ?auto ?god ?speed=4 ?level=2 ?wave=1
+  // Réglages de développement : ?auto ?god ?speed=4 ?level=2 ?wave=1 ?type=heavy
   const Q = new URLSearchParams(location.search);
   const AUTO = Q.has('auto'), GOD = Q.has('god');
   const timeScale = Number(Q.get('speed')) || 1;
@@ -132,14 +180,14 @@
     cv.width = W * DPR; cv.height = H * DPR;
     cv.style.width = W + 'px'; cv.style.height = H + 'px';
     dark.width = cv.width; dark.height = cv.height;
-    S = clamp(Math.min(W / 1500, H / 900), 0.45, 1.3);
+    S = clamp(Math.min(W / 1200, H / 740), 0.5, 1.6);
   }
   addEventListener('resize', resize);
   resize();
 
   let state = 'menu'; // menu, intro, play, ending, result, pause
   let levelIdx = 0, waveIdx = 0, chosenType = 'medium';
-  let tanks = [], shells = [], parts = [], texts = [], feed = [], smokes = [];
+  let tanks = [], shells = [], parts = [], texts = [], feed = [], smokes = [], logs = [];
   let obstacles = [], bushes = [];
   let player = null, specIdx = 0;
   let camX = WW / 2, camY = WH / 2, shake = 0;
@@ -147,7 +195,7 @@
   let spotTimer = 0, waveTime = 0, introT = 0, endT = 0, waveResult = null, gameTime = 0;
   let groundCv = null, gctx = null;
   let waveStats = null, campaignScore = 0, msg = null, ffMsgT = 0;
-  let tankId = 0, shellId = 0;
+  let tankId = 0, shellId = 0, hitcamOn = true;
   const mouse = { x: W / 2, y: H / 2, down: false };
   const keys = {};
 
@@ -156,6 +204,54 @@
   function saveUnlocked() { try { localStorage.setItem('frontdacier.unlocked', String(unlocked)); } catch (e) { /* ignoré */ } }
 
   const L = () => LEVELS[levelIdx];
+
+  // ===================== 3D : maillages et sprites =====================
+  let R3 = null;
+  const MESH = {}, SPR = {};
+  try { R3 = G3.createRenderer(); } catch (e) { R3 = null; console.warn('WebGL indisponible', e); }
+  const SP = 22; // pixels par mètre dans les sprites
+  function topRender(mesh, hx, hy, opts) {
+    const w = Math.ceil(2 * hx * SP), h = Math.ceil(2 * hy * SP);
+    R3.begin(w, h, [0, 0, 0, 0]);
+    const eye = [0, 0, 30];
+    R3.camera(G3.M4.lookAt(eye, [0, 0, 0], [0, 1, 0]), G3.M4.ortho(-hx, hx, -hy, hy, 1, 60), eye, [-0.35, 0.45, 0.82], true);
+    R3.draw(mesh, G3.M4.ident(), opts);
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    c.getContext('2d').drawImage(R3.canvas, 0, 0);
+    return c;
+  }
+  function silhouette(src) {
+    const c = document.createElement('canvas');
+    c.width = src.width; c.height = src.height;
+    const x = c.getContext('2d');
+    x.drawImage(src, 0, 0);
+    x.globalCompositeOperation = 'source-in';
+    x.fillStyle = '#000'; x.fillRect(0, 0, c.width, c.height);
+    return c;
+  }
+  if (R3) {
+    try {
+      for (const id of Object.keys(TYPES)) {
+        const b = TankModels.build(id);
+        MESH[id] = { hull: R3.upload(b.hull), turret: R3.upload(b.turret) };
+        const I = TYPES[id].I, Sd = I.S;
+        const hx = Sd.L / 2 + 0.25, hy = Sd.W / 2 + 0.25;
+        let rt = I.gunEnd + 0.3;
+        if (Sd.turret) for (const p of Sd.turret.poly) rt = Math.max(rt, Math.abs(p[0]) + 0.7, Math.abs(p[1]) + 0.3);
+        const sp = { hx, hy, rt, hull: [], tur: [] };
+        for (let tm = 0; tm < 2; tm++) {
+          sp.hull[tm] = topRender(MESH[id].hull, hx, hy, { camo: TEAM[tm].camo, seed: tm * 3.7 });
+          sp.tur[tm] = topRender(MESH[id].turret, rt, rt, { camo: TEAM[tm].camo, seed: tm * 3.7 });
+        }
+        sp.hullB = topRender(MESH[id].hull, hx, hy, { burnt: 1 });
+        sp.turB = topRender(MESH[id].turret, rt, rt, { burnt: 1 });
+        sp.hullSh = silhouette(sp.hull[0]); sp.turSh = silhouette(sp.tur[0]);
+        SPR[id] = sp;
+      }
+      HitCam.init(R3, MESH);
+    } catch (e) { console.warn('Rendu 3D désactivé', e); R3 = null; }
+  }
 
   // ===================== Carte =====================
   function rectOverlap(a, b, m) {
@@ -242,9 +338,7 @@
     for (let i = 0; i < lv.bushes; i++) {
       const cx = rr(80, WW - 80), cy = rr(80, WH - 80);
       const n = 2 + Math.floor(R() * 3);
-      const blobs = [];
-      for (let k = 0; k < n; k++) blobs.push({ x: cx + rr(-30, 30), y: cy + rr(-20, 20), r: rr(22, 38) });
-      for (const b of blobs) bushes.push(b);
+      for (let k = 0; k < n; k++) bushes.push({ x: cx + rr(-30, 30), y: cy + rr(-20, 20), r: rr(22, 38) });
     }
     buildGround(R);
     buildGrid();
@@ -264,12 +358,10 @@
       gctx.beginPath(); gctx.ellipse(R() * WW, R() * WH, r, r * (0.5 + R() * 0.5), R() * TAU, 0, TAU); gctx.fill();
     }
     gctx.globalAlpha = 1;
-    // grain fin
     for (let i = 0; i < 26000; i++) {
       gctx.fillStyle = R() < 0.5 ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.05)';
       gctx.fillRect(R() * WW, R() * WH, 2, 2);
     }
-    // routes
     gctx.strokeStyle = lv.road; gctx.lineCap = 'round';
     if (lv.city) {
       gctx.globalAlpha = 0.7;
@@ -301,7 +393,6 @@
         gctx.beginPath(); gctx.moveTo(x, y); gctx.quadraticCurveTo(x + 60, y - 18, x + 130, y + 4); gctx.stroke();
       }
     }
-    // ombres portées fixes des bâtiments et rochers
     for (const o of obstacles) {
       if (o.type === 'tree') continue;
       gctx.fillStyle = 'rgba(0,0,0,0.22)';
@@ -369,7 +460,7 @@
 
   let gScore = null, came = null, seenId = null, closedId = null, searchId = 0;
   function findPath(sx, sy, gx, gy) {
-    let s = nearestFree(cellOf(sx, sy)), g = nearestFree(cellOf(gx, gy));
+    const s = nearestFree(cellOf(sx, sy)), g = nearestFree(cellOf(gx, gy));
     if (s < 0 || g < 0) return null;
     const N = GC * GR;
     if (!gScore || gScore.length !== N) {
@@ -408,7 +499,6 @@
     for (let i = g; i !== -1; i = came[i]) cells.push(i);
     cells.reverse();
     const pts = cells.map(i => ({ x: (i % GC + 0.5) * CELL, y: (((i / GC) | 0) + 0.5) * CELL }));
-    // lissage : on saute les points intermédiaires visibles en ligne droite
     const out = [];
     let i = 0;
     while (i < pts.length - 1) {
@@ -428,7 +518,7 @@
     return true;
   }
 
-  // ===================== Chars =====================
+  // ===================== Chars et équipage =====================
   function makeAI(skill) {
     return {
       skill, aimStd: 0.05 * (1 - skill) + 0.006, lead: 0.3 + 0.7 * skill, dodge: 0.12 + skill * 0.68,
@@ -441,28 +531,52 @@
   }
   function makeTank(typeId, team, x, y, angle, isPlayer, name, skill) {
     const T = TYPES[typeId];
+    const mods = TankModels.makeModules(typeId);
+    const roles = {};
+    mods.forEach((m, i) => { if (m.kind === 'crew') roles[m.role] = i; });
     return {
       id: ++tankId, T, team, x, y, angle, turret: 0, speed: 0, turnRate: 0, turretRate: 0, vx: 0, vy: 0,
-      hp: T.hp, dead: false, deadT: 0, isPlayer, name, r: (T.len + T.wid) / 4,
-      reloadT: rnd(0.8, 1.6), ammo: 'AP', disp: T.disp * 3, smoke: 2, trackT: 0, fireT: 0, fireBy: null,
-      revealT: 0, recoil: 0, flash: 0, trackAcc: 0, treadPhase: 0, hitFlash: 0,
+      dead: false, deadT: 0, isPlayer, name, r: (T.len + T.wid) / 4,
+      mods, roles, swap: null, rep: {}, ammo: Object.assign({}, T.ammo), shell: 'APHE',
+      reloadT: rnd(0.8, 1.6), disp: T.disp * 3, smoke: 2, trackT: 0, fireT: 0, fireBy: null,
+      revealT: 0, recoil: 0, flash: 0, trackAcc: 0, treadPhase: 0, hitFlash: 0, turretGone: false,
       in: { throttle: 0, turn: 0, aim: angle, fire: false },
       ai: (isPlayer && !AUTO) ? null : makeAI(skill),
     };
   }
   function pivot(t) {
-    const o = t.T.len * t.T.piv;
-    return { x: t.x + Math.cos(t.angle) * o, y: t.y + Math.sin(t.angle) * o };
+    const c = Math.cos(t.angle), s = Math.sin(t.angle);
+    return { x: t.x + c * t.T.pivX - s * t.T.pivY, y: t.y + s * t.T.pivX + c * t.T.pivY };
+  }
+  function crewAlive(t) { let n = 0; for (const m of t.mods) if (m.kind === 'crew' && m.hp > 0) n++; return n; }
+  const crewFrac = t => crewAlive(t) / t.T.crewN;
+  function roleOk(t, r) { const i = t.roles[r]; return i != null && i >= 0 && t.mods[i].hp > 0; }
+  function modOk(t, kind) { for (const m of t.mods) if (m.kind === kind && m.hp <= 0) return false; return true; }
+  const modOf = (t, kind) => t.mods.find(m => m.kind === kind);
+  function ammoFrac(t) {
+    let a = 0, b = 0;
+    for (const k of SHELL_KEYS) { a += t.ammo[k]; b += t.T.ammo[k]; }
+    return b ? a / b : 0;
+  }
+  const canFire = t => roleOk(t, 'gunner') && modOk(t, 'breech') && t.ammo[t.shell] > 0;
+  function reloadMul(t) {
+    if (t.T.S.crew.includes('loader')) return roleOk(t, 'loader') ? 1 : 2.2;
+    return roleOk(t, 'commander') ? 1 : 1.6;
+  }
+  function nextShell(t, pref) {
+    for (const k of [pref, 'APHE', 'AP', 'APCR', 'HEAT', 'HE']) if (k && t.ammo[k] > 0) return k;
+    return t.shell;
   }
 
   function spawnWave() {
-    tanks = []; shells = []; smokes = []; texts = []; feed = []; parts = [];
+    tanks = []; shells = []; smokes = []; texts = []; feed = []; parts = []; logs = [];
     spotted[0].clear(); spotted[1].clear();
+    HitCam.stop();
     const lv = L();
     const allyTypes = levelIdx < 2 ? ['medium', 'light', 'medium', 'heavy'] : ['medium', 'heavy', 'destroyer', 'light'];
     const enemyTypes = lv.waves[waveIdx];
     const eSkill = Math.min(0.95, 0.3 + levelIdx * 0.14 + waveIdx * 0.04);
-    const aSkill = Math.min(0.85, 0.5 + levelIdx * 0.07);
+    const aSkill = Math.min(0.7, 0.5 + levelIdx * 0.05);
     const slots = [-300, -150, 0, 150, 300];
     const aT = [allyTypes[0], allyTypes[1], chosenType, allyTypes[2], allyTypes[3]];
     let n = 1;
@@ -480,7 +594,7 @@
     }
     camX = player.x + 300; camY = player.y;
     specIdx = 0;
-    waveStats = { kills: 0, dmg: 0, ff: 0, tk: 0, hits: 0, shots: 0, ric: 0, dodged: 0 };
+    waveStats = { kills: 0, pens: 0, crew: 0, mods: 0, ffCrew: 0, tk: 0, hits: 0, shots: 0, ric: 0, dodged: 0 };
     state = 'intro'; introT = 3.2; waveTime = 0;
     msg = null;
   }
@@ -520,7 +634,7 @@
           if (a.dead || a.team !== team) continue;
           const d = dist(a, e);
           if (d < 90 || waveTime > 120) { set.add(e); break; } // après 2 min, l'artillerie trahit les positions
-          let range = a.T.view * (night ? 0.6 : 1);
+          let range = a.T.view * (night ? 0.6 : 1) * (roleOk(a, 'commander') ? 1 : 0.75);
           if (bush) range = Math.min(range, 210);
           if (e.revealT > 0) range *= 1.3;
           if (d < range && losClear(a.x, a.y, e.x, e.y, true)) { set.add(e); break; }
@@ -530,7 +644,6 @@
   }
 
   // ===================== IA =====================
-  // Les épaves arrêtent les obus : l'IA ne tire pas à travers
   function wreckClear(a, b) {
     const dx = b.x - a.x, dy = b.y - a.y, l2 = dx * dx + dy * dy || 1;
     for (const w of tanks) {
@@ -541,7 +654,6 @@
     }
     return true;
   }
-
   function friendlyClear(t, aim, d) {
     const pv = pivot(t), ux = Math.cos(aim), uy = Math.sin(aim);
     for (const a of tanks) {
@@ -552,6 +664,15 @@
       if (Math.abs(rx * -uy + ry * ux) < a.r + 14) return false;
     }
     return true;
+  }
+  // Choix de l'obus selon le blindage frontal de la cible
+  function aiShell(t, e, d) {
+    const up = e.T.S.armor.hull.up;
+    const need = up[0] / Math.cos(Math.min(70, up[1] + 15) * D2R) * 1.05;
+    for (const k of ['APHE', 'AP', 'APCR', 'HEAT']) if (t.ammo[k] > 0 && penAt(t.T, k, d) >= need) return k;
+    let best = t.shell, bp = -1;
+    for (const k of ['APCR', 'AP', 'APHE', 'HEAT']) { const p = penAt(t.T, k, d); if (t.ammo[k] > 0 && p > bp) { bp = p; best = k; } }
+    return best;
   }
 
   function aiThink(t, dt) {
@@ -566,14 +687,17 @@
         if (e.dead) continue;
         const d = dist(t, e);
         const los = losClear(t.x, t.y, e.x, e.y, false) && wreckClear(t, e);
-        const sc = d * (los ? 1 : 1.7) * (e.hp < e.T.hp * 0.3 ? 0.8 : 1);
+        const sc = d * (los ? 1 : 1.7) * (crewFrac(e) < 0.5 ? 0.8 : 1);
         if (sc < bs) { bs = sc; best = e; bestLos = los; }
       }
-      if (best && best !== ai.target) ai.reactT = ai.react * rnd(0.6, 1.3);
+      if (best && best !== ai.target) {
+        ai.reactT = ai.react * rnd(0.6, 1.3);
+        const k = aiShell(t, best, dist(t, best));
+        if (k !== t.shell) { t.shell = k; t.reloadT = Math.max(t.reloadT, T.reload * 0.6); }
+      }
       ai.target = best; ai.los = bestLos;
       if (best) { ai.lastKnown = { x: best.x, y: best.y }; ai.noContactT = 0; }
       else {
-        // Sans contact trop longtemps : l'état-major transmet une position approximative
         ai.noContactT += 0.35;
         if (ai.noContactT > 20) {
           ai.noContactT = 0;
@@ -586,7 +710,7 @@
       }
 
       let dest = null;
-      const range = T.range * (t.hp < T.hp * 0.3 ? 1.3 : 1);
+      const range = T.range * (crewFrac(t) < 0.6 ? 1.3 : 1);
       if (ai.retreatT > 0) dest = { x: t.team === 0 ? 160 : WW - 160, y: t.y };
       else if (best && ai.pushT > 0) dest = { x: best.x, y: best.y };
       else if (best) {
@@ -610,7 +734,7 @@
         }
       } else ai.path = null;
 
-      if (t.smoke > 0 && best && ai.los && t.hp < T.hp * 0.35 && Math.random() < 0.4) { deploySmoke(t); ai.retreatT = 5; }
+      if (t.smoke > 0 && best && ai.los && crewFrac(t) < 0.6 && Math.random() < 0.4) { deploySmoke(t); ai.retreatT = 5; }
     }
 
     // Esquive des obus qui arrivent
@@ -641,10 +765,7 @@
     else if (ai.unstickT > 0) { thr = ai.unstickDir; turn = ai.unstickTurn; }
     else if (ai.path && ai.pi < ai.path.length) {
       let wp = ai.path[ai.pi];
-      if (Math.hypot(wp.x - t.x, wp.y - t.y) < 28) {
-        ai.pi++;
-        wp = ai.path[ai.pi];
-      }
+      if (Math.hypot(wp.x - t.x, wp.y - t.y) < 28) { ai.pi++; wp = ai.path[ai.pi]; }
       if (wp) {
         const des = Math.atan2(wp.y - t.y, wp.x - t.x);
         let df = angNorm(des - t.angle);
@@ -667,8 +788,7 @@
         thr = ai.wig * (T.id === 'light' ? 0.8 : 0.5);
       }
     }
-    // Coincé contre un obstacle : on recule en braquant
-    if (Math.abs(thr) > 0.3 && Math.hypot(t.vx, t.vy) < 6 && ai.unstickT <= 0 && t.trackT <= 0) {
+    if (Math.abs(thr) > 0.3 && Math.hypot(t.vx, t.vy) < 6 && ai.unstickT <= 0 && t.trackT <= 0 && roleOk(t, 'driver') && modOk(t, 'engine') && modOk(t, 'trans')) {
       ai.stuckT += dt;
       if (ai.stuckT > 0.8) {
         ai.stuckT = 0; ai.unstickT = 0.9; ai.unstickDir = thr > 0 ? -1 : 1;
@@ -682,10 +802,10 @@
     if (tg && !tg.dead) {
       const pv = pivot(t);
       const d = Math.hypot(tg.x - pv.x, tg.y - pv.y);
-      const tt = d / T.shell;
+      const tt = d / (T.shell * SHELLS[t.shell].vel);
       const px = tg.x + tg.vx * tt * ai.lead, py = tg.y + tg.vy * tt * ai.lead;
       aim = Math.atan2(py - pv.y, px - pv.x) + ai.aimErr;
-      if (ai.los && ai.reactT <= 0 && t.reloadT <= 0 && seen.has(tg)) {
+      if (ai.los && ai.reactT <= 0 && t.reloadT <= 0 && seen.has(tg) && canFire(t)) {
         ai.waitT += dt;
         const err = Math.abs(angNorm(t.angle + t.turret - aim));
         const steady = t.disp < T.disp * (2.6 - ai.skill) || d < 300 || ai.waitT > 2;
@@ -727,11 +847,53 @@
         const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy), m = a.r + b.r;
         if (d >= m || d < 1e-6) continue;
         const p = m - d, nx = dx / d, ny = dy / d;
-        let wa = b.T.hp / (a.T.hp + b.T.hp), wb = 1 - wa;
+        const ma = a.T.S.L * a.T.S.W, mb = b.T.S.L * b.T.S.W;
+        let wa = mb / (ma + mb), wb = 1 - wa;
         if (a.dead) { wa = 0; wb = 1; } else if (b.dead) { wa = 1; wb = 0; }
         a.x -= nx * p * wa; a.y -= ny * p * wa;
         b.x += nx * p * wb; b.y += ny * p * wb;
       }
+    }
+  }
+
+  // Remplacements d'équipage, réparations, incendie
+  function crewLogic(t, dt) {
+    for (const role of ['driver', 'gunner']) {
+      if (roleOk(t, role) || t.swap) continue;
+      const cand = ['radio', 'loader', 'commander'].find(r => r !== role && roleOk(t, r));
+      if (cand) t.swap = { role, from: cand, t: 5 };
+    }
+    if (t.swap) {
+      t.swap.t -= dt;
+      if (t.swap.t <= 0) {
+        const s = t.swap; t.swap = null;
+        if (roleOk(t, s.from) && !roleOk(t, s.role)) {
+          t.roles[s.role] = t.roles[s.from]; t.roles[s.from] = -1;
+          if (t === player) addLog(`${TankModels.NAMES[s.from]} prend le poste de ${TankModels.NAMES[s.role].toLowerCase()}`, '#bcd8ff');
+        }
+      }
+    }
+    const REP = { engine: 22, trans: 18, breech: 14 };
+    for (const kind of ['engine', 'trans', 'breech']) {
+      const m = modOf(t, kind);
+      if (!m || m.hp > 0) continue;
+      if (t.rep[kind] == null) t.rep[kind] = REP[kind];
+      t.rep[kind] -= dt * (crewAlive(t) >= 3 ? 1 : 0.6);
+      if (t.rep[kind] <= 0) {
+        m.hp = m.max0 * 0.5; delete t.rep[kind];
+        if (t === player) addLog(`${m.name} réparé`, '#a6f08a');
+      }
+    }
+    if (t.fireT > 0) {
+      t.fireT -= dt;
+      const crew = t.mods.filter(m => m.kind === 'crew' && m.hp > 0);
+      if (crew.length) modDamage(t, crew[Math.floor(Math.random() * crew.length)], 11 * dt, t.fireBy);
+      const eng = modOf(t, 'engine');
+      if (eng.hp > 0) modDamage(t, eng, 5 * dt, t.fireBy);
+      if (Math.random() < 30 * dt) addFire(t.x + rnd(-10, 10), t.y + rnd(-8, 8));
+      if (Math.random() < dt * 0.012) { if (t === player) addLog('Les munitions explosent dans l’incendie !', '#ff6a5a'); destroyTank(t, t.fireBy, true); return; }
+      if (t.fireT <= 0 && t === player) addLog('Incendie éteint', '#bcd8ff');
+      checkKnock(t, t.fireBy);
     }
   }
 
@@ -742,14 +904,19 @@
       if (t.deadT < 7 && Math.random() < dt * 22) addFire(t.x + rnd(-10, 10), t.y + rnd(-8, 8));
       return;
     }
+    crewLogic(t, dt);
+    if (t.dead) return;
     const T = t.T, inp = t.in;
     let thr = clamp(inp.throttle, -1, 1), turn = clamp(inp.turn, -1, 1);
-    if (t.trackT > 0) { t.trackT -= dt; thr = 0; turn = 0; }
-    const target = thr >= 0 ? thr * T.speed : thr * T.rev;
+    if (t.trackT > 0) t.trackT -= dt;
+    const canDrive = roleOk(t, 'driver') && modOk(t, 'engine') && modOk(t, 'trans') && t.trackT <= 0;
+    if (!canDrive) { thr = 0; turn = 0; }
+    const eng = modOf(t, 'engine'), engK = eng.hp < eng.max0 * 0.5 ? 0.6 : 1;
+    const target = thr >= 0 ? thr * T.speed * engK : thr * T.rev * engK;
     const braking = target === 0 || (t.speed !== 0 && Math.sign(target) !== Math.sign(t.speed));
     const maxd = T.accel * (braking ? 2.2 : 1) * dt;
     t.speed += clamp(target - t.speed, -maxd, maxd);
-    const tr = turn * T.turn * (1 - 0.3 * Math.abs(t.speed) / T.speed);
+    const tr = turn * T.turn * engK * (1 - 0.3 * Math.abs(t.speed) / T.speed);
     t.turnRate = tr;
     t.angle = angNorm(t.angle + tr * dt);
     const ox = t.x, oy = t.y;
@@ -760,7 +927,7 @@
     const moved = Math.hypot(t.x - ox, t.y - oy);
     t.vx = (t.x - ox) / dt; t.vy = (t.y - oy) / dt;
     t.treadPhase += t.speed * dt;
-    t.trackAcc += moved + Math.abs(tr) * 4 * dt * 10;
+    t.trackAcc += moved + Math.abs(tr) * 40 * dt;
     if (t.trackAcc > 9) { t.trackAcc = 0; stampTracks(t); }
     if (moved > 0.6 && Math.random() < dt * Math.abs(t.speed) / 14) {
       const c = Math.cos(t.angle), s = Math.sin(t.angle), side = Math.random() < 0.5 ? -1 : 1;
@@ -772,7 +939,8 @@
     let d;
     if (T.arc) d = clamp(desiredRel, -T.arc, T.arc) - t.turret;
     else d = angNorm(desiredRel - t.turret);
-    const rot = clamp(d, -T.tturn * dt, T.tturn * dt);
+    const ts = T.tturn * (roleOk(t, 'gunner') ? 1 : 0) * (t.turretGone ? 0 : 1);
+    const rot = clamp(d, -ts * dt, ts * dt);
     t.turret = T.arc ? clamp(t.turret + rot, -T.arc, T.arc) : angNorm(t.turret + rot);
     t.turretRate = rot / dt;
 
@@ -780,42 +948,39 @@
     const goal = T.disp * (1 + 2.6 * Math.abs(t.speed) / T.speed + 1.6 * Math.abs(tr) / T.turn + 1.1 * Math.abs(t.turretRate) / T.tturn);
     t.disp += (goal - t.disp) * Math.min(1, dt * (goal > t.disp ? 6 : 1.3));
 
-    if (t.reloadT > 0) { t.reloadT -= dt; if (t.reloadT <= 0 && t === player) Sfx.reload(); }
+    if (t.reloadT > 0) { t.reloadT -= dt / reloadMul(t); if (t.reloadT <= 0 && t === player) Sfx.reload(); }
     t.recoil = Math.max(0, t.recoil - dt * 3);
     t.flash = Math.max(0, t.flash - dt);
     t.hitFlash = Math.max(0, t.hitFlash - dt);
     t.revealT -= dt;
-    if (inp.fire && t.reloadT <= 0 && state === 'play') fireShell(t);
-
-    if (t.fireT > 0) {
-      t.fireT -= dt;
-      damage(t, 16 * dt, t.fireBy, true);
-      if (Math.random() < dt * 30) addFire(t.x + rnd(-10, 10), t.y + rnd(-8, 8));
-    }
+    if (inp.fire && t.reloadT <= 0 && state === 'play' && canFire(t)) fireShell(t);
   }
 
   function fireShell(t) {
-    const T = t.T;
+    const T = t.T, key = t.shell, sh = SHELLS[key];
     const ta = t.angle + t.turret;
     const ang = ta + gauss() * t.disp;
-    const pv = pivot(t), ml = T.tr + T.barrel;
-    const mx = pv.x + Math.cos(ta) * ml, my = pv.y + Math.sin(ta) * ml;
-    const he = t.ammo === 'HE';
-    const sp = T.shell * (he ? 0.82 : 1);
+    const pv = pivot(t);
+    const mx = pv.x + Math.cos(ta) * T.gunEnd, my = pv.y + Math.sin(ta) * T.gunEnd;
+    const sp = T.shell * sh.vel;
+    t.ammo[key]--;
     shells.push({
       id: ++shellId, x: mx, y: my, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, sp, team: t.team, owner: t, by: t,
-      he, pen: he ? T.pen * 0.4 : T.pen, dmg: T.dmg, range: 1500, trail: [], ric: 0, whiz: false, warned: false,
+      key, dist: 0, zErr: gauss() * 0.32 * Math.sqrt(t.disp / T.disp), range: 1600, trail: [], ric: 0, whiz: false, warned: false,
     });
     t.reloadT = T.reload;
     t.disp += T.disp * 3;
     t.recoil = 1; t.flash = 0.09; t.revealT = 3;
-    t.speed -= 14 * Math.sign(Math.cos(t.turret)) * (T.dmg / 200);
+    t.speed -= 14 * Math.sign(Math.cos(t.turret)) * (T.caliber / 75);
+    if (t.ammo[key] <= 0) {
+      t.shell = nextShell(t);
+      if (t === player) showMsg(`Plus d'obus ${sh.name.toLowerCase()} : ${SHELLS[t.shell].name.toLowerCase()} chargé`, '#e9d9a6', 1.6);
+    }
     if (t === player) { waveStats.shots++; shake = Math.max(shake, 5); }
     for (let i = 0; i < 6; i++) addSmoke(mx + Math.cos(ta) * rnd(0, 18), my + Math.sin(ta) * rnd(0, 18), rnd(5, 10), 'rgba(170,165,150,', 1.2, Math.cos(ta) * rnd(20, 60), Math.sin(ta) * rnd(20, 60));
-    parts.push({ k: 'flash', x: mx, y: my, life: 0.08, max: 0.08, size: 26 + T.dmg / 12 });
-    // souffle au sol
+    parts.push({ k: 'flash', x: mx, y: my, life: 0.08, max: 0.08, size: 20 + T.caliber / 4 });
     for (let i = 0; i < 4; i++) addDust(mx + rnd(-10, 10), my + rnd(-10, 10));
-    Sfx.fire(listenerDist(mx, my), T.id === 'heavy' || T.id === 'destroyer');
+    Sfx.fire(listenerDist(mx, my), T.caliber >= 85);
   }
 
   function deploySmoke(t) {
@@ -846,13 +1011,26 @@
         const lx = (s.x - t.x) * c + (s.y - t.y) * sn, ly = -(s.x - t.x) * sn + (s.y - t.y) * c;
         const ldx = dx * c + dy * sn, ldy = -dx * sn + dy * c;
         const hl = t.T.len / 2, hw = t.T.wid / 2;
-        const h = segAABB(lx, ly, ldx, ldy, -hl, -hw, hl, hw);
-        if (h && (!best || h.t < best.t)) {
-          const l = Math.hypot(ldx, ldy) || 1;
-          best = { t: h.t, tank: t, lnx: h.nx, lny: h.ny, cosI: clamp(-(ldx * h.nx + ldy * h.ny) / l, 0, 1), c, sn };
+        const hh = segAABB(lx, ly, ldx, ldy, -hl, -hw, hl, hw);
+        if (!hh) continue;
+        let cand = null;
+        if (t.dead) cand = { t: hh.t, part: 'hull', nx: hh.nx, ny: hh.ny, z: 1 };
+        else {
+          // Hauteur d'impact : le tireur vise le haut de caisse, la dispersion fait le reste
+          const Sd = t.T.S, z = clamp(Sd.ht - 0.2 + s.zErr, 0.15, 9);
+          if (z <= Sd.ht) cand = { t: hh.t, part: 'hull', nx: hh.nx, ny: hh.ny, z };
+          else if (t.T.tb && !t.turretGone && z <= t.T.I.totalH) {
+            const tc = Math.cos(t.turret), ts = Math.sin(t.turret);
+            const qx = lx - t.T.pivX, qy = ly - t.T.pivY;
+            const tx = qx * tc + qy * ts, ty = -qx * ts + qy * tc, tdx = ldx * tc + ldy * ts, tdy = -ldx * ts + ldy * tc;
+            const B = t.T.tb, th = segAABB(tx, ty, tdx, tdy, B.x0, B.y0, B.x1, B.y1);
+            if (th) cand = { t: th.t, part: 'turret', nx: th.nx, ny: th.ny, z, tx: tx + tdx * th.t, ty: ty + tdy * th.t };
+          }
+        }
+        if (cand && (!best || cand.t < best.t)) {
+          best = Object.assign(cand, { tank: t, c, sn, lx: lx + ldx * cand.t, ly: ly + ldy * cand.t, ldx, ldy });
         }
       }
-      // Sifflement d'un obus qui frôle le joueur
       if (player && !player.dead && s.by !== player && !s.whiz) {
         const rx = player.x - s.x, ry = player.y - s.y, l2 = dx * dx + dy * dy || 1;
         const k = clamp((rx * dx + ry * dy) / l2, 0, 1);
@@ -863,21 +1041,20 @@
       let remove = false;
       if (best) {
         const hx = s.x + dx * best.t, hy = s.y + dy * best.t;
+        s.dist += s.sp * dt * best.t;
         s.x = hx; s.y = hy;
-        let res;
-        if (best.tank) {
-          res = hitTank(s, best.tank, best, hx, hy);
-        } else res = hitObstacle(s, best.o, best, hx, hy);
+        const res = best.tank ? hitTank(s, best.tank, best, hx, hy) : hitObstacle(s, best.o, best, hx, hy);
         if (res === 'stop') remove = true;
       } else {
         s.x += dx; s.y += dy;
+        s.dist += s.sp * dt;
         s.skipObs = null;
       }
       s.range -= s.sp * dt;
       if (!remove && (s.range <= 0 || s.x < -50 || s.y < -50 || s.x > WW + 50 || s.y > WH + 50)) {
         remove = true;
-        if (s.range <= 0) { // l'obus retombe et s'enfonce dans le sol
-          if (s.he) explode(s.x, s.y, s, null);
+        if (s.range <= 0) {
+          if (s.key === 'HE') explode(s.x, s.y, s, null);
           else { for (let k = 0; k < 5; k++) addDust(s.x + rnd(-6, 6), s.y + rnd(-6, 6)); stampCrater(s.x, s.y, 6); }
         }
       }
@@ -890,93 +1067,327 @@
 
   function visibleToPlayer(t) { return t.team === 0 || spotted[0].has(t) || t.dead; }
 
+  // Normale extérieure d'une plaque (repère de la caisse ou de la tourelle)
+  function plateNormal(face, slopeDeg, sideSign, low) {
+    const s = slopeDeg * D2R, c = Math.cos(s), n = Math.sin(s);
+    if (face === 'front') return [c, 0, low ? -n : n];
+    if (face === 'rear') return [-c, 0, n];
+    return [0, sideSign * c, n];
+  }
+
   function hitTank(s, t, h, hx, hy) {
     if (t === player) s.hitPlayer = true;
     if (t.dead) {
       sparks(hx, hy, 6);
-      if (s.he) explode(hx, hy, s, null);
+      if (s.key === 'HE') explode(hx, hy, s, null);
       Sfx.clang(listenerDist(hx, hy));
       return 'stop';
     }
-    const face = h.lnx > 0.5 ? 0 : h.lnx < -0.5 ? 2 : 1; // avant, flanc, arrière
-    const armor = t.T.armor[face];
-    const shooter = s.by;
-    const show = visibleToPlayer(t) || shooter === player;
-    if (t.ai && shooter && shooter.team !== t.team && !t.ai.target) t.ai.lastKnown = { x: shooter.x, y: shooter.y };
-    if (shooter === player) waveStats.hits++;
-    // Ricochet : impact trop rasant
-    if (!s.he && h.cosI < 0.34 && s.ric < 1) {
-      const nx = h.lnx * h.c - h.lny * h.sn, ny = h.lnx * h.sn + h.lny * h.c;
+    const T = t.T, Sd = T.S, A = Sd.armor, by = s.by, sh = SHELLS[s.key];
+    const show = visibleToPlayer(t) || by === player;
+    if (t.ai && by && by.team !== t.team && !t.ai.target) t.ai.lastKnown = { x: by.x, y: by.y };
+    if (by === player) waveStats.hits++;
+
+    // Géométrie 3D de l'impact (repère du modèle : y vers la gauche)
+    const ll = Math.hypot(h.ldx, h.ldy) || 1;
+    const d = norm3([h.ldx / ll, -h.ldy / ll, -0.025]);
+    const E = [h.lx / PX, -h.ly / PX, h.z];
+    const tAng = -t.turret;
+    const face = h.nx > 0.5 ? 'front' : h.nx < -0.5 ? 'rear' : 'side';
+    const sideSign = h.ny > 0 ? -1 : 1;
+    let plate, mm, slope, dd = d, low = false, extra = 0, heatK = 1, trackHit = false;
+    if (h.part === 'hull') {
+      if (face === 'front') {
+        low = h.z < Sd.zn;
+        [mm, slope] = low ? A.hull.low : A.hull.up;
+        plate = low ? 'Caisse avant (bas)' : 'Caisse avant (haut)';
+      } else if (face === 'rear') { [mm, slope] = A.hull.rear; plate = 'Arrière de caisse'; }
+      else {
+        [mm, slope] = A.hull.side; plate = 'Flanc de caisse';
+        if (h.z < Sd.tt) {
+          if (Sd.skirts && h.z > Sd.tt - 0.5) { plate = 'Jupe + flanc'; if (s.key === 'HEAT') heatK = 0.5; else extra = 5; }
+          else { plate = 'Chenille + flanc'; extra = 20; trackHit = true; }
+        }
+      }
+    } else {
+      dd = rotZ(d, -tAng);
+      const ty = -h.ty / PX;
+      if (face === 'front') {
+        const M = Sd.turret.mantlet, mw = M.w || 0.3, mh = M.h || M.r;
+        if (Math.abs(ty) < mw + 0.05 && Math.abs(h.z - Sd.gun.z) < mh + 0.05) { mm = A.turret.mantlet[0]; slope = Math.round(rnd(0, 30)); plate = 'Masque de canon'; }
+        else { [mm, slope] = A.turret.front; plate = 'Tourelle avant'; }
+      } else if (face === 'rear') { [mm, slope] = A.turret.rear; plate = 'Arrière de tourelle'; }
+      else { [mm, slope] = A.turret.side; plate = 'Flanc de tourelle'; }
+    }
+    const n = plateNormal(face, slope, sideSign, low);
+    const cosI = Math.max(0.03, -dot3(dd, n));
+    const angle = Math.round(Math.acos(Math.min(1, cosI)) / D2R);
+    const overmatch = by.T.caliber > 3 * mm;
+    const eff = Math.round(mm / cosI + extra);
+    const pen = Math.round((s.key === 'HE' ? by.T.hePen : penAt(by.T, s.key, s.dist)) * rnd(0.93, 1.07) * heatK);
+    const ev = by === player && hitcamOn && R3 ? {
+      typeId: T.id, turretAng: tAng, dir: d, entry: E, shellName: sh.full, shellKey: s.key, dist: Math.round(s.dist * RK),
+      target: `${T.name} ${t.team === 0 ? '(allié)' : '(ennemi)'}`, plate, mm, slope, angle, eff, pen,
+      friendly: t.team === by.team, mods: t.mods.map(m => ({ kind: m.kind, frame: m.frame, c: m.c, s: m.s })),
+      before: t.mods.map(m => m.hp / m.max0), after: null, touch: [], path: null, fuse: null, frags: [], fragT: 0.12,
+      sparks: [], results: [], detonation: false, ricDir: null, outcome: null,
+    } : null;
+    if (ev) for (let k = 0; k < 14; k++) ev.sparks.push(norm3([n[0] + gauss() * 0.7, n[1] + gauss() * 0.7, n[2] + gauss() * 0.7 + 0.2]));
+    t.hitFlash = 0.15;
+    if (trackHit && pen >= 20) {
+      t.trackT = Math.max(t.trackT, 8);
+      if (show) floatText(hx, hy + 8, 'Chenille cassée', '#ffb070');
+      if (t === player) addLog('Chenille cassée : réparation 8 s', '#ffb070');
+    }
+
+    // Ricochet : impact trop rasant (sauf obus explosif ou calibre très supérieur au blindage)
+    if (s.key !== 'HE' && angle > sh.ric && !overmatch && s.ric < 1) {
+      const ra = h.part === 'turret' ? t.angle + t.turret : t.angle;
+      const c = Math.cos(ra), sn = Math.sin(ra);
+      const nx = h.nx * c - h.ny * sn, ny = h.nx * sn + h.ny * c;
       const vd = s.vx * nx + s.vy * ny;
       s.vx = (s.vx - 2 * vd * nx) * 0.72; s.vy = (s.vy - 2 * vd * ny) * 0.72;
-      s.sp = Math.hypot(s.vx, s.vy); s.pen *= 0.6; s.ric++;
+      s.sp = Math.hypot(s.vx, s.vy); s.ric++;
       s.x += nx * 2; s.y += ny * 2;
       s.owner = t; // l'obus dévié peut toucher n'importe qui d'autre
       sparks(hx, hy, 10);
       Sfx.ricochet(listenerDist(hx, hy));
       if (show) floatText(hx, hy - 10, 'Ricochet', '#cfe3ff');
-      if (shooter === player) waveStats.ric++;
+      if (by === player) waveStats.ric++;
+      if (t === player) addLog(`Ricochet sur ${plate.toLowerCase()}`, '#cfe3ff');
+      if (ev) {
+        const dn = dot3(d, n);
+        const rd = rotZ(norm3([dd[0] - 2 * dn * n[0], dd[1] - 2 * dn * n[1], dd[2] - 2 * dn * n[2] + 0.15]), h.part === 'turret' ? tAng : 0);
+        ev.outcome = 'ricochet'; ev.ricDir = rd; ev.after = ev.before.slice();
+        ev.results.push({ t: 'Aucun dégât', c: '#9fd0ff' });
+        startHitCam(ev);
+      }
       return 'continue';
     }
-    const eff = armor / Math.max(0.08, h.cosI);
-    const pen = s.pen * rnd(0.85, 1.15);
-    t.hitFlash = 0.15;
+
     if (pen >= eff) {
-      let dmg = s.dmg * rnd(0.8, 1.2) * (s.he ? 1.1 : 1);
-      let note = null;
-      if (face === 1 && Math.random() < 0.3) { t.trackT = 4; note = 'Chenille cassée'; }
-      if (face === 2 && Math.random() < 0.35) { t.fireT = 6; t.fireBy = shooter; note = 'Incendie !'; }
-      if (Math.random() < 0.03) { dmg = t.hp + 1; note = 'Soute à munitions !'; }
+      const r = interior(t, E, d, s.key, pen, eff, by.T);
+      const out = applyInterior(t, r, by, ev);
+      if (by === player) waveStats.pens++;
       if (show) {
         const col = t === player ? '#ff5a4a' : t.team === 0 ? '#ffaa44' : '#ffe27a';
-        floatText(hx, hy - 12, '-' + Math.round(dmg), col, 1.2);
-        if (note) floatText(hx, hy + 6, note, '#ffb070');
+        floatText(hx, hy - 12, out.knocked ? 'DÉTRUIT' : out.crewKilled ? `Perforé · ${out.crewKilled} tué${out.crewKilled > 1 ? 's' : ''}` : 'Perforé', col, 1.15);
+        if (out.fire) floatText(hx, hy + 6, 'Incendie !', '#ffb070');
+      }
+      if (t === player) {
+        addLog(`Perforé : ${plate.toLowerCase()} (${pen} mm contre ${eff} mm)`, '#ff8a6a');
+        for (const l of out.lines) addLog(l.t, l.c);
       }
       sparks(hx, hy, 14);
       Sfx.penetrate(listenerDist(hx, hy));
       if (t === player) shake = Math.max(shake, 12);
-      damage(t, dmg, shooter);
+      if (ev) { ev.outcome = 'pen'; startHitCam(ev); }
     } else {
-      if (s.he) {
-        const dmg = s.dmg * rnd(0.18, 0.28);
-        if (show) floatText(hx, hy - 12, '-' + Math.round(dmg), '#e0d0a0');
-        damage(t, dmg, shooter);
-      } else if (show) floatText(hx, hy - 12, 'Non pénétré', '#c8c8c8');
+      if (s.key === 'HE') heExternal(t, s, by, face, h.z, 1);
+      if (show) floatText(hx, hy - 12, 'Non perforé', '#c8c8c8');
+      if (t === player) addLog(`Non perforé : ${plate.toLowerCase()} (${pen} mm contre ${eff} mm)`, '#c8c8c8');
       sparks(hx, hy, 8);
       Sfx.clang(listenerDist(hx, hy));
       if (t === player) shake = Math.max(shake, 6);
+      if (ev) {
+        ev.outcome = 'nopen'; ev.after = t.mods.map(m => m.hp / m.max0);
+        ev.mods.forEach((m, i) => { if (ev.after[i] !== ev.before[i]) ev.touch[i] = HitCam.T_HIT + 0.2; });
+        ev.results.push(trackHit && pen >= 20 ? { t: 'Chenille cassée', c: '#ffb070' } : { t: 'Aucun dégât interne', c: '#c8c8c8' });
+        if (t.dead) ev.results.push({ t: 'CHAR DÉTRUIT', c: '#ff5a4a' });
+        startHitCam(ev);
+      }
     }
-    if (s.he) explode(hx, hy, s, t);
+    if (s.key === 'HE') explode(hx, hy, s, t);
     return 'stop';
+  }
+
+  // Trajet de l'obus et des éclats dans le char (repère de la caisse, mètres)
+  function interior(t, E, d, key, pen, eff, Tsh) {
+    const I = t.T.I, tAng = -t.turret;
+    const piv = [I.pivotX, I.pivotY, 0];
+    const excess = clamp((pen - eff) / pen, 0, 1);
+    const cal = Tsh.caliber;
+    const hits = new Map();
+    const hitAt = (m, dmg, time) => {
+      const h = hits.get(m);
+      if (h) { h.dmg += dmg; h.time = Math.min(h.time, time); } else hits.set(m, { dmg, time });
+    };
+    // modules touchés par un rayon (dans leur repère respectif)
+    const rayMods = (o, dir, len) => {
+      const out = [];
+      const ot = rotZ([o[0] - piv[0], o[1] - piv[1], o[2]], -tAng), dt = rotZ(dir, -tAng);
+      for (const m of t.mods) {
+        const r = m.frame === 'turret' ? ray3(ot, dt, m.min, m.max) : ray3(o, dir, m.min, m.max);
+        if (r && r[1] >= 0 && r[0] <= len) out.push({ m, t: Math.max(0, r[0]) });
+      }
+      return out.sort((a, b) => a.t - b.t);
+    };
+    // sortie de l'habitacle
+    const inner = I.inner;
+    const exitLen = (o, dir) => {
+      let best = 9;
+      const mn = [inner.x0, inner.y0, inner.z0], mx = [inner.x1, inner.y1, inner.z1];
+      for (let k = 0; k < 3; k++) {
+        if (Math.abs(dir[k]) < 1e-6) continue;
+        const lim = dir[k] > 0 ? mx[k] : mn[k];
+        const tt = (lim - o[k]) / dir[k];
+        if (tt > 0.05 && tt < best) best = tt;
+      }
+      return best;
+    };
+    const cone = (dir, half) => {
+      const ref = Math.abs(dir[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0];
+      const u = norm3([dir[1] * ref[2] - dir[2] * ref[1], dir[2] * ref[0] - dir[0] * ref[2], dir[0] * ref[1] - dir[1] * ref[0]]);
+      const v = [dir[1] * u[2] - dir[2] * u[1], dir[2] * u[0] - dir[0] * u[2], dir[0] * u[1] - dir[1] * u[0]];
+      const a = half * Math.sqrt(Math.random()), p = Math.random() * TAU, ca = Math.cos(a), sa = Math.sin(a);
+      return norm3([dir[0] * ca + (u[0] * Math.cos(p) + v[0] * Math.sin(p)) * sa, dir[1] * ca + (u[1] * Math.cos(p) + v[1] * Math.sin(p)) * sa, dir[2] * ca + (u[2] * Math.cos(p) + v[2] * Math.sin(p)) * sa]);
+    };
+    const P = (o, dir, k) => [o[0] + dir[0] * k, o[1] + dir[1] * k, o[2] + dir[2] * k];
+    const TH = HitCam.T_HIT;
+    let len, pathDmg, nf, half, fdmg, blast = null;
+    const sh = SHELLS[key];
+    switch (key) {
+      case 'AP': len = 0.6 + 4.5 * excess; pathDmg = Tsh.kin; nf = 8 + Math.round(14 * excess * cal / 75); half = 22; fdmg = 30 + 20 * cal / 88; break;
+      case 'APHE': len = 0.6 + 4 * excess; pathDmg = Tsh.kin; nf = 6; half = 20; fdmg = 30;
+        if (eff >= sh.sens) { len = Math.min(len, sh.fuse); blast = { r: 1.1, dmg: 140 * cal / 75, nf: 26 + Math.round(cal / 6), half: 75, fdmg: 40 + cal / 4 }; }
+        break;
+      case 'APCR': len = 0.5 + 3 * excess; pathDmg = Tsh.kin * 0.7; nf = 4 + Math.round(6 * excess); half = 12; fdmg = 25; break;
+      case 'HEAT': len = 0.4 + 2.2 * excess; pathDmg = Tsh.kin * 0.8; nf = 9; half = 15; fdmg = 32; break;
+      default: len = 0.25; pathDmg = 40; nf = 4; half = 30; fdmg = 25; blast = { r: 1.6, dmg: 170 * cal / 88, nf: 26, half: 80, fdmg: 32 };
+    }
+    len = Math.min(len, exitLen(E, d));
+    const B = P(E, d, len);
+    let k = 0;
+    for (const r of rayMods(E, d, len)) { hitAt(r.m, pathDmg * Math.pow(0.85, k++), TH + 0.4 * r.t / Math.max(0.01, len)); }
+    const frags = [];
+    const spray = (o, dir, count, hf, dmg, t0) => {
+      for (let i = 0; i < count; i++) {
+        const fd = cone(dir, hf * D2R);
+        const fl = Math.min(rnd(1.3, 2.8), exitLen(o, fd));
+        const rm = rayMods(o, fd, fl)[0];
+        const end = rm ? P(o, fd, rm.t) : P(o, fd, fl);
+        if (rm) hitAt(rm.m, dmg * rnd(0.7, 1.3), TH + t0 + 0.35 * (rm.t / fl));
+        frags.push({ a: o, b: end, hit: !!rm });
+      }
+    };
+    let fuse = null, fragT = 0.12;
+    if (blast) {
+      fuse = B; fragT = 0.42;
+      for (const m of t.mods) {
+        const isT = m.frame === 'turret';
+        const q = isT ? rotZ([B[0] - piv[0], B[1] - piv[1], B[2]], -tAng) : B;
+        const cx = clamp(q[0], m.min[0], m.max[0]), cy = clamp(q[1], m.min[1], m.max[1]), cz = clamp(q[2], m.min[2], m.max[2]);
+        const dd = Math.hypot(q[0] - cx, q[1] - cy, q[2] - cz);
+        if (dd < blast.r) hitAt(m, blast.dmg * (1 - dd / blast.r), TH + 0.45);
+      }
+      spray(B, d, blast.nf, blast.half, blast.fdmg, fragT);
+    }
+    spray(P(E, d, 0.05), d, nf, half, fdmg, 0.12);
+    return { path: [E, B], fuse, frags, hits, fragT };
+  }
+
+  // Applique les dégâts internes, en déduit les conséquences
+  function applyInterior(t, r, by, ev) {
+    const before = new Map(t.mods.map(m => [m, m.hp]));
+    for (const [m, h] of r.hits) modDamage(t, m, h.dmg, by, true);
+    let detonate = false, fire = false, crewKilled = 0;
+    const lines = [];
+    for (const m of t.mods) {
+      const b = before.get(m);
+      if (m.hp === b) continue;
+      if (m.kind === 'crew') {
+        if (m.hp <= 0) { crewKilled++; lines.push({ t: `${m.name} : neutralisé`, c: '#ff6a5a' }); }
+        else lines.push({ t: `${m.name} : blessé`, c: '#ffb070' });
+      }
+    }
+    for (const m of t.mods) {
+      const b = before.get(m);
+      if (m.hp === b || m.kind === 'crew') continue;
+      if (m.hp <= 0) {
+        lines.push({ t: `${m.name} : détruit`, c: '#ff6a5a' });
+        if (m.kind === 'ammo' && Math.random() < 0.3 + 0.6 * ammoFrac(t)) detonate = true;
+        if (m.kind === 'fuel' && Math.random() < 0.55) fire = true;
+        if (m.kind === 'engine' && Math.random() < 0.25) fire = true;
+      } else lines.push({ t: `${m.name} : endommagé`, c: '#ffb070' });
+    }
+    if (!lines.length) lines.push({ t: 'Aucun module touché', c: '#c8c8c8' });
+    if (!detonate && fire && !(t.fireT > 0)) { t.fireT = 8; t.fireBy = by; lines.push({ t: 'Incendie', c: '#ff9a3a' }); }
+    else fire = false;
+    if (detonate) lines.push({ t: 'SOUTE À MUNITIONS : DÉTONATION', c: '#ff4a2a' });
+    const knocked = detonate || crewAlive(t) < 2;
+    if (knocked) lines.push({ t: 'CHAR DÉTRUIT', c: '#ff4a2a' });
+    if (ev) {
+      ev.path = r.path; ev.fuse = r.fuse; ev.frags = r.frags; ev.fragT = r.fragT;
+      ev.after = t.mods.map(m => Math.max(0, m.hp) / m.max0);
+      t.mods.forEach((m, i) => { const h = r.hits.get(m); if (h) ev.touch[i] = h.time; });
+      ev.detonation = detonate; ev.results = lines.slice();
+    }
+    if (knocked) destroyTank(t, by, detonate);
+    return { detonate, fire, knocked, crewKilled, lines };
+  }
+
+  // Dégâts à un module ; statistiques et tirs alliés
+  function modDamage(t, m, amount, by, silent) {
+    if (t.dead || m.hp <= 0 || amount <= 0) return;
+    if (GOD && t === player) return;
+    m.hp = Math.max(0, m.hp - amount);
+    if (m.hp > 0 || !by || by === t) return;
+    if (m.kind === 'crew') {
+      if (by.team === t.team) {
+        if (by === player) {
+          waveStats.ffCrew++;
+          if (gameTime - ffMsgT > 1.2) { ffMsgT = gameTime; showMsg('⚠ TIR ALLIÉ : un équipier allié tué !', '#ffaa44'); Sfx.alarm(); }
+        }
+      } else if (by === player) waveStats.crew++;
+    } else if (by === player && by.team !== t.team) waveStats.mods++;
+    if (!silent && t === player) addLog(`${m.name} ${m.kind === 'crew' ? 'neutralisé' : 'détruit'}`, '#ff6a5a');
+  }
+  function checkKnock(t, by) { if (!t.dead && crewAlive(t) < 2) destroyTank(t, by, false); }
+
+  // Explosif qui ne perfore pas, ou souffle d'une explosion proche
+  function heExternal(t, s, by, face, z, k) {
+    const Sd = t.T.S;
+    if ((face === 'side' || z < Sd.tt) && Math.random() < 0.6 * k) {
+      t.trackT = Math.max(t.trackT, 8);
+      if (visibleToPlayer(t)) floatText(t.x, t.y + 10, 'Chenille cassée', '#ffb070');
+      if (t === player) addLog('Chenille cassée par une explosion', '#ffb070');
+    }
+    // onde de choc : les toits minces laissent passer des éclats
+    const over = by.T.hePen * 1.6 * k;
+    if (over > Sd.armor.hull.roof) {
+      const crew = t.mods.filter(m => m.kind === 'crew' && m.hp > 0);
+      if (crew.length) {
+        const m = crew[Math.floor(Math.random() * crew.length)];
+        modDamage(t, m, rnd(35, 75) * k, by);
+        if (t === player) addLog(`Onde de choc : ${m.name.toLowerCase()} ${m.hp <= 0 ? 'neutralisé' : 'blessé'}`, '#ffb070');
+      }
+    }
+    checkKnock(t, by);
   }
 
   function hitObstacle(s, o, h, hx, hy) {
     if (o.type === 'tree') {
       knockTree(o, Math.atan2(s.vy, s.vx));
-      if (s.he) { explode(hx, hy, s, null); return 'stop'; }
-      s.pen *= 0.8; s.skipObs = o;
+      if (s.key === 'HE') { explode(hx, hy, s, null); return 'stop'; }
+      s.skipObs = o;
       return 'continue';
     }
-    if (s.he) { explode(hx, hy, s, null); return 'stop'; }
+    if (s.key === 'HE') { explode(hx, hy, s, null); return 'stop'; }
     sparks(hx, hy, o.type === 'rock' ? 10 : 5);
     for (let k = 0; k < 5; k++) addDust(hx + rnd(-8, 8), hy + rnd(-8, 8), o.type === 'rock' ? '#8a8780' : L().wall);
-    if (o.hp !== Infinity) damageObstacle(o, s.dmg * 0.5);
+    if (o.hp !== Infinity) damageObstacle(o, s.by.T.obs * 0.5);
     Sfx.impact(listenerDist(hx, hy));
     return 'stop';
   }
 
   function explode(x, y, s, direct) {
-    const R = 75;
+    const R = 75 * Math.sqrt(s.by.T.caliber / 75);
     for (const t of tanks) {
       if (t.dead || t === direct) continue;
       const d = Math.hypot(t.x - x, t.y - y);
       if (d > R + t.r) continue;
       if (!losClear(x, y, t.x, t.y, false)) continue;
-      const dmg = s.dmg * 0.28 * (1 - d / (R + t.r)) * clamp(50 / t.T.armor[1], 0.3, 1.2);
-      if (dmg > 2) {
-        if (visibleToPlayer(t)) floatText(t.x, t.y - 20, '-' + Math.round(dmg), t.team === 0 && s.by.team === 0 ? '#ffaa44' : '#e0d0a0');
-        damage(t, dmg, s.by);
-      }
+      heExternal(t, s, s.by, 'side', 0.5, 1 - d / (R + t.r));
     }
     for (const o of obstacles) {
       if (o.dead || o.hp === Infinity) continue;
@@ -984,7 +1395,7 @@
       const d = Math.hypot(cx - x, cy - y);
       if (d > R) continue;
       if (o.type === 'tree') knockTree(o, Math.atan2(o.y - y, o.x - x));
-      else damageObstacle(o, s.dmg * 1.4 * (1 - d / R));
+      else damageObstacle(o, s.by.T.obs * 1.4 * (1 - d / R));
     }
     boom(x, y, 0.8);
     stampCrater(x, y, 18);
@@ -994,7 +1405,6 @@
     o.hp -= amount;
     if (o.hp <= 0 && !o.dead) {
       o.dead = true;
-      // gravats franchissables
       const R = mulberry32(o.x * 13 + o.y * 7);
       gctx.fillStyle = 'rgba(0,0,0,0.3)';
       gctx.fillRect(o.x - 4, o.y - 4, o.w + 8, o.h + 8);
@@ -1028,33 +1438,28 @@
     for (let r = r0 - 1; r <= r0 + 2; r++) for (let c = c0 - 1; c <= c0 + 2; c++) if (r >= 0 && c >= 0 && r < GR && c < GC && grid[r * GC + c] === 2) grid[r * GC + c] = 0;
   }
 
-  function damage(t, amount, by, dot) {
-    if (t.dead || amount <= 0) return;
-    if (GOD && t === player) return;
-    t.hp -= amount;
-    if (by && by !== t) {
-      if (by.team === t.team) {
-        if (by === player) {
-          waveStats.ff += amount;
-          if (!dot && gameTime - ffMsgT > 1.2) { ffMsgT = gameTime; showMsg('⚠ TIR ALLIÉ !', '#ffaa44'); Sfx.alarm(); }
-        }
-      } else if (by === player) waveStats.dmg += amount;
-    }
-    if (t.hp <= 0) { t.hp = 0; destroyTank(t, by); }
-  }
-
-  function destroyTank(t, by) {
+  function destroyTank(t, by, detonation) {
+    if (t.dead) return;
     t.dead = true; t.deadT = 0; t.fireT = 0; t.speed = 0; t.trackT = 0;
-    boom(t.x, t.y, 1.6);
-    stampCrater(t.x, t.y, 30);
+    boom(t.x, t.y, detonation ? 2.2 : 1.4);
+    stampCrater(t.x, t.y, detonation ? 40 : 28);
+    if (detonation && t.T.tb) {
+      // la tourelle est arrachée par l'explosion des munitions
+      t.turretGone = true;
+      const a = Math.random() * TAU, v = rnd(40, 110);
+      parts.push({ k: 'turret', x: pivot(t).x, y: pivot(t).y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, rot: t.angle + t.turret, vr: rnd(-6, 6), life: 1.1, max: 1.1, tank: t });
+    }
     const ff = by && by !== t && by.team === t.team;
-    feed.unshift({ a: by ? by.name : '—', at: by ? by.team : -1, v: t.name, vt: t.team, ff, life: 7 });
+    feed.unshift({ a: by ? by.name : '—', at: by ? by.team : -1, v: t.name, vt: t.team, ff, det: detonation, life: 7 });
     if (feed.length > 6) feed.pop();
     if (by === player) {
       if (ff) { waveStats.tk++; showMsg('Allié détruit par vos tirs !', '#ff7a4a'); }
-      else if (by !== t) { waveStats.kills++; showMsg('Char ennemi détruit', '#ffe27a'); }
+      else if (by !== t) { waveStats.kills++; showMsg(detonation ? 'Char ennemi détruit : munitions détonées !' : 'Char ennemi détruit', '#ffe27a'); }
     }
-    if (t === player) showMsg('Votre char est détruit. Vous observez un allié (clic pour changer)', '#ff7a5c', 4);
+    if (t === player) {
+      addLog(detonation ? 'Vos munitions ont explosé.' : "Votre équipage est hors de combat.", '#ff6a5a');
+      showMsg('Votre char est détruit. Vous observez un allié (clic pour changer)', '#ff7a5c', 4);
+    }
   }
 
   // ===================== Effets =====================
@@ -1086,7 +1491,7 @@
     }
     for (let i = 0; i < 10 * k; i++) {
       const a = Math.random() * TAU, v = rnd(60, 220);
-      parts.push({ k: 'debris', x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: rnd(0.4, 0.9), max: 0.9, rot: Math.random() * TAU });
+      parts.push({ k: 'debris', x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: rnd(0.4, 0.9), max: 0.9 });
     }
     sparks(x, y, 12 * k);
     const d = player ? Math.hypot(player.x - x, player.y - y) : 9999;
@@ -1095,14 +1500,16 @@
   }
   function stampTracks(t) {
     const c = Math.cos(t.angle), s = Math.sin(t.angle), T = t.T;
+    const tw = T.S.tw * PX;
     gctx.fillStyle = L().track;
     for (const side of [-1, 1]) {
-      const ox = -s * side * (T.wid / 2 - T.wid * 0.12), oy = c * side * (T.wid / 2 - T.wid * 0.12);
+      const off = T.wid / 2 - tw / 2;
+      const ox = -s * side * off, oy = c * side * off;
       for (const f of [-0.4, 0.4]) {
         gctx.save();
         gctx.translate(t.x + ox + c * T.len * f, t.y + oy + s * T.len * f);
         gctx.rotate(t.angle);
-        gctx.fillRect(-4, -T.wid * 0.12, 8, T.wid * 0.24);
+        gctx.fillRect(-4, -tw / 2, 8, tw);
         gctx.restore();
       }
     }
@@ -1113,10 +1520,14 @@
     gctx.fillStyle = g;
     gctx.beginPath(); gctx.arc(x, y, r, 0, TAU); gctx.fill();
   }
-  function floatText(x, y, text, color, scale = 1) {
-    texts.push({ x, y, text, color, life: 1.3, max: 1.3, scale });
-  }
+  function floatText(x, y, text, color, scale = 1) { texts.push({ x, y, text, color, life: 1.4, max: 1.4, scale }); }
   function showMsg(text, color, life = 2) { msg = { text, color, life, max: life }; }
+  function addLog(text, color) { logs.unshift({ text, color, life: 6 }); if (logs.length > 6) logs.pop(); }
+
+  function startHitCam(ev) {
+    if (!ev.after) ev.after = ev.before.slice();
+    HitCam.play(ev);
+  }
 
   function updateParts(dt) {
     for (let i = parts.length - 1; i >= 0; i--) {
@@ -1126,6 +1537,7 @@
       p.x += (p.vx || 0) * dt; p.y += (p.vy || 0) * dt;
       if (p.k === 'smoke' || p.k === 'dust') { p.vx *= 0.96; p.vy *= 0.96; p.size += p.grow * dt; }
       else if (p.k === 'spark' || p.k === 'debris' || p.k === 'leaf') { p.vx *= 0.92; p.vy *= 0.92; }
+      else if (p.k === 'turret') { p.rot += p.vr * dt; p.vr *= 0.98; if (p.life <= dt * 1.5) { stampCrater(p.x, p.y, 14); addDust(p.x, p.y); } }
     }
     for (let i = smokes.length - 1; i >= 0; i--) {
       const s = smokes[i];
@@ -1134,6 +1546,7 @@
     }
     for (let i = texts.length - 1; i >= 0; i--) { const t = texts[i]; t.life -= dt; t.y -= 22 * dt; if (t.life <= 0) texts.splice(i, 1); }
     for (let i = feed.length - 1; i >= 0; i--) { feed[i].life -= dt; if (feed[i].life <= 0) feed.splice(i, 1); }
+    for (let i = logs.length - 1; i >= 0; i--) { logs[i].life -= dt; if (logs[i].life <= 0) logs.splice(i, 1); }
     if (msg) { msg.life -= dt; if (msg.life <= 0) msg = null; }
   }
 
@@ -1169,23 +1582,27 @@
     updateParts(dt);
     if (state === 'play') {
       const a = tanks.some(t => t.team === 0 && !t.dead), e = tanks.some(t => t.team === 1 && !t.dead);
-      if (!a || !e) { state = 'ending'; endT = 2.6; waveResult = a ? 'win' : 'lose'; showMsg(a ? 'VAGUE REMPORTÉE' : 'VAGUE PERDUE', a ? '#b8e07a' : '#ff7a5c', 2.6); }
+      if (!a || !e) { state = 'ending'; endT = 3.5; waveResult = a ? 'win' : 'lose'; showMsg(a ? 'VAGUE REMPORTÉE' : 'VAGUE PERDUE', a ? '#b8e07a' : '#ff7a5c', 3); }
     } else if (state === 'ending') {
       endT -= dt;
-      if (endT <= 0) showResult();
+      if (endT <= 0 && !HitCam.active()) showResult();
     }
   }
 
-  let last = performance.now(), acc = 0;
+  let last = performance.now(), acc = 0, viewerT = 0;
   function frame(now) {
     const dt = Math.min(0.1, (now - last) / 1000);
     last = now;
     if (state === 'intro' || state === 'play' || state === 'ending') {
-      acc += dt * timeScale;
+      // ralenti pendant la caméra d'impact
+      const slow = HitCam.active() && HitCam.time() < 1.9 ? 0.14 : 1;
+      acc += dt * timeScale * slow;
       let n = 0;
       while (acc >= STEP && n++ < 40) { step(STEP); acc -= STEP; }
       if (n >= 40) acc = 0;
+      HitCam.update(dt);
     }
+    if (state === 'menu' && R3) { viewerT += dt; renderViewer(dt); }
     if (groundCv) render(dt);
     else { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#0d0f0c'; ctx.fillRect(0, 0, cv.width, cv.height); }
     const v = player && !player.dead && state !== 'menu' && state !== 'result' && state !== 'pause' ? Math.abs(player.speed) / player.T.speed : -1;
@@ -1225,16 +1642,13 @@
     const vx0 = camX - hw - 80, vx1 = camX + hw + 80, vy0 = camY - hh - 80, vy1 = camY + hh + 80;
     const inView = (x, y) => x > vx0 && x < vx1 && y > vy0 && y < vy1;
 
-    // chars (épaves d'abord)
     for (const t of tanks) if (t.dead && inView(t.x, t.y)) drawTank(t);
     for (const t of tanks) if (!t.dead && inView(t.x, t.y) && visibleToPlayer(t)) drawTank(t);
 
-    // obstacles
     for (const o of obstacles) {
       if (o.dead || o.x > vx1 || o.x + o.w < vx0 || o.y > vy1 || o.y + o.h < vy0) continue;
       drawObstacle(o);
     }
-    // buissons (au-dessus des chars : ils les cachent)
     ctx.fillStyle = L().bush;
     for (const b of bushes) {
       if (!inView(b.x, b.y)) continue;
@@ -1249,7 +1663,6 @@
     drawParticles(inView);
     drawShells();
 
-    // fumigènes
     for (const s of smokes) {
       const a = Math.min(1, s.life / 2) * 0.85;
       for (let k = 0; k < 7; k++) {
@@ -1276,61 +1689,64 @@
   }
 
   function drawTank(t) {
-    const T = t.T, team = TEAM[t.team], Ln = T.len, Wd = T.wid, tw = Wd * 0.25;
-    const hull = t.dead ? '#2b2724' : team.hull, top = t.dead ? '#35302b' : team.top, dk = t.dead ? '#1d1a18' : team.dark;
+    const T = t.T, sp = SPR[T.id];
+    if (sp) {
+      const hxp = sp.hx * PX, hyp = sp.hy * PX, rtp = sp.rt * PX;
+      ctx.save();
+      ctx.translate(t.x, t.y); ctx.rotate(t.angle);
+      ctx.globalAlpha = 0.38;
+      ctx.drawImage(sp.hullSh, -hxp + 3, -hyp + 4, hxp * 2, hyp * 2);
+      ctx.globalAlpha = 1;
+      ctx.drawImage(t.dead ? sp.hullB : sp.hull[t.team], -hxp, -hyp, hxp * 2, hyp * 2);
+      // défilement des patins de chenille
+      if (!t.dead) {
+        const tw = T.S.tw * PX, ph = ((t.treadPhase % 4) + 4) % 4;
+        ctx.fillStyle = 'rgba(0,0,0,0.22)';
+        for (let x = -T.len / 2 + ph; x < T.len / 2; x += 4) { ctx.fillRect(x, -T.wid / 2, 1, tw); ctx.fillRect(x, T.wid / 2 - tw, 1, tw); }
+        ctx.fillStyle = TEAM[t.team].accent;
+        ctx.fillRect(-T.len / 2 + 2, -1.5, 2.5, 3);
+        if (t.trackT > 0) { ctx.fillStyle = '#ff9a3a'; ctx.fillRect(-3, -T.wid / 2 - 2, 6, 2.5); ctx.fillRect(-3, T.wid / 2 - 0.5, 6, 2.5); }
+      }
+      if (t.hitFlash > 0) { ctx.globalAlpha = t.hitFlash * 2.5; ctx.drawImage(sp.hullSh, -hxp, -hyp, hxp * 2, hyp * 2); ctx.globalAlpha = 1; }
+      ctx.restore();
+      if (!t.turretGone) {
+        const pv = pivot(t), ta = t.angle + t.turret, rec = -t.recoil * 4;
+        ctx.save();
+        ctx.translate(pv.x, pv.y); ctx.rotate(ta);
+        ctx.globalAlpha = 0.35;
+        ctx.drawImage(sp.turSh, -rtp + rec + 4, -rtp + 5, rtp * 2, rtp * 2);
+        ctx.globalAlpha = 1;
+        ctx.drawImage(t.dead ? sp.turB : sp.tur[t.team], -rtp + rec, -rtp, rtp * 2, rtp * 2);
+        if (t.flash > 0) {
+          ctx.fillStyle = `rgba(255,230,140,${t.flash * 10})`;
+          ctx.beginPath(); ctx.arc(T.gunEnd + 6, 0, 8, 0, TAU); ctx.fill();
+        }
+        ctx.restore();
+      }
+      return;
+    }
+    // Rendu vectoriel de secours (sans WebGL)
+    const team = TEAM[t.team], Ln = T.len, Wd = T.wid, tw = T.S.tw * PX;
     ctx.save();
     ctx.translate(t.x, t.y); ctx.rotate(t.angle);
     ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(-Ln / 2 + 4, -Wd / 2 + 4, Ln, Wd);
-    // chenilles
     ctx.fillStyle = '#1e1e1c';
     ctx.fillRect(-Ln / 2, -Wd / 2, Ln, tw); ctx.fillRect(-Ln / 2, Wd / 2 - tw, Ln, tw);
-    if (!t.dead) {
-      ctx.fillStyle = '#4a4a46';
-      const ph = ((t.treadPhase % 5) + 5) % 5;
-      for (let x = -Ln / 2 + ph; x < Ln / 2 - 1; x += 5) { ctx.fillRect(x, -Wd / 2, 1.6, tw); ctx.fillRect(x, Wd / 2 - tw, 1.6, tw); }
-      if (t.trackT > 0) { ctx.fillStyle = '#ff9a3a'; ctx.fillRect(-3, -Wd / 2 - 2, 6, 3); ctx.fillRect(-3, Wd / 2 - 1, 6, 3); }
-    }
-    // caisse
-    ctx.fillStyle = hull;
+    ctx.fillStyle = t.dead ? '#2b2724' : team.hull;
     ctx.fillRect(-Ln / 2 + 2, -Wd / 2 + tw - 2, Ln - 4, Wd - 2 * tw + 4);
-    ctx.fillStyle = shade(t.dead ? '#2b2724' : team.hull, 1.15);
-    ctx.fillRect(Ln / 2 - 9, -Wd / 2 + tw - 2, 7, Wd - 2 * tw + 4); // glacis
-    ctx.fillStyle = dk;
-    for (let k = 0; k < 3; k++) ctx.fillRect(-Ln / 2 + 4 + k * 3.2, -Wd / 2 + tw + 1, 1.5, Wd - 2 * tw - 2); // grilles moteur
     if (!t.dead) { ctx.fillStyle = team.accent; ctx.fillRect(-Ln / 2 + 2, -2, 3, 4); }
-    if (T.arc) { // casemate du chasseur
-      ctx.fillStyle = top;
-      ctx.fillRect(-Ln * 0.25, -Wd / 2 + tw - 1, Ln * 0.62, Wd - 2 * tw + 2);
-      ctx.fillStyle = dk; ctx.fillRect(-Ln * 0.22, -3, 6, 6);
-    }
-    if (t.hitFlash > 0) { ctx.fillStyle = `rgba(255,255,255,${t.hitFlash * 3})`; ctx.fillRect(-Ln / 2, -Wd / 2, Ln, Wd); }
     ctx.restore();
-
-    // tourelle
-    const pv = pivot(t), ta = t.angle + t.turret, rec = -t.recoil * 5;
+    if (t.turretGone) return;
+    const pv = pivot(t), ta = t.angle + t.turret, rec = -t.recoil * 4;
     ctx.save();
     ctx.translate(pv.x, pv.y); ctx.rotate(ta);
-    ctx.fillStyle = t.dead ? '#1a1816' : '#2c2e26';
-    ctx.fillRect(T.tr - 3 + rec, -T.bw / 2, T.barrel + 3, T.bw);
-    ctx.fillRect(T.tr + T.barrel - 4 + rec, -T.bw / 2 - 1.2, 5, T.bw + 2.4);
-    if (!T.arc) {
-      ctx.fillStyle = 'rgba(0,0,0,0.3)';
-      ctx.beginPath(); ctx.arc(2, 2, T.tr + 1, 0, TAU); ctx.fill();
-      ctx.fillStyle = top;
-      ctx.beginPath();
-      ctx.moveTo(T.tr, -T.tr * 0.7); ctx.lineTo(T.tr, T.tr * 0.7); ctx.lineTo(-T.tr * 0.4, T.tr); ctx.lineTo(-T.tr * 1.1, T.tr * 0.6);
-      ctx.lineTo(-T.tr * 1.1, -T.tr * 0.6); ctx.lineTo(-T.tr * 0.4, -T.tr); ctx.closePath(); ctx.fill();
-      ctx.fillStyle = dk;
-      ctx.beginPath(); ctx.arc(-T.tr * 0.35, -T.tr * 0.3, T.tr * 0.28, 0, TAU); ctx.fill();
-    } else {
-      ctx.fillStyle = top; ctx.fillRect(-4, -5, 9, 10);
-    }
-    if (t.flash > 0) {
-      ctx.fillStyle = `rgba(255,230,140,${t.flash * 10})`;
-      ctx.beginPath(); ctx.arc(T.tr + T.barrel + 8, 0, 9, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#2c2e26';
+    ctx.fillRect(rec, -T.bw / 2, T.gunEnd, T.bw);
+    if (T.tb) {
+      ctx.fillStyle = t.dead ? '#35302b' : team.top;
+      ctx.fillRect(T.tb.x0, T.tb.y0, T.tb.x1 - T.tb.x0, T.tb.y1 - T.tb.y0);
     }
     ctx.restore();
-    if (t.fireT > 0 && Math.random() < 0.5) addFire(t.x + rnd(-8, 8), t.y + rnd(-8, 8));
   }
 
   function drawObstacle(o) {
@@ -1357,13 +1773,12 @@
       return;
     }
     if (o.type === 'wall') {
-      ctx.fillStyle = shade(lv.wall.length === 7 ? lv.wall : '#999999', 0.85);
+      ctx.fillStyle = shade(lv.wall, 0.85);
       ctx.fillRect(o.x, o.y, o.w, o.h);
       ctx.fillStyle = 'rgba(0,0,0,0.2)';
       const horiz = o.w > o.h;
       for (let k = 10; k < (horiz ? o.w : o.h); k += 12) horiz ? ctx.fillRect(o.x + k, o.y, 1.5, o.h) : ctx.fillRect(o.x, o.y + k, o.w, 1.5);
     } else {
-      // bâtiment à toit à deux pans
       const horiz = o.w >= o.h;
       ctx.fillStyle = lv.roof[0];
       ctx.fillRect(o.x, o.y, o.w, o.h);
@@ -1374,7 +1789,6 @@
       ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 2;
       ctx.strokeRect(o.x + 1, o.y + 1, o.w - 2, o.h - 2);
     }
-    // dégâts : trous sombres
     const dmg = 1 - o.hp / o.maxHp;
     if (dmg > 0.1) {
       const n = Math.ceil(dmg * o.spots.length);
@@ -1408,6 +1822,14 @@
           ctx.fillRect(p.x - 2, p.y - 2, 4, 3); break;
         case 'leaf':
           ctx.globalAlpha = a; ctx.fillStyle = p.color; ctx.fillRect(p.x, p.y, 3, 3); ctx.globalAlpha = 1; break;
+        case 'turret': {
+          // tourelle projetée en l'air : elle grossit puis retombe
+          const sp = SPR[p.tank.T.id], up = Math.sin((1 - a) * Math.PI), sc = 1 + up * 0.7;
+          ctx.save(); ctx.translate(p.x, p.y - up * 30); ctx.rotate(p.rot); ctx.scale(sc, sc);
+          if (sp) { const r = sp.rt * PX; ctx.drawImage(sp.turB, -r, -r, r * 2, r * 2); }
+          else { ctx.fillStyle = '#2a2622'; ctx.fillRect(-10, -8, 20, 16); }
+          ctx.restore(); break;
+        }
         case 'flash': {
           const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size);
           g.addColorStop(0, `rgba(255,245,200,${a})`); g.addColorStop(0.4, `rgba(255,170,60,${a * 0.6})`); g.addColorStop(1, 'rgba(255,120,30,0)');
@@ -1420,16 +1842,16 @@
   function drawShells() {
     ctx.lineCap = 'round';
     for (const s of shells) {
-      const tr = s.trail;
+      const tr = s.trail, hot = s.key === 'HE' || s.key === 'HEAT';
       if (tr.length >= 2) {
         const x0 = tr[0], y0 = tr[1];
         const g = ctx.createLinearGradient(x0, y0, s.x, s.y);
         g.addColorStop(0, 'rgba(255,160,60,0)');
-        g.addColorStop(1, s.he ? 'rgba(255,110,50,0.9)' : 'rgba(255,220,140,0.9)');
+        g.addColorStop(1, hot ? 'rgba(255,110,50,0.9)' : s.key === 'APCR' ? 'rgba(200,230,255,0.9)' : 'rgba(255,220,140,0.9)');
         ctx.strokeStyle = g; ctx.lineWidth = 3;
         ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(s.x, s.y); ctx.stroke();
       }
-      ctx.fillStyle = s.he ? 'rgba(255,120,60,0.35)' : 'rgba(255,230,150,0.35)';
+      ctx.fillStyle = hot ? 'rgba(255,120,60,0.35)' : 'rgba(255,230,150,0.35)';
       ctx.beginPath(); ctx.arc(s.x, s.y, 7, 0, TAU); ctx.fill();
       ctx.fillStyle = '#fffbe8';
       ctx.beginPath(); ctx.arc(s.x, s.y, 2.6, 0, TAU); ctx.fill();
@@ -1449,7 +1871,7 @@
       if (tt > 1.6) continue;
       const perp = Math.abs(rx * -uy + ry * ux);
       if (perp > T.len * 0.6 + 16) continue;
-      if (!s.warned) s.warned = true;
+      s.warned = true;
       const ix = s.x + ux * along, iy = s.y + uy * along;
       const a = clamp(1.3 - tt, 0.25, 1);
       ctx.strokeStyle = `rgba(255,60,40,${a * 0.8})`; ctx.lineWidth = 2;
@@ -1479,7 +1901,6 @@
       if (t.dead) { if (t.deadT < 12) hole(t.x, t.y, 150, 0.7); continue; }
       if (t.team === 0) {
         hole(t.x, t.y, 260, 0.95);
-        // phares
         const c = Math.cos(t.angle), s = Math.sin(t.angle);
         hole(t.x + c * 120, t.y + s * 120, 120, 0.6);
       } else if (spotted[0].has(t)) hole(t.x, t.y, 70, 0.5);
@@ -1494,12 +1915,13 @@
     ctx.textAlign = 'center';
     for (const t of tanks) {
       if (t.dead || !visibleToPlayer(t)) continue;
-      const p = worldToScreen(t.x, t.y - t.T.len * 0.75);
+      const p = worldToScreen(t.x, t.y - t.T.len * 0.8);
       if (p.x < -50 || p.y < -50 || p.x > W + 50 || p.y > H + 50) continue;
-      const w = 38, f = t.hp / t.T.hp;
+      const w = 38, f = crewFrac(t);
       ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(p.x - w / 2 - 1, p.y - 1, w + 2, 6);
       ctx.fillStyle = t.team === 0 ? (t === player ? '#7ad06a' : '#5aa8ff') : '#ff5040';
       ctx.fillRect(p.x - w / 2, p.y, w * f, 4);
+      if (t.fireT > 0) { ctx.fillStyle = '#ff9a3a'; ctx.fillRect(p.x + w / 2 + 3, p.y - 1, 5, 6); }
       if (t !== player) {
         ctx.font = '600 10px system-ui, sans-serif';
         ctx.fillStyle = t.team === 0 ? '#a8d0ff' : '#ffb0a8';
@@ -1514,7 +1936,6 @@
       ctx.fillText(tx.text, p.x + 1, p.y + 1);
       ctx.globalAlpha = a; ctx.fillStyle = tx.color; ctx.fillText(tx.text, p.x, p.y); ctx.globalAlpha = 1;
     }
-    // flèches au bord de l'écran pour les obus menaçants hors champ
     if (player && !player.dead) {
       for (const s of shells) {
         if (!s.warned || s.by === player) continue;
@@ -1531,10 +1952,10 @@
     }
   }
 
+  const CREW_ABBR = { driver: 'Pi', radio: 'Ra', gunner: 'Ti', commander: 'Ch', loader: 'Cg' };
   function drawHUD() {
     const lv = L();
     ctx.textAlign = 'center';
-    // bandeau supérieur
     ctx.font = '600 14px system-ui, sans-serif';
     ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(W / 2 - 190, 8, 380, 46);
     ctx.fillStyle = '#e9d9a6';
@@ -1551,59 +1972,34 @@
     }
     ctx.fillStyle = '#ccc'; ctx.font = '700 13px system-ui, sans-serif'; ctx.fillText('VS', W / 2, 45);
 
-    // fil des destructions
-    ctx.textAlign = 'right'; ctx.font = '600 12px system-ui, sans-serif';
+    // fil des destructions (en haut à gauche)
+    ctx.textAlign = 'left'; ctx.font = '600 12px system-ui, sans-serif';
     feed.forEach((f, i) => {
-      const y = 22 + i * 20;
+      const y = 24 + i * 20;
       ctx.globalAlpha = Math.min(1, f.life);
-      ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(W - 300, y - 13, 290, 18);
-      const right = `${f.v}`;
-      ctx.fillStyle = f.vt === 0 ? '#8cc4ff' : '#ff8c80';
-      ctx.fillText(right, W - 16, y);
-      const rw = ctx.measureText(right).width;
-      ctx.fillStyle = f.ff ? '#ffaa44' : '#ddd';
-      const mid = f.ff ? ' ✖ TIR ALLIÉ ✖ ' : ' ⟶ ';
-      ctx.fillText(mid, W - 16 - rw, y);
-      const mw = ctx.measureText(mid).width;
-      ctx.fillStyle = f.at === 0 ? '#8cc4ff' : f.at === 1 ? '#ff8c80' : '#aaa';
-      ctx.fillText(f.a, W - 16 - rw - mw, y);
+      const mid = f.ff ? ' ✖ TIR ALLIÉ ✖ ' : f.det ? ' 💥 ' : ' ⟶ ';
+      const wA = ctx.measureText(f.a).width, wM = ctx.measureText(mid).width, wV = ctx.measureText(f.v).width;
+      ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(10, y - 13, wA + wM + wV + 16, 18);
+      ctx.fillStyle = f.at === 0 ? '#8cc4ff' : f.at === 1 ? '#ff8c80' : '#aaa'; ctx.fillText(f.a, 18, y);
+      ctx.fillStyle = f.ff ? '#ffaa44' : '#ddd'; ctx.fillText(mid, 18 + wA, y);
+      ctx.fillStyle = f.vt === 0 ? '#8cc4ff' : '#ff8c80'; ctx.fillText(f.v, 18 + wA + wM, y);
       ctx.globalAlpha = 1;
     });
 
-    drawMinimap();
+    const mm = drawMinimap();
 
-    // état du char du joueur
-    if (player) {
-      const T = player.T;
-      const bx = W / 2 - 170, by = H - 70;
-      ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(bx, by, 340, 60);
-      ctx.textAlign = 'left'; ctx.font = '700 13px system-ui, sans-serif'; ctx.fillStyle = '#f0e6c8';
-      ctx.fillText(`${T.name} · ${T.cls}`, bx + 10, by + 17);
-      const f = player.hp / T.hp;
-      ctx.fillStyle = '#2a2a24'; ctx.fillRect(bx + 10, by + 24, 220, 10);
-      ctx.fillStyle = f > 0.5 ? '#7ad06a' : f > 0.25 ? '#e0c050' : '#ff5040';
-      ctx.fillRect(bx + 10, by + 24, 220 * f, 10);
-      ctx.fillStyle = '#fff'; ctx.font = '600 10px system-ui, sans-serif';
-      ctx.fillText(`${Math.ceil(player.hp)} / ${T.hp}`, bx + 14, by + 33);
-      ctx.font = '600 12px system-ui, sans-serif';
-      ctx.fillStyle = player.ammo === 'AP' ? '#ffe27a' : '#777';
-      ctx.fillText('[1] Perforant', bx + 10, by + 51);
-      ctx.fillStyle = player.ammo === 'HE' ? '#ff9a5a' : '#777';
-      ctx.fillText('[2] Explosif', bx + 105, by + 51);
-      ctx.fillStyle = player.smoke ? '#ddd' : '#666';
-      ctx.fillText(`[E] Fumi ×${player.smoke}`, bx + 190, by + 51);
-      // rechargement
-      const rf = player.reloadT > 0 ? 1 - player.reloadT / T.reload : 1;
-      ctx.fillStyle = '#2a2a24'; ctx.fillRect(bx + 240, by + 24, 90, 10);
-      ctx.fillStyle = rf >= 1 ? '#ffe27a' : '#9a8a5a'; ctx.fillRect(bx + 240, by + 24, 90 * rf, 10);
-      ctx.fillStyle = '#ddd'; ctx.font = '600 10px system-ui, sans-serif';
-      ctx.fillText(rf >= 1 ? 'PRÊT' : `${player.reloadT.toFixed(1)} s`, bx + 244, by + 17);
-      const status = [];
-      if (player.trackT > 0) status.push('Chenille cassée ' + player.trackT.toFixed(1) + ' s');
-      if (player.fireT > 0) status.push('EN FEU');
-      if (!player.dead && player.revealT <= 0 && inBush(player)) status.push('Camouflé');
-      if (status.length) { ctx.fillStyle = '#ffb070'; ctx.font = '700 12px system-ui, sans-serif'; ctx.fillText(status.join(' · '), bx, by - 8); }
-    }
+    // journal des dégâts subis (en bas à gauche)
+    ctx.textAlign = 'left'; ctx.font = '600 12px system-ui, sans-serif';
+    logs.forEach((l, i) => {
+      const y = H - 20 - i * 18;
+      ctx.globalAlpha = Math.min(1, l.life);
+      const w = ctx.measureText(l.text).width;
+      ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(10, y - 13, w + 14, 17);
+      ctx.fillStyle = l.color; ctx.fillText(l.text, 17, y);
+      ctx.globalAlpha = 1;
+    });
+
+    if (player) drawTankPanel();
 
     // réticule
     if (player && !player.dead && (state === 'play' || state === 'intro' || state === 'ending')) {
@@ -1621,11 +2017,20 @@
       ctx.moveTo(mouse.x - 10, mouse.y); ctx.lineTo(mouse.x - 3, mouse.y); ctx.moveTo(mouse.x + 3, mouse.y); ctx.lineTo(mouse.x + 10, mouse.y);
       ctx.moveTo(mouse.x, mouse.y - 10); ctx.lineTo(mouse.x, mouse.y - 3); ctx.moveTo(mouse.x, mouse.y + 3); ctx.lineTo(mouse.x, mouse.y + 10);
       ctx.stroke();
+      // pénétration estimée à cette distance
+      ctx.font = '600 11px system-ui, sans-serif'; ctx.textAlign = 'left';
+      ctx.fillStyle = 'rgba(255,255,255,0.8)';
+      ctx.fillText(`${Math.round(d * RK)} m · ${Math.round(penAt(player.T, player.shell, d))} mm`, mouse.x + 14, mouse.y + 18);
     } else if (state !== 'menu') {
       ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(mouse.x, mouse.y, 3, 0, TAU); ctx.fill();
     }
 
-    // messages et compte à rebours
+    // caméra d'impact (à droite, sous la mini-carte)
+    if (HitCam.active()) {
+      const cw = Math.min(560, W * 0.42), ch = Math.round(cw * 0.6);
+      HitCam.draw(ctx, W - cw - 14, Math.min(mm.bottom + 14, H - ch - 90), cw, ch, DPR);
+    }
+
     ctx.textAlign = 'center';
     if (state === 'intro') {
       ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(0, H / 2 - 90, W, 150);
@@ -1640,14 +2045,77 @@
       const a = Math.min(1, msg.life * 2);
       ctx.globalAlpha = a;
       ctx.font = '800 22px system-ui, sans-serif';
-      ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillText(msg.text, W / 2 + 2, H * 0.24 + 2);
-      ctx.fillStyle = msg.color; ctx.fillText(msg.text, W / 2, H * 0.24);
+      ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillText(msg.text, W / 2 + 2, 92);
+      ctx.fillStyle = msg.color; ctx.fillText(msg.text, W / 2, 90);
       ctx.globalAlpha = 1;
     }
   }
 
+  // Panneau du char : équipage, modules, obus
+  function drawTankPanel() {
+    const T = player.T, pw = 470, bx = W / 2 - pw / 2, by = H - 98;
+    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(bx, by, pw, 90);
+    ctx.textAlign = 'left'; ctx.font = '700 13px system-ui, sans-serif'; ctx.fillStyle = '#f0e6c8';
+    ctx.fillText(`${T.name} · ${T.cls}`, bx + 10, by + 17);
+    // équipage
+    let x = bx + 10;
+    for (const role of T.S.crew) {
+      const m = player.mods.find(q => q.kind === 'crew' && q.role === role);
+      const r = m.hp / m.max0, vacant = !roleOk(player, role) && m.hp > 0;
+      ctx.fillStyle = r <= 0 ? '#5a1510' : r < 1 ? '#c07a20' : '#3f7a4a';
+      ctx.fillRect(x, by + 24, 30, 20);
+      if (vacant || (player.roles[role] !== m.i && player.roles[role] >= 0)) { ctx.strokeStyle = '#8cc8ff'; ctx.lineWidth = 1.5; ctx.strokeRect(x + 0.5, by + 24.5, 29, 19); }
+      ctx.fillStyle = '#fff'; ctx.font = '700 11px system-ui, sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(CREW_ABBR[role], x + 15, by + 38);
+      if (r <= 0) { ctx.strokeStyle = '#ff6a5a'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x + 4, by + 27); ctx.lineTo(x + 26, by + 41); ctx.stroke(); }
+      x += 34;
+    }
+    if (player.swap) { ctx.textAlign = 'left'; ctx.fillStyle = '#8cc8ff'; ctx.font = '600 10px system-ui, sans-serif'; ctx.fillText(`remplacement ${player.swap.t.toFixed(0)} s`, x + 2, by + 38); }
+    // modules
+    const MODS = [['engine', 'Moteur'], ['trans', 'Transm.'], ['breech', 'Culasse'], ['fuel', 'Carbur.'], ['ammo', 'Munit.']];
+    x = bx + 200;
+    ctx.textAlign = 'center'; ctx.font = '600 10px system-ui, sans-serif';
+    const chip = (label, state, sub) => {
+      ctx.fillStyle = state === 2 ? '#5a1510' : state === 1 ? '#8a5a18' : '#2c3a2c';
+      ctx.fillRect(x, by + 24, 50, 20);
+      ctx.fillStyle = '#eee'; ctx.fillText(sub || label, x + 25, by + 37);
+      x += 53;
+    };
+    for (const [kind, label] of MODS) {
+      const ms = player.mods.filter(m => m.kind === kind);
+      const dead = ms.some(m => m.hp <= 0), hurt = ms.some(m => m.hp < m.max0);
+      const rep = player.rep[kind];
+      chip(label, dead ? 2 : hurt ? 1 : 0, rep != null ? `${label} ${Math.ceil(rep)}s` : null);
+    }
+    // chenilles et feu
+    ctx.textAlign = 'left'; ctx.font = '700 11px system-ui, sans-serif';
+    const st = [];
+    if (player.trackT > 0) st.push(['Chenille ' + Math.ceil(player.trackT) + ' s', '#ffb070']);
+    if (player.fireT > 0) st.push(['EN FEU', '#ff6a3a']);
+    if (!player.dead && player.revealT <= 0 && inBush(player)) st.push(['Camouflé', '#a6f08a']);
+    let sx2 = bx + 230;
+    for (const [s, c] of st) { ctx.fillStyle = c; ctx.fillText(s, sx2, by + 15); sx2 += ctx.measureText(s).width + 12; }
+    // obus
+    x = bx + 10;
+    for (const k of SHELL_KEYS) {
+      const sh = SHELLS[k], sel = player.shell === k, n = player.ammo[k];
+      ctx.fillStyle = sel ? '#4a3f1a' : 'rgba(255,255,255,0.06)';
+      ctx.fillRect(x, by + 52, 86, 30);
+      if (sel) { ctx.strokeStyle = '#e9c46a'; ctx.lineWidth = 1.5; ctx.strokeRect(x + 0.5, by + 52.5, 85, 29); }
+      ctx.fillStyle = n ? (sel ? '#ffe27a' : '#ddd') : '#666'; ctx.font = '700 11px system-ui, sans-serif';
+      ctx.fillText(`[${sh.n}] ${k}`, x + 5, by + 65);
+      ctx.font = '600 10px system-ui, sans-serif'; ctx.fillStyle = n ? '#aaa' : '#555';
+      ctx.fillText(`${n} · ${Math.round(penAt(player.T, k, 200))} mm`, x + 5, by + 77);
+      x += 89;
+    }
+    // rechargement
+    const rf = player.reloadT > 0 ? 1 - player.reloadT / T.reload : 1;
+    ctx.fillStyle = '#2a2a24'; ctx.fillRect(bx + pw - 120, by + 8, 110, 8);
+    ctx.fillStyle = rf >= 1 ? '#ffe27a' : '#9a8a5a'; ctx.fillRect(bx + pw - 120, by + 8, 110 * rf, 8);
+  }
+
   function drawMinimap() {
-    const mw = Math.min(230, W * 0.25), k = mw / WW, mh = WH * k, x0 = 12, y0 = H - mh - 12;
+    const mw = Math.min(230, W * 0.22), k = mw / WW, mh = WH * k, x0 = W - mw - 12, y0 = 12;
     ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(x0 - 3, y0 - 3, mw + 6, mh + 6);
     ctx.fillStyle = L().ground[0]; ctx.globalAlpha = 0.6; ctx.fillRect(x0, y0, mw, mh); ctx.globalAlpha = 1;
     for (const o of obstacles) {
@@ -1663,23 +2131,78 @@
     }
     ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1;
     ctx.strokeRect(x0 + (camX - W / 2 / S) * k, y0 + (camY - H / 2 / S) * k, W / S * k, H / S * k);
+    return { bottom: y0 + mh + 3 };
+  }
+
+  // ===================== Vitrine 3D du menu =====================
+  const viewer = { ang: 0.8, elev: 0.33, drag: null, xray: false, dist: 1 };
+  const groundMesh = R3 ? (() => { const g = new G3.Builder(); g.ground(16, 64); return R3.upload(g); })() : null;
+  const modMeshes = R3 ? (() => { const u = TankModels.moduleMeshes(); return { box: R3.upload(u.box), crew: R3.upload(u.crew) }; })() : null;
+  const MOD_COL = { crew: [0.3, 0.78, 0.42], engine: [0.55, 0.6, 0.68], trans: [0.6, 0.52, 0.7], fuel: [0.9, 0.62, 0.16], ammo: [0.92, 0.78, 0.3], breech: [0.62, 0.62, 0.62] };
+  function drawTank3D(id, w, h, ang, elev, xray, turretAng, clear) {
+    const M4 = G3.M4, I = TYPES[id].I, Sd = I.S;
+    R3.begin(w, h, clear);
+    const d = 6.2 + Sd.L * 0.75;
+    const eye = [Math.cos(ang) * Math.cos(elev) * d, Math.sin(ang) * Math.cos(elev) * d, Math.sin(elev) * d + 1.0];
+    R3.camera(M4.lookAt(eye, [0, 0, Sd.ht * 0.6], [0, 0, 1]), M4.persp(0.6, w / h, 0.1, 200), eye, [-0.55, 0.35, 0.75]);
+    R3.draw(groundMesh, M4.ident(), { ground: xray ? [0.05, 0.09, 0.13] : [0.24, 0.22, 0.18], shadow: [Sd.L / 2, Sd.W / 2, 0.45, -0.3] });
+    const tm = M4.trs(I.pivotX, I.pivotY, 0, turretAng);
+    if (xray) {
+      for (const m of TankModels.makeModules(id)) {
+        const frame = m.frame === 'turret' ? tm : M4.ident();
+        R3.draw(m.kind === 'crew' ? modMeshes.crew : modMeshes.box, M4.mul(frame, M4.trs(m.c[0], m.c[1], m.c[2], 0, m.s[0], m.s[1], m.s[2])), { color: MOD_COL[m.kind] });
+      }
+      R3.draw(MESH[id].hull, M4.ident(), { xray: true, alpha: 0.95, additive: true });
+      R3.draw(MESH[id].turret, tm, { xray: true, alpha: 0.95, additive: true });
+    } else {
+      R3.draw(MESH[id].hull, M4.ident(), { camo: TEAM[0].camo });
+      R3.draw(MESH[id].turret, tm, { camo: TEAM[0].camo });
+    }
+  }
+  function renderViewer(dt) {
+    const vc = $('viewer');
+    if (!vc || !vc.clientWidth) return;
+    const w = Math.round(vc.clientWidth * DPR), h = Math.round(vc.clientHeight * DPR);
+    if (vc.width !== w || vc.height !== h) { vc.width = w; vc.height = h; }
+    if (!viewer.drag) viewer.ang += dt * 0.22;
+    drawTank3D(chosenType, w, h, viewer.ang, viewer.elev, viewer.xray, Math.sin(viewerT * 0.4) * 0.35, [0.07, 0.08, 0.07, 1]);
+    vc.getContext('2d').drawImage(R3.canvas, 0, 0);
   }
 
   // ===================== Écrans =====================
   const $ = id => document.getElementById(id);
+  function specsHTML(T) {
+    const Sd = T.S, A = Sd.armor;
+    const eff = a => Math.round(a[0] / Math.cos(a[1] * D2R));
+    const row = (l, a) => `<tr><td>${l}</td><td>${a[0]} mm à ${a[1]}°</td><td>≈ ${eff(a)} mm</td></tr>`;
+    let h = `<div class="specTitle">${T.name} <small>${T.cls}</small></div><div class="specSub">${Sd.inspired} · ${Sd.real}</div>`;
+    h += `<div class="specLine">Canon ${Sd.gun.name} · rechargement ${T.reload.toFixed(1)} s · ${T.kmh} km/h</div>`;
+    h += `<div class="specLine">Équipage : ${Sd.crew.map(r => TankModels.NAMES[r]).join(', ')}</div>`;
+    h += '<table class="spec"><tr><th>Blindage</th><th>Épaisseur</th><th>Effectif</th></tr>';
+    h += row('Caisse avant (haut)', A.hull.up) + row('Caisse avant (bas)', A.hull.low) + row('Flancs de caisse', A.hull.side) + row('Arrière de caisse', A.hull.rear);
+    if (A.turret) h += row('Tourelle avant', A.turret.front) + row('Masque de canon', A.turret.mantlet) + row('Flancs de tourelle', A.turret.side) + row('Arrière de tourelle', A.turret.rear);
+    h += `<tr><td>Toit</td><td>${A.hull.roof} mm</td><td></td></tr></table>`;
+    h += '<table class="spec"><tr><th>Obus</th><th>100 m</th><th>500 m</th><th>Coups</th></tr>';
+    for (const k of SHELL_KEYS) h += `<tr><td>${SHELLS[k].full}</td><td>${Math.round(penAt(T, k, 100 / RK))} mm</td><td>${Math.round(penAt(T, k, 500 / RK))} mm</td><td>${T.ammo[k]}</td></tr>`;
+    return h + '</table>';
+  }
   function buildMenu() {
     const tc = $('tankCards'); tc.innerHTML = '';
-    const maxOf = key => Math.max(...Object.values(TYPES).map(t => key === 'reload' ? 1 / t.reload : key === 'armor' ? t.armor[0] : t[key]));
     for (const T of Object.values(TYPES)) {
       const d = document.createElement('div');
-      d.className = 'card' + (T.id === chosenType ? ' sel' : '');
-      const bar = (label, v, m) => `<div class="stat"><span>${label}</span><div class="bar"><i style="width:${Math.round(v / m * 100)}%"></i></div></div>`;
-      d.innerHTML = `<b>${T.name}</b><small>${T.cls}${T.arc ? ' · sans tourelle' : ''}</small>` +
-        bar('Blindage', T.armor[0], maxOf('armor')) + bar('Points vie', T.hp, maxOf('hp')) + bar('Pénétration', T.pen, maxOf('pen')) +
-        bar('Dégâts', T.dmg, maxOf('dmg')) + bar('Cadence', 1 / T.reload, maxOf('reload')) + bar('Vitesse', T.speed, maxOf('speed'));
+      d.className = 'card tcard' + (T.id === chosenType ? ' sel' : '');
+      d.innerHTML = `<canvas class="thumb" width="240" height="130"></canvas><b>${T.name}</b><small>${T.cls}${T.arc ? ' · sans tourelle' : ''}</small>`;
       d.onclick = () => { chosenType = T.id; buildMenu(); };
       tc.appendChild(d);
+      if (R3) {
+        const c = d.querySelector('canvas');
+        drawTank3D(T.id, 480, 260, 0.75, 0.3, false, 0.25, [0.09, 0.1, 0.09, 1]);
+        c.width = 480; c.height = 260;
+        c.getContext('2d').drawImage(R3.canvas, 0, 0);
+      }
     }
+    $('specs').innerHTML = specsHTML(TYPES[chosenType]);
+    $('showcase').classList.toggle('no3d', !R3);
     const lc = $('levelCards'); lc.innerHTML = '';
     LEVELS.forEach((lv, i) => {
       const d = document.createElement('div');
@@ -1691,16 +2214,13 @@
     });
   }
 
-  function startLevel() {
-    genMap();
-    spawnWave();
-  }
+  function startLevel() { genMap(); spawnWave(); }
 
   function showResult() {
     state = 'result';
     const win = waveResult === 'win';
     const ws = waveStats;
-    const pts = Math.round(ws.kills * 150 + ws.dmg - ws.ff * 2 - ws.tk * 400 + (win ? 500 : 0));
+    const pts = Math.round(ws.kills * 200 + ws.crew * 40 + ws.mods * 15 + ws.pens * 20 - ws.ffCrew * 80 - ws.tk * 400 + (win ? 500 : 0));
     if (win) campaignScore += pts;
     const lastWave = waveIdx >= WAVES - 1;
     const lastLevel = levelIdx >= LEVELS.length - 1;
@@ -1710,11 +2230,13 @@
     const acc = ws.shots ? Math.round(ws.hits / ws.shots * 100) : 0;
     $('resTable').innerHTML =
       `<tr><td>Chars ennemis détruits</td><td>${ws.kills}</td></tr>` +
-      `<tr><td>Dégâts infligés</td><td>${Math.round(ws.dmg)}</td></tr>` +
+      `<tr><td>Perforations</td><td>${ws.pens}</td></tr>` +
+      `<tr><td>Équipiers ennemis neutralisés</td><td>${ws.crew}</td></tr>` +
+      `<tr><td>Modules ennemis détruits</td><td>${ws.mods}</td></tr>` +
       `<tr><td>Précision</td><td>${acc} % (${ws.hits}/${ws.shots})</td></tr>` +
-      `<tr><td>Ricochets provoqués</td><td>${ws.ric}</td></tr>` +
+      `<tr><td>Ricochets</td><td>${ws.ric}</td></tr>` +
       `<tr><td>Obus esquivés</td><td>${ws.dodged}</td></tr>` +
-      `<tr><td>Dégâts aux alliés</td><td class="${ws.ff ? 'bad' : ''}">${Math.round(ws.ff)}</td></tr>` +
+      `<tr><td>Équipiers alliés tués par vos tirs</td><td class="${ws.ffCrew ? 'bad' : ''}">${ws.ffCrew}</td></tr>` +
       `<tr><td>Alliés détruits par vos tirs</td><td class="${ws.tk ? 'bad' : ''}">${ws.tk}</td></tr>` +
       `<tr><td>Points de la vague</td><td>${win ? pts : 0}</td></tr>` +
       `<tr><td>Score de campagne</td><td>${campaignScore}</td></tr>`;
@@ -1735,17 +2257,27 @@
   function toMenu() {
     hide('pause'); hide('result');
     state = 'menu'; campaignScore = 0;
+    HitCam.stop();
     buildMenu(); show('menu');
   }
+  let pausedFrom = 'play';
   function togglePause() {
     if (state === 'pause') { state = pausedFrom; hide('pause'); last = performance.now(); }
     else if (state === 'play' || state === 'intro' || state === 'ending') { pausedFrom = state; state = 'pause'; show('pause'); }
   }
-  let pausedFrom = 'play';
 
   $('startBtn').onclick = () => { Sfx.init(); hide('menu'); waveIdx = 0; campaignScore = 0; startLevel(); };
   $('resumeBtn').onclick = togglePause;
   $('quitBtn').onclick = toMenu;
+  $('xrayBtn').onclick = () => { viewer.xray = !viewer.xray; $('xrayBtn').classList.toggle('on', viewer.xray); };
+  const vc = $('viewer');
+  vc.addEventListener('pointerdown', e => { viewer.drag = { x: e.clientX, y: e.clientY, a: viewer.ang, e: viewer.elev }; vc.setPointerCapture(e.pointerId); });
+  vc.addEventListener('pointermove', e => {
+    if (!viewer.drag) return;
+    viewer.ang = viewer.drag.a - (e.clientX - viewer.drag.x) * 0.01;
+    viewer.elev = clamp(viewer.drag.e + (e.clientY - viewer.drag.y) * 0.006, 0.05, 1.3);
+  });
+  vc.addEventListener('pointerup', () => { viewer.drag = null; });
 
   // ===================== Entrées =====================
   addEventListener('keydown', e => {
@@ -1754,13 +2286,16 @@
     if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.code)) e.preventDefault();
     if (e.code === 'Escape' || e.code === 'KeyP') togglePause();
     if (e.code === 'KeyM') Sfx.toggle();
+    if (e.code === 'KeyH' && state !== 'menu') { hitcamOn = !hitcamOn; if (!hitcamOn) HitCam.stop(); showMsg(hitcamOn ? "Caméra d'impact activée" : "Caméra d'impact désactivée", '#bcd8ff', 1.4); }
     if (!player || player.dead || player.ai || state === 'menu' || state === 'pause' || state === 'result') return;
-    if (e.code === 'Digit1' || e.code === 'Digit2' || e.code === 'Numpad1' || e.code === 'Numpad2') {
-      const ammo = e.code.endsWith('1') ? 'AP' : 'HE';
-      if (ammo !== player.ammo) {
-        player.ammo = ammo;
+    const dm = e.code.match(/^(?:Digit|Numpad)([1-5])$/);
+    if (dm) {
+      const key = SHELL_KEYS[Number(dm[1]) - 1];
+      if (player.ammo[key] <= 0) showMsg(`Plus d'obus ${SHELLS[key].name.toLowerCase()}`, '#ff9a7a', 1.2);
+      else if (key !== player.shell) {
+        player.shell = key;
         player.reloadT = player.T.reload; // changer d'obus impose de recharger
-        showMsg(ammo === 'AP' ? 'Obus perforant' : 'Obus explosif', '#e9d9a6', 1);
+        showMsg(SHELLS[key].full, '#e9d9a6', 1.2);
       }
     }
     if (e.code === 'KeyE' && state === 'play') deploySmoke(player);
@@ -1780,12 +2315,27 @@
 
   // Démarrage direct en développement
   if (Q.has('level')) levelIdx = clamp(Number(Q.get('level')) - 1, 0, LEVELS.length - 1);
+  if (Q.has('type') && TYPES[Q.get('type')]) chosenType = Q.get('type');
   buildMenu();
   if (Q.has('level') || AUTO) {
-    if (Q.has('type') && TYPES[Q.get('type')]) chosenType = Q.get('type');
     waveIdx = clamp(Number(Q.get('wave') || 1) - 1, 0, WAVES - 1);
     hide('menu'); startLevel();
   }
-  if (Q.has('debug')) window.__fa = { get tanks() { return tanks; }, get state() { return state; }, get stats() { return waveStats; }, get shells() { return shells; }, get time() { return gameTime; } };
+  if (Q.has('debug')) {
+    window.__fa = {
+      get tanks() { return tanks; }, get state() { return state; }, get stats() { return waveStats; }, get shells() { return shells; },
+      get time() { return gameTime; }, get player() { return player; }, hitcam: HitCam, TYPES, SHELLS,
+      // test : tir forcé du joueur sur la cible la plus proche
+      fireAt(i, key) {
+        const e = tanks.filter(t => t.team === 1 && !t.dead)[i || 0];
+        if (!e) return false;
+        player.shell = key || player.shell; player.ammo[player.shell] = 9;
+        const pv = pivot(player);
+        player.turret = angNorm(Math.atan2(e.y - pv.y, e.x - pv.x) - player.angle);
+        player.disp = 0; player.reloadT = 0; fireShell(player);
+        return true;
+      },
+    };
+  }
   requestAnimationFrame(frame);
 })();

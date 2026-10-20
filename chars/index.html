@@ -35,6 +35,26 @@
   td { padding: 5px 14px; border-bottom: 1px solid #2d3025; }
   td:last-child { text-align: right; font-weight: 600; color: #f0e2b0; }
   td.bad { color: #ff9a5c !important; }
+  #showcase { display: grid; grid-template-columns: 1.35fr 1fr; gap: 12px; margin-bottom: 10px; }
+  #showcase.no3d { grid-template-columns: 1fr; }
+  #showcase.no3d .viewWrap { display: none; }
+  .viewWrap { position: relative; background: #121410; border: 2px solid #33382a; border-radius: 6px; overflow: hidden; }
+  #viewer { display: block; width: 100%; height: 340px; cursor: grab; touch-action: none; }
+  .vbar { position: absolute; left: 8px; bottom: 8px; display: flex; gap: 10px; align-items: center; font-size: 12px; color: #9a957f; }
+  button.small { font-size: 12px; padding: 6px 12px; }
+  button.small.on { background: #1d3d5a; border-color: #5fb4ff; color: #cfe8ff; }
+  #specs { background: #1b1e17; border: 2px solid #33382a; border-radius: 6px; padding: 10px 12px; font-size: 12px; color: #c9c4b2; overflow: auto; max-height: 344px; }
+  .specTitle { font-size: 20px; font-weight: 700; color: #f0e6c8; }
+  .specTitle small { font-size: 13px; color: #9a957f; font-weight: 600; }
+  .specSub { color: #8f8a77; margin-bottom: 6px; }
+  .specLine { margin: 3px 0; }
+  table.spec { width: 100%; min-width: 0; margin: 8px 0 0; font-size: 11.5px; }
+  table.spec th { text-align: left; color: #c9b77f; font-weight: 600; padding: 3px 6px; border-bottom: 1px solid #3a3a2e; }
+  table.spec td { padding: 3px 6px; }
+  table.spec td:last-child { text-align: right; }
+  .tcard { padding: 6px; }
+  .thumb { display: block; width: 100%; height: auto; border-radius: 4px; margin-bottom: 6px; background: #161812; }
+  @media (max-width: 760px) { #showcase { grid-template-columns: 1fr; } #viewer { height: 260px; } }
   #resTitle.win { color: #b8e07a; }
   #resTitle.lose { color: #ff7a5c; }
 </style>
@@ -47,6 +67,13 @@
     <h1>FRONT D'ACIER</h1>
     <div class="sub">Combat de chars 5 contre 5. Les obus se voient venir : esquive-les. Les tirs alliés blessent.</div>
     <h2>Choisis ton char</h2>
+    <div id="showcase">
+      <div class="viewWrap">
+        <canvas id="viewer"></canvas>
+        <div class="vbar"><button id="xrayBtn" class="small">☢ Rayons X</button><span>Glisse pour tourner autour du char</span></div>
+      </div>
+      <div id="specs"></div>
+    </div>
     <div id="tankCards" class="cards"></div>
     <h2>Champ de bataille</h2>
     <div id="levelCards" class="cards"></div>
@@ -57,19 +84,20 @@
       <div><kbd>Q</kbd><kbd>D</kbd> / <kbd>A</kbd><kbd>D</kbd> / <kbd>←</kbd><kbd>→</kbd> pivoter la caisse</div>
       <div>Souris : viser (la tourelle tourne à sa vitesse)</div>
       <div>Clic gauche / <kbd>Espace</kbd> : tirer</div>
-      <div><kbd>1</kbd> obus perforant · <kbd>2</kbd> obus explosif</div>
+      <div><kbd>1</kbd> AP · <kbd>2</kbd> APHE · <kbd>3</kbd> APCR · <kbd>4</kbd> HEAT · <kbd>5</kbd> HE</div>
+      <div><kbd>H</kbd> caméra d'impact en rayons X</div>
       <div><kbd>E</kbd> fumigène (2 par vague)</div>
       <div><kbd>M</kbd> son · <kbd>Échap</kbd> / <kbd>P</kbd> pause</div>
       <div>Mort : clic pour changer d'allié observé</div>
     </div>
     <h2>Réalisme</h2>
     <div class="help">
-      <div>Blindage avant, flancs et arrière : présente l'avant, incliné.</div>
-      <div>Un impact trop rasant ricoche (plus de 70°).</div>
-      <div>La dispersion grandit en mouvement : arrête-toi pour viser.</div>
-      <div>Les buissons camouflent, mais tirer te révèle.</div>
-      <div>Chenilles cassées sur les flancs, incendie par l'arrière.</div>
-      <div>Bâtiments et arbres destructibles. L'explosif touche tout le monde.</div>
+      <div>Plaques inclinées : blindage effectif = épaisseur / cos(angle).</div>
+      <div>Impact trop rasant : ricochet. La pénétration baisse avec la distance.</div>
+      <div>Pas de points de vie : équipage, moteur, munitions, culasse, réservoirs.</div>
+      <div>Un char est détruit quand ses munitions explosent ou que son équipage tombe.</div>
+      <div>Caméra d'impact au ralenti : l'obus et ses éclats vus aux rayons X.</div>
+      <div>Les tirs alliés blessent. Les buissons camouflent, mais tirer te révèle.</div>
     </div>
   </div>
 </div>
@@ -94,6 +122,9 @@
 </div>
 
 <script src="audio.js"></script>
+<script src="gl3d.js"></script>
+<script src="models.js"></script>
+<script src="xray.js"></script>
 <script src="game.js"></script>
 </body>
 </html>
