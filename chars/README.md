@@ -40,8 +40,15 @@ Les modèles sont construits par le code (`models.js`) et rendus par un petit mo
 (`gl3d.js`) : plaques de blindage inclinées, galets entrelacés, chenilles, jupes, frein de bouche,
 tourelleau, échappements. Le camouflage trois tons, la boue, les salissures et les éclats de
 peinture sont procéduraux. Dans le menu, la vitrine tourne autour du char choisi (à la souris ou au
-doigt), et le bouton **Rayons X** montre l'emplacement de l'équipage, du moteur, des munitions, de la
-culasse et des réservoirs. En jeu, les chars vus de dessus sont rendus à partir des mêmes modèles.
+doigt). Le bouton **Rayons X** montre l'intérieur, chaque module étant nommé :
+
+- l'équipage : des tankistes assis à leur poste, en tenue noire avec calot et casque radio, le pilote
+  aux leviers, le tireur aux volants de pointage, le chargeur un obus dans les bras, le chef à ses jumelles ;
+- le moteur V12, avec ses bancs de cylindres, ses collecteurs et son volant moteur ;
+- la transmission, avec ses freins de direction ;
+- les réservoirs ;
+- les soutes, avec les obus rangés un par un (douille en laiton, projectile perforant ou explosif) ;
+- la culasse, avec ses freins de recul et son volant de pointage. En jeu, les chars vus de dessus sont rendus à partir des mêmes modèles.
 
 ## Obus et physique
 

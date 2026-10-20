@@ -20,6 +20,15 @@ const HitCam = (() => {
   const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
   const fmt = (v, d = 0) => v.toFixed(d).replace('.', ',');
 
+  // Teinte d'état appliquée au modèle détaillé (r = intégrité, de 0 à 1)
+  function modTint(kind, r) {
+    if (kind === 'crew') {
+      if (r <= 0) return [0.75, 0.05, 0.04, 0.62];
+      return r > 0.99 ? [0.35, 0.95, 0.5, 0.16] : [1, 0.55, 0.12, 0.45];
+    }
+    if (r <= 0) return [0.3, 0.03, 0.02, 0.7];
+    return r > 0.99 ? [0, 0, 0, 0] : [1, 0.45, 0.1, 0.42];
+  }
   function modColor(kind, r) {
     if (kind === 'crew') {
       if (r <= 0) return [0.5, 0.06, 0.05];
@@ -29,10 +38,9 @@ const HitCam = (() => {
     return r > 0.99 ? BASE[kind] : lerp3([0.95, 0.3, 0.08], BASE[kind], r * 0.7);
   }
 
-  function init(renderer, meshes) {
-    R = renderer; tankMeshes = meshes;
-    const u = TankModels.moduleMeshes();
-    mm = { box: R.upload(u.box), crew: R.upload(u.crew) };
+  let modMeshes = null;
+  function init(renderer, meshes, mods) {
+    R = renderer; tankMeshes = meshes; modMeshes = mods;
     const g = new G3.Builder(); g.ground(14, 48); ground = R.upload(g);
   }
   function play(ev) {
@@ -97,10 +105,10 @@ const HitCam = (() => {
       const on = th != null && tp >= th;
       const r = on ? ev.after[i] : ev.before[i];
       const frame = m.frame === 'turret' ? tm : M4.ident();
-      const model = M4.mul(frame, M4.trs(m.c[0], m.c[1], m.c[2], 0, m.s[0], m.s[1], m.s[2]));
-      let col = modColor(m.kind, r);
-      if (on && tp < th + ev.tEnd * 0.06) col = [1, 0.95, 0.75];
-      R.draw(m.kind === 'crew' ? mm.crew : mm.box, model, { color: col });
+      const model = M4.mul(frame, M4.trs(m.c[0], m.c[1], m.c[2], 0));
+      let tint = modTint(m.kind, r);
+      if (on && tp < th + ev.tEnd * 0.06) tint = [1, 0.95, 0.8, 0.75];
+      R.draw(modMeshes[ev.typeId][i], model, { tint });
     });
     const M = tankMeshes[ev.typeId];
     R.draw(M.hull, M4.ident(), { xray: true, alpha: 0.6, additive: true });

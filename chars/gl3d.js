@@ -125,6 +125,20 @@ const G3 = (() => {
         }
       }
     }
+    // Ellipsoïde (sphère si rx = ry = rz), normales lissées
+    sphere(c, rx, ry, rz, seg, col, mat) {
+      const pt = (i, j) => {
+        const th = i / seg * Math.PI, ph = j / seg * Math.PI * 2;
+        const n = [Math.sin(th) * Math.cos(ph), Math.sin(th) * Math.sin(ph), Math.cos(th)];
+        const l = Math.hypot(n[0] / rx, n[1] / ry, n[2] / rz) || 1;
+        return { p: [c[0] + n[0] * rx, c[1] + n[1] * ry, c[2] + n[2] * rz], n: [n[0] / rx / l, n[1] / ry / l, n[2] / rz / l] };
+      };
+      for (let i = 0; i < seg; i++) for (let j = 0; j < seg; j++) {
+        const a = pt(i, j), b = pt(i + 1, j), cc = pt(i + 1, j + 1), d = pt(i, j + 1);
+        this.triN(a.p, b.p, cc.p, a.n, b.n, cc.n, col, mat);
+        this.triN(a.p, cc.p, d.p, a.n, cc.n, d.n, col, mat);
+      }
+    }
     // Bande de chenille autour d'une boucle convexe (x, z), entre y0 et y1
     band(loop, th, y0, y1, col, mat) {
       let cx = 0, cz = 0;
@@ -174,7 +188,7 @@ precision highp float;
 varying vec3 vW; varying vec3 vN; varying vec3 vC; varying vec3 vO; varying float vM;
 uniform vec3 uLight; uniform vec3 uEye;
 uniform vec3 uCamo0; uniform vec3 uCamo1; uniform vec3 uCamo2;
-uniform float uBurnt; uniform float uXray; uniform float uAlpha; uniform vec4 uColOv;
+uniform float uBurnt; uniform float uXray; uniform float uAlpha; uniform vec4 uColOv; uniform vec4 uTint;
 uniform vec4 uShadow; uniform vec3 uGround; uniform float uSeed; uniform float uTop;
 float h3(vec3 p){ p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
 float n3(vec3 x){
@@ -216,6 +230,7 @@ void main(){
   } else if (vM < 3.5) { base = vC; }
   else if (vM < 4.5) { base = vC; }
   if (uColOv.w > 0.5) { base = uColOv.rgb; paint = 0.2; }
+  if (uTint.w > 0.0) { base = mix(base, uTint.rgb, uTint.w); paint = 0.0; }
   // usure : salissures, boue sur le bas, éclats de peinture
   float grime = fbm(P * 5.0);
   base *= 0.82 + 0.32 * grime;
@@ -267,7 +282,7 @@ void main(){
     gl.useProgram(prog);
     const A = {}, U = {};
     for (const n of ['aPos', 'aNor', 'aCol', 'aMat']) A[n] = gl.getAttribLocation(prog, n);
-    for (const n of ['uVP', 'uModel', 'uLight', 'uEye', 'uCamo0', 'uCamo1', 'uCamo2', 'uBurnt', 'uXray', 'uAlpha', 'uColOv', 'uShadow', 'uGround', 'uSeed', 'uTop']) U[n] = gl.getUniformLocation(prog, n);
+    for (const n of ['uVP', 'uModel', 'uLight', 'uEye', 'uCamo0', 'uCamo1', 'uCamo2', 'uBurnt', 'uXray', 'uAlpha', 'uColOv', 'uTint', 'uShadow', 'uGround', 'uSeed', 'uTop']) U[n] = gl.getUniformLocation(prog, n);
     gl.enable(gl.DEPTH_TEST);
     gl.disable(gl.CULL_FACE);
 
@@ -310,6 +325,7 @@ void main(){
         gl.uniform1f(U.uXray, o.xray ? 1 : 0);
         gl.uniform1f(U.uAlpha, o.alpha == null ? 1 : o.alpha);
         gl.uniform4fv(U.uColOv, o.color ? [o.color[0], o.color[1], o.color[2], 1] : [0, 0, 0, 0]);
+        gl.uniform4fv(U.uTint, o.tint || [0, 0, 0, 0]);
         gl.uniform4fv(U.uShadow, o.shadow || [1, 1, 0, 0]);
         gl.uniform3fv(U.uGround, o.ground || [0.3, 0.3, 0.3]);
         gl.uniform1f(U.uSeed, o.seed || 0);

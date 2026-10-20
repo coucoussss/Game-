@@ -204,7 +204,7 @@
 
   // ===================== 3D : maillages et sprites =====================
   let R3 = null;
-  const MESH = {}, SPR = {};
+  const MESH = {}, SPR = {}, MODMESH = {};
   try { R3 = G3.createRenderer(); } catch (e) { R3 = null; console.warn('WebGL indisponible', e); }
   const SP = 22; // pixels par mètre dans les sprites
   function topRender(mesh, hx, hy, opts) {
@@ -232,6 +232,7 @@
       for (const id of Object.keys(TYPES)) {
         const b = TankModels.build(id);
         MESH[id] = { hull: R3.upload(b.hull), turret: R3.upload(b.turret) };
+        MODMESH[id] = TankModels.makeModules(id).map(m => R3.upload(TankModels.moduleMesh(m, TYPES[id].caliber)));
         const I = TYPES[id].I, Sd = I.S;
         const hx = Sd.L / 2 + 0.25, hy = Sd.W / 2 + 0.25;
         let rt = I.gunEnd + 0.3;
@@ -246,7 +247,7 @@
         sp.hullSh = silhouette(sp.hull[0]); sp.turSh = silhouette(sp.tur[0]);
         SPR[id] = sp;
       }
-      HitCam.init(R3, MESH);
+      HitCam.init(R3, MESH, MODMESH);
     } catch (e) { console.warn('Rendu 3D désactivé', e); R3 = null; }
   }
 
@@ -2134,21 +2135,19 @@
   // ===================== Vitrine 3D du menu =====================
   const viewer = { ang: 0.8, elev: 0.33, drag: null, xray: false, dist: 1 };
   const groundMesh = R3 ? (() => { const g = new G3.Builder(); g.ground(16, 64); return R3.upload(g); })() : null;
-  const modMeshes = R3 ? (() => { const u = TankModels.moduleMeshes(); return { box: R3.upload(u.box), crew: R3.upload(u.crew) }; })() : null;
-  const MOD_COL = { crew: [0.3, 0.78, 0.42], engine: [0.55, 0.6, 0.68], trans: [0.6, 0.52, 0.7], fuel: [0.9, 0.62, 0.16], ammo: [0.92, 0.78, 0.3], breech: [0.62, 0.62, 0.62] };
   function drawTank3D(id, w, h, ang, elev, xray, turretAng, clear) {
     const M4 = G3.M4, I = TYPES[id].I, Sd = I.S;
     R3.begin(w, h, clear);
-    const d = 6.2 + Sd.L * 0.75;
+    const d = (6.2 + Sd.L * 0.75) * (xray ? 0.72 : 1);
     const eye = [Math.cos(ang) * Math.cos(elev) * d, Math.sin(ang) * Math.cos(elev) * d, Math.sin(elev) * d + 1.0];
     R3.camera(M4.lookAt(eye, [0, 0, Sd.ht * 0.6], [0, 0, 1]), M4.persp(0.6, w / h, 0.1, 200), eye, [-0.55, 0.35, 0.75]);
     R3.draw(groundMesh, M4.ident(), { ground: xray ? [0.05, 0.09, 0.13] : [0.24, 0.22, 0.18], shadow: [Sd.L / 2, Sd.W / 2, 0.45, -0.3] });
     const tm = M4.trs(I.pivotX, I.pivotY, 0, turretAng);
     if (xray) {
-      for (const m of TankModels.makeModules(id)) {
+      TankModels.makeModules(id).forEach((m, i) => {
         const frame = m.frame === 'turret' ? tm : M4.ident();
-        R3.draw(m.kind === 'crew' ? modMeshes.crew : modMeshes.box, M4.mul(frame, M4.trs(m.c[0], m.c[1], m.c[2], 0, m.s[0], m.s[1], m.s[2])), { color: MOD_COL[m.kind] });
-      }
+        R3.draw(MODMESH[id][i], M4.mul(frame, M4.trs(m.c[0], m.c[1], m.c[2], 0)), {});
+      });
       R3.draw(MESH[id].hull, M4.ident(), { xray: true, alpha: 0.95, additive: true });
       R3.draw(MESH[id].turret, tm, { xray: true, alpha: 0.95, additive: true });
     } else {
@@ -2162,8 +2161,42 @@
     const w = Math.round(vc.clientWidth * DPR), h = Math.round(vc.clientHeight * DPR);
     if (vc.width !== w || vc.height !== h) { vc.width = w; vc.height = h; }
     if (!viewer.drag) viewer.ang += dt * 0.22;
-    drawTank3D(chosenType, w, h, viewer.ang, viewer.elev, viewer.xray, Math.sin(viewerT * 0.4) * 0.35, [0.07, 0.08, 0.07, 1]);
-    vc.getContext('2d').drawImage(R3.canvas, 0, 0);
+    const ta = Math.sin(viewerT * 0.4) * 0.35;
+    drawTank3D(chosenType, w, h, viewer.ang, viewer.elev, viewer.xray, ta, [0.07, 0.08, 0.07, 1]);
+    const c2 = vc.getContext('2d');
+    c2.drawImage(R3.canvas, 0, 0);
+    if (viewer.xray) {
+      // noms des modules, reliés à leur position
+      const I = TYPES[chosenType].I, tm = G3.M4.trs(I.pivotX, I.pivotY, 0, ta);
+      const seen = new Set(), labels = [];
+      c2.font = `600 ${Math.round(11 * DPR)}px system-ui, sans-serif`;
+      c2.textAlign = 'center';
+      for (const m of TankModels.makeModules(chosenType)) {
+        if (seen.has(m.name)) continue;
+        seen.add(m.name);
+        const top = [m.c[0], m.c[1], m.c[2] + m.s[2] / 2];
+        const q = R3.project(m.frame === 'turret' ? G3.M4.apply(tm, top) : top, w, h);
+        labels.push({ m, q, tw: c2.measureText(m.name).width + 10 * DPR });
+      }
+      // répartition sur plusieurs lignes pour éviter les chevauchements
+      labels.sort((a, b) => a.q.y - b.q.y);
+      const rows = [];
+      for (const L of labels) {
+        let r = 0;
+        while ((rows[r] || []).some(o => Math.abs(o.q.x - L.q.x) < (o.tw + L.tw) / 2 + 4 * DPR)) r++;
+        (rows[r] = rows[r] || []).push(L);
+        L.row = r;
+      }
+      for (const L of labels) {
+        const ly = (18 + L.row * 18) * DPR;
+        c2.strokeStyle = 'rgba(255,255,255,0.4)'; c2.lineWidth = DPR;
+        c2.beginPath(); c2.moveTo(L.q.x, L.q.y); c2.lineTo(L.q.x, ly + 4 * DPR); c2.stroke();
+        c2.fillStyle = 'rgba(0,0,0,0.65)'; c2.fillRect(L.q.x - L.tw / 2, ly - 12 * DPR, L.tw, 16 * DPR);
+        const k = L.m.kind;
+        c2.fillStyle = k === 'crew' ? '#9fe0a8' : k === 'ammo' ? '#f0d27a' : k === 'fuel' ? '#ffb45a' : '#cfd6e0';
+        c2.fillText(L.m.name, L.q.x, ly);
+      }
+    }
   }
 
   // ===================== Écrans =====================

@@ -329,6 +329,160 @@ const TankModels = (() => {
     return { S, I, hull: hb, turret: tb };
   }
 
+
+  // ===================== Modules internes détaillés (vue rayons X) =====================
+  // Chaque maillage est construit dans le repère du module (centre de sa boîte), à la vraie taille.
+  const UNI = '#4d5550', SKIN = '#d8a983', BOOT = '#2a1e16', CAP = '#1b1c1e', STEELM = '#6d7075', DARKM = '#34363a', BRASS = '#c9a24a';
+  // boîte inclinée autour de l'axe x (bancs de cylindres en V)
+  function tiltBox(b, cx, cy, cz, sx, sy, sz, a, col, mat) {
+    const c = Math.cos(a), s = Math.sin(a);
+    const pt = (x, y, z) => [cx + x, cy + y * c - z * s, cz + y * s + z * c];
+    const x0 = -sx / 2, x1 = sx / 2, y0 = -sy / 2, y1 = sy / 2, z0 = -sz / 2, z1 = sz / 2;
+    b.hexa([pt(x0, y0, z0), pt(x1, y0, z0), pt(x1, y1, z0), pt(x0, y1, z0)], [pt(x0, y0, z1), pt(x1, y0, z1), pt(x1, y1, z1), pt(x0, y1, z1)], col, mat);
+  }
+  // Membre d'équipage assis, tourné vers l'avant (+x), selon son poste
+  function crewMesh(b, sz, role) {
+    const k = sz / 1.05, z0 = -sz / 2;
+    const P = (x, y, z) => [x * k, y * k, z0 + z * k];
+    const cyl = (a, c, r0, r1, col) => b.cyl(P(...a), P(...c), r0 * k, (r1 == null ? r0 : r1) * k, 12, col, 7);
+    const sph = (c, rx, ry, rz, col) => b.sphere(P(...c), rx * k, (ry == null ? rx : ry) * k, (rz == null ? rx : rz) * k, 10, col, 7);
+    const box = (c, sx, sy, sz2, col) => { const q = P(...c); b.box(q[0], q[1], q[2], sx * k, sy * k, sz2 * k, col, 7); };
+    const lift = role === 'commander' ? 0.06 : 0;
+    // siège et dossier
+    box([-0.12, 0, 0.3 + lift], 0.38, 0.4, 0.05, '#3b3129');
+    box([-0.33, 0, 0.55 + lift], 0.05, 0.36, 0.42, '#3b3129');
+    cyl([-0.12, 0, 0.0], [-0.12, 0, 0.28 + lift], 0.025, null, DARKM);
+    // bassin, cuisses, jambes, bottes
+    box([-0.1, 0, 0.4 + lift], 0.28, 0.34, 0.15, UNI);
+    for (const sy of [1, -1]) {
+      cyl([-0.06, sy * 0.1, 0.4 + lift], [0.28, sy * 0.1, 0.43 + lift * 0.5], 0.078, 0.07, UNI);
+      sph([0.28, sy * 0.1, 0.43 + lift * 0.5], 0.07, null, null, UNI);
+      cyl([0.28, sy * 0.1, 0.43 + lift * 0.5], [0.34, sy * 0.1, 0.08], 0.062, 0.052, UNI);
+      box([0.39, sy * 0.1, 0.045], 0.22, 0.1, 0.09, BOOT);
+    }
+    // buste (tunique noire de tankiste, ceinturon)
+    const zt = 0.46 + lift;
+    b.hexa(
+      [P(-0.21, -0.17, zt), P(0.03, -0.17, zt), P(0.03, 0.17, zt), P(-0.21, 0.17, zt)],
+      [P(-0.19, -0.205, zt + 0.4), P(0.05, -0.205, zt + 0.4), P(0.05, 0.205, zt + 0.4), P(-0.19, 0.205, zt + 0.4)], UNI, 7);
+    box([-0.09, 0, zt + 0.02], 0.25, 0.35, 0.05, '#4a3626');
+    box([0.055, 0, zt + 0.3], 0.01, 0.12, 0.08, '#c8c4b0'); // insigne de col
+    // bras selon le poste
+    let hands;
+    if (role === 'commander') hands = [[0.08, 0.07, zt + 0.52], [0.08, -0.07, zt + 0.52]];
+    else if (role === 'loader') hands = [[0.27, 0.13, zt + 0.12], [0.27, -0.13, zt + 0.12]];
+    else if (role === 'driver') hands = [[0.34, 0.19, zt + 0.08], [0.34, -0.19, zt + 0.08]];
+    else hands = [[0.34, 0.16, zt + 0.18], [0.34, -0.16, zt + 0.18]];
+    for (let i = 0; i < 2; i++) {
+      const sy = i === 0 ? 1 : -1, sh = [-0.08, sy * 0.21, zt + 0.37];
+      const el = [Math.min(0.1, hands[i][0] - 0.12), sy * 0.25, (sh[2] + hands[i][2]) / 2 - 0.07];
+      sph(sh, 0.065, null, null, UNI);
+      cyl(sh, el, 0.052, 0.046, UNI);
+      cyl(el, hands[i], 0.046, 0.04, UNI);
+      sph(hands[i], 0.045, null, null, SKIN);
+    }
+    // cou, tête, calot et casque radio
+    const hz = zt + 0.56 + (role === 'commander' ? 0.04 : 0), hx = role === 'gunner' ? 0.0 : -0.05;
+    cyl([-0.07, 0, zt + 0.4], [hx - 0.01, 0, hz - 0.08], 0.048, null, SKIN);
+    sph([hx, 0, hz], 0.1, 0.085, 0.115, SKIN);
+    sph([hx + 0.095, 0, hz - 0.005], 0.022, 0.018, 0.03, SKIN); // nez
+    sph([hx - 0.01, 0, hz + 0.055], 0.108, 0.093, 0.065, CAP);   // calot
+    box([hx + 0.06, 0, hz + 0.06], 0.07, 0.15, 0.02, CAP);       // visière
+    for (const sy of [1, -1]) b.cyl(P(hx, sy * 0.082, hz), P(hx, sy * 0.115, hz), 0.042 * k, 0.042 * k, 12, '#111214', 7);
+    b.cyl(P(hx, 0.1, hz + 0.02), P(hx, -0.1, hz + 0.02), 0.008 * k, 0.008 * k, 6, '#111214', 7);
+    // accessoires du poste
+    if (role === 'commander') { box([0.13, 0, zt + 0.52], 0.1, 0.17, 0.06, '#222'); }
+    if (role === 'loader') { // obus dans les bras
+      b.cyl(P(0.3, 0.32, zt + 0.12), P(0.3, -0.22, zt + 0.12), 0.042 * k, 0.04 * k, 12, BRASS, 3);
+      b.cyl(P(0.3, -0.22, zt + 0.12), P(0.3, -0.42, zt + 0.12), 0.037 * k, 0.008 * k, 12, '#2a2a2a', 3);
+    }
+    if (role === 'driver') for (const sy of [1, -1]) cyl([0.36, sy * 0.19, 0.02], [0.34, sy * 0.19, zt + 0.1], 0.016, null, DARKM);
+    if (role === 'gunner') for (const sy of [1, -1]) b.cyl(P(0.36, sy * 0.16, zt + 0.18), P(0.4, sy * 0.16, zt + 0.18), 0.08 * k, 0.08 * k, 14, DARKM, 3);
+    if (role === 'radio') { box([0.35, 0, zt + 0.2], 0.1, 0.12, 0.08, '#222'); cyl([0.35, 0, zt + 0.2], [0.65, 0, zt + 0.22], 0.015, null, '#222'); }
+  }
+  function engineMesh(b, s) {
+    const [sx, sy, sz] = s;
+    b.box(0, 0, -sz * 0.22, sx * 0.92, sy * 0.5, sz * 0.48, '#55595f', 3);                 // carter
+    b.box(0, 0, -sz * 0.47, sx * 0.85, sy * 0.42, sz * 0.06, '#3a3c40', 3);                // carter d'huile
+    for (const sg of [1, -1]) {
+      const a = sg * 0.52;
+      tiltBox(b, 0, sg * sy * 0.17, sz * 0.12, sx * 0.88, sy * 0.24, sz * 0.32, a, '#62666c', 3);        // banc de cylindres
+      tiltBox(b, 0, sg * sy * 0.26, sz * 0.3, sx * 0.86, sy * 0.2, sz * 0.07, a, '#2f3134', 3);          // couvre-culasse
+      for (let i = 0; i < 6; i++) { // bougies et faisceaux
+        const x = -sx * 0.37 + i * sx * 0.148;
+        b.cyl([x, sg * sy * 0.3, sz * 0.34], [x, sg * sy * 0.34, sz * 0.4], 0.012, 0.012, 6, '#d8d0b0', 7);
+      }
+      b.cyl([-sx * 0.46, sg * sy * 0.42, sz * 0.05], [sx * 0.46, sg * sy * 0.42, sz * 0.05], 0.045, 0.045, 10, '#7a4a2e', 7); // collecteur
+      for (let i = 0; i < 6; i++) b.cyl([-sx * 0.37 + i * sx * 0.148, sg * sy * 0.33, sz * 0.1], [-sx * 0.37 + i * sx * 0.148, sg * sy * 0.42, sz * 0.05], 0.022, 0.022, 6, '#7a4a2e', 7);
+    }
+    b.cyl([sx * 0.44, 0, -sz * 0.12], [sx * 0.5, 0, -sz * 0.12], sz * 0.3, sz * 0.3, 22, '#3e4146', 3);      // volant moteur
+    for (const sg of [1, -1]) b.cyl([-sx * 0.12, sg * sy * 0.05, sz * 0.28], [-sx * 0.12, sg * sy * 0.05, sz * 0.48], 0.07, 0.07, 14, '#5a6040', 7); // filtres à air
+    b.cyl([-sx * 0.5, 0, sz * 0.05], [-sx * 0.44, 0, sz * 0.05], sz * 0.18, sz * 0.18, 16, '#4b4f55', 3);   // poulie
+  }
+  function transMesh(b, s) {
+    const [sx, sy, sz] = s;
+    b.box(0, 0, 0, sx * 0.75, sy * 0.62, sz * 0.75, '#5b5e66', 3);
+    for (let i = 0; i < 4; i++) b.box(-sx * 0.28 + i * sx * 0.19, 0, sz * 0.38, 0.025, sy * 0.6, 0.03, '#46494f', 3); // nervures
+    b.cyl([0, -sy * 1.4, -sz * 0.05], [0, sy * 1.4, -sz * 0.05], 0.05, 0.05, 12, '#3a3c40', 3);        // arbres de sortie
+    for (const sg of [1, -1]) b.cyl([0, sg * sy * 0.62, -sz * 0.05], [0, sg * sy * 0.9, -sz * 0.05], sz * 0.32, sz * 0.32, 18, '#4a4d53', 3); // freins de direction
+    b.cyl([-sx * 0.1, 0, sz * 0.37], [-sx * 0.2, 0, sz * 0.75], 0.015, 0.015, 6, '#222', 3);            // levier
+    b.sphere([-sx * 0.2, 0, sz * 0.77], 0.03, 0.03, 0.03, 8, '#222', 7);
+    b.cyl([sx * 0.5, 0, -sz * 0.05], [sx * 0.37, 0, -sz * 0.05], 0.06, 0.06, 12, '#3a3c40', 3);         // arbre de transmission
+  }
+  function fuelMesh(b, s) {
+    const [sx, sy, sz] = s;
+    b.box(0, 0, 0, sx * 0.9, sy * 0.86, sz * 0.86, '#6e6c3e', 7);
+    for (const f of [-0.28, 0, 0.28]) b.box(f * sx, 0, 0, 0.03, sy * 0.9, sz * 0.9, '#3d3b22', 7);   // sangles
+    b.cyl([sx * 0.3, 0, sz * 0.43], [sx * 0.3, 0, sz * 0.5], 0.05, 0.05, 12, '#55534a', 3);          // goulot
+    b.cyl([sx * 0.3, 0, sz * 0.5], [sx * 0.3, 0, sz * 0.53], 0.065, 0.065, 12, '#2a2a28', 3);        // bouchon
+  }
+  // Soute : obus rangés un par un (douille en laiton, projectile)
+  function ammoMesh(b, s, cal) {
+    const [sx, sy, sz] = s, d = cal / 1000;
+    const Lr = Math.min(sx * 0.95, d * 11.8), caseR = d * 0.72, pr = d / 2;
+    const nx = Math.max(1, Math.floor(sx / (Lr + 0.04))), ny = Math.max(1, Math.floor(sy / (caseR * 2.2))), nz = Math.max(1, Math.floor(sz / (caseR * 2.2)));
+    const sx0 = -(nx * (Lr + 0.04)) / 2;
+    let n = 0;
+    for (let ix = 0; ix < nx; ix++) for (let iy = 0; iy < ny; iy++) for (let iz = 0; iz < nz; iz++) {
+      if (n++ > 42) break;
+      const x0 = sx0 + ix * (Lr + 0.04) + 0.02, y = -sy / 2 + caseR * 1.1 + iy * caseR * 2.2, z = -sz / 2 + caseR * 1.1 + iz * caseR * 2.2;
+      const he = (iy + iz) % 3 === 2;
+      const dir = (ix + iy) % 2 ? 1 : -1;
+      const a = dir > 0 ? x0 : x0 + Lr, f = v => a + dir * v;
+      b.cyl([f(0), y, z], [f(Lr * 0.55), y, z], caseR, caseR * 0.95, 12, BRASS, 3);                       // douille
+      b.cyl([f(Lr * 0.55), y, z], [f(Lr * 0.62), y, z], caseR * 0.95, pr * 1.05, 12, BRASS, 3);           // épaulement
+      b.cyl([f(Lr * 0.62), y, z], [f(Lr * 0.86), y, z], pr, pr, 12, he ? '#5c6438' : '#1f1f20', 3);      // projectile
+      b.cyl([f(Lr * 0.86), y, z], [f(Lr), y, z], pr, pr * 0.15, 12, he ? '#c9b240' : '#2b2b2c', 3);      // ogive
+      b.cyl([f(Lr * 0.64), y, z], [f(Lr * 0.68), y, z], pr * 1.04, pr * 1.04, 12, '#b0703a', 3);         // ceinture
+    }
+    for (const sg of [1, -1]) b.box(sg * sx * 0.49, 0, 0, 0.015, sy, sz, '#2f3134', 3);                // flasques du râtelier
+    for (const sg of [1, -1]) b.cyl([-sx / 2, 0, sg * sz * 0.48], [sx / 2, 0, sg * sz * 0.48], 0.012, 0.012, 6, '#2f3134', 3);
+  }
+  function breechMesh(b, s, cal) {
+    const [sx, sy, sz] = s, d = cal / 1000;
+    b.box(-sx * 0.2, 0, 0, sx * 0.36, sy * 0.9, sz * 0.9, '#6c6f73', 3);                           // bloc de culasse
+    b.box(-sx * 0.2, sy * 0.5, 0, sx * 0.18, sy * 0.15, sz * 0.4, '#4b4e52', 3);                   // levier d'ouverture
+    b.cyl([-sx * 0.02, 0, 0], [sx * 0.5, 0, 0], d * 1.25, d * 1.1, 16, '#5e6166', 3);              // tube
+    b.cyl([-sx * 0.1, 0, sz * 0.42], [sx * 0.45, 0, sz * 0.42], d * 0.55, d * 0.55, 12, '#7a7d82', 3);  // frein de recul
+    b.cyl([-sx * 0.1, 0, -sz * 0.42], [sx * 0.45, 0, -sz * 0.42], d * 0.55, d * 0.55, 12, '#7a7d82', 3); // récupérateur
+    b.box(sx * 0.15, 0, -sz * 0.05, sx * 0.25, sy * 1.0, sz * 0.25, '#4b4e52', 3);                 // berceau
+    for (const sg of [1, -1]) b.box(-sx * 0.42, sg * sy * 0.45, 0, sx * 0.16, 0.02, sz * 0.9, '#3b3d40', 3); // garde de recul
+    b.box(-sx * 0.5, 0, 0, 0.02, sy * 0.9, sz * 0.9, '#3b3d40', 3);
+    b.cyl([sx * 0.1, sy * 0.62, -sz * 0.2], [sx * 0.1, sy * 0.68, -sz * 0.2], sz * 0.3, sz * 0.3, 16, DARKM, 3); // volant de pointage
+  }
+  function moduleMesh(m, cal) {
+    const b = new G3.Builder();
+    switch (m.kind) {
+      case 'crew': crewMesh(b, m.s[2], m.role); break;
+      case 'engine': engineMesh(b, m.s); break;
+      case 'trans': transMesh(b, m.s); break;
+      case 'fuel': fuelMesh(b, m.s); break;
+      case 'ammo': ammoMesh(b, m.s, cal); break;
+      default: breechMesh(b, m.s, cal);
+    }
+    return b;
+  }
+
   // Maillages unitaires pour les modules internes de la vue rayons X
   function moduleMeshes() {
     const box = new G3.Builder();
@@ -339,5 +493,5 @@ const TankModels = (() => {
     return { box, crew };
   }
 
-  return { SPECS, NAMES, info, build, makeModules, moduleMeshes };
+  return { SPECS, NAMES, info, build, makeModules, moduleMeshes, moduleMesh };
 })();
