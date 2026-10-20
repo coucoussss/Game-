@@ -43,15 +43,46 @@ peinture sont procéduraux. Dans le menu, la vitrine tourne autour du char chois
 doigt), et le bouton **Rayons X** montre l'emplacement de l'équipage, du moteur, des munitions, de la
 culasse et des réservoirs. En jeu, les chars vus de dessus sont rendus à partir des mêmes modèles.
 
-## Obus
+## Obus et physique
+
+Chaque char tire des munitions historiques, avec leur masse, leur calibre et leur vitesse initiale réels
+(par exemple 7,5 cm PzGr. 39/42 : 6,8 kg à 925 m/s, ou 8,8 cm PzGr. 40/43 : 7,3 kg à 1 130 m/s). Toute la
+balistique est dans `ballistics.js`.
 
 | Obus | Effet |
 |---|---|
-| AP, perforant | Obus plein, éclats modérés |
-| APHE, perforant explosif | Explose 1,2 m après avoir percé (si le blindage fait au moins 15 mm) : énormes dégâts internes |
-| APCR, sous-calibré | Très forte pénétration et très rapide, mais elle chute vite avec la distance ; peu d'éclats, ricoche plus facilement |
-| HEAT, charge creuse | Pénétration constante quelle que soit la distance, obus lent, arrêté en partie par les jupes |
-| HE, explosif | Faible pénétration, mais casse les chenilles et blesse l'équipage des chars à toit mince ; souffle qui touche tout le monde |
+| AP, perforant | Obus plein |
+| APHE, perforant explosif (APCBC-HE) | Fusée retardée de 1,3 ms (si le blindage fait au moins 15 mm) : la charge détone dans le char |
+| APCR, sous-calibré | Noyau en carbure de tungstène, très rapide et très perforant ; perd vite sa vitesse, ricoche plus facilement, peu d'éclats |
+| HEAT, charge creuse | Jet de cuivre à environ 6 500 m/s ; perforation indépendante de la distance, perturbée par les jupes |
+| HE, explosif | Faible perforation, mais détonation, onde de choc et éclats d'enveloppe |
+
+Les lois et les modèles utilisés :
+
+- **Traînée de l'air** : v(x) = v0·exp(−ρ·Cd·A·x / 2m). La vitesse des obus diminue avec la distance,
+  en jeu comme dans les calculs.
+- **Perforation** (formule de de Marre) : P ∝ v^1,43 · m^0,71 / d^1,07, calée sur les valeurs historiques
+  (environ 180 mm à 100 m pour le canon du Panther, 160 mm pour celui du Tiger).
+- **Obliquité** :
+  - normalisation des obus coiffés (environ 5°) ;
+  - épaisseur effective T / cos(θ)^n, avec n qui dépend du rapport épaisseur/calibre ;
+  - ricochet probabiliste au-delà de l'angle critique ;
+  - un calibre plus de trois fois supérieur au blindage ne ricoche pas (surcalibrage).
+- **Après perforation** :
+  - vitesse résiduelle selon Lambert-Jonas, √(V² − Vlim²) ;
+  - sur une plaque mince, arrachement d'un bouchon d'acier (conservation de la quantité de mouvement) ;
+  - cône d'éclats d'autant plus large que l'obus perce de justesse, avec des masses selon la loi de Mott ;
+  - écaillage de la face interne même sans perforation quand il s'en faut de peu.
+- **Trajet dans le char** : le noyau traverse les modules et ralentit dans chacun (épaisseur d'acier
+  équivalente). Il peut ressortir de l'autre côté, ricocher sur la paroi ou s'y loger. Chaque éclat est
+  suivi en 3D : son énergie (½mv²) fixe les blessures, il traverse ou s'arrête dans les modules et ricoche
+  sur les parois quand l'angle est rasant.
+- **Charge explosive** :
+  - surpression confinée selon Kinney-Graham ;
+  - rayon de l'onde de choc selon Sedov-Taylor ;
+  - éclats d'enveloppe projetés à la vitesse de Gurney.
+- **Charges propulsives** touchées : elles s'enflamment et peuvent faire exploser les munitions (plus
+  probable si les soutes sont pleines). Le carburant touché peut aussi s'enflammer.
 
 Le réticule affiche la distance et la pénétration de l'obus chargé à cette distance.
 
@@ -61,9 +92,8 @@ Le réticule affiche la distance et la pénétration de l'obus chargé à cette 
   chargeur), moteur, transmission, culasse, réservoirs, soutes à munitions.
 - **Hauteur d'impact** : un obus touche le haut ou le bas de la caisse, la tourelle ou le masque du
   canon, ou bien passe au-dessus.
-- **Blindage incliné en 3D** : épaisseur / cos(angle d'impact), avec des valeurs réelles approximatives
-  (par exemple, l'avant du Panther fait 80 mm à 55°). Au-delà de l'angle limite, l'obus ricoche et peut
-  toucher un autre char. Un calibre plus de trois fois supérieur au blindage ne ricoche pas.
+- **Blindage incliné en 3D**, avec des valeurs réelles approximatives (par exemple, l'avant du Panther
+  fait 80 mm à 55°, soit environ 140 mm effectifs). Un obus qui ricoche peut toucher un autre char.
 - **Après une perforation**, l'obus et ses éclats sont tracés en 3D à travers les modules.
   - Un équipier tué fait perdre son poste. Un camarade le remplace au bout de 5 s.
   - Un moteur ou une transmission détruits immobilisent le char. La culasse empêche de tirer.
@@ -76,12 +106,22 @@ Le réticule affiche la distance et la pénétration de l'obus chargé à cette 
 
 ## Caméra d'impact
 
-Quand ton obus touche un char, le jeu passe au ralenti et une vue 3D en rayons X montre la scène :
-l'obus arrive, perce (ou ricoche, ou rebondit), la charge explose, les éclats se dispersent, puis les
-modules touchés changent de couleur. Un bilan s'affiche (plaque touchée, angle, blindage effectif,
-pénétration, équipiers et modules touchés). La touche H la désactive.
+Quand ton obus touche un char, le jeu passe au ralenti et une vue 3D aux rayons X reconstitue la
+simulation, à son échelle de temps réelle. Le compteur affiche le temps en millisecondes et le facteur de
+ralenti (de ×100 à ×1 500). Elle montre :
 
-![Caméra d'impact](captures/7-camera-impact-eclats.png)
+- l'approche de l'obus, filmée depuis l'arrière : rotation due aux rayures (plusieurs centaines de tours
+  par seconde), ceinture de forcement, traceur, cône de Mach ;
+- l'éclair d'impact et le trou dans la plaque, allongé selon l'angle, dont le bord refroidit du blanc au rouge ;
+- le bouchon arraché, les éclats colorés selon leur température, le trajet du noyau et le jet de charge creuse ;
+- la détonation de la charge, la sortie de l'obus de l'autre côté ;
+- les modules qui changent de couleur à l'instant exact où ils sont touchés.
+
+Le panneau donne les valeurs physiques : vitesse d'impact, énergie, plaque et angle, épaisseur effective,
+pénétration, vitesse limite et résiduelle, masse de la charge, surpression, nombre et masse des éclats.
+Le bilan s'affiche au fil des impacts. La touche H désactive la caméra.
+
+![Caméra d'impact](captures/7-impact-detonation-aphe.png)
 
 ## Autres éléments de réalisme
 
