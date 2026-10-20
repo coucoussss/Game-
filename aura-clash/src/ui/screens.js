@@ -19,7 +19,8 @@ import { MONSTERS, TIERS } from '../game/monsters.js';
 import { lang, setLang, tr } from '../i18n/i18n.js';
 import { installLive } from './live.js';
 import { platform } from '../platform.js';
-import { seasonInfo, passTier, PASS_TIERS, TIER_XP, isWeekend, badgeOf, weeklyRotation, loginState, FRAGS_TO_UNLOCK as FRAGS, TITLE_BY_ID, FRAME_BY_ID, dayIndex, masteryOf } from '../core/liveops.js';
+import { seasonInfo, passTier, PASS_TIERS, TIER_XP, isWeekend, badgeOf, weeklyRotation, loginState, FRAGS_TO_UNLOCK as FRAGS, TITLE_BY_ID, FRAME_BY_ID, dayIndex, masteryOf, tierReward, PLAY_CHESTS, dailyBoss, missionText, missionProgress, fmtLeft, RARITY_BY_ID } from '../core/liveops.js';
+import { chestSvg } from './chestArt.js';
 const dayIndexNow = () => dayIndex(Date.now());
 import { levelFromXp } from '../core/level.js';
 import { RANKS, LEGEND, DIVISIONS, DIV_POINTS, DAILY_RYO, RANK_TITLES, RANK_AURAS, POPULATION, estimate, formatTop, recordStats, opponentFor, applyResult, dailyAvailable, stepName, rankName, CONDITION_BY_ID, pickConditions, rolloverSeason, seasonOf, seasonDaysLeft, bestTier, unlockedTitles, unlockedAuras, titleOf, auraOf } from '../game/ranked.js';
@@ -246,35 +247,83 @@ export class UI {
       { icon: '🌐', label: lang === 'fr' ? 'English' : 'Français', action: () => setLang(lang === 'fr' ? 'en' : 'fr') },
       ...(electron ? [{ icon: '⏻', label: 'Quitter', action: () => window.auraNative.quit() }] : []),
     ];
-    const el = h(`<div class="screen main-menu home2">
-      <header class="h2-top">
+    // Widgets de droite : prochaine récompense du passe, prochain coffre, missions, raccourcis
+    const xpPct = tier >= PASS_TIERS ? 100 : Math.round(((live.passXp - tier * TIER_XP) / TIER_XP) * 100);
+    const nextTier = Math.min(PASS_TIERS, tier + 1);
+    const chestI = PLAY_CHESTS.findIndex((c, i) => !live.playChests.includes(i));
+    const boss = dailyBoss(now);
+    const ls = loginState(live, now);
+    const wheelFree = live.wheel.day !== dayIndexNow() || !live.wheel.free;
+    const lvPct = lv.max ? 100 : Math.round((lv.cur / lv.need) * 100);
+    const hero = modes[0];
+    const fx = Array.from({ length: 22 }, (_, i) => `<i style="--x:${(i * 37) % 100}%;--d:${6 + (i % 7)}s;--dl:${-(i * 0.7) % 7}s;--s:${0.5 + (i % 4) * 0.35}"></i>`).join('');
+    const el = h(`<div class="screen main-menu home3">
+      <div class="h3-fx" aria-hidden="true">${fx}</div>
+      <header class="h3-top">
         <div class="menu-logo"><span class="logo-a">AURA</span><span class="logo-b">CLASH</span></div>
-        <button class="h2-player" data-nav data-k="profile">
-          <span class="h2-av ${live.frame ? `frame-${live.frame}` : ''}">${this.portrait(this.avatarOf(), 'h2-avatar')}</span>
-          <span class="h2-who"><b>${esc(this.app.settings.data.game.playerName || 'Joueur')}</b><small><i class="lvl-badge b-${badge.id}">${lv.level}</i>${title ? ` <span>${esc(title)}</span>` : ''}</small></span>
-          <span class="h2-ryo">${prof.ryo} <small>Ryō</small></span>
-        </button>
+        <div class="h3-right">
+          <button class="h3-cur" data-nav data-k="shop"><span class="h3-coin">両</span><b class="h2-ryo">${prof.ryo}</b><i class="h3-plus">+</i>${offerFree ? '<span class="h2-badge red">!</span>' : ''}</button>
+          <button class="h3-player" data-nav data-k="profile">
+            <span class="h3-ring" style="--p:${lvPct}"><span class="h2-av ${live.frame ? `frame-${live.frame}` : ''}">${this.portrait(this.avatarOf(), 'h2-avatar')}</span><i class="lvl-badge b-${badge.id}">${lv.level}</i></span>
+            <span class="h2-who"><b>${esc(this.app.settings.data.game.playerName || 'Joueur')}</b><small>${title ? esc(title) : `<span>Niveau</span> ${lv.level}`}</small></span>
+          </button>
+        </div>
       </header>
-      <button class="h2-pass" data-nav data-k="pass" style="--sc:${S.color}">
-        <span class="h2-pass-k">闘</span>
-        <span class="h2-pass-t"><b>PASSE DE COMBAT</b><small>Saison ${S.num} · ${esc(S.name)}</small>
-          <span class="ps-bar thin"><i style="width:${tier >= PASS_TIERS ? 100 : Math.round(((live.passXp - tier * TIER_XP) / TIER_XP) * 100)}%"></i></span></span>
-        <span class="h2-pass-n">${tier}<small>/${PASS_TIERS}</small></span>
-        ${pend.total ? `<span class="h2-badge red">${pend.total}</span>` : ''}
-      </button>
-      ${events.length ? `<div class="h2-events">${events.map((e) => `<span>${esc(e)}</span>`).join('')}</div>` : ''}
-      <nav class="h2-modes">${modes.map((m, i) => `<button class="h2-mode ${m.hero ? 'hero' : ''}" data-nav data-k="modes" data-i="${i}" style="--c:${m.color}">
-        <span class="h2-k">${m.kanji}</span><span class="h2-t"><b>${m.label}</b><small>${m.hint}</small></span>${m.badge ? `<span class="h2-badge">${m.badge}</span>` : ''}</button>`).join('')}</nav>
+      <div class="h3-main">
+        <nav class="h3-modes">
+          <button class="h3-hero" data-nav data-k="modes" data-i="0" style="--c:${hero.color}">
+            <span class="h3-hero-k">${hero.kanji}</span>
+            <span class="h3-hero-t"><small>JOUER</small><b>${hero.label}</b><span>${hero.hint}</span></span>
+            ${hero.badge ? `<span class="h3-chip">${hero.badge} aujourd’hui</span>` : ''}<span class="h3-go">▶</span>
+          </button>
+          <div class="h3-grid">${modes.slice(1).map((m, k) => `<button class="h3-tile" data-nav data-k="modes" data-i="${k + 1}" style="--c:${m.color}">
+            <span class="h3-tk">${m.kanji}</span><b>${m.label}</b><small>${m.hint}</small>${m.badge ? `<span class="h2-badge">${m.badge}</span>` : ''}</button>`).join('')}</div>
+        </nav>
+        <aside class="h3-side">
+          <button class="h3-w h3-pass" data-nav data-k="pass" style="--sc:${S.color}">
+            <span class="h3-w-h"><b>PASSE DE COMBAT</b><small>Saison ${S.num} · ${esc(S.name)} · ⏳ ${fmtLeft(S.endsIn)}</small></span>
+            <span class="h3-pass-row"><span class="ps-badge sm">${tier}</span>
+              <span class="h3-pass-bar"><span class="ps-bar"><i style="width:${xpPct}%"></i><span>${tier >= PASS_TIERS ? 'MAX' : `${live.passXp - tier * TIER_XP} / ${TIER_XP} XP`}</span></span><small>Prochain palier : ${nextTier}</small></span>
+              <span class="h3-next">${this.rewardCard(tierReward(S, nextTier, 'free'), 'mini')}${this.rewardCard(tierReward(S, nextTier, 'premium'), 'mini prem')}</span></span>
+            ${pend.pass ? `<span class="h3-claim pulse">${pend.pass} récompense(s) à réclamer !</span>` : ''}
+          </button>
+          <div class="h3-duo">
+            <button class="h3-w h3-chest ${chestI >= 0 && live.dayPlay >= PLAY_CHESTS[chestI][0] * 60 ? 'ready' : ''}" data-nav data-k="chests">
+              ${chestI >= 0 ? `<span class="h3-chest-art">${chestSvg(PLAY_CHESTS[chestI][1])}</span><b>Coffre ${esc(RARITY_BY_ID[PLAY_CHESTS[chestI][1]].name.toLowerCase())}</b><small class="h3-ctime">${live.dayPlay >= PLAY_CHESTS[chestI][0] * 60 ? 'PRÊT !' : fmtLeft((PLAY_CHESTS[chestI][0] * 60 - live.dayPlay) * 1000)}</small>`
+    : '<span class="h3-chest-art">' + chestSvg('common', { open: true }) + '</span><b>Tous ouverts</b><small>reviens demain</small>'}
+              ${pend.chests ? `<span class="h2-badge red">${pend.chests}</span>` : ''}
+            </button>
+            <button class="h3-w h3-miss" data-nav data-k="missions">
+              <span class="h3-w-h"><b>MISSIONS</b>${pend.missions ? `<span class="h2-badge red">${pend.missions}</span>` : ''}</span>
+              ${live.daily.map((m) => { const pr = missionProgress(m, prof.data.stats || {}); return `<span class="h3-m ${m.claimed ? 'claimed' : pr.done ? 'done' : ''}"><small>${esc(missionText(m))}</small><span class="h3-mbar"><i style="width:${Math.round((pr.value / pr.goal) * 100)}%"></i></span></span>`; }).join('')}
+            </button>
+          </div>
+          <div class="h3-quick">
+            <button class="h3-q ${ls.claimable ? 'hot' : ''}" data-nav data-k="login"><span class="h3-qk">暦</span><b>Jour ${ls.day}</b><small>${ls.claimable ? 'à réclamer' : 'connexion'}</small>${ls.claimable ? '<span class="h2-badge red">!</span>' : ''}</button>
+            <button class="h3-q ${wheelFree ? 'hot' : ''}" data-nav data-k="wheel"><span class="h3-qk h3-wheel-ico"></span><b>Roue</b><small>${wheelFree ? 'tour gratuit' : 'tours bonus'}</small>${wheelFree ? '<span class="h2-badge red">!</span>' : ''}</button>
+            <button class="h3-q ${live.boss.won && live.boss.day === dayIndexNow() ? '' : 'hot'}" data-nav data-k="boss">${this.portrait(boss.id, 'h3-qp')}<b>Boss</b><small>${live.boss.won && live.boss.day === dayIndexNow() ? 'vaincu ✔' : esc(CHAR_BY_ID[boss.id].name)}</small></button>
+          </div>
+          ${events.length ? `<div class="h2-events">${events.map((e) => `<span>${esc(e)}</span>`).join('')}</div>` : ''}
+        </aside>
+      </div>
       <footer class="h2-bar">${bar.map((b, i) => `<button class="h2-ico" data-nav data-k="bar" data-i="${i}"><span class="h2-ico-k">${b.icon}</span><span class="h2-ico-l">${b.label}</span>${b.badge ? `<span class="h2-badge">${b.badge}</span>` : ''}</button>`).join('')}</footer>
     </div>`);
     const lists = { modes, bar };
+    const go = { profile: () => this.profileScreen(), pass: () => this.passScreen(), shop: () => this.shop(), chests: () => this.chestsScreen(), missions: () => this.missionsScreen(), login: () => this.loginScreen(), wheel: () => this.wheelScreen(), boss: () => this.challengeHub() };
     el.querySelectorAll('[data-k]').forEach((b) => b.addEventListener('click', () => {
-      if (b.dataset.k === 'profile') this.profileScreen();
-      else if (b.dataset.k === 'pass') this.passScreen();
+      if (go[b.dataset.k]) go[b.dataset.k]();
       else lists[b.dataset.k][Number(b.dataset.i)].action();
     }));
-    this.show({ el, back: () => this.title() });
-    this.focus(el.querySelector('.h2-mode'), false);
+    // Compte à rebours du prochain coffre, en direct
+    const ctime = el.querySelector('.h3-ctime');
+    const timer = setInterval(() => {
+      if (!ctime || chestI < 0) return;
+      const left = PLAY_CHESTS[chestI][0] * 60 - live.dayPlay;
+      if (left <= 0 && !ctime.dataset.ready) { ctime.dataset.ready = '1'; ctime.textContent = 'PRÊT !'; el.querySelector('.h3-chest').classList.add('ready'); this.app.audio.play('ui_ok'); }
+      else if (left > 0) ctime.textContent = fmtLeft(left * 1000);
+    }, 1000);
+    this.show({ el, back: () => this.title(), destroy: () => clearInterval(timer) });
+    this.focus(el.querySelector('.h3-hero'), false);
     // Connexion du jour : proposée automatiquement une fois par jour
     if (loginState(live, now).claimable && this.loginPopupDay !== dayIndexNow()) {
       this.loginPopupDay = dayIndexNow();

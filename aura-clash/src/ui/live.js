@@ -12,6 +12,7 @@ import {
 } from '../core/liveops.js';
 import { grant, flatten, rewardLabel, rewardRarity, rewardIcon } from '../core/rewards.js';
 import { platform } from '../platform.js';
+import { chestSvg } from './chestArt.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const h = (html) => {
@@ -53,7 +54,8 @@ export const liveScreens = {
   rewardCard(r, cls = '') {
     const rar = rewardRarity(r);
     const img = r.t === 'char' || (r.t === 'frag' && r.id) ? this.portrait(r.id, 'rw-portrait') : '';
-    const sw = r.t === 'skin' && r.id ? `<i class="rw-swatch" style="--a:${SKIN_BY_ID[r.id].aura};--b:${SKIN_BY_ID[r.id].tint}"></i>` : '';
+    const sw = r.t === 'skin' && r.id ? `<i class="rw-swatch" style="--a:${SKIN_BY_ID[r.id].aura};--b:${SKIN_BY_ID[r.id].tint}"></i>`
+      : r.t === 'chest' ? chestSvg(r.r, { cls: 'rw-chest' }) : '';
     return `<div class="rw-card r-${rar} ${cls}" style="--rc:${RARITY_BY_ID[rar].color}">
       ${img || sw || `<span class="rw-ico">${rewardIcon(r)}</span>`}
       <span class="rw-lbl">${esc(rewardLabel(r))}</span></div>`;
@@ -98,7 +100,7 @@ export const liveScreens = {
     const ov = h(`<div class="reveal r-${rar}" style="--rc:${color}">
       <div class="rv-rays"></div>
       <div class="rv-title">${chest ? `COFFRE ${esc(RARITY_BY_ID[chest.r].name.toUpperCase())}` : esc(title)}</div>
-      ${chest || extraChests.length ? `<div class="rv-chest"><div class="rv-lid"></div><div class="rv-box"><span>箱</span></div></div>` : ''}
+      ${chest || extraChests.length ? `<div class="rv-chest">${chestSvg(rar, { cls: 'big' })}</div>` : ''}
       <div class="rv-cards">${all.map((r, i) => `<div class="rv-slot" style="--i:${i}"><div class="rv-flip"><div class="rv-back">?</div><div class="rv-front">${this.rewardCard(r)}</div></div></div>`).join('')}</div>
       <button class="btn rv-ok">Continuer</button>
     </div>`);
@@ -343,7 +345,7 @@ export const liveScreens = {
         const got = live.playChests.includes(i);
         const odds = chestOdds(r);
         return `<div class="ct-chest r-${r} ${got ? 'claimed' : ready ? 'ready' : ''}" style="--rc:${RARITY_BY_ID[r].color}">
-          <div class="ct-box">箱</div>
+          <div class="ct-box">${chestSvg(r)}</div>
           <b>${esc(RARITY_BY_ID[r].name)}</b>
           <small class="ct-time" data-min="${min}">${got ? 'ouvert ✔' : ready ? 'prêt !' : `dans ${fmtLeft((min * 60 - played) * 1000)}`}</small>
           <small class="ct-odds">${CHESTS[r].cards} cartes · skin ${Math.round(odds.skin * 100)} %</small>
@@ -573,12 +575,12 @@ export const liveScreens = {
       body = `<div class="sh-chests">${packs.map(([r, price]) => {
         const o = chestOdds(r);
         return `<div class="sh-chest r-${r}" style="--rc:${RARITY_BY_ID[r].color}">
-          <div class="ct-box">箱</div><b>Coffre ${esc(RARITY_BY_ID[r].name.toLowerCase())}</b>
+          <div class="ct-box">${chestSvg(r)}</div><b>Coffre ${esc(RARITY_BY_ID[r].name.toLowerCase())}</b>
           <small>${CHESTS[r].cards} cartes · skin ${Math.round(o.skin * 100)} % · titre ${Math.round(o.title * 100)} % · cadre ${Math.round(o.frame * 100)} %</small>
           <button class="btn ${prof.ryo >= price ? 'gold' : ''}" data-nav data-chest="${r}" data-price="${price}">${price} Ryō</button></div>`;
       }).join('')}
         <div class="sh-chest r-legendary adpack" style="--rc:${RARITY_BY_ID.legendary.color}">
-          <div class="ct-box">箱</div><b>Coffre des 3 bonus</b><small>un coffre légendaire par jour</small>
+          <div class="ct-box">${chestSvg('legendary')}</div><b>Coffre des 3 bonus</b><small>un coffre légendaire par jour</small>
           <div class="ps-bar thin"><i style="width:${pct(ads, 3)}"></i></div><small>${Math.min(3, ads)} / 3</small>
           <button class="btn gold ${ads < 3 ? 'pulse' : ''}" data-nav data-adchest ${live.shopBought.includes('adchest') ? 'disabled' : ''}>${live.shopBought.includes('adchest') ? 'Reviens demain' : this.adLabel(ads >= 3 ? 'Ouvrir' : `Bonus ${ads + 1} / 3`)}</button></div>
       </div>
