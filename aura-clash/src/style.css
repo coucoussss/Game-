@@ -1098,3 +1098,4 @@ a.btn { text-decoration: none; }
 .tw-n { font: italic 900 3vh var(--display); color: var(--gold); text-align: center; }
 .tw-foe b { display: block; font: 800 1.8vh var(--font); } .tw-foe small { font: 600 1.3vh var(--font); color: var(--muted); }
 .tw-rw { display: flex; flex-wrap: wrap; justify-content: flex-end; max-width: 26vw; }
+.ps-track { align-items: center; }

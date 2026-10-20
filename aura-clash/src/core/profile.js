@@ -6,7 +6,7 @@ import { newRankedState, sanitizeRanked } from '../game/ranked.js';
 import { levelFromXp } from './level.js';
 import { newLive, sanitizeLive, weeklyRotation } from './liveops.js';
 
-const KEY = 'auraclash.profile.v1';
+export const KEY = 'auraclash.profile.v1';
 export const START_RYO = 500;
 
 /** Gains de fin de match, selon le résultat. */
@@ -246,7 +246,12 @@ export class Profile {
   }
 
   save() {
-    try { localStorage.setItem(KEY, JSON.stringify(this.data)); } catch { /* ignoré */ }
+    try {
+      const json = JSON.stringify(this.data);
+      localStorage.setItem(KEY, json);
+      // Sauvegarde dans le compte CrazyGames (voir platform.js), si disponible
+      if (typeof globalThis.__auraCloudSave === 'function') globalThis.__auraCloudSave(KEY, json);
+    } catch { /* ignoré */ }
   }
 
   get ryo() { return this.data.ryo; }

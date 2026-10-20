@@ -18,7 +18,8 @@ import { WAVE_LEVELS, WAVE_HEAL, buildLevel, levelReward, isBossLevel, regionOf,
 import { MONSTERS, TIERS } from '../game/monsters.js';
 import { lang, setLang, tr } from '../i18n/i18n.js';
 import { installLive } from './live.js';
-import { seasonInfo, passTier, PASS_TIERS, TIER_XP, isWeekend, badgeOf, weeklyRotation, loginState, FRAGS_TO_UNLOCK as FRAGS, TITLE_BY_ID, dayIndex, masteryOf } from '../core/liveops.js';
+import { platform } from '../platform.js';
+import { seasonInfo, passTier, PASS_TIERS, TIER_XP, isWeekend, badgeOf, weeklyRotation, loginState, FRAGS_TO_UNLOCK as FRAGS, TITLE_BY_ID, FRAME_BY_ID, dayIndex, masteryOf } from '../core/liveops.js';
 const dayIndexNow = () => dayIndex(Date.now());
 import { levelFromXp } from '../core/level.js';
 import { RANKS, LEGEND, DIVISIONS, DIV_POINTS, DAILY_RYO, RANK_TITLES, RANK_AURAS, POPULATION, estimate, formatTop, recordStats, opponentFor, applyResult, dailyAvailable, stepName, rankName, CONDITION_BY_ID, pickConditions, rolloverSeason, seasonOf, seasonDaysLeft, bestTier, unlockedTitles, unlockedAuras, titleOf, auraOf } from '../game/ranked.js';
@@ -190,6 +191,9 @@ export class UI {
       this.app.audio.play('ui_start');
       this.app.input.menuActions(); // la touche qui a fermé l'écran titre ne valide pas aussi le menu
       this.mainMenu();
+      // Lien d'invitation CrazyGames : rejoint directement le salon
+      const room = parseCode(platform.inviteRoom());
+      if (room && !this.invited) { this.invited = true; this.onlineJoin(room); }
     });
     const anyKey = (e) => { if (this.screen && this.screen.el === el && e.code !== 'F11') { e.preventDefault(); el.querySelector('.press').click(); } };
     window.addEventListener('keydown', anyKey);
@@ -881,7 +885,8 @@ export class UI {
     const lv = levelFromXp(prof.data.xp);
     const name = app.settings.data.game.playerName || 'Joueur';
     const avatar = this.avatarOf();
-    const title = titleOf(r);
+    const title = this.titleText();
+    const live = prof.data.live;
     const aura = RANK_AURAS.find((a) => a.id === auraOf(r));
     const est = estimate(r);
     const chStates = CHALLENGES.map((c) => ({ c, s: challengeState(prof, c) }));
@@ -898,7 +903,7 @@ export class UI {
     const kv = (k, v) => `<li><span>${k}</span><b>${v}</b></li>`;
     const el = h(`<div class="screen menu profile-screen">
       <div class="pf-head" style="--ac:${aura ? aura.color : CHAR_BY_ID[avatar].aura}">
-        <div class="pf-avatar">${this.portrait(avatar, 'pf-portrait')}</div>
+        <div class="pf-avatar ${live.frame ? `frame-${live.frame}` : ''}">${this.portrait(avatar, 'pf-portrait')}</div>
         <div class="pf-id">
           <input class="pf-name" type="text" maxlength="16" value="${esc(name)}" aria-label="Pseudo" data-nav>
           ${title ? `<div class="pf-title"><span>${esc(title)}</span></div>` : ''}
@@ -934,6 +939,8 @@ export class UI {
       </div>
       <div class="menu-list pf-actions">
         <button class="btn" data-nav data-act="avatar"><span class="opt-line"><span>Avatar</span> : <span>${nm(avatar)}</span> ▸</span><small>parmi tes combattants</small></button>
+        <button class="btn" data-nav data-act="title"><span class="opt-line"><span>Titre</span> : <span>${esc(live.title ? TITLE_BY_ID[live.title].name : 'titre de rang')}</span> ▸</span><small>${live.titles.length} titre(s) gagné(s) · coffres, passe, succès</small></button>
+        <button class="btn" data-nav data-act="frame"><span class="opt-line"><span>Cadre</span> : <span>${esc(live.frame ? FRAME_BY_ID[live.frame].name : 'aucun')}</span> ▸</span><small>${live.frames.length} cadre(s) gagné(s)</small></button>
         <button class="btn gold" data-nav data-act="share">Partager ma carte<small>image à télécharger (Discord, réseaux…)</small></button>
         <button class="btn ghost" data-nav data-act="back">Retour</button>
       </div>
@@ -959,6 +966,15 @@ export class UI {
       this.profileScreen(onBack);
       this.focus(this.screen.el.querySelector('[data-act=avatar]'), false);
     });
+    const cycle = (key, list) => {
+      const opts = ['', ...list];
+      live[key] = opts[(opts.indexOf(live[key]) + 1) % opts.length];
+      prof.save();
+      this.profileScreen(onBack);
+      this.focus(this.screen.el.querySelector(`[data-act=${key}]`), false);
+    };
+    el.querySelector('[data-act=title]').addEventListener('click', () => cycle('title', live.titles));
+    el.querySelector('[data-act=frame]').addEventListener('click', () => cycle('frame', live.frames));
     el.querySelector('[data-act=share]').addEventListener('click', () => this.shareCard());
     el.querySelector('[data-act=back]').addEventListener('click', () => onBack());
     this.show({ el, back: onBack });
@@ -1931,7 +1947,8 @@ export class UI {
       <h2 class="menu-title">SALON ${isHost ? '— TU ES L’HÔTE' : ''}</h2>
       ${room ? `<div class="ipbox">Code du salon à donner à ton ami :
         <div class="ips"><span class="ip room-code">${esc(room)}</span></div>
-        <small>Il choisit « Jouer en ligne » puis « Rejoindre » et tape ce code.</small></div>` : isHost ? `<div class="ipbox">Adresse à donner à tes amis :
+        <small>Il choisit « Jouer en ligne » puis « Rejoindre » et tape ce code.</small>
+        ${isHost && platform.inviteLink(room) ? '<button class="btn small gold" data-nav data-key="invite">Copier le lien d’invitation</button>' : ''}</div>` : isHost ? `<div class="ipbox">Adresse à donner à tes amis :
         <div class="ips">${ips.length ? ips.map((ip) => `<span class="ip">${esc(ip.address)}</span>`).join('') : '<span class="ip">aucune carte réseau trouvée</span>'}</div>
         <small>Port ${this.hostInfo.port} — ils peuvent aussi cliquer sur « Rejoindre » : la partie apparaît automatiquement.</small></div>` : ''}
       <div class="lobby-body">
@@ -1973,6 +1990,10 @@ export class UI {
       charBtn.addEventListener('click', () => cycle(1));
       charBtn.addEventListener('cycle', (e) => cycle(e.detail));
     }
+    q('invite')?.addEventListener('click', () => {
+      const link = platform.inviteLink(room);
+      try { navigator.clipboard.writeText(link); this.toast('Lien copié : envoie-le à ton ami !'); } catch { this.toast(link, 6); }
+    });
     if (isHost) {
       el.querySelectorAll('[data-team]').forEach((b) => b.addEventListener('click', () => {
         const p = L.players.find((x) => x.id === Number(b.dataset.team));
