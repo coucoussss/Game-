@@ -212,5 +212,5 @@ export function dressed(def, costumeId) {
     if (!look[k] || look[k] === look.skin) continue;
     look[k] = c.accent && (k === 'belt' || k === 'accent' || k === 'emblemColor') ? c.accent : c.tone(look[k]);
   }
-  return { ...def, look, aura: c.aura, auraAlt: def.auraAlt ? c.aura : undefined, costume: c.id };
+  return { ...def, look, aura: c.aura, auraAlt: def.auraAlt ? c.aura : undefined, costume: c.id, skinGear: SKIN_BY_ID[c.id] ? c.id : undefined };
 }

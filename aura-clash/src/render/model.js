@@ -784,6 +784,226 @@ export class CharacterModel {
       this.chain(this.head, { pos: [0.08, 0.2, -0.2], segs: 3, len: 0.12, w: 0.05, t: 0.015, mat: r, rest: [0.6, 0.3], drag: 0.08, stiff: 30 });
       this.chain(this.head, { pos: [-0.08, 0.2, -0.2], segs: 3, len: 0.12, w: 0.05, t: 0.015, mat: r, rest: [0.6, -0.3], drag: 0.08, stiff: 30 });
     }
+    if (this.def.skinGear) this.buildSkinGear(this.def.skinGear, m);
+  }
+
+  /**
+   * Équipement d'un skin universel (en plus des couleurs) : épaulières, couronnes, capes, ailes…
+   * Tout est accroché au squelette, donc suit les animations.
+   */
+  buildSkinGear(id, m) {
+    if (this.ghost) return;
+    const b = m.b;
+    const torso = this.torso;
+    const head = this.head;
+    const glow = (c, i = 1.6, o = 1) => { const g = glowMat(c, i, o); this.flatMats.push(g); return g; };
+    const shoulders = [this.shL, this.shR];
+    const pauldron = (mat, sc = 1) => shoulders.map((sh) => {
+      const p = this.part(new THREE.SphereGeometry(0.17 * b * sc, 16, 8, 0, TAU, 0, Math.PI * 0.5), mat, sh, [0, 0.02, 0], null, 0.012);
+      p.scale.set(1.15, 0.85, 1.1);
+      return p;
+    });
+    const rim = (mat, sh, r = 0.19) => this.part(new THREE.TorusGeometry(r * b, 0.014, 6, 24), mat, sh, [0, 0.02, 0], [Math.PI / 2, 0, 0], 0.006);
+    const cape = (mat, w = 0.44, segs = 6, len = 0.14) => this.chain(torso, { pos: [0, 0.5, -0.15 * b], segs, len, w: w * b, t: 0.02, mat, rest: [0.18, 0], drag: 0.12, stiff: 20 });
+    const ribbon = (parent, pos, mat, rest, segs = 4, w = 0.05) => this.chain(parent, { pos, segs, len: 0.13, w, t: 0.015, mat, rest, drag: 0.1, stiff: 26 });
+    const crownRing = (mat, r = 0.16, y = 0.3) => this.part(new THREE.TorusGeometry(r, 0.02, 6, 24), mat, head, [0, y, -0.02], [Math.PI / 2 - 0.2, 0, 0], 0.006);
+    const around = (n, r, y, fn) => { for (let i = 0; i < n; i++) { const a = (i / n) * TAU; fn(Math.sin(a) * r, y + Math.cos(a) * 0.035, Math.cos(a) * r - 0.02, a, i); } };
+
+    switch (id) {
+      case 'braise': {
+        // Armure de braise : épaulières sombres hérissées de flammes, bandeau ardent, rubans de feu
+        const plate = this.mat('#3a1008');
+        const fire = glow('#ff6a1f', 2.2);
+        const core = glow('#ffd27a', 2.4);
+        pauldron(plate);
+        for (const sh of shoulders) {
+          rim(fire, sh);
+          for (let i = 0; i < 5; i++) this.part(new THREE.ConeGeometry(0.045, 0.34 - Math.abs(i - 2) * 0.08, 6), i === 2 ? core : fire, sh, [(i - 2) * 0.05, 0.2, -0.02], [-0.15, 0, (i - 2) * 0.3], 0);
+        }
+        this.part(new THREE.TorusGeometry(0.205, 0.025, 6, 28), fire, head, [0, 0.2, 0], [Math.PI / 2 - 0.1, 0, 0], 0);
+        ribbon(head, [0.05, 0.2, -0.2], fire, [0.7, 0.25]);
+        ribbon(head, [-0.05, 0.2, -0.2], fire, [0.65, -0.25]);
+        this.part(new THREE.OctahedronGeometry(0.05, 0), core, this.hips, [0, 0.06, 0.15 * b], null, 0);
+        break;
+      }
+      case 'jade': {
+        // Guerrier de jade : épaulières de jade cerclées d'or, disque ornemental, brassards, longues écharpes
+        const jade = this.mat('#2aa870');
+        const gold = this.mat('#e8b830');
+        const shine = glow('#7affc0', 1.4);
+        pauldron(jade);
+        for (const sh of shoulders) rim(gold, sh);
+        const disc = this.part(new THREE.CylinderGeometry(0.12, 0.12, 0.025, 28), jade, head, [0, 0.2, -0.2], [Math.PI / 2, 0, 0], 0.008);
+        this.part(new THREE.TorusGeometry(0.12, 0.012, 6, 28), shine, disc, [0, 0, 0], [Math.PI / 2, 0, 0], 0);
+        for (const el of [this.elL, this.elR]) this.part(limbGeo(0.062 * b, 0.056 * b, 0.16, { seg: 12 }), jade, el, [0, -0.08, 0], null, 0.01);
+        // Roue céleste de jade dans le dos
+        const wheel = this.part(new THREE.TorusGeometry(0.34 * b, 0.035, 8, 40), jade, torso, [0, 0.42, -0.22 * b], null, 0.008);
+        this.part(new THREE.TorusGeometry(0.34 * b, 0.01, 6, 40), shine, wheel, [0, 0, 0.03], null, 0);
+        for (let i = 0; i < 8; i++) {
+          const a = (i / 8) * TAU;
+          this.part(new THREE.SphereGeometry(0.035, 10, 8), i % 2 ? gold : shine, wheel, [Math.cos(a) * 0.34 * b, Math.sin(a) * 0.34 * b, 0.02], null, 0);
+        }
+        ribbon(this.hips, [0.08, 0.04, -0.13 * b], jade, [0.25, 0.1], 6, 0.06);
+        ribbon(this.hips, [-0.08, 0.04, -0.13 * b], jade, [0.25, -0.1], 6, 0.06);
+        break;
+      }
+      case 'sakura': {
+        // Couronne de fleurs de cerisier, fleur à l'épaule, rubans roses
+        const petal = this.mat('#ffb0d8');
+        const heart = glow('#ffe27a', 1.3);
+        const flower = (parent, pos, s) => {
+          for (let k = 0; k < 5; k++) {
+            const a = (k / 5) * TAU;
+            const pe = this.part(new THREE.SphereGeometry(0.03 * s, 8, 6), petal, parent, [pos[0] + Math.cos(a) * 0.03 * s, pos[1] + Math.sin(a) * 0.03 * s, pos[2]], null, 0.004);
+            pe.scale.set(1, 1, 0.4);
+          }
+          this.part(new THREE.SphereGeometry(0.015 * s, 8, 6), heart, parent, pos, null, 0);
+        };
+        around(8, 0.18, 0.27, (x, y, z) => flower(head, [x, y, z], 1.6));
+        for (const sh of shoulders) { flower(sh, [0.02, 0.13, 0.05], 3); flower(sh, [-0.06, 0.08, -0.06], 2); }
+        flower(torso, [0.09, 0.42, 0.14 * b], 2.2);
+        ribbon(head, [0.06, 0.22, -0.19], petal, [0.6, 0.3], 4, 0.045);
+        ribbon(head, [-0.06, 0.22, -0.19], petal, [0.6, -0.3], 4, 0.045);
+        break;
+      }
+      case 'glace': {
+        // Cristaux de glace : épaulières de givre, diadème de pointes, gantelets gelés
+        const ice = glow('#9ae8ff', 1.5, 0.85);
+        const frost = this.mat('#dff6ff');
+        pauldron(frost, 0.95);
+        for (const sh of shoulders) {
+          for (let i = 0; i < 5; i++) this.part(new THREE.ConeGeometry(0.045, 0.26 + (i % 2) * 0.12, 5), ice, sh, [(i - 2) * 0.05, 0.18, (i % 2) * 0.04 - 0.02], [-0.2, 0, (i - 2) * 0.3], 0);
+        }
+        around(5, 0.15, 0.32, (x, y, z, a, i) => this.part(new THREE.ConeGeometry(0.035, i === 0 ? 0.3 : 0.17, 5), ice, head, [x, y + (i === 0 ? 0.1 : 0.05), z], [Math.cos(a) * 0.3 - 0.2, 0, -Math.sin(a) * 0.3], 0));
+        for (const hand of [this.handL, this.handR]) this.part(new THREE.IcosahedronGeometry(0.075 * b, 0), ice, hand, [0, -0.02, 0.01], null, 0);
+        break;
+      }
+      case 'foudre': {
+        // Tempête : éclairs aux épaules, bandeau orné d'un éclair, anneaux électriques aux poignets
+        const bolt = glow('#ffe23a', 2.2);
+        const arc = glow('#7fd8ff', 2);
+        const navy = this.mat('#1a2246');
+        pauldron(navy);
+        const sh2 = new THREE.Shape();
+        [[0.02, 0.12], [-0.05, 0], [0, 0], [-0.03, -0.12], [0.06, 0.02], [0.01, 0.02], [0.05, 0.12]].forEach(([x, y], i) => (i ? sh2.lineTo(x, y) : sh2.moveTo(x, y)));
+        const boltGeo = new THREE.ExtrudeGeometry(sh2, { depth: 0.02, bevelEnabled: false });
+        for (const sh of shoulders) {
+          rim(arc, sh);
+          const bo = this.part(boltGeo.clone(), bolt, sh, [0, 0.16, 0], [0, 0, 0], 0);
+          bo.scale.setScalar(2.3 * b);
+        }
+        this.part(new THREE.TorusGeometry(0.205, 0.022, 6, 28), navy, head, [0, 0.2, 0], [Math.PI / 2 - 0.1, 0, 0], 0.006);
+        const fb = this.part(boltGeo, bolt, head, [0, 0.22, 0.2], [0.2, 0, 0], 0);
+        fb.scale.setScalar(1.1);
+        // Éclairs qui flottent autour du corps
+        for (let i = 0; i < 4; i++) {
+          const a = (i / 4) * TAU + 0.5;
+          const fl = this.part(boltGeo.clone(), i % 2 ? arc : bolt, torso, [Math.cos(a) * 0.42 * b, 0.25 + (i % 2) * 0.25, Math.sin(a) * 0.3], [0, a, 0.4], 0);
+          fl.scale.setScalar(1.5);
+        }
+        for (const el of [this.elL, this.elR]) for (const y of [-0.12, -0.2]) this.part(new THREE.TorusGeometry(0.065 * b, 0.01, 6, 20), arc, el, [0, y, 0], [Math.PI / 2, 0, 0], 0);
+        break;
+      }
+      case 'sang': {
+        // Démon écarlate : cornes, épaulières de samouraï à lamelles, longue écharpe de sang
+        const horn = this.mat('#1a0608');
+        const red = this.mat('#a8102a');
+        const ember = glow('#ff1f3d', 2);
+        for (const sd of [-1, 1]) {
+          const h1 = this.part(new THREE.ConeGeometry(0.06, 0.24, 8), horn, head, [sd * 0.13, 0.3, 0.02], [0.3, 0, -sd * 0.55], 0.006);
+          this.part(new THREE.ConeGeometry(0.038, 0.22, 8), horn, h1, [0, 0.19, -0.03], [-0.7, 0, 0], 0.006);
+          this.part(new THREE.ConeGeometry(0.012, 0.1, 6), ember, h1, [0, 0.33, -0.12], [-1.2, 0, 0], 0);
+        }
+        for (const sh of shoulders) for (let i = 0; i < 3; i++) {
+          this.part(new THREE.BoxGeometry(0.28 * b, 0.045, 0.24 * b), i === 0 ? red : horn, sh, [0, 0.08 - i * 0.045, 0], [0, 0, (sh === this.shL ? -1 : 1) * (0.35 + i * 0.12)], 0.006);
+        }
+        this.part(new THREE.TorusGeometry(0.085, 0.045, 8, 16), red, torso, [0, 0.56, 0], [Math.PI / 2, 0, 0], 0.012);
+        this.chain(torso, { pos: [0.05, 0.56, -0.1], segs: 8, len: 0.15, w: 0.11, t: 0.025, mat: red, rest: [0.6, 0.08], drag: 0.1, stiff: 22 });
+        this.chain(torso, { pos: [-0.05, 0.55, -0.1], segs: 7, len: 0.14, w: 0.1, t: 0.025, mat: red, rest: [0.55, -0.06], drag: 0.1, stiff: 22 });
+        this.part(new THREE.OctahedronGeometry(0.035, 0), ember, head, [0, 0.27, 0.17], null, 0);
+        break;
+      }
+      case 'galaxie': {
+        // Cosmos : cape d'étoiles, halo, planètes en orbite, diadème d'étoiles
+        const cosmos = glow('#6a3aff', 1.25, 0.95);
+        const star = glow('#ffffff', 2.2);
+        const pink = glow('#ff7af0', 1.8);
+        cape(cosmos, 0.58, 9, 0.15);
+        const halo = this.part(new THREE.TorusGeometry(0.34, 0.02, 6, 48), pink, head, [0, 0.16, -0.2], null, 0);
+        this.part(new THREE.TorusGeometry(0.4, 0.008, 6, 48), star, head, [0, 0.16, -0.22], null, 0);
+        halo.scale.set(1, 1, 1);
+        for (let i = 0; i < 3; i++) {
+          const a = (i / 3) * TAU + 0.4;
+          this.part(new THREE.SphereGeometry(0.05 + i * 0.015, 12, 8), i === 1 ? pink : star, torso, [Math.cos(a) * 0.5 * b, 0.6 + Math.sin(a) * 0.12, Math.sin(a) * 0.25 - 0.05], null, 0);
+        }
+        around(5, 0.15, 0.31, (x, y, z) => this.part(new THREE.OctahedronGeometry(0.03, 0), star, head, [x, y + 0.04, z], null, 0));
+        break;
+      }
+      case 'or-royal': {
+        // Royauté : couronne d'or sertie, cape pourpre bordée d'or, épaulières dorées à gemme
+        const gold = this.mat('#ffcf4a');
+        const ruby = glow('#ff2a4a', 1.6);
+        const purple = this.mat('#7a1030');
+        crownRing(gold, 0.165, 0.3);
+        around(6, 0.165, 0.33, (x, y, z, a) => this.part(new THREE.ConeGeometry(0.035, 0.17, 6), gold, head, [x, y + 0.07, z], [Math.cos(a) * 0.25 - 0.2, 0, -Math.sin(a) * 0.25], 0.006));
+        this.part(new THREE.OctahedronGeometry(0.035, 0), ruby, head, [0, 0.33, 0.15], null, 0);
+        pauldron(gold);
+        for (const sh of shoulders) this.part(new THREE.OctahedronGeometry(0.035, 0), ruby, sh, [0, 0.12, 0.06], null, 0);
+        cape(purple, 0.6, 9, 0.15);
+        this.part(new THREE.TorusGeometry(0.17 * b, 0.02, 6, 24), gold, torso, [0, 0.5, -0.02], [Math.PI / 2 + 0.2, 0, 0], 0.006);
+        break;
+      }
+      case 'neant': {
+        // Néant : halo noir cerclé de lumière, éclats d'obsidienne flottants, cape en lambeaux
+        const voidM = this.mat('#05040a');
+        const edge = glow('#ffffff', 2.4);
+        this.part(new THREE.TorusGeometry(0.36, 0.055, 8, 48), voidM, head, [0, 0.16, -0.22], null, 0.006);
+        this.part(new THREE.TorusGeometry(0.36, 0.016, 6, 48), edge, head, [0, 0.16, -0.17], null, 0);
+        this.part(new THREE.TorusGeometry(0.44, 0.008, 6, 48), edge, head, [0, 0.16, -0.24], null, 0);
+        for (let i = 0; i < 6; i++) {
+          const a = (i / 6) * TAU;
+          const s2 = this.part(new THREE.OctahedronGeometry(0.08, 0), i % 2 ? edge : voidM, torso, [Math.cos(a) * 0.48 * b, 0.35 + (i % 3) * 0.12, Math.sin(a) * 0.28], [a, a, 0], 0.004);
+          s2.scale.set(0.6, 1.4, 0.6);
+        }
+        for (let k = -1; k <= 1; k++) this.chain(torso, { pos: [k * 0.13 * b, 0.5, -0.15 * b], segs: 8 - Math.abs(k) * 2, len: 0.15, w: 0.16 * b, t: 0.015, mat: voidM, rest: [0.2, k * 0.1], drag: 0.13, stiff: 18 });
+        break;
+      }
+      case 'phenix': {
+        // Phénix : ailes de flammes qui battent, couronne de plumes, cœur ardent sur la poitrine
+        const flame = glow('#ff7a1a', 2, 0.85);
+        const gold = glow('#ffd27a', 2.2);
+        flame.side = THREE.DoubleSide;
+        this.wings = this.wings || [];
+        const span = 1.25;
+        for (const sd of [-1, 1]) {
+          const root = new THREE.Group();
+          root.position.set(sd * 0.1 * b, 0.44, -0.14 * b);
+          torso.add(root);
+          const arm = new THREE.Group();
+          root.add(arm);
+          const shape = new THREE.Shape();
+          shape.moveTo(0, 0);
+          shape.quadraticCurveTo(span * 0.4, span * 0.75, span, span * 0.7);
+          shape.quadraticCurveTo(span * 0.8, span * 0.45, span * 0.95, span * 0.25);
+          shape.quadraticCurveTo(span * 0.7, span * 0.15, span * 0.8, -span * 0.1);
+          shape.quadraticCurveTo(span * 0.5, -span * 0.05, span * 0.55, -span * 0.35);
+          shape.quadraticCurveTo(span * 0.3, -span * 0.15, span * 0.25, -span * 0.45);
+          shape.quadraticCurveTo(span * 0.1, -span * 0.1, 0, 0);
+          const wing = new THREE.Mesh(new THREE.ShapeGeometry(shape, 10), flame);
+          wing.scale.x = sd;
+          arm.add(wing);
+          const inner = new THREE.Mesh(new THREE.ShapeGeometry(shape, 10), gold);
+          inner.scale.set(sd * 0.55, 0.55, 1);
+          inner.position.z = 0.005;
+          arm.add(inner);
+          this.wings.push({ root, sd });
+        }
+        for (let i = -2; i <= 2; i++) this.part(new THREE.ConeGeometry(0.025, 0.2 - Math.abs(i) * 0.03, 5), i ? flame : gold, head, [i * 0.05, 0.32, -0.08], [-0.25, 0, -i * 0.28], 0);
+        this.part(new THREE.OctahedronGeometry(0.05, 0), gold, torso, [0, 0.38, 0.14 * b], null, 0);
+        break;
+      }
+      default: break;
+    }
   }
 
   /** Chaîne de segments à ressort (cheveux, tissus). */
