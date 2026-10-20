@@ -1,0 +1,62 @@
+{
+  "name": "aura-clash",
+  "productName": "Aura Clash",
+  "version": "1.0.0",
+  "description": "Jeu de combat 3D en cel-shading, style anime, avec multijoueur en réseau local.",
+  "main": "electron/main.js",
+  "author": "fears_nix",
+  "license": "SEE LICENSE IN LICENSE",
+  "private": true,
+  "scripts": {
+    "bundle": "node scripts/bundle.mjs",
+    "icon": "node scripts/make-icon.mjs",
+    "start": "node scripts/bundle.mjs && electron .",
+    "web": "node scripts/bundle.mjs && node scripts/serve.mjs",
+    "test": "node scripts/test-lan.mjs && node scripts/test-liveops.mjs && node scripts/test-sim.mjs",
+    "build": "node scripts/bundle.mjs && node scripts/make-icon.mjs && electron-builder --win portable --x64",
+    "build:nowine": "node scripts/bundle.mjs && node scripts/make-icon.mjs && electron-builder --win portable --x64 -c.win.signAndEditExecutable=false",
+    "zip": "node scripts/zip.mjs",
+    "html": "node scripts/bundle.mjs && node scripts/single-html.mjs",
+    "artifact": "node scripts/bundle.mjs && node scripts/artifact.mjs",
+    "dist": "npm run build && npm run zip",
+    "crazygames": "node scripts/bundle.mjs && node scripts/single-html.mjs && node scripts/crazygames.mjs && node scripts/zip.mjs crazygames"
+  },
+  "dependencies": {
+    "ws": "8.21.3"
+  },
+  "devDependencies": {
+    "electron": "43.7.7",
+    "electron-builder": "26.15.3",
+    "esbuild": "0.28.1",
+    "javascript-obfuscator": "^4.1.1",
+    "three": "0.185.1"
+  },
+  "build": {
+    "appId": "com.auraclash.game",
+    "productName": "Aura Clash",
+    "copyright": "Aura Clash",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "electron/**/*",
+      "dist/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png"
+    },
+    "portable": {
+      "artifactName": "AuraClash-${version}-portable.exe"
+    }
+  }
+}
