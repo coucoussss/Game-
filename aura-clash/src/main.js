@@ -75,8 +75,8 @@ class App {
       for (const m of this.backdrop.models) { this.stage.scene.remove(m.model.root); m.model.dispose(); }
       this.backdrop.models = [];
     };
-    const addModel = (id, x, z, yaw) => {
-      const model = new CharacterModel(dressed(CHAR_BY_ID[id], this.profile.outfitFor(id)));
+    const addModel = (id, x, z, yaw, outfit) => {
+      const model = new CharacterModel(dressed(CHAR_BY_ID[id], outfit === undefined ? this.profile.outfitFor(id) : outfit));
       this.stage.scene.add(model.root);
       const f = { x, y: 0, z, yaw, vx: 0, vy: 0, vz: 0, state: 'idle', st: 0, moveId: '', mt: 0, onGround: true, flash: 0, transformed: false };
       this.backdrop.models.push({ model, f, id });
@@ -94,7 +94,9 @@ class App {
       if (prevMode !== 'select') this.stage.setArena('temple');
       clearModels();
       if (arg) {
-        const f = addModel(arg, 0, 0, 0.35);
+        // « id@skin » : aperçu d'un skin (boutique)
+        const [cid, skin] = String(arg).split('@');
+        const f = addModel(cid, 0, 0, 0.35, skin === undefined ? undefined : skin || null);
         f.state = 'victory';
         this.backdrop.models[0].poseT = 0;
       }

@@ -12,13 +12,13 @@ import { CHAPTERS, STORY_TITLE } from '../story/chapters.js';
 import { ARCS } from '../story/arcs.js';
 import { StoryScene } from '../story/scene.js';
 import { Tutorial, TUTORIAL_REWARD } from './tutorial.js';
-import { TECH_PRICES, COSTUMES, COSTUME_PRICE } from '../game/techniques.js';
+import { TECH_PRICES, COSTUMES, COSTUME_PRICE, SKIN_BY_ID } from '../game/techniques.js';
 import { CHALLENGES, challengeState, pendingChallenges } from '../core/challenges.js';
 import { WAVE_LEVELS, WAVE_HEAL, buildLevel, levelReward, isBossLevel, regionOf, DIFFICULTIES, withDifficulty, endlessWave, endlessReward, BLESSINGS } from '../game/waves.js';
 import { MONSTERS, TIERS } from '../game/monsters.js';
 import { lang, setLang, tr } from '../i18n/i18n.js';
 import { installLive } from './live.js';
-import { seasonInfo, passTier, PASS_TIERS, TIER_XP, isWeekend, badgeOf, weeklyRotation, loginState, FRAGS_TO_UNLOCK as FRAGS, TITLE_BY_ID, dayIndex } from '../core/liveops.js';
+import { seasonInfo, passTier, PASS_TIERS, TIER_XP, isWeekend, badgeOf, weeklyRotation, loginState, FRAGS_TO_UNLOCK as FRAGS, TITLE_BY_ID, dayIndex, masteryOf } from '../core/liveops.js';
 const dayIndexNow = () => dayIndex(Date.now());
 import { levelFromXp } from '../core/level.js';
 import { RANKS, LEGEND, DIVISIONS, DIV_POINTS, DAILY_RYO, RANK_TITLES, RANK_AURAS, POPULATION, estimate, formatTop, recordStats, opponentFor, applyResult, dailyAvailable, stepName, rankName, CONDITION_BY_ID, pickConditions, rolloverSeason, seasonOf, seasonDaysLeft, bestTier, unlockedTitles, unlockedAuras, titleOf, auraOf } from '../game/ranked.js';
@@ -341,12 +341,26 @@ export class UI {
     const idx = startIndex;
     const slot = slots[idx];
     const human = slot.ctrl.type === 'human';
-    const locked = (id) => human && !this.app.profile.owns(id);
+    const prof = this.app.profile;
+    const locked = (id) => human && !prof.playable(id);
+    const rot = weeklyRotation(Date.now());
+    // Pastilles : rotation gratuite, essai en cours, fragments, maîtrise
+    const tagOf = (c) => {
+      if (!human || prof.owns(c.id)) {
+        const m = masteryOf(prof.data.stats || {}, c.id);
+        return m.stars ? `<span class="stars">${'★'.repeat(m.stars)}</span>` : '';
+      }
+      const t = prof.data.live.trials[c.id];
+      if (t && t.fights > 0) return `<span class="ctag trial">ESSAI · ${t.fights}</span>`;
+      if (rot.includes(c.id)) return '<span class="ctag free">GRATUIT CETTE SEMAINE</span>';
+      const fr = prof.data.live.frags[c.id] || 0;
+      return `<span class="lock">🔒 ${c.price} Ryō</span>${fr ? `<span class="fragbar"><i style="width:${Math.min(100, fr)}%"></i><b>${fr}/${FRAGS} ◆</b></span>` : ''}`;
+    };
     const el = h(`<div class="screen select">
       <div class="select-head"><span class="step">${idx + 1} / ${slots.length}</span> <b>${esc(slot.label)}</b> — choisis un combattant</div>
       <div class="select-body">
         <div class="char-grid">
-          ${CHARACTERS.map((c) => `<button class="char-card ${locked(c.id) ? 'locked' : ''}" data-nav data-id="${c.id}" style="--c:${c.aura}">${this.portrait(c.id)}<span class="cname">${esc(c.name)}</span><span class="ctitle">${esc(c.title)}</span>${locked(c.id) ? `<span class="lock">🔒 ${c.price} Ryō</span>` : ''}</button>`).join('')}
+          ${CHARACTERS.map((c) => `<button class="char-card ${locked(c.id) ? 'locked' : ''}" data-nav data-id="${c.id}" style="--c:${c.aura}">${this.portrait(c.id)}<span class="cname">${esc(c.name)}</span><span class="ctitle">${esc(c.title)}</span>${tagOf(c)}</button>`).join('')}
           <button class="char-card random" data-nav data-id="random"><div class="portrait fallback">?</div><span class="cname">Aléatoire</span><span class="ctitle">Laisse le destin choisir</span></button>
         </div>
         <div class="char-info"></div>
@@ -371,12 +385,10 @@ export class UI {
     el.querySelectorAll('.char-card').forEach((card) => {
       card.addEventListener('click', () => {
         if (card.dataset.id !== 'random' && locked(card.dataset.id)) {
-          const c = CHAR_BY_ID[card.dataset.id];
-          this.app.audio.play('denied');
-          this.toast(`${c.name} est verrouillé : débloque-le dans la Boutique (${c.price} Ryō).`, 3.5);
+          this.trialPrompt(card.dataset.id, () => this.charSelect(slots, onDone, onBack, idx, picks.map((p, i) => (i === idx ? card.dataset.id : p))));
           return;
         }
-        const id = card.dataset.id === 'random' ? (human ? randomOf(this.app.profile.ownedIds()) : randomChar()) : card.dataset.id;
+        const id = card.dataset.id === 'random' ? (human ? randomOf(prof.playableIds()) : randomChar()) : card.dataset.id;
         const next = picks.slice();
         next[idx] = id;
         this.app.audio.play('ui_ok');
@@ -394,6 +406,25 @@ export class UI {
     showInfo(this.focused ? this.focused.dataset.id : CHARACTERS[0].id);
   }
 
+  /** Personnage verrouillé : essai gratuit (pub), fragments, ou boutique. */
+  trialPrompt(id, onBack) {
+    const c = CHAR_BY_ID[id];
+    const prof = this.app.profile;
+    const fr = prof.data.live.frags[id] || 0;
+    const el = this.menu(c.name.toUpperCase(), [
+      { label: this.adLabel('Essayer gratuitement — 3 combats'), hint: 'valable 3 jours', cls: 'gold', action: () => this.watchAd(() => {
+        prof.data.live.trials[id] = { fights: 3, until: Date.now() + 3 * 86400000 };
+        prof.save();
+        this.toast(`${c.name} est jouable pour 3 combats !`, 3);
+        onBack();
+      }) },
+      { label: `Débloquer — ${c.price} Ryō`, hint: `tu as ${prof.ryo} Ryō · fragments : ${fr} / ${FRAGS}`, action: () => this.shop('chars', id) },
+      { label: 'Retour', cls: 'ghost', action: onBack },
+    ], { cls: 'results', subtitle: `${c.title}. Personnage verrouillé : essaie-le, ou réunis ${FRAGS} fragments (coffres, passe, roue) pour le débloquer gratuitement.` });
+    this.show({ el, back: onBack });
+    this.app.setBackdrop('select', id);
+  }
+
   arenaSelect(onDone, onBack) {
     const el = h(`<div class="screen arena-select">
       <div class="select-head"><b>ARÈNE</b> — choisis le lieu du combat</div>
@@ -408,57 +439,6 @@ export class UI {
   }
 
   // --- Boutique ---------------------------------------------------------------------------
-
-  shop() {
-    const prof = this.app.profile;
-    const items = CHARACTERS.filter((c) => c.price);
-    const el = h(`<div class="screen select shop">
-      <div class="select-head"><b>BOUTIQUE</b> — débloque de nouveaux combattants <span class="wallet inline">${prof.ryo} <small>Ryō</small></span></div>
-      <div class="select-body">
-        <div class="char-grid shop-grid">
-          ${items.map((c) => `<button class="char-card ${prof.owns(c.id) ? 'owned' : 'locked'}" data-nav data-id="${c.id}" style="--c:${c.aura}">${this.portrait(c.id)}<span class="cname">${esc(c.name)}</span><span class="ctitle">${esc(c.title)}</span>
-            <span class="lock">${prof.owns(c.id) ? '✔ Débloqué' : `${c.price} Ryō`}</span></button>`).join('')}
-        </div>
-        <div class="char-info"></div>
-      </div>
-      <div class="shop-foot">Gagne des Ryō en combattant : victoire +${REWARDS.win}, défaite +${REWARDS.loss}, +${REWARDS.perRound} par manche gagnée, +${REWARDS.lanBonus} en réseau local.
-        <button class="btn small" data-nav data-act="back">Retour</button></div>
-    </div>`);
-    const info = el.querySelector('.char-info');
-    const showInfo = (id) => {
-      const c = CHAR_BY_ID[id];
-      if (!c) return;
-      const owned = prof.owns(id);
-      const stat = (label, v) => `<div class="stat"><span>${label}</span><div class="sbar"><i style="width:${Math.round(Math.max(0, Math.min(1, v)) * 100)}%"></i></div></div>`;
-      info.innerHTML = `<h3 style="color:${c.aura}">${esc(c.name)}</h3><div class="ititle">${esc(c.title)}</div>
-        <p>${esc(c.blurb)}</p>
-        ${stat('Vie', (c.hp - 800) / 600)}${stat('Vitesse', (c.speed - 5) / 3)}${stat('Portée', c.aiZoning)}
-        <table class="moves">${moveList(c).map(([k, v]) => `<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join('')}</table>
-        <div class="buy-line">${owned ? '<b class="ok">Déjà débloqué</b>' : `Prix : <b>${c.price} Ryō</b> ${prof.ryo < c.price ? `<span class="miss">(il te manque ${c.price - prof.ryo})</span>` : '— Entrée / A pour acheter'}`}</div>`;
-      this.app.setBackdrop('select', id);
-    };
-    el.querySelectorAll('.char-card').forEach((card) => card.addEventListener('click', () => {
-      const c = CHAR_BY_ID[card.dataset.id];
-      const res = prof.buy(c.id);
-      if (res === 'ok') {
-        this.app.audio.play('roundWin');
-        this.toast(`${c.name} est débloqué ! Il est jouable dans tous les modes.`, 3.5);
-        this.shop();
-        const again = this.screen.el.querySelector(`[data-id="${c.id}"]`);
-        if (again) this.focus(again, false);
-        showInfoAfter(c.id);
-      } else if (res === 'owned') {
-        this.toast(`${c.name} est déjà débloqué.`);
-      } else {
-        this.app.audio.play('denied');
-        this.toast(`Il te manque ${c.price - prof.ryo} Ryō pour ${c.name}.`);
-      }
-    }));
-    const showInfoAfter = (id) => { const s2 = this.screen; if (s2 && s2.onFocus) s2.onFocus({ dataset: { id } }); };
-    el.querySelector('[data-act=back]').addEventListener('click', () => this.mainMenu());
-    this.show({ el, back: () => this.mainMenu(), onFocus: (f) => showInfo(f.dataset.id) });
-    showInfo(this.focused && this.focused.dataset.id ? this.focused.dataset.id : items[0].id);
-  }
 
   // --- Mode histoire ------------------------------------------------------------------------
 
@@ -1378,6 +1358,7 @@ export class UI {
             ${COSTUMES.map((k) => prof.hasCostume(cur, k.id)
     ? `<button class="btn small ${prof.outfitFor(cur) === k.id ? 'on' : ''}" data-nav data-outfit="${k.id}">${esc(k.name)}</button>`
     : `<button class="btn small" data-nav data-buyoutfit="${k.id}">${esc(k.name)} — ${COSTUME_PRICE} Ryō</button>`).join('')}
+            ${prof.data.live.skins.map((id) => `<button class="btn small skin-btn ${prof.outfitFor(cur) === id ? 'on' : ''}" data-nav data-outfit="${id}" style="--a:${SKIN_BY_ID[id].aura}">✦ ${esc(SKIN_BY_ID[id].name)}</button>`).join('')}
           </div></div>
           <p class="muted">Les améliorations s'appliquent dans tous les modes joués sur cette machine : versus, 2 contre 2, entraînement, histoire. En réseau local, tout le monde se bat à égalité, sans amélioration.</p>
         </div>

@@ -1,14 +1,14 @@
 // Écrans de la progression « en continu » : passe de combat, missions, coffres de temps de jeu,
 // connexion quotidienne, roue, succès, et révélation animée des récompenses (ouverture de coffre).
 // Ces méthodes sont ajoutées à la classe UI (voir la fin du fichier).
-import { CHAR_BY_ID } from '../game/characters.js';
+import { CHAR_BY_ID, CHARACTERS, moveList } from '../game/characters.js';
 import {
   refresh, seasonInfo, passTier, tierReward, PASS_TIERS, TIER_XP, bonusChests, GOLD_ADS,
   missionText, missionProgress, missionReward, rerollMission, MISSION_REROLLS,
   PLAY_CHESTS, LOGIN_DAYS, loginReward, loginState, claimLogin,
   WHEEL, WHEEL_AD_SPINS, spinWheel, dayIndex, msToMidnight, msToWeekEnd, fmtLeft, isWeekend,
   ACHIEVEMENTS, statValue, RARITY_BY_ID, CHESTS, chestOdds, pendingCounts,
-  SKIN_BY_ID, TITLE_BY_ID, FRAME_BY_ID, FRAGS_TO_UNLOCK,
+  SKIN_BY_ID, TITLE_BY_ID, FRAME_BY_ID, FRAGS_TO_UNLOCK, SKINS, PAID, dailyOffers, weeklyRotation, RARITIES,
 } from '../core/liveops.js';
 import { grant, flatten, rewardLabel, rewardRarity, rewardIcon } from '../core/rewards.js';
 import { platform } from '../platform.js';
@@ -513,6 +513,167 @@ export const liveScreens = {
     el.querySelector('[data-act=back]').addEventListener('click', () => this.mainMenu());
     this.show({ el, back: () => this.mainMenu() });
     this.refocus('[data-ach]:not([disabled])');
+  },
+
+  // --- Boutique ------------------------------------------------------------------------------------
+
+  /** Boutique : offres du jour, combattants, skins, coffres. */
+  shop(tab = 'offers', focusId = null) {
+    const prof = this.app.profile;
+    const live = this.live();
+    const now = Date.now();
+    const d = dayIndex(now);
+    if (live.shopDay !== d) { live.shopDay = d; live.shopBought = []; live.adChest = 0; }
+    const tabs = [['offers', 'Offres du jour'], ['chars', 'Combattants'], ['skins', 'Skins'], ['chests', 'Coffres']];
+    const freeLeft = !live.shopBought.includes('free') || !live.welcome;
+    let body = '';
+    if (tab === 'offers') {
+      const offers = dailyOffers(now);
+      body = `<div class="sh-timer">⏳ Nouvelles offres dans <b class="sh-left">${fmtLeft(msToMidnight(now))}</b></div>
+      <div class="sh-offers">
+        ${live.welcome ? '' : `<div class="sh-offer welcome r-legendary" style="--rc:${RARITY_BY_ID.legendary.color}">
+          <span class="sh-tag">OFFRE DE BIENVENUE</span>${this.rewardCard({ t: 'chest', r: 'legendary' }, 'xl')}
+          <b>Coffre légendaire</b><small>une seule fois</small>
+          <button class="btn gold pulse" data-nav data-offer="welcome">${this.adLabel('Gratuit')}</button></div>`}
+        ${offers.map((o) => {
+          const got = live.shopBought.includes(o.id);
+          const rar = rewardRarity(o.reward);
+          return `<div class="sh-offer r-${rar} ${got ? 'sold' : ''}" style="--rc:${RARITY_BY_ID[rar].color}">
+            ${o.tag ? `<span class="sh-tag">${esc(o.tag)}</span>` : ''}${this.rewardCard(o.reward, 'xl')}
+            <b>${esc(o.name)}</b>
+            ${got ? '<span class="sh-sold">ACHETÉ ✔</span>' : o.ad
+    ? `<button class="btn gold pulse" data-nav data-offer="${o.id}">${this.adLabel('Gratuit')}</button>`
+    : `<small class="sh-was">${o.was} Ryō</small><button class="btn ${prof.ryo >= o.price ? 'gold' : ''}" data-nav data-offer="${o.id}">${o.price} Ryō</button>`}
+          </div>`;
+        }).join('')}
+      </div>`;
+    } else if (tab === 'chars') {
+      const rot = weeklyRotation(now);
+      const items = CHARACTERS.filter((c) => c.price && !c.monster);
+      body = `<div class="select-body sh-chars"><div class="char-grid shop-grid">
+        ${items.map((c) => {
+          const own = prof.owns(c.id);
+          const fr = live.frags[c.id] || 0;
+          return `<button class="char-card ${own ? 'owned' : 'locked'}" data-nav data-id="${c.id}" style="--c:${c.aura}">${this.portrait(c.id)}<span class="cname">${esc(c.name)}</span><span class="ctitle">${esc(c.title)}</span>
+            ${own ? '<span class="lock ok">✔ Débloqué</span>' : `<span class="lock">${c.price} Ryō</span><span class="fragbar"><i style="width:${Math.min(100, fr)}%"></i><b>${fr}/${FRAGS_TO_UNLOCK} ◆</b></span>`}
+            ${!own && rot.includes(c.id) ? '<span class="ctag free">GRATUIT CETTE SEMAINE</span>' : ''}</button>`;
+        }).join('')}</div><div class="char-info"></div></div>`;
+    } else if (tab === 'skins') {
+      body = `<p class="menu-sub">Les skins changent la tenue et l’aura de <b>tous</b> tes combattants. Obtiens-les dans les coffres, le passe, la roue et les offres du jour. Aperçu sur ${esc(CHAR_BY_ID[this.avatarOf()].name)}.</p>
+      <div class="sh-skins">${SKINS.map((k) => {
+        const own = live.skins.includes(k.id);
+        const on = prof.outfitFor(this.avatarOf()) === k.id;
+        return `<button class="sh-skin r-${k.rarity} ${own ? 'own' : ''} ${on ? 'on' : ''}" data-nav data-skin="${k.id}" style="--rc:${RARITY_BY_ID[k.rarity].color};--a:${k.aura};--b:${k.tint}">
+          <i class="rw-swatch"></i><b>${esc(k.name)}</b><small>${esc(RARITY_BY_ID[k.rarity].name)}</small>
+          <span class="sh-state">${on ? 'ÉQUIPÉ' : own ? 'Équiper' : '🔒'}</span></button>`;
+      }).join('')}</div>`;
+    } else {
+      const packs = [['rare', 500], ['epic', 1200], ['legendary', 3500], ['mythic', 9000]];
+      const ads = live.adChest || 0;
+      body = `<div class="sh-chests">${packs.map(([r, price]) => {
+        const o = chestOdds(r);
+        return `<div class="sh-chest r-${r}" style="--rc:${RARITY_BY_ID[r].color}">
+          <div class="ct-box">箱</div><b>Coffre ${esc(RARITY_BY_ID[r].name.toLowerCase())}</b>
+          <small>${CHESTS[r].cards} cartes · skin ${Math.round(o.skin * 100)} % · titre ${Math.round(o.title * 100)} % · cadre ${Math.round(o.frame * 100)} %</small>
+          <button class="btn ${prof.ryo >= price ? 'gold' : ''}" data-nav data-chest="${r}" data-price="${price}">${price} Ryō</button></div>`;
+      }).join('')}
+        <div class="sh-chest r-legendary adpack" style="--rc:${RARITY_BY_ID.legendary.color}">
+          <div class="ct-box">箱</div><b>Coffre des 3 bonus</b><small>un coffre légendaire par jour</small>
+          <div class="ps-bar thin"><i style="width:${pct(ads, 3)}"></i></div><small>${Math.min(3, ads)} / 3</small>
+          <button class="btn gold ${ads < 3 ? 'pulse' : ''}" data-nav data-adchest ${live.shopBought.includes('adchest') ? 'disabled' : ''}>${live.shopBought.includes('adchest') ? 'Reviens demain' : this.adLabel(ads >= 3 ? 'Ouvrir' : `Bonus ${ads + 1} / 3`)}</button></div>
+      </div>
+      <p class="menu-sub">Taux affichés = chance d’obtenir au moins un objet de ce type. Les doublons sont convertis en Ryō.</p>`;
+    }
+    const el = h(`<div class="screen live shop2">
+      <nav class="lv-tabs"><b class="sh-title">BOUTIQUE</b>${tabs.map(([id, label]) => `<button class="lv-tab ${id === tab ? 'on' : ''}" data-nav data-stab="${id}">${label}${id === 'offers' && freeLeft ? '<i class="dot">!</i>' : ''}</button>`).join('')}
+        <span class="wallet inline lv-wallet">${prof.ryo} <small>Ryō</small></span></nav>
+      ${body}
+      <button class="btn ghost small sh-back" data-nav data-act="back">Retour</button>
+    </div>`);
+    const again = (sel) => { this.shop(tab); this.refocus(sel); };
+    el.querySelectorAll('[data-stab]').forEach((b) => b.addEventListener('click', () => { this.shop(b.dataset.stab); this.refocus(`[data-stab="${b.dataset.stab}"]`); }));
+    const pay = (price) => {
+      if (prof.ryo < price) { this.app.audio.play('denied'); this.toast(`Il te manque ${price - prof.ryo} Ryō.`); return false; }
+      prof.data.ryo -= price;
+      return true;
+    };
+    el.querySelectorAll('[data-offer]').forEach((b) => b.addEventListener('click', () => {
+      const id = b.dataset.offer;
+      if (id === 'welcome') {
+        this.watchAd(() => { live.welcome = true; this.reveal(grant(prof, { t: 'chest', r: 'legendary' }), 'BIENVENUE', () => again('[data-offer]')); });
+        return;
+      }
+      const o = dailyOffers(Date.now()).find((x) => x.id === id);
+      if (!o || live.shopBought.includes(id)) return;
+      const buy = () => { live.shopBought.push(id); this.reveal(grant(prof, o.reward), o.name.toUpperCase(), () => again(`[data-offer="${id}"]`)); };
+      if (o.ad) this.watchAd(buy);
+      else if (pay(o.price)) buy();
+    }));
+    el.querySelectorAll('[data-chest]').forEach((b) => b.addEventListener('click', () => {
+      if (pay(Number(b.dataset.price))) this.reveal(grant(prof, { t: 'chest', r: b.dataset.chest }), '', () => again(`[data-chest="${b.dataset.chest}"]`));
+    }));
+    el.querySelector('[data-adchest]')?.addEventListener('click', () => this.watchAd(() => {
+      live.adChest = (live.adChest || 0) + 1;
+      if (live.adChest >= 3) {
+        live.shopBought.push('adchest');
+        this.reveal(grant(prof, { t: 'chest', r: 'legendary' }), '', () => again('[data-adchest]'));
+      } else { prof.save(); again('[data-adchest]'); }
+    }));
+    el.querySelectorAll('[data-skin]').forEach((b) => b.addEventListener('click', () => {
+      const id = b.dataset.skin;
+      const who = this.avatarOf();
+      if (!live.skins.includes(id)) { this.app.audio.play('denied'); this.toast('Skin verrouillé : coffres, passe de combat, roue et offres du jour.'); return; }
+      prof.setOutfit(who, prof.outfitFor(who) === id ? null : id);
+      this.app.audio.play('transform');
+      again(`[data-skin="${id}"]`);
+    }));
+    const info = el.querySelector('.char-info');
+    const showChar = (id) => {
+      const c = CHAR_BY_ID[id];
+      if (!c || !info) return;
+      const own = prof.owns(id);
+      const fr = live.frags[id] || 0;
+      const stat = (label, v) => `<div class="stat"><span>${label}</span><div class="sbar"><i style="width:${Math.round(Math.max(0, Math.min(1, v)) * 100)}%"></i></div></div>`;
+      info.innerHTML = `<h3 style="color:${c.aura}">${esc(c.name)}</h3><div class="ititle">${esc(c.title)}</div><p>${esc(c.blurb)}</p>
+        ${stat('Vie', (c.hp - 800) / 600)}${stat('Vitesse', (c.speed - 5) / 3)}${stat('Portée', c.aiZoning)}
+        <table class="moves">${moveList(c).slice(0, 5).map(([k, v]) => `<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join('')}</table>
+        ${own ? '<b class="ok">Déjà débloqué</b>' : `<div class="fragbar big"><i style="width:${Math.min(100, fr)}%"></i><b>${fr} / ${FRAGS_TO_UNLOCK} fragments</b></div>
+        <div class="buy-line">Prix : <b>${c.price} Ryō</b> ${prof.ryo < c.price ? `<span class="miss">(il te manque ${c.price - prof.ryo})</span>` : '— Entrée / A pour acheter'}</div>`}`;
+      this.app.setBackdrop('select', id);
+    };
+    el.querySelectorAll('.char-card[data-id]').forEach((card) => card.addEventListener('click', () => {
+      const c = CHAR_BY_ID[card.dataset.id];
+      const res = prof.buy(c.id);
+      if (res === 'ok') {
+        this.app.audio.play('roundWin');
+        this.bigBanner(c.name.toUpperCase(), 'nouveau combattant débloqué !', c.aura);
+        platform.happytime();
+        this.shop('chars', c.id);
+      } else if (res === 'owned') this.toast(`${c.name} est déjà débloqué.`);
+      else { this.app.audio.play('denied'); this.toast(`Il te manque ${c.price - prof.ryo} Ryō pour ${c.name}.`); }
+    }));
+    el.querySelector('[data-act=back]').addEventListener('click', () => this.mainMenu());
+    const timer = setInterval(() => { const t = el.querySelector('.sh-left'); if (t) t.textContent = fmtLeft(msToMidnight(Date.now())); }, 1000);
+    this.show({
+      el,
+      back: () => this.mainMenu(),
+      destroy: () => clearInterval(timer),
+      onFocus: (f) => {
+        if (f.dataset.id) showChar(f.dataset.id);
+        else if (f.dataset.skin) this.app.setBackdrop('select', `${this.avatarOf()}@${f.dataset.skin}`);
+      },
+    });
+    if (tab === 'chars') {
+      const first = el.querySelector(`[data-id="${focusId}"]`) || el.querySelector('.char-card');
+      this.focus(first, false);
+      showChar(first.dataset.id);
+    } else if (tab === 'skins') {
+      this.app.setBackdrop('select', this.avatarOf());
+      this.refocus(this.screen.el.querySelector('.sh-skin.on') ? '.sh-skin.on' : '.sh-skin');
+    } else {
+      this.app.setBackdrop('menu');
+      this.refocus(`[data-stab="${tab}"]`);
+    }
   },
 
   // --- Fin de combat : XP de passe et bonus ×2 ---------------------------------------------------------
