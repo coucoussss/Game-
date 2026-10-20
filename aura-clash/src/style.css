@@ -1258,3 +1258,22 @@ a.btn { text-decoration: none; }
 .rv-chest { width: 52vh; height: 38vh; animation: none; }
 .reveal.open .rv-chest { animation: rvChestUp 0.9s ease-out 0.5s forwards; }
 @keyframes rvChestUp { to { transform: translateY(-2vh) scale(0.82); } }
+
+/* Finitions (audit) */
+.title-screen .press { margin-top: 2vh; }
+.title-season { margin-top: 1.4vh; font: italic 900 1.9vh var(--display); letter-spacing: 0.12em; color: var(--gold); text-shadow: 0 0 1.4vh rgba(255, 210, 63, 0.6), 0 0.2vh 0 #000; }
+.credits { bottom: 1.4vh; }
+.pass .ps-cell .rw-card { width: 11.5vh; height: 14vh; }
+.pass .ps-col.big .ps-cell .rw-card { width: 13vh; height: 16vh; }
+.pass .ps-cell .rw-ico { font-size: 4.6vh; } .pass .ps-cell .rw-lbl { font-size: 1.3vh; }
+.pass .ps-cell .rw-portrait, .pass .ps-cell .rw-swatch { width: 6.4vh; height: 6.4vh; }
+.ps-hl { display: flex; align-items: center; gap: 1.6vw; padding: 0.8vh 1.2vw; border-radius: 1vh; background: rgba(14, 10, 32, 0.7); box-shadow: inset 0 0 0 1px rgba(255, 210, 63, 0.25); flex-wrap: wrap; }
+.ps-hl-t { font: italic 900 1.6vh var(--display); color: var(--gold); letter-spacing: 0.08em; }
+.ps-hl-i { display: flex; align-items: center; gap: 0.6vw; }
+.ps-hl-i small { display: flex; flex-direction: column; font: 800 1.2vh var(--font); color: var(--muted); }
+.ps-hl-i small b { font: italic 900 1.5vh var(--display); color: #fff; }
+.ps-badge.pop { animation: badgePop 0.6s ease-out; }
+@keyframes badgePop { 40% { transform: scale(1.5); filter: brightness(1.6); } }
+.pr-fill { transition: width 0.9s cubic-bezier(.2,.8,.2,1) !important; }
+.upgrades .char-info { max-height: 78vh; }
+body.ui-results .attack-bars { opacity: 0; transition: opacity 0.3s; }

@@ -225,7 +225,11 @@ export const liveScreens = {
         <div class="ps-gold ${live.gold ? 'on' : ''}">${live.gold ? '<b>PASS OR ACTIF</b><small>toute la voie premium est débloquée</small>'
     : `<b>PASS OR</b><div class="ps-bar thin"><i style="width:${pct(live.passAds, GOLD_ADS)}"></i></div><small>${live.passAds} / ${GOLD_ADS} — chaque bonus débloque un palier premium</small>`}</div>
       </header>
-      <div class="ps-legend"><span class="free">GRATUIT</span><span class="prem">PREMIUM</span></div>
+      <div class="ps-hl">
+        <span class="ps-hl-t">RÉCOMPENSES PHARES</span>
+        ${[30, 50, PASS_TIERS].map((n) => `<span class="ps-hl-i">${this.rewardCard(tierReward(S, n, 'premium'), 'mini')}<small>Palier ${n}<b>${esc(rewardLabel(tierReward(S, n, 'premium')))}</b></small></span>`).join('')}
+        <span class="ps-hl-i">${this.rewardCard(tierReward(S, PASS_TIERS, 'free'), 'mini')}<small>Palier ${PASS_TIERS} gratuit<b>${esc(rewardLabel(tierReward(S, PASS_TIERS, 'free')))}</b></small></span>
+      </div>
       <div class="ps-track">${cols.join('')}</div>
       <footer class="ps-foot">
         <button class="btn small ${boost ? 'on' : ''}" data-nav data-act="boost">${boost ? `⚡ Boost ×2 actif (${fmtLeft(live.boostUntil - now)})` : this.adLabel('Boost ×2 XP — 15 min')}</button>
@@ -856,8 +860,12 @@ export const liveScreens = {
     const into = tier >= PASS_TIERS ? TIER_XP : live.passXp - tier * TIER_XP;
     const ryo = Math.max(0, this.app.profile.data.ryo - g.ryoBefore);
     battle.passRyo = battle.passRyo ?? ryo;
+    // La barre part de l'XP d'avant le combat (animée dans bindPassResult)
+    const beforeXp = Math.max(0, live.passXp - g.xp);
+    const t0 = passTier(beforeXp);
+    const from = t0 >= PASS_TIERS ? TIER_XP : beforeXp - t0 * TIER_XP;
     return `<div class="pr-box">
-      <div class="pr-line"><span class="ps-badge sm">${tier}</span><div class="ps-bar"><i class="pr-fill" style="width:${pct(into, TIER_XP)}"></i><span>+${g.xp} XP de passe</span></div></div>
+      <div class="pr-line"><span class="ps-badge sm">${battle.doubled ? tier : t0}</span><div class="ps-bar"><i class="pr-fill" data-from="${battle.doubled ? into : from}" data-to="${into}" data-up="${battle.doubled ? 0 : tier - t0}" style="width:${pct(battle.doubled ? into : from, TIER_XP)}"></i><span>+<b class="pr-count">${battle.doubled ? g.xp : 0}</b> XP de passe</span></div></div>
       ${g.bonuses.length ? `<div class="pr-bonus">${g.bonuses.map((b) => `<span class="chip gold">${esc(b)}</span>`).join('')}</div>` : ''}
       ${g.tierAfter > g.tierBefore ? `<div class="pr-up">★ Palier ${g.tierAfter} atteint ! Récompense à réclamer dans le Passe.</div>` : ''}
       ${battle.doubled ? '<div class="pr-up">Récompenses doublées ✔</div>' : `<button class="btn gold pulse pr-x2" data-nav>${this.adLabel(`×2 récompenses (+${g.xp} XP${battle.passRyo ? `, +${battle.passRyo} Ryō` : ''})`)}</button>`}
@@ -865,6 +873,37 @@ export const liveScreens = {
   },
 
   bindPassResult(el, battle) {
+    // Remplissage animé : XP qui défile, palier franchi en plein écran
+    const fill = el.querySelector('.pr-fill');
+    if (fill && !fill.dataset.done) {
+      fill.dataset.done = '1';
+      const to = Number(fill.dataset.to);
+      const up = Number(fill.dataset.up);
+      const count = el.querySelector('.pr-count');
+      const total = battle.passGain ? battle.passGain.xp : 0;
+      const t0 = performance.now();
+      const step = (now) => {
+        const k = Math.min(1, (now - t0) / 1200);
+        if (count) count.textContent = Math.round(total * (1 - (1 - k) ** 3));
+        if (k < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+      setTimeout(() => {
+        fill.style.width = up > 0 ? '100%' : pct(to, TIER_XP);
+        if (up > 0) {
+          setTimeout(() => {
+            fill.style.transition = 'none';
+            fill.style.width = '0%';
+            void fill.offsetWidth;
+            fill.style.transition = '';
+            fill.style.width = pct(to, TIER_XP);
+            const badge = el.querySelector('.pr-box .ps-badge');
+            if (badge) { badge.textContent = passTier(this.app.profile.data.live.passXp); badge.classList.add('pop'); }
+            this.bigBanner(`PALIER ${passTier(this.app.profile.data.live.passXp)}`, 'récompense à réclamer dans le Passe');
+          }, 950);
+        }
+      }, 350);
+    }
     const b = el.querySelector('.pr-x2');
     if (!b) return;
     b.addEventListener('click', () => this.watchAd(() => {

@@ -64,6 +64,8 @@ export class UI {
   // --- Mécanique des écrans et de la navigation ---------------------------------------------
 
   show(screen) {
+    // Écran de résultats : la barre des attaques du combat est masquée derrière
+    document.body.classList.toggle('ui-results', !!(screen && screen.el && screen.el.classList.contains('results')));
     if (this.screen && this.screen.destroy) this.screen.destroy();
     if (this.screen && this.screen.el) this.screen.el.remove();
     this.screen = screen;
@@ -182,11 +184,13 @@ export class UI {
 
   title() {
     this.app.setBackdrop('title');
-    const el = h(`<div class="screen title-screen">
+    const fx = Array.from({ length: 26 }, (_, i) => `<i style="--x:${(i * 41) % 100}%;--d:${5 + (i % 6)}s;--dl:${-(i * 0.6) % 6}s;--s:${0.6 + (i % 4) * 0.4}"></i>`).join('');
+    const el = h(`<div class="screen title-screen"><div class="h3-fx" aria-hidden="true">${fx}</div>
       <div class="logo"><span class="logo-a">AURA</span><span class="logo-b">CLASH</span></div>
       <div class="logo-jp">オーラ・クラッシュ</div>
       <button class="btn press" data-nav data-autofocus>${matchMedia('(pointer: coarse)').matches ? 'Touche l’écran pour commencer' : 'Appuie sur une touche'}</button>
-      <div class="credits">Jeu de combat 3D — 10 combattants, 15 créatures, 5 arènes, multijoueur en réseau local</div>
+      <div class="title-season">Saison ${seasonInfo(Date.now()).num} · ${esc(seasonInfo(Date.now()).name)}</div>
+      <div class="credits">Jeu de combat 3D — 12 combattants, 15 créatures, 5 arènes, en ligne et en réseau local</div>
     </div>`);
     el.querySelector('.press').addEventListener('click', () => {
       this.app.audio.play('ui_start');
@@ -942,7 +946,7 @@ export class UI {
     const doneN = chStates.filter((x) => x.s.done).length;
     const show = (prof.data.showcase || []).map((id) => chStates.find((x) => x.c[0] === id)).filter((x) => x && x.s.done);
     const modes = st.modes || {};
-    const fights = Object.values(modes).reduce((a, b) => a + b, 0);
+    const fights = Math.max(st.fights || 0, Object.values(modes).reduce((a, b) => a + b, 0));
     const charFights = Object.entries(st.charFights || {}).filter(([id]) => CHAR_BY_ID[id]).sort((a, b) => b[1] - a[1]);
     const storyDone = CHAPTERS.filter((c) => prof.hasCleared(c.id)).length;
     const seen = MONSTERS.filter((m) => (prof.data.seen || []).includes(m.id)).length;
