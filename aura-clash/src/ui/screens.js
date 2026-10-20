@@ -216,7 +216,7 @@ export class UI {
     const rot = weeklyRotation(now).filter((id) => !prof.owns(id));
     const offerFree = live.shopDay !== dayIndexNow() || !live.shopBought.includes('free');
     const events = [
-      isWeekend(now) ? '🔥 Week-end de l’Aura : XP et Ryō ×2' : '',
+      isWeekend(now) ? '🔥 Week-end de l’Aura : XP de passe ×2' : '',
       live.boostUntil > now ? `⚡ Boost ×2 actif encore ${Math.ceil((live.boostUntil - now) / 60000)} min` : '',
       S.finalWeek ? `⏳ Fin de saison dans ${Math.ceil(S.endsIn / 86400000)} j : XP ×1,5` : '',
       rot.length ? `🎁 Gratuits cette semaine : ${rot.map((id) => CHAR_BY_ID[id].name).join(', ')}` : '',
@@ -226,6 +226,7 @@ export class UI {
       { kanji: '級', label: 'Classé', hint: this.rankText(r), color: '#ffd23f', badge: dailyAvailable(r) ? '×2' : '', hero: true, action: () => this.rankedMenu() },
       { kanji: '物', label: 'Mode Histoire', hint: `${done} / ${CHAPTERS.length} chapitres`, color: '#ff8a3a', action: () => this.storyMenu() },
       { kanji: '波', label: 'Mode Vagues', hint: `niveau ${Math.min(WAVE_LEVELS, prof.levelUnlocked())} / ${WAVE_LEVELS}`, color: '#ff3a5a', action: () => this.wavesMenu() },
+      { kanji: '塔', label: 'Défis du jour', hint: `boss du jour · la Tour (étage ${live.tower.floor})`, color: '#7fd8ff', badge: live.boss.day !== dayIndexNow() || !live.boss.won ? 'BOSS' : '', action: () => this.challengeHub() },
       { kanji: '戦', label: 'Combat libre', hint: 'versus, 2 contre 2, entraînement', color: '#5ab4ff', action: () => this.freeMenu() },
       { kanji: '学', label: 'Tutoriel', hint: prof.data.tutorialDone ? 'revoir les techniques' : `+${TUTORIAL_REWARD} Ryō`, color: '#7fffb0', badge: prof.data.tutorialDone ? '' : 'NEW', action: () => this.charSelect([{ label: 'TUTORIEL', team: 0, ctrl: { type: 'human', player: 0 } }], (fs) => new Tutorial(this.app, fs[0].charId).start(), () => this.mainMenu()) },
     ];
@@ -1481,6 +1482,8 @@ export class UI {
     if (battle.cfg.waveLevel) { this.wavesEnd(battle, team); return; }
     if (battle.cfg.endless) { this.endlessEnd(battle); return; }
     if (battle.cfg.ranked) { this.rankedEnd(battle, team); return; }
+    if (battle.cfg.dailyBoss) { this.bossEnd(battle, team); return; }
+    if (battle.cfg.tower) { this.towerEnd(battle, team); return; }
     const names = battle.winnerNames(team);
     const role = battle.role;
     const winner = team < 0 ? 'MATCH NUL' : `VICTOIRE`;

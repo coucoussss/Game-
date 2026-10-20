@@ -8,7 +8,7 @@ import {
   PLAY_CHESTS, LOGIN_DAYS, loginReward, loginState, claimLogin,
   WHEEL, WHEEL_AD_SPINS, spinWheel, dayIndex, msToMidnight, msToWeekEnd, fmtLeft, isWeekend,
   ACHIEVEMENTS, statValue, RARITY_BY_ID, CHESTS, chestOdds, pendingCounts,
-  SKIN_BY_ID, TITLE_BY_ID, FRAME_BY_ID, FRAGS_TO_UNLOCK, SKINS, PAID, dailyOffers, weeklyRotation, RARITIES,
+  SKIN_BY_ID, TITLE_BY_ID, FRAME_BY_ID, FRAGS_TO_UNLOCK, SKINS, PAID, dailyOffers, weeklyRotation, RARITIES, dailyBoss, towerFloor,
 } from '../core/liveops.js';
 import { grant, flatten, rewardLabel, rewardRarity, rewardIcon } from '../core/rewards.js';
 import { platform } from '../platform.js';
@@ -674,6 +674,165 @@ export const liveScreens = {
       this.app.setBackdrop('menu');
       this.refocus(`[data-stab="${tab}"]`);
     }
+  },
+
+  // --- Boss du jour et Tour ---------------------------------------------------------------------------
+
+  /** Choix du combattant puis combat (boss du jour ou étage de la Tour). */
+  pickAndFight(label, onBack, start) {
+    this.charSelect([{ label, team: 0, ctrl: { type: 'human', player: 0 } }], (fs) => start(fs[0].charId), onBack);
+  },
+
+  challengeHub() {
+    const live = this.live();
+    const now = Date.now();
+    const B = dailyBoss(now);
+    const d = dayIndex(now);
+    if (live.boss.day !== d) live.boss = { day: d, tries: 0, adTry: false, won: false };
+    const bc = CHAR_BY_ID[B.id];
+    const fl = towerFloor(live.tower.floor);
+    const el = h(`<div class="screen live hub">
+      <h2 class="menu-title">DÉFIS DU JOUR</h2>
+      <div class="hub-cards">
+        <button class="hub-card boss" data-nav data-hub="boss" style="--c:${bc.aura}">
+          <span class="hub-k">鬼</span>${this.portrait(B.id, 'hub-portrait')}
+          <b>Boss du jour</b><span class="hub-name">${esc(bc.name)}</span>
+          <small>${live.boss.won ? 'Vaincu aujourd’hui ✔' : `${Math.max(0, 1 - live.boss.tries) + (live.boss.adTry ? 0 : 1)} tentative(s) restante(s)`}</small>
+          <span class="hub-rw">${B.reward.map((r) => `<span class="chip r-${rewardRarity(r)}">${esc(rewardLabel(r))}</span>`).join('')}</span>
+          <small class="hub-timer">⏳ nouveau boss dans ${fmtLeft(msToMidnight(now))}</small>
+        </button>
+        <button class="hub-card tower" data-nav data-hub="tower" style="--c:#7fd8ff">
+          <span class="hub-k">塔</span>${this.portrait(fl.foe, 'hub-portrait')}
+          <b>La Tour</b><span class="hub-name">Étage ${fl.n}${fl.boss ? ' · BOSS' : ''}</span>
+          <small>Record : étage ${live.tower.best}</small>
+          <span class="hub-rw">${fl.reward.map((r) => `<span class="chip r-${rewardRarity(r)}">${esc(rewardLabel(r))}</span>`).join('')}</span>
+          <small class="hub-timer">chaque étage est plus dur que le précédent</small>
+        </button>
+      </div>
+      <button class="btn ghost" data-nav data-act="back">Retour</button>
+    </div>`);
+    el.querySelector('[data-hub=boss]').addEventListener('click', () => this.bossStart());
+    el.querySelector('[data-hub=tower]').addEventListener('click', () => this.towerScreen());
+    el.querySelector('[data-act=back]').addEventListener('click', () => this.mainMenu());
+    this.show({ el, back: () => this.mainMenu() });
+    this.app.setBackdrop('select', B.id);
+  },
+
+  bossStart() {
+    const live = this.live();
+    const B = dailyBoss(Date.now());
+    if (live.boss.won) { this.toast('Boss vaincu aujourd’hui ! Reviens demain pour un nouveau boss.'); return; }
+    const go = () => this.pickAndFight('BOSS DU JOUR', () => this.challengeHub(), (charId) => {
+      live.boss.tries += 1;
+      this.app.profile.save();
+      this.app.startBattle({
+        role: 'local', arena: 'volcano', dailyBoss: true,
+        fighters: [
+          { charId, team: 0, ctrl: { type: 'human', player: 0 }, mods: this.app.profile.modsFor(charId) },
+          { charId: B.id, team: 1, ctrl: { type: 'cpu', level: 'hard' }, mods: B.mods, boss: true },
+        ],
+      });
+    });
+    if (live.boss.tries < 1) go();
+    else if (!live.boss.adTry) this.watchAd(() => { live.boss.adTry = true; live.boss.tries = 0; go(); });
+    else this.toast('Plus de tentatives aujourd’hui. Reviens demain !');
+  },
+
+  bossEnd(battle, team) {
+    const prof = this.app.profile;
+    const live = this.live();
+    const B = dailyBoss(Date.now());
+    const won = team === 0;
+    if (won && !live.boss.won && !battle.rewarded) {
+      battle.rewarded = true;
+      live.boss.won = true;
+      prof.data.stats.bossOfDay = (prof.data.stats.bossOfDay || 0) + 1;
+      const res = grant(prof, B.reward);
+      this.reveal(res, 'BOSS VAINCU', () => this.bossEnd(battle, team));
+      return;
+    }
+    this.resultScreen({
+      big: won ? 'BOSS VAINCU' : 'DÉFAITE', win: won,
+      sub: `<div class="result-portraits">${this.portrait(B.id, 'big')}</div><span>${esc(CHAR_BY_ID[B.id].name)}</span>`,
+      primary: won ? { label: 'Défis du jour', action: () => { this.app.endBattle(false); this.challengeHub(); } }
+        : live.boss.adTry ? { label: 'Défis du jour', action: () => { this.app.endBattle(false); this.challengeHub(); } }
+          : { label: this.adLabel('Nouvelle tentative'), cls: 'gold', action: () => { this.app.endBattle(false); this.bossStart(); } },
+      secondary: [{ label: 'Menu principal', action: () => this.app.endBattle() }],
+    });
+  },
+
+  towerScreen() {
+    const live = this.live();
+    const cur = live.tower.floor;
+    const floors = [];
+    for (let n = cur + 4; n >= Math.max(1, cur - 2); n--) floors.push(towerFloor(n));
+    const el = h(`<div class="screen live tower">
+      <h2 class="menu-title">LA TOUR</h2>
+      <p class="menu-sub">Gravis les étages un à un. Record : <b>étage ${live.tower.best}</b>. Un boss tous les 10 étages, un coffre tous les 5.</p>
+      <div class="tw-list">${floors.map((f) => `<div class="tw-floor ${f.n === cur ? 'cur' : f.n < cur ? 'done' : ''} ${f.boss ? 'boss' : ''}">
+        <span class="tw-n">${f.n}</span>${this.portrait(f.foe, 'mini')}
+        <span class="tw-foe"><b>${esc(CHAR_BY_ID[f.foe].name)}</b><small>${{ easy: 'Facile', normal: 'Normal', hard: 'Difficile' }[f.level]} · force ×${f.mods.dmg.toFixed(2)}</small></span>
+        <span class="tw-rw">${f.reward.map((r) => `<span class="chip r-${rewardRarity(r)}">${esc(rewardLabel(r))}</span>`).join('')}</span>
+        ${f.n < cur ? '<i class="ps-ok">✔</i>' : ''}
+      </div>`).join('')}</div>
+      <div class="lg-actions"><button class="btn gold pulse" data-nav data-act="fight">Combattre — étage ${cur}</button><button class="btn ghost" data-nav data-act="back">Retour</button></div>
+    </div>`);
+    el.querySelector('[data-act=fight]').addEventListener('click', () => this.towerStart());
+    el.querySelector('[data-act=back]').addEventListener('click', () => this.challengeHub());
+    this.show({ el, back: () => this.challengeHub() });
+    this.app.setBackdrop('select', towerFloor(cur).foe);
+  },
+
+  towerStart() {
+    const live = this.live();
+    const f = towerFloor(live.tower.floor);
+    this.pickAndFight(`TOUR — ÉTAGE ${f.n}`, () => this.towerScreen(), (charId) => {
+      const arenas = ['cliffs', 'temple', 'neon', 'glacier', 'volcano'];
+      this.app.startBattle({
+        role: 'local', arena: arenas[f.n % arenas.length], tower: f.n,
+        fighters: [
+          { charId, team: 0, ctrl: { type: 'human', player: 0 }, mods: this.app.profile.modsFor(charId) },
+          { charId: f.foe, team: 1, ctrl: { type: 'cpu', level: f.level }, mods: f.mods, boss: f.boss },
+        ],
+      });
+    });
+  },
+
+  towerEnd(battle, team) {
+    const prof = this.app.profile;
+    const live = this.live();
+    const n = battle.cfg.tower;
+    const won = team === 0;
+    if (won && !battle.rewarded && live.tower.floor === n) {
+      battle.rewarded = true;
+      live.tower.floor = n + 1;
+      live.tower.best = Math.max(live.tower.best, n);
+      const st = prof.data.stats;
+      st.towerWins = (st.towerWins || 0) + 1;
+      st.towerBest = Math.max(st.towerBest || 0, n);
+      if (n >= 50 && !live.titles.includes('tour')) grant(prof, { t: 'title', id: 'tour' });
+      this.reveal(grant(prof, towerFloor(n).reward), `ÉTAGE ${n} CONQUIS`, () => this.towerEnd(battle, team));
+      return;
+    }
+    const charId = battle.cfg.fighters[0].charId;
+    this.resultScreen({
+      big: won ? `ÉTAGE ${n} CONQUIS` : 'DÉFAITE', win: won,
+      sub: `<span>${won ? `Prochain : étage ${n + 1}` : `Étage ${n} — réessaie, ou améliore ton combattant`}</span>`,
+      primary: { label: won ? `Étage ${n + 1}` : 'Réessayer', action: () => {
+        this.app.endBattle(false);
+        const f = towerFloor(live.tower.floor);
+        const arenas = ['cliffs', 'temple', 'neon', 'glacier', 'volcano'];
+        this.app.startBattle({ role: 'local', arena: arenas[f.n % arenas.length], tower: f.n, fighters: [
+          { charId, team: 0, ctrl: { type: 'human', player: 0 }, mods: prof.modsFor(charId) },
+          { charId: f.foe, team: 1, ctrl: { type: 'cpu', level: f.level }, mods: f.mods, boss: f.boss },
+        ] });
+      } },
+      secondary: [
+        { label: 'La Tour', action: () => { this.app.endBattle(false); this.towerScreen(); } },
+        { label: `Améliorer ${esc(CHAR_BY_ID[charId].name)}`, action: () => { this.app.endBattle(false); this.upgrades(charId); } },
+        { label: 'Menu principal', action: () => this.app.endBattle() },
+      ],
+    });
   },
 
   // --- Fin de combat : XP de passe et bonus ×2 ---------------------------------------------------------
