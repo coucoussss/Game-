@@ -17,6 +17,9 @@ import { CHALLENGES, challengeState, pendingChallenges } from '../core/challenge
 import { WAVE_LEVELS, WAVE_HEAL, buildLevel, levelReward, isBossLevel, regionOf, DIFFICULTIES, withDifficulty, endlessWave, endlessReward, BLESSINGS } from '../game/waves.js';
 import { MONSTERS, TIERS } from '../game/monsters.js';
 import { lang, setLang, tr } from '../i18n/i18n.js';
+import { installLive } from './live.js';
+import { seasonInfo, passTier, PASS_TIERS, TIER_XP, isWeekend, badgeOf, weeklyRotation, loginState, FRAGS_TO_UNLOCK as FRAGS, TITLE_BY_ID, dayIndex } from '../core/liveops.js';
+const dayIndexNow = () => dayIndex(Date.now());
 import { levelFromXp } from '../core/level.js';
 import { RANKS, LEGEND, DIVISIONS, DIV_POINTS, DAILY_RYO, RANK_TITLES, RANK_AURAS, POPULATION, estimate, formatTop, recordStats, opponentFor, applyResult, dailyAvailable, stepName, rankName, CONDITION_BY_ID, pickConditions, rolloverSeason, seasonOf, seasonDaysLeft, bestTier, unlockedTitles, unlockedAuras, titleOf, auraOf } from '../game/ranked.js';
 
@@ -112,6 +115,11 @@ export class UI {
 
   /** Actions de menu (clavier / manette) pour l'image courante. */
   handle(actions) {
+    // Révélation de récompenses par-dessus l'écran : OK / Retour la font avancer
+    if (this.revealOpen) {
+      if (actions.some((a) => a === 'ok' || a === 'back')) this.revealOpen();
+      return;
+    }
     const s = this.screen;
     if (!s) return;
     for (const a of actions) {
@@ -197,6 +205,22 @@ export class UI {
     const done = CHAPTERS.filter((c) => prof.hasCleared(c.id)).length;
     const pending = pendingChallenges(prof).length;
     const r = this.rankedState();
+    const lv = levelFromXp(prof.data.xp);
+    const live = this.live();
+    const now = Date.now();
+    const title = this.titleText();
+    const pend = this.pending();
+    const S = seasonInfo(now);
+    const tier = passTier(live.passXp);
+    const badge = badgeOf(lv.level);
+    const rot = weeklyRotation(now).filter((id) => !prof.owns(id));
+    const offerFree = live.shopDay !== dayIndexNow() || !live.shopBought.includes('free');
+    const events = [
+      isWeekend(now) ? '🔥 Week-end de l’Aura : XP et Ryō ×2' : '',
+      live.boostUntil > now ? `⚡ Boost ×2 actif encore ${Math.ceil((live.boostUntil - now) / 60000)} min` : '',
+      S.finalWeek ? `⏳ Fin de saison dans ${Math.ceil(S.endsIn / 86400000)} j : XP ×1,5` : '',
+      rot.length ? `🎁 Gratuits cette semaine : ${rot.map((id) => CHAR_BY_ID[id].name).join(', ')}` : '',
+    ].filter(Boolean);
     // Modes de jeu : une seule colonne, le Classé en tête ; le détail n'apparaît qu'au survol
     const modes = [
       { kanji: '級', label: 'Classé', hint: this.rankText(r), color: '#ffd23f', badge: dailyAvailable(r) ? '×2' : '', hero: true, action: () => this.rankedMenu() },
@@ -208,24 +232,32 @@ export class UI {
     // Barre du bas : progression et réglages, en petites icônes
     const bar = [
       { icon: '強', label: 'Améliorations', action: () => this.upgrades() },
-      { icon: '店', label: 'Boutique', action: () => this.shop() },
+      { icon: '店', label: 'Boutique', badge: offerFree ? '!' : '', action: () => this.shop() },
+      { icon: '任', label: 'Missions', badge: pend.missions + pend.chests ? String(pend.missions + pend.chests) : '', action: () => (pend.missions || !pend.chests ? this.missionsScreen() : this.chestsScreen()) },
+      { icon: '運', label: 'Roue', badge: pend.wheel ? '!' : '', action: () => this.wheelScreen() },
       { icon: '賞', label: 'Défis', badge: pending ? String(pending) : '', action: () => this.challenges() },
       { icon: '画', label: 'Galerie', action: () => this.gallery() },
       { icon: '⚙', label: 'Options', action: () => this.options(() => this.mainMenu()) },
       { icon: '🌐', label: lang === 'fr' ? 'English' : 'Français', action: () => setLang(lang === 'fr' ? 'en' : 'fr') },
       ...(electron ? [{ icon: '⏻', label: 'Quitter', action: () => window.auraNative.quit() }] : []),
     ];
-    const lv = levelFromXp(prof.data.xp);
-    const title = titleOf(r);
     const el = h(`<div class="screen main-menu home2">
       <header class="h2-top">
         <div class="menu-logo"><span class="logo-a">AURA</span><span class="logo-b">CLASH</span></div>
         <button class="h2-player" data-nav data-k="profile">
-          ${this.portrait(this.avatarOf(), 'h2-avatar')}
-          <span class="h2-who"><b>${esc(this.app.settings.data.game.playerName || 'Joueur')}</b><small><span>Niv.</span> ${lv.level}${title ? ` · <span>${esc(title)}</span>` : ''}</small></span>
+          <span class="h2-av ${live.frame ? `frame-${live.frame}` : ''}">${this.portrait(this.avatarOf(), 'h2-avatar')}</span>
+          <span class="h2-who"><b>${esc(this.app.settings.data.game.playerName || 'Joueur')}</b><small><i class="lvl-badge b-${badge.id}">${lv.level}</i>${title ? ` <span>${esc(title)}</span>` : ''}</small></span>
           <span class="h2-ryo">${prof.ryo} <small>Ryō</small></span>
         </button>
       </header>
+      <button class="h2-pass" data-nav data-k="pass" style="--sc:${S.color}">
+        <span class="h2-pass-k">闘</span>
+        <span class="h2-pass-t"><b>PASSE DE COMBAT</b><small>Saison ${S.num} · ${esc(S.name)}</small>
+          <span class="ps-bar thin"><i style="width:${tier >= PASS_TIERS ? 100 : Math.round(((live.passXp - tier * TIER_XP) / TIER_XP) * 100)}%"></i></span></span>
+        <span class="h2-pass-n">${tier}<small>/${PASS_TIERS}</small></span>
+        ${pend.total ? `<span class="h2-badge red">${pend.total}</span>` : ''}
+      </button>
+      ${events.length ? `<div class="h2-events">${events.map((e) => `<span>${esc(e)}</span>`).join('')}</div>` : ''}
       <nav class="h2-modes">${modes.map((m, i) => `<button class="h2-mode ${m.hero ? 'hero' : ''}" data-nav data-k="modes" data-i="${i}" style="--c:${m.color}">
         <span class="h2-k">${m.kanji}</span><span class="h2-t"><b>${m.label}</b><small>${m.hint}</small></span>${m.badge ? `<span class="h2-badge">${m.badge}</span>` : ''}</button>`).join('')}</nav>
       <footer class="h2-bar">${bar.map((b, i) => `<button class="h2-ico" data-nav data-k="bar" data-i="${i}"><span class="h2-ico-k">${b.icon}</span><span class="h2-ico-l">${b.label}</span>${b.badge ? `<span class="h2-badge">${b.badge}</span>` : ''}</button>`).join('')}</footer>
@@ -233,10 +265,23 @@ export class UI {
     const lists = { modes, bar };
     el.querySelectorAll('[data-k]').forEach((b) => b.addEventListener('click', () => {
       if (b.dataset.k === 'profile') this.profileScreen();
+      else if (b.dataset.k === 'pass') this.passScreen();
       else lists[b.dataset.k][Number(b.dataset.i)].action();
     }));
     this.show({ el, back: () => this.title() });
     this.focus(el.querySelector('.h2-mode'), false);
+    // Connexion du jour : proposée automatiquement une fois par jour
+    if (loginState(live, now).claimable && this.loginPopupDay !== dayIndexNow()) {
+      this.loginPopupDay = dayIndexNow();
+      setTimeout(() => { if (this.screen && this.screen.el === el) this.loginScreen(true); }, 500);
+    }
+  }
+
+  /** Titre affiché : celui choisi parmi les titres gagnés, sinon le titre de rang. */
+  titleText() {
+    const live = this.app.profile.data.live;
+    if (live && live.title && TITLE_BY_ID[live.title]) return TITLE_BY_ID[live.title].name;
+    return titleOf(this.rankedState());
   }
 
   // --- Préparation des combats --------------------------------------------------------------
@@ -594,11 +639,11 @@ export class UI {
       (fighters) => this.startWaves(n, fighters[0].charId), () => this.wavesMenu(n));
   }
 
-  startWaves(n, charId) {
+  startWaves(n, charId, fromWave = 0) {
     const app = this.app;
     const lv = buildLevel(n);
     const diff = app.profile.data.difficulty;
-    lv.waves = lv.waves.map((w) => w.map((e) => withDifficulty(e, diff)));
+    lv.waves = lv.waves.map((w) => w.map((e) => withDifficulty(e, diff))).slice(fromWave);
     const foe = (e) => ({ charId: e.charId, team: 1, ctrl: { type: 'cpu', level: e.level }, mods: e.mods, boss: !!e.boss, elite: !!e.elite });
     app.startBattle({
       role: 'local',
@@ -609,6 +654,8 @@ export class UI {
       ],
       waves: lv.waves,
       waveLevel: n,
+      waveOffset: fromWave,
+      continued: fromWave > 0,
       regionName: lv.region,
       difficultyId: diff,
     });
@@ -1115,7 +1162,8 @@ export class UI {
     el.prepend(h(`<div class="result-head"><div class="result-big ${rank === 1 ? 'win' : ''}">${rank === 1 ? 'NOUVEAU RECORD !' : 'FIN DE LA PARTIE'}</div>
       <div class="result-portraits">${this.portrait(charId, 'big')}</div>
       <div class="result-sub">Vagues repoussées : <b>${cleared}</b>${rank > 1 ? ` — ${rank}e meilleur score` : ''}</div>
-      ${reward ? `<div class="reward">+${reward} Ryō <small>(total : ${prof.ryo})</small></div>` : ''}</div>`));
+      ${reward ? `<div class="reward">+${reward} Ryō <small>(total : ${prof.ryo})</small></div>` : ''}${this.passResultHtml(battle)}</div>`));
+    this.bindPassResult(el, battle);
     this.show({ el });
   }
 
@@ -1126,7 +1174,8 @@ export class UI {
     const n = battle.cfg.waveLevel;
     const lv = buildLevel(n);
     const won = team === 0;
-    const cleared = won ? lv.waves.length : battle.match.wave;
+    const offset = battle.cfg.waveOffset || 0;
+    const cleared = won ? lv.waves.length : offset + battle.match.wave;
     const first = won && !prof.hasClearedLevel(n);
     let reward = 0;
     if (!battle.rewarded) {
@@ -1139,6 +1188,10 @@ export class UI {
     const def = CHAR_BY_ID[charId];
     const buttons = [];
     if (won && n < WAVE_LEVELS) buttons.push({ label: `Niveau ${n + 1}`, hint: regionOf(n + 1).name, action: () => this.startWaves(n + 1, charId) });
+    if (!won && cleared > 0 && !battle.cfg.continued) {
+      // Continuer (pub) : reprend à la vague atteinte, avec toute sa vie
+      buttons.push({ label: this.adLabel(`Continuer à la vague ${cleared + 1}`), hint: 'sans perdre ta progression', cls: 'gold', action: () => this.watchAd(() => this.startWaves(n, charId, cleared)) });
+    }
     if (!won) buttons.push({ label: 'Réessayer', action: () => app.restartBattle() });
     buttons.push(
       { label: `Améliorer ${esc(def.name)}`, hint: 'force, vie, vitesse, ki, maîtrise', action: () => { app.endBattle(false); this.upgrades(charId); } },
@@ -1152,7 +1205,8 @@ export class UI {
       <div class="result-portraits">${this.portrait(charId, 'big')}${lv.boss && won ? this.portrait(lv.boss, 'big') : ''}</div>
       <div class="result-sub">${esc(lv.region)} — vagues repoussées : ${cleared} / ${lv.waves.length}</div>
       ${reward ? `<div class="reward">+${reward} Ryō <small>(total : ${prof.ryo})</small></div>` : ''}
-      ${final ? '<div class="the-end">L’ÉCLIPSE EST VAINCUE</div>' : ''}</div>`));
+      ${final ? '<div class="the-end">L’ÉCLIPSE EST VAINCUE</div>' : ''}${this.passResultHtml(battle)}</div>`));
+    this.bindPassResult(el, battle);
     this.show({ el });
     if (won) this.app.audio.play('roundWin');
   }
@@ -1515,12 +1569,14 @@ export class UI {
       <div class="r2-head"><div class="result-big ${opts.win ? 'win' : ''}">${opts.big}</div>${opts.sub ? `<div class="r2-sub">${opts.sub}</div>` : ''}${opts.banner || ''}</div>
       ${opts.card ? `<div class="r2-card">${opts.card}</div>` : ''}
       ${chips ? `<div class="r2-chips">${chips}</div>` : ''}
+      ${this.passResultHtml(this.app.battle)}
       <div class="r2-actions">
         <button class="btn r2-primary ${opts.primary.cls || ''}" data-nav data-r="p">${opts.primary.label}</button>
         <div class="r2-row">${(opts.secondary || []).map((b, i) => `<button class="btn small ghost" data-nav data-r="${i}">${b.label}</button>`).join('')}</div>
       </div>
     </div>`);
     el.querySelectorAll('[data-r]').forEach((b) => b.addEventListener('click', () => (b.dataset.r === 'p' ? opts.primary.action() : opts.secondary[Number(b.dataset.r)].action())));
+    this.bindPassResult(el, this.app.battle);
     this.show({ el });
     this.focus(el.querySelector('.r2-primary'), false);
     return el;
@@ -2082,3 +2138,5 @@ export class UI {
     this.lanMenu();
   }
 }
+
+installLive(UI);

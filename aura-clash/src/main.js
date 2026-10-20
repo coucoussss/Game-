@@ -258,11 +258,13 @@ class App {
     this.last = t;
     // Temps de jeu total (profil), enregistré toutes les 30 s
     this.playAcc = (this.playAcc || 0) + dt;
+    // Temps de jeu du jour (coffres de temps de jeu)
+    if (this.profile.data.live && !document.hidden) this.profile.data.live.dayPlay += dt;
     if (this.playAcc >= 30) { this.profile.data.playTime = (this.profile.data.playTime || 0) + this.playAcc; this.playAcc = 0; this.profile.save(); }
     this.input.poll(dt);
     const actions = this.input.menuActions();
     if (this.vsSkip && actions.includes('ok')) this.vsSkip(); // manette : A passe l'écran VS
-    else if (this.ui.screen) this.ui.handle(actions);
+    else if (this.ui.screen || this.ui.revealOpen) this.ui.handle(actions);
     // Signale au site hôte (CrazyGames) quand le joueur est réellement en combat
     if (this.battle && !this.ui.screen && !this.replay) platform.gameplayStart(); else platform.gameplayStop();
     if (this.battle) this.battle.frame(dt);

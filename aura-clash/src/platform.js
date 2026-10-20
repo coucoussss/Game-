@@ -41,6 +41,47 @@ class Platform {
     try { this.sdk?.game.happytime(); } catch { /* ignoré */ }
   }
 
+  /** Vraies publicités disponibles (sinon, les bonus « pub » sont offerts directement). */
+  get hasAds() {
+    return !!this.sdk;
+  }
+
+  /**
+   * Publicité récompensée, toujours lancée par le joueur. Résout `true` si la récompense est due.
+   * Hors CrazyGames (version .exe, HTML), il n'y a pas de publicité : le bonus est accordé.
+   */
+  rewardedAd(audio) {
+    if (!this.sdk) return Promise.resolve(true);
+    return new Promise((resolve) => {
+      let finished = false;
+      const end = (ok) => {
+        if (finished) return;
+        finished = true;
+        audio?.setMuted?.(false);
+        this.lastAd = performance.now() / 1000; // pas de publicité intercalée juste après
+        resolve(ok);
+      };
+      this.gameplayStop();
+      try {
+        this.sdk.ad.requestAd('rewarded', {
+          adStarted: () => audio?.setMuted?.(true),
+          adFinished: () => end(true),
+          adError: () => end(false),
+        });
+      } catch { end(false); }
+    });
+  }
+
+  /** Lien d'invitation CrazyGames vers un salon en ligne (null ailleurs). */
+  inviteLink(room) {
+    try { return this.sdk?.game?.inviteLink ? this.sdk.game.inviteLink({ room }) : null; } catch { return null; }
+  }
+
+  /** Salon passé dans un lien d'invitation CrazyGames (ou null). */
+  inviteRoom() {
+    try { return this.sdk?.game?.getInviteParam ? this.sdk.game.getInviteParam('room') : null; } catch { return null; }
+  }
+
   /**
    * Publicité entre deux combats, si le délai minimum est écoulé. `audio` est coupé pendant la
    * publicité ; `done` est toujours appelé ensuite (même sans publicité ou en cas d'erreur).

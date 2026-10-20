@@ -4,6 +4,7 @@
 import { CHAR_BY_ID, CHARACTERS } from '../game/characters.js';
 import { newRankedState, sanitizeRanked } from '../game/ranked.js';
 import { levelFromXp } from './level.js';
+import { newLive, sanitizeLive, weeklyRotation } from './liveops.js';
 
 const KEY = 'auraclash.profile.v1';
 export const START_RYO = 500;
@@ -33,7 +34,7 @@ function checksum(str) {
 
 export class Profile {
   constructor() {
-    this.data = { ryo: START_RYO, owned: [], upgrades: {}, story: [], waves: [], difficulty: 'normal', endless: [], ranked: newRankedState() };
+    this.data = { ryo: START_RYO, owned: [], upgrades: {}, story: [], waves: [], difficulty: 'normal', endless: [], ranked: newRankedState(), live: newLive() };
     try {
       const saved = JSON.parse(localStorage.getItem(KEY) || 'null');
       if (saved && Number.isFinite(saved.ryo) && Array.isArray(saved.owned)) {
@@ -59,6 +60,7 @@ export class Profile {
           playTime: Number.isFinite(saved.playTime) ? Math.max(0, saved.playTime) : 0,
           avatar: typeof saved.avatar === 'string' && CHAR_BY_ID[saved.avatar] ? saved.avatar : '',
           showcase: Array.isArray(saved.showcase) ? saved.showcase.filter((x) => typeof x === 'string').slice(0, 3) : [],
+          live: sanitizeLive(saved.live),
         };
       }
     } catch { /* stockage indisponible : profil de départ */ }
@@ -150,6 +152,7 @@ export class Profile {
   }
 
   hasCostume(charId, id) {
+    if (this.data.live && this.data.live.skins.includes(id)) return true;
     return !!(this.data.costumes && this.data.costumes[charId] && this.data.costumes[charId].includes(id));
   }
 
@@ -252,6 +255,21 @@ export class Profile {
   owns(id) {
     const c = CHAR_BY_ID[id];
     return !!c && (!c.price || this.data.owned.includes(id));
+  }
+
+  /**
+   * Jouable : possédé, ou dans la rotation gratuite de la semaine, ou en essai (pub).
+   * (La boutique et les améliorations, elles, demandent de posséder le personnage.)
+   */
+  playable(id, now = Date.now()) {
+    if (this.owns(id)) return true;
+    if (weeklyRotation(now).includes(id)) return true;
+    const t = this.data.live && this.data.live.trials[id];
+    return !!(t && t.fights > 0 && t.until > now);
+  }
+
+  playableIds(now = Date.now()) {
+    return CHARACTERS.filter((c) => !c.monster && this.playable(c.id, now)).map((c) => c.id);
   }
 
   ownedIds() {

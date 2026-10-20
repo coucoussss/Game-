@@ -12,7 +12,7 @@
     "icon": "node scripts/make-icon.mjs",
     "start": "node scripts/bundle.mjs && electron .",
     "web": "node scripts/bundle.mjs && node scripts/serve.mjs",
-    "test": "node scripts/test-lan.mjs && node scripts/test-sim.mjs",
+    "test": "node scripts/test-lan.mjs && node scripts/test-liveops.mjs && node scripts/test-sim.mjs",
     "build": "node scripts/bundle.mjs && node scripts/make-icon.mjs && electron-builder --win portable --x64",
     "build:nowine": "node scripts/bundle.mjs && node scripts/make-icon.mjs && electron-builder --win portable --x64 -c.win.signAndEditExecutable=false",
     "zip": "node scripts/zip.mjs",

@@ -5,6 +5,8 @@
 import { auraOf, titleOf } from './game/ranked.js';
 import { modeOf, xpFor } from './core/level.js';
 import { platform } from './platform.js';
+import { refresh, matchPassXp, passTier } from './core/liveops.js';
+import { grant } from './core/rewards.js';
 import { Match } from './game/match.js';
 import { CpuBrain } from './game/ai.js';
 import { CHAR_BY_ID, SLOTS, withLoadout } from './game/characters.js';
@@ -416,6 +418,17 @@ export class Battle {
       const s = prof.data.stats || (prof.data.stats = {});
       s.modes = { ...(s.modes || {}), [mode]: ((s.modes || {})[mode] || 0) + 1 };
       if (p1) s.charFights = { ...(s.charFights || {}), [p1.charId]: ((s.charFights || {})[p1.charId] || 0) + 1 };
+      s.fights = (s.fights || 0) + 1;
+      if (p1 && result === 'win') s.charWins = { ...(s.charWins || {}), [p1.charId]: ((s.charWins || {})[p1.charId] || 0) + 1 };
+      // Passe de combat : XP de passe (bonus du jour, week-end, boost), essais de personnages
+      const live = prof.data.live;
+      const now = Date.now();
+      refresh(live, now, s, prof.playableIds(now));
+      const px = matchPassXp(live, now, result, waves);
+      this.passGain = { ...px, tierBefore: passTier(live.passXp), ryoBefore: prof.data.ryo };
+      grant(prof, { t: 'xp', n: px.xp });
+      this.passGain.tierAfter = passTier(live.passXp);
+      if (p1 && !prof.owns(p1.charId) && live.trials[p1.charId]) live.trials[p1.charId].fights -= 1;
       this.xpGain = xpFor(mode, result, waves);
       this.levelUp = prof.addXp(this.xpGain);
       if (this.levelUp) setTimeout(() => this.app.ui.toast(`⬆ Niveau ${this.levelUp} atteint !`, 4), 2400);

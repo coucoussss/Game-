@@ -65,6 +65,8 @@ export function trackEvents(p, events, match, mine) {
       case 'pursuit': if (mine.has(e.id)) inc('pursuits'); break;
       case 'hit':
         if (!mine.has(e.att) || e.blocked) break;
+        inc('hits');
+        if (Number.isFinite(e.dmg)) inc('dmg', Math.round(e.dmg));
         if (e.counter) inc('counters');
         if (e.combo > (s.maxCombo || 0)) s.maxCombo = e.combo;
         if (match.fighters[e.att] && match.fighters[e.att].moveId === 'airslam') inc('slams');
@@ -72,6 +74,7 @@ export function trackEvents(p, events, match, mine) {
       case 'ko': {
         const victim = match.fighters[e.id];
         if (!victim || mine.has(e.id)) break;
+        inc('kos');
         const killer = [...mine].map((i) => match.fighters[i]).find((f) => f && f.state === 'move' && /^ultimate/.test(f.moveId));
         if (killer) inc('ultFinish');
         if (victim.def.boss) inc('bosses');

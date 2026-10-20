@@ -180,9 +180,32 @@ function mix(a, b, k) {
   return `#${((r << 16) | (g << 8) | bl).toString(16).padStart(6, '0')}`;
 }
 
+/**
+ * Skins universels (portables par tous les combattants) : couleurs de tenue et d'aura.
+ * Ils ne s'achètent pas en Ryō : coffres, passe, roue, connexion, offres du jour.
+ */
+export const SKINS = [
+  { id: 'braise', name: 'Braise', rarity: 'rare', tint: '#c2361a', accent: '#ffb03a', aura: '#ff6a1f', k: 0.55 },
+  { id: 'jade', name: 'Jade', rarity: 'rare', tint: '#1f8a5a', accent: '#d8ffe8', aura: '#3dffa0', k: 0.55 },
+  { id: 'sakura', name: 'Sakura', rarity: 'rare', tint: '#f08abf', accent: '#ffffff', aura: '#ff8fc8', k: 0.5 },
+  { id: 'glace', name: 'Glace éternelle', rarity: 'epic', tint: '#bfe8ff', accent: '#4ac8ff', aura: '#bff4ff', k: 0.6 },
+  { id: 'foudre', name: 'Foudre', rarity: 'epic', tint: '#232a4a', accent: '#ffe23a', aura: '#7fd8ff', k: 0.6 },
+  { id: 'sang', name: 'Lune de sang', rarity: 'epic', tint: '#3a0610', accent: '#ff1f3d', aura: '#ff1f3d', k: 0.65 },
+  { id: 'galaxie', name: 'Galaxie', rarity: 'legendary', tint: '#1a1046', accent: '#ff7af0', aura: '#8a6bff', k: 0.7 },
+  { id: 'or-royal', name: 'Or royal', rarity: 'legendary', tint: '#f2d27a', accent: '#fff4c2', aura: '#ffd23f', k: 0.6 },
+  { id: 'neant', name: 'Néant', rarity: 'mythic', tint: '#06060a', accent: '#ffffff', aura: '#ffffff', k: 0.8 },
+  { id: 'phenix', name: 'Phénix', rarity: 'mythic', tint: '#ff4a12', accent: '#fff07a', aura: '#ffb31f', k: 0.7 },
+];
+export const SKIN_BY_ID = Object.fromEntries(SKINS.map((s) => [s.id, s]));
+
+/** Tenue d'un skin universel : teinte plus ou moins forte, accents et aura. */
+function skinCostume(s) {
+  return { id: s.id, name: s.name, tone: (c) => mix(c, s.tint, s.k), accent: s.accent, aura: s.aura };
+}
+
 /** Définition « habillée » d'un personnage (même identifiant, couleurs de tenue et d'aura changées). */
 export function dressed(def, costumeId) {
-  const c = COSTUMES.find((x) => x.id === costumeId);
+  const c = COSTUMES.find((x) => x.id === costumeId) || (SKIN_BY_ID[costumeId] && skinCostume(SKIN_BY_ID[costumeId]));
   if (!c) return def;
   const look = { ...def.look };
   for (const k of CLOTH_KEYS) {
