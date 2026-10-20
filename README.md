@@ -4,6 +4,7 @@
 - **Undyne l'Immortelle** : fan game inspiré d'Undertale. Voir [`undyne/README.md`](undyne/README.md) et ouvrir `undyne/index.html`.
 - **Jugement Final** : fan game du combat contre Sans. Ouvrir `sans/index.html` (ou le fichier unique `sans/jugement-final.html`).
 - **Souterrain** (en cours) : fan game d'exploration et de combats de boss. Ouvrir `souterrain/index.html`.
+- **Front d'Acier** : combat de chars en vue de dessus, 5 contre 5 contre des IA, avec tirs alliés. Voir [`chars/README.md`](chars/README.md) et ouvrir `chars/index.html`.
 - **Mold & Majesty** : jeu de gestion en pixel art, où tu es un réseau de mycélium. Voir [`mold-and-majesty/README.md`](mold-and-majesty/README.md), et le [manuel du joueur en PDF](mold-and-majesty/Manuel-Mold-and-Majesty.pdf).
 
 # 🧟 Nuit des Morts
