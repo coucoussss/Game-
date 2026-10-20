@@ -13,6 +13,7 @@ import {
 import { grant, flatten, rewardLabel, rewardRarity, rewardIcon } from '../core/rewards.js';
 import { platform } from '../platform.js';
 import { chestSvg } from './chestArt.js';
+import { ChestViewer } from '../render/chest3d.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const h = (html) => {
@@ -100,11 +101,17 @@ export const liveScreens = {
     const ov = h(`<div class="reveal r-${rar}" style="--rc:${color}">
       <div class="rv-rays"></div>
       <div class="rv-title">${chest ? `COFFRE ${esc(RARITY_BY_ID[chest.r].name.toUpperCase())}` : esc(title)}</div>
-      ${chest || extraChests.length ? `<div class="rv-chest">${chestSvg(rar, { cls: 'big' })}</div>` : ''}
+      ${chest || extraChests.length ? '<div class="rv-chest"></div>' : ''}
       <div class="rv-cards">${all.map((r, i) => `<div class="rv-slot" style="--i:${i}"><div class="rv-flip"><div class="rv-back">?</div><div class="rv-front">${this.rewardCard(r)}</div></div></div>`).join('')}</div>
       <button class="btn rv-ok">Continuer</button>
     </div>`);
     document.body.appendChild(ov);
+    // Coffre 3D vivant (chute, tremblement, ouverture) ; dessin vectoriel si WebGL échoue
+    let viewer = null;
+    const host = ov.querySelector('.rv-chest');
+    if (host) {
+      try { viewer = new ChestViewer(host, rar); ov.__viewer = viewer; } catch (e) { console.warn(e); host.innerHTML = chestSvg(rar, { cls: 'big' }); }
+    }
     const audio = this.app.audio;
     const hasChest = !!ov.querySelector('.rv-chest');
     const slots = [...ov.querySelectorAll('.rv-slot')];
@@ -113,8 +120,8 @@ export const liveScreens = {
     let t0 = 0;
     if (hasChest) {
       audio.play('charge');
-      later(900, () => { ov.classList.add('open'); audio.play(rar === 'legendary' || rar === 'mythic' ? 'bigExplosion' : 'explosion'); });
-      t0 = 1300;
+      later(1100, () => { ov.classList.add('open'); viewer?.open(); audio.play(rar === 'legendary' || rar === 'mythic' ? 'bigExplosion' : 'explosion'); });
+      t0 = 1700;
     }
     slots.forEach((s, i) => {
       const rr = rewardRarity(all[i]);
@@ -133,12 +140,13 @@ export const liveScreens = {
         // Premier appui : tout révéler d'un coup
         timers.forEach(clearTimeout);
         ov.classList.add('open', 'done');
+        viewer?.open();
         slots.forEach((s, i) => s.classList.add('flip', `r-${rewardRarity(all[i])}`));
         return;
       }
       closed = true;
       ov.classList.add('out');
-      setTimeout(() => ov.remove(), 250);
+      setTimeout(() => { viewer?.dispose(); ov.remove(); }, 250);
       this.revealOpen = null;
       if (all.some((r) => r.t === 'ryo')) this.flyCoins();
       if (all.some((r) => r.unlocked || r.t === 'char')) {

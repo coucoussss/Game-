@@ -275,7 +275,8 @@ class App {
     this.stage.update(dt);
     this.stage.adapt(dt);
     this.overlay.update(dt);
-    this.stage.render();
+    // Pendant l'ouverture d'un coffre (rendu 3D dédié), le décor derrière n'est plus redessiné
+    if (!this.ui.revealOpen || this.battle) this.stage.render();
     requestAnimationFrame((tt) => this.frame(tt));
   }
 }

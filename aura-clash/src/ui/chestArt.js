@@ -6,6 +6,8 @@
 //   mythique   : obsidienne fendue de magma, cornes, runes flottantes, flammes
 // Le couvercle (.ch-lid) et la lumière intérieure (.ch-light) sont animés par le CSS (ouverture).
 
+import { chestImage } from '../render/chest3d.js';
+
 let uid = 0;
 
 const PAL = {
@@ -24,6 +26,11 @@ const spark = (x, y, s, cls = '') => `<path class="ch-spark ${cls}" d="M${x} ${y
  */
 export function chestSvg(rarity = 'common', opts = {}) {
   const r = PAL[rarity] ? rarity : 'common';
+  // Coffre 3D rendu en image (dessin vectoriel si WebGL est indisponible)
+  const img = chestImage(r, !!opts.open);
+  if (img) {
+    return `<span class="chest-3d r-${r} ${opts.open ? 'open' : ''} ${opts.cls || ''}"><i class="c3-glow"></i><img src="${img}" alt="" draggable="false"></span>`;
+  }
   const p = PAL[r];
   const id = `c${++uid}`;
   const g = (n) => `${id}${n}`;
@@ -127,3 +134,6 @@ export function chestSvg(rarity = 'common', opts = {}) {
   ${sparks}
 </svg>`;
 }
+
+// Accès de débogage (captures de contrôle)
+if (typeof window !== 'undefined') window.__auraChest = chestSvg;

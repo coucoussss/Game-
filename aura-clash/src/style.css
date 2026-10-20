@@ -1238,3 +1238,23 @@ a.btn { text-decoration: none; }
   .h3-modes, .h3-side { width: 100%; }
   .h3-top { flex-direction: column; align-items: flex-start; }
 }
+
+/* Coffres 3D (images rendues par chest3d.js) */
+.chest-3d { position: relative; display: block; width: 100%; height: 100%; }
+.chest-3d img { position: relative; z-index: 1; display: block; width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 0.6vh 0.8vh rgba(0, 0, 0, 0.55)); pointer-events: none; }
+.chest-3d .c3-glow { position: absolute; inset: 8% 4% 4%; border-radius: 50%; z-index: 0; opacity: 0; }
+.chest-3d.r-rare .c3-glow { opacity: 0.5; background: radial-gradient(circle, rgba(74, 168, 255, 0.55), transparent 65%); animation: chGlow 2.4s ease-in-out infinite; }
+.chest-3d.r-epic .c3-glow { opacity: 0.7; background: radial-gradient(circle, rgba(180, 92, 255, 0.65), transparent 65%); animation: chGlow 2.2s ease-in-out infinite; }
+.chest-3d.r-legendary .c3-glow { opacity: 0.85; background: radial-gradient(circle, rgba(255, 200, 60, 0.75), transparent 62%), repeating-conic-gradient(from 0deg, rgba(255, 230, 140, 0.25) 0 8deg, transparent 8deg 24deg); animation: chGlow 2s ease-in-out infinite, chRays 14s linear infinite; inset: -10%; }
+.chest-3d.r-mythic .c3-glow { opacity: 0.9; background: radial-gradient(circle, rgba(255, 70, 20, 0.8), rgba(120, 0, 30, 0.35) 45%, transparent 66%); animation: chGlow 1.4s ease-in-out infinite; inset: -6%; }
+.chest-3d .c3-spark { position: absolute; z-index: 2; width: 1.2vh; height: 1.2vh; opacity: 0; pointer-events: none;
+  background: radial-gradient(circle, #fff 0 18%, transparent 20%), linear-gradient(transparent 46%, #fff 46% 54%, transparent 54%), linear-gradient(90deg, transparent 46%, #fff 46% 54%, transparent 54%); }
+.chest-3d:not(.r-common) .c3-spark { animation: c3Spark 2.2s ease-in-out infinite; }
+.chest-3d .s1 { left: 12%; top: 22%; } .chest-3d .s2 { right: 10%; top: 12%; animation-delay: 0.7s !important; } .chest-3d .s3 { right: 22%; bottom: 14%; animation-delay: 1.4s !important; }
+@keyframes c3Spark { 0%, 100% { opacity: 0; transform: scale(0.2) rotate(0); } 50% { opacity: 1; transform: scale(1.2) rotate(45deg); } }
+@keyframes chRays { to { transform: rotate(360deg); } }
+.rw-card .chest-3d.rw-chest { width: 92%; height: 64%; flex: 0 0 auto; }
+.chest-canvas { width: 100%; height: 100%; display: block; }
+.rv-chest { width: 52vh; height: 38vh; animation: none; }
+.reveal.open .rv-chest { animation: rvChestUp 0.9s ease-out 0.5s forwards; }
+@keyframes rvChestUp { to { transform: translateY(-2vh) scale(0.82); } }
