@@ -66,28 +66,46 @@
   const G = 9.81;  // pesanteur (m/s²)
   const TYPES = {
     light: {
-      id: 'light', name: 'Lynx', cls: 'Char léger', kmh: 60, speed: 150, rev: 70, accel: 230, turn: 2.3, tturn: 2.6,
+      id: 'light', mass: 12, name: 'Lynx', cls: 'Char léger', kmh: 60, speed: 150, rev: 70, accel: 230, turn: 2.3, tturn: 2.6,
       reload: 3.2, shell: 640, disp: 0.016, view: 760, range: 470,
       caliber: 50, obs: 60,
-      ammo: { AP: 20, APHE: 30, APCR: 10, HEAT: 6, HE: 20 },
+      ammo: { AP: 20, APHE: 30, APCR: 10, HEAT: 6, HE: 20, SMOKE: 4, CAN: 8 },
     },
     medium: {
-      id: 'medium', name: 'Panthère', cls: 'Char moyen', kmh: 46, speed: 112, rev: 52, accel: 170, turn: 1.6, tturn: 1.4,
+      id: 'medium', mass: 45, name: 'Panthère', cls: 'Char moyen', kmh: 46, speed: 112, rev: 52, accel: 170, turn: 1.6, tturn: 1.4,
       reload: 5.5, shell: 720, disp: 0.011, view: 680, range: 420,
       caliber: 75, obs: 110,
-      ammo: { AP: 15, APHE: 35, APCR: 10, HEAT: 5, HE: 15 },
+      ammo: { AP: 15, APHE: 35, APCR: 10, HEAT: 5, HE: 15, SMOKE: 4, CAN: 5 },
     },
     heavy: {
-      id: 'heavy', name: 'Tigre', cls: 'Char lourd', kmh: 38, speed: 80, rev: 38, accel: 115, turn: 1.1, tturn: 1.0,
+      id: 'heavy', mass: 57, name: 'Tigre', cls: 'Char lourd', kmh: 38, speed: 80, rev: 38, accel: 115, turn: 1.1, tturn: 1.0,
       reload: 7.0, shell: 680, disp: 0.010, view: 620, range: 330,
       caliber: 88, obs: 150,
-      ammo: { AP: 12, APHE: 40, APCR: 8, HEAT: 10, HE: 22 },
+      ammo: { AP: 12, APHE: 40, APCR: 8, HEAT: 10, HE: 22, SMOKE: 4, CAN: 4 },
+    },
+    pz4: {
+      id: 'pz4', mass: 25, name: 'Panzer IV', cls: 'Char moyen', kmh: 38, speed: 95, rev: 45, accel: 150, turn: 1.5, tturn: 1.0,
+      reload: 5.0, shell: 700, disp: 0.012, view: 680, range: 420,
+      caliber: 75, obs: 100,
+      ammo: { AP: 15, APHE: 40, APCR: 8, HEAT: 6, HE: 20, SMOKE: 4, CAN: 6 },
+    },
+    stug: {
+      id: 'stug', mass: 24, name: 'StuG', cls: "Canon d'assaut", kmh: 40, speed: 100, rev: 45, accel: 150, turn: 1.5, tturn: 0.9,
+      reload: 5.0, shell: 700, disp: 0.010, view: 650, range: 450, arc: 0.17,
+      caliber: 75, obs: 100,
+      ammo: { AP: 12, APHE: 30, APCR: 6, HEAT: 4, HE: 18, SMOKE: 4, CAN: 4 },
+    },
+    kingtiger: {
+      id: 'kingtiger', mass: 68, name: 'Tigre royal', cls: 'Char lourd', kmh: 35, speed: 70, rev: 33, accel: 95, turn: 0.9, tturn: 0.8,
+      reload: 8.0, shell: 800, disp: 0.008, view: 640, range: 520,
+      caliber: 88, obs: 170,
+      ammo: { AP: 10, APHE: 40, APCR: 8, HEAT: 4, HE: 20, SMOKE: 4, CAN: 4 },
     },
     destroyer: {
-      id: 'destroyer', name: 'Jagd', cls: 'Chasseur de chars', kmh: 46, speed: 95, rev: 45, accel: 145, turn: 1.4, tturn: 0.9,
+      id: 'destroyer', mass: 46, name: 'Jagd', cls: 'Chasseur de chars', kmh: 46, speed: 95, rev: 45, accel: 145, turn: 1.4, tturn: 0.9,
       reload: 7.5, shell: 780, disp: 0.007, view: 720, range: 600, arc: 0.21,
       caliber: 88, obs: 160,
-      ammo: { AP: 12, APHE: 25, APCR: 10, HEAT: 5, HE: 5 },
+      ammo: { AP: 12, APHE: 25, APCR: 10, HEAT: 5, HE: 5, SMOKE: 3, CAN: 2 },
     },
   };
   // Géométrie de jeu tirée des modèles 3D
@@ -101,6 +119,9 @@
     T.tr = T.tb ? (T.tb.y1 - T.tb.y0) / 2 : 5;
     T.barrel = I.S.gun.len * PX; T.bw = Math.max(2.5, I.S.gun.r * 2 * PX * 1.6);
     T.crewN = I.S.crew.length;
+    // inertie en tangage et en roulis (parallélépipède plein), longueur de recul du canon
+    T.Ip = T.mass * 1000 * (I.S.L * I.S.L + I.S.ht * I.S.ht) / 12; T.Ir = T.mass * 1000 * (I.S.W * I.S.W + I.S.ht * I.S.ht) / 12;
+    T.recoilLen = 0.3 + (T.caliber - 50) / 38 * 0.28;
   }
 
   const SHELLS = {
@@ -109,8 +130,10 @@
     APCR: { key: 'APCR', n: 3, name: 'Sous-calibré', full: 'Sous-calibré (APCR)', pen: 1.32, vel: 1.25, drop: 0.45, ric: 62 },
     HEAT: { key: 'HEAT', n: 4, name: 'Charge creuse', full: 'Charge creuse (HEAT)', vel: 0.72, drop: 0, ric: 80 },
     HE: { key: 'HE', n: 5, name: 'Explosif', full: 'Explosif (HE)', vel: 0.82, drop: 0, ric: 90 },
+    SMOKE: { key: 'SMOKE', n: 6, tag: 'FUM', name: 'Fumigène', full: 'Obus fumigène (Nebelgranate) : rideau de fumée au point d’impact', vel: 0.72, drop: 0, ric: 90 },
+    CAN: { key: 'CAN', n: 7, tag: 'MIT', name: 'Mitraille', full: 'Boîte à mitraille (Kartätsche) : gerbe de billes d’acier à courte portée', vel: 0.62, drop: 0, ric: 90 },
   };
-  const SHELL_KEYS = ['AP', 'APHE', 'APCR', 'HEAT', 'HE'];
+  const SHELL_KEYS = ['AP', 'APHE', 'APCR', 'HEAT', 'HE', 'SMOKE', 'CAN'];
   // Pénétration à une distance donnée (pixels de jeu), selon la balistique réelle
   const penAt = (T, key, dpx) => Ballistics.penAt(T.id, key, dpx * RK);
 
@@ -127,35 +150,35 @@
       ground: ['#7b8446', '#6c763b', '#8a9352'], road: '#8d7d58', dust: '#a59a6a', track: 'rgba(40,35,20,0.16)',
       trees: 45, treeCl: 6, bushes: 34, buildings: 6, walls: 9, rocks: 8,
       tree: ['#36521f', '#4a6a2b'], bush: '#4c6b2a', wall: '#a59a86', roof: ['#8a4f3a', '#73402f'],
-      waves: [W_('light', 'light', 'medium', 'light', 'medium'), W_('medium', 'light', 'medium', 'medium', 'light'), W_('medium', 'medium', 'heavy', 'light', 'medium')],
+      waves: [W_('light', 'light', 'medium', 'light', 'medium'), W_('pz4', 'light', 'medium', 'stug', 'light'), W_('pz4', 'medium', 'heavy', 'stug', 'medium')],
     },
     {
       name: 'Forêt des Ardennes', sub: 'Sous-bois denses, combats rapprochés',
       ground: ['#4c5c30', '#425228', '#58693a'], road: '#6d5d3f', dust: '#6b6a48', track: 'rgba(25,25,10,0.2)',
       trees: 150, treeCl: 14, bushes: 70, buildings: 3, walls: 4, rocks: 10,
       tree: ['#24401a', '#335726'], bush: '#3a5a22', wall: '#8f8a7a', roof: ['#5a4a3a', '#4a3c30'],
-      waves: [W_('medium', 'light', 'medium', 'light', 'medium'), W_('medium', 'medium', 'heavy', 'light', 'destroyer'), W_('heavy', 'medium', 'medium', 'destroyer', 'light')],
+      waves: [W_('medium', 'light', 'medium', 'light', 'medium'), W_('pz4', 'medium', 'heavy', 'stug', 'destroyer'), W_('heavy', 'medium', 'medium', 'destroyer', 'light')],
     },
     {
       name: 'Ruines de Stalingrad', sub: 'Rues en ruines, bâtiments destructibles', city: true,
       ground: ['#6d665c', '#615a51', '#79726a'], road: '#55504a', dust: '#8a8378', track: 'rgba(20,18,15,0.18)',
       trees: 8, treeCl: 2, bushes: 10, buildings: 0, walls: 12, rocks: 4,
       tree: ['#3c4a2a', '#4a5a34'], bush: '#4a5530', wall: '#8f877b', roof: ['#7a7268', '#686057'],
-      waves: [W_('medium', 'heavy', 'medium', 'light', 'medium'), W_('heavy', 'medium', 'destroyer', 'medium', 'heavy'), W_('heavy', 'heavy', 'destroyer', 'medium', 'medium')],
+      waves: [W_('medium', 'heavy', 'medium', 'light', 'medium'), W_('heavy', 'pz4', 'destroyer', 'medium', 'kingtiger'), W_('heavy', 'heavy', 'destroyer', 'medium', 'medium')],
     },
     {
       name: "Désert d'El Alamein", sub: 'Terrain ouvert, tirs à longue portée',
       ground: ['#cdb27a', '#c1a46b', '#d9c08c'], road: '#b39463', dust: '#dcc391', track: 'rgba(90,60,30,0.16)',
       trees: 0, treeCl: 1, bushes: 16, buildings: 5, walls: 5, rocks: 36,
       tree: ['#5a6a2a', '#6a7a3a'], bush: '#8c8a4a', wall: '#d8c7a0', roof: ['#e0d2ad', '#cdbd96'],
-      waves: [W_('destroyer', 'medium', 'light', 'destroyer', 'medium'), W_('heavy', 'destroyer', 'medium', 'destroyer', 'light'), W_('heavy', 'heavy', 'destroyer', 'destroyer', 'medium')],
+      waves: [W_('destroyer', 'medium', 'light', 'destroyer', 'medium'), W_('heavy', 'destroyer', 'stug', 'destroyer', 'pz4'), W_('heavy', 'heavy', 'destroyer', 'destroyer', 'medium')],
     },
     {
       name: 'Nuit de Bastogne', sub: 'Neige et obscurité, vision réduite', night: true,
       ground: ['#dfe4e8', '#cfd6dc', '#eaeef1'], road: '#b9b3a8', dust: '#ffffff', track: 'rgba(60,60,70,0.22)',
       trees: 95, treeCl: 10, bushes: 34, buildings: 8, walls: 6, rocks: 6,
       tree: ['#203828', '#2c4a36'], bush: '#3c5a46', wall: '#9a958c', roof: ['#eef3f6', '#d8e0e6'], snow: true,
-      waves: [W_('medium', 'heavy', 'medium', 'light', 'heavy'), W_('heavy', 'heavy', 'destroyer', 'medium', 'medium'), W_('heavy', 'heavy', 'heavy', 'destroyer', 'destroyer')],
+      waves: [W_('medium', 'heavy', 'medium', 'light', 'heavy'), W_('heavy', 'heavy', 'destroyer', 'medium', 'medium'), W_('kingtiger', 'heavy', 'kingtiger', 'destroyer', 'destroyer')],
     },
   ];
   const WAVES = 3;
@@ -553,6 +576,7 @@
       reloadT: rnd(0.8, 1.6), disp: T.disp * 3, smoke: 2, trackT: 0, fireT: 0, fireBy: null,
       mg: { ammo: 2700, ammoH: 150, type: 'SmK', heat: 0, jam: 0, cd: 0, n: 0, burst: 0, wait: rnd(1, 4) },
       // chef de char sorti de la coupole (meilleure vue, mais exposé aux balles), optiques endommagées
+      sus: { p: 0, vp: 0, r: 0, vr: 0, v0: 0 }, elev: 0, fireAge: 9, scars: [], scarDirty: false, scarT: 0, scar3: null,
       hatch: !isPlayer, underFire: 0, calm: 20, optic: { driver: 0, gunner: 0, cmd: 0 },
       revealT: 0, recoil: 0, flash: 0, trackAcc: 0, treadPhase: 0, hitFlash: 0, turretGone: false,
       in: { throttle: 0, turn: 0, aim: angle, fire: false },
@@ -584,11 +608,12 @@
   }
 
   function spawnWave() {
+    if (W3D) for (const t of tanks) if (t.scar3) { W3D.free(t.scar3.hull); W3D.free(t.scar3.turret); }
     tanks = []; shells = []; bullets = []; smokes = []; texts = []; feed = []; parts = []; logs = [];
     spotted[0].clear(); spotted[1].clear();
     HitCam.stop();
     const lv = L();
-    const allyTypes = levelIdx < 2 ? ['medium', 'light', 'medium', 'heavy'] : ['medium', 'heavy', 'destroyer', 'light'];
+    const allyTypes = levelIdx < 2 ? ['pz4', 'light', 'medium', 'stug'] : levelIdx < 4 ? ['medium', 'heavy', 'destroyer', 'pz4'] : ['kingtiger', 'medium', 'stug', 'heavy'];
     const enemyTypes = lv.waves[waveIdx];
     const eSkill = Math.min(0.95, 0.3 + levelIdx * 0.14 + waveIdx * 0.04);
     const aSkill = Math.min(0.7, 0.5 + levelIdx * 0.05);
@@ -626,7 +651,7 @@
   // Survie : la vague n arrive du côté opposé au joueur, plus nombreuse, plus lourde et plus habile
   function survivalEnemies(n) {
     const count = Math.min(5, Math.ceil(n * 0.7));
-    const pool = ['light', 'light', 'medium', 'medium', 'destroyer', 'heavy'];
+    const pool = ['light', 'pz4', 'light', 'stug', 'medium', 'pz4', 'destroyer', 'heavy', 'kingtiger'];
     const skill = Math.min(0.95, 0.3 + n * 0.06);
     const right = !player || player.x < WW / 2, x0 = right ? WW - 200 : 200;
     for (let i = 0; i < count; i++) {
@@ -963,6 +988,23 @@
     }
     if (k >= 0.6 && Math.random() < dt * 30 * k) P3({ x: rx + rnd(-6, 6), y: ry + rnd(-5, 5), z: z + rnd(-0.1, 0.3), vz: rnd(1.5, 3.5), g: -1.2, wind: 0.5, size: rnd(0.25, 0.55), grow: -0.5, glow: true, life: rnd(0.25, 0.55), c: [1, rnd(0.38, 0.6), 0.12, 1.7] });
   }
+  // Suspension à barres de torsion : caisse en tangage et en roulis, ressort amorti (≈ 1,2 Hz,
+  // amortissement 0,3). Elle s'accroupit à l'accélération, plonge au freinage, se couche dans les
+  // virages, encaisse les bosses, le recul du canon et les coups reçus.
+  function suspension(t, dt) {
+    const T = t.T, u = t.sus, K = 57, C = 4.5;
+    const acc = (t.speed - u.v0) / dt / PX; u.v0 = t.speed;
+    const lat = (t.speed / PX) * t.turnRate, sp = Math.abs(t.speed) / T.speed, ph = t.treadPhase / PX;
+    const bump = sp * (Math.sin(ph * 2.3) * 0.6 + Math.sin(ph * 5.1 + 1.3) * 0.4 + Math.sin(ph * 9.7) * 0.25);
+    const fp = K * (0.005 * clamp(acc, -6, 6) + 0.004 * bump), fr = K * (0.006 * clamp(lat, -4, 4) + 0.003 * Math.sin(ph * 3.7 + 0.5) * sp);
+    u.vp += (-K * u.p - C * u.vp + fp) * dt; u.p += u.vp * dt;
+    u.vr += (-K * u.r - C * u.vr + fr) * dt; u.r += u.vr * dt;
+  }
+  // Impulsion angulaire sur la caisse : quantité de mouvement × bras de levier / inertie
+  function rock(t, J, dirX, dirY, h) {
+    t.sus.vp += J * h / t.T.Ip * dirX * 3;
+    t.sus.vr += J * h / t.T.Ir * dirY * 3;
+  }
   function updateTank(t, dt) {
     if (t.dead) {
       t.deadT += dt;
@@ -1036,6 +1078,16 @@
 
     if (t.reloadT > 0) { t.reloadT -= dt / reloadMul(t); if (t.reloadT <= 0 && t === player) Sfx.reload(); }
     t.recoil = Math.max(0, t.recoil - dt * 3);
+    t.fireAge += dt;
+    // Pointage en hauteur : le canon prend l'élévation qui amène l'obus sur le point visé (chute
+    // comprise), à la vitesse du volant de pointage
+    {
+      const sb = Ballistics.shell(T.id, t.shell === 'CAN' || t.shell === 'SMOKE' ? 'HE' : t.shell), pv = pivot(t), ta = t.angle + t.turret;
+      const ap = aimPoint(t, pv.x + Math.cos(ta) * T.gunEnd, pv.y + Math.sin(ta) * T.gunEnd);
+      const want = clamp(Math.atan(aimSlope(sb, ap.D, T.S.gun.z, ap.z) * PX * RK), -8 * D2R, 20 * D2R);
+      t.elev += clamp(want - t.elev, -0.15 * dt, 0.15 * dt);
+    }
+    suspension(t, dt);
     t.flash = Math.max(0, t.flash - dt);
     t.hitFlash = Math.max(0, t.hitFlash - dt);
     t.revealT -= dt;
@@ -1069,10 +1121,19 @@
     t.ammo[key]--;
     const sb = Ballistics.shell(T.id, key);
     // vertical : élévation du canon (débattement de −8° à +20°) et dispersion, isotrope avec l'horizontale
-    const z0 = T.S.gun.z, ap = aimPoint(t, mx, my), k3 = PX * RK;
-    let slope = aimSlope(sb, ap.D, z0, ap.z) + gauss() * t.disp / k3;
+    const z0 = T.S.gun.z, k3 = PX * RK;
+    let slope = Math.tan(t.elev) / k3 + gauss() * t.disp / k3;
+    // recul : la caisse bascule vers l'arrière du tir (canon au-dessus du centre de gravité)
+    t.fireAge = 0;
+    rock(t, sb.m * sb.v0 * (key === 'CAN' ? 0.9 : 1.3), Math.cos(t.turret), -Math.sin(t.turret), T.S.gun.z - T.S.ht * 0.5);
     slope = clamp(slope, Math.tan(-8 * D2R) / k3, Math.tan(20 * D2R) / k3);
-    shells.push({
+    if (key === 'CAN') {
+      // la boîte s'ouvre à la bouche : une gerbe de billes d'acier qui s'ouvre d'environ 3°
+      for (let i = 0; i < sb.balls; i++) {
+        const a = ang + gauss() * 0.028, bsp = sb.v0 * 0.92 * (0.95 + Math.random() * 0.1);
+        bullets.push({ x: mx, y: my, z: z0, vx: Math.cos(a) * bsp, vy: Math.sin(a) * bsp, sp: bsp, slope: slope + gauss() * 0.028 / k3, dist: 0, tracer: i % 9 === 0, by: t, team: t.team, type: 'CAN' });
+      }
+    } else shells.push({
       id: ++shellId, x: mx, y: my, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, sp, sp0: sp, team: t.team, owner: t, by: t,
       key, base: sp, v0: sb.v0, dist: 0, z: z0, slope, range: 2400, trail: [], ric: 0, whiz: false, warned: false,
     });
@@ -1098,9 +1159,10 @@
   const MG_AMMO = {
     SmK: { name: 'S.m.K.', full: "S.m.K. · noyau d'acier", m: 11.5, v0: 785, p100: 11 },
     SmKH: { name: 'S.m.K.H.', full: 'S.m.K.H. · noyau de carbure de tungstène', m: 11.5, v0: 810, p100: 15 },
+    CAN: { name: 'Bille', full: 'bille d’acier de mitraille (Kartätsche)', m: 24, v0: 450, p100: 3, kd: 250 },
   };
-  const mgPen = (type, xm) => MG_AMMO[type].p100 * Math.exp(-(xm - 100) / 600);
-  const mgVel = (type, xm) => MG_AMMO[type].v0 * Math.exp(-xm / 900);
+  const mgPen = (type, xm) => MG_AMMO[type].p100 * Math.exp(-(xm - 100) / (MG_AMMO[type].kd || 600));
+  const mgVel = (type, xm) => MG_AMMO[type].v0 * Math.exp(-xm / (MG_AMMO[type].kd || 900));
   // Point où se tient le chef de char à découvert : coupole (char à tourelle) ou trappe du toit
   function hatchPos(t) {
     const T = t.T, S = T.S;
@@ -1172,8 +1234,9 @@
       if (zNext <= 0) { const tg = b.z / Math.max(1e-6, b.z - zNext); if (!best || tg < best.t) best = { t: tg, ground: true }; }
       if (!best) {
         b.x += dx; b.y += dy; b.z = zNext; b.dist += b.sp * dt;
-        const vr = MG_V * Math.exp(-b.dist * RK / 900);
+        const vr = mgVel(b.type, b.dist * RK);
         b.slope -= G / (vr * vr) * dX;
+        if (b.type === 'CAN') { b.vx *= Math.exp(-b.sp * dt * RK / 250); b.vy *= Math.exp(-b.sp * dt * RK / 250); b.sp = Math.hypot(b.vx, b.vy); if (b.sp < 60) { bullets.splice(i, 1); continue; } }
         if (b.dist > 2400 || b.x < -50 || b.y < -50 || b.x > WW + 50 || b.y > WH + 50) bullets.splice(i, 1);
         continue;
       }
@@ -1217,7 +1280,9 @@
     } else {
       const h = best.h, pp = platePick(t, h, d, 'MG');
       const cosI = Math.max(0.03, -dot3(pp.dd, pp.n)), angle = Math.acos(Math.min(1, cosI)) / D2R;
-      mm = pp.mm; plate = pp.plate; eff = pp.mm / cosI + pp.extra;
+      const scf = scarFrame(t, h, E), scw = scarWeak(t, scf.frame, scf.p, pp.plate);
+      mm = scw.hole ? Math.round(pp.mm * 0.1) : Math.round(pp.mm * (1 - scw.w)); plate = pp.plate; eff = mm / cosI + pp.extra;
+      if (mm < pp.mm) lines.push({ t: `Plaque déjà endommagée : ${mm} mm utiles au lieu de ${pp.mm} mm`, c: '#ffcf7a' });
       // points faibles, dans le repère du modèle
       const tq = h.part === 'turret' ? rotZ([E[0] - t.T.I.pivotX, E[1] - t.T.I.pivotY, E[2]], -tAng) : null;
       const drv = t.mods[t.roles.driver];
@@ -1236,6 +1301,7 @@
       } else if (angle < 70 && pen > eff) {
         // la balle traverse la tôle : premier module rencontré sur sa trajectoire dans le char
         outcome = 'pen'; kind = 'pen';
+        addScar(t, h, E, d, plate, 'mgpen', 8, 1);
         let tb = 1e9;
         for (const m of t.mods) {
           if (m.hp <= 0) continue;
@@ -1256,6 +1322,7 @@
       } else {
         Fx.armorHit(hx, hy, best.z, 'mg', ux, uy);
         if (Math.random() < 0.25) Sfx.ping(listenerDist(hx, hy));
+        addScar(t, h, E, d, plate, 'mg', 8, 0);
         return 'stop';
       }
     }
@@ -1265,11 +1332,11 @@
       mgCamT = gameTime;
       const f = (v, k = 0) => v.toFixed(k).replace('.', ',');
       const ev = {
-        typeId: t.T.id, turretAng: tAng, dir: d, entry: E, n: [-d[0], -d[1], -d[2]], cosI: 1, V, cal: 7.92,
+        typeId: t.T.id, turretAng: tAng, dir: d, entry: E, n: [-d[0], -d[1], -d[2]], cosI: 1, V, cal: b.type === 'CAN' ? 18 : 7.92,
         shellKey: 'MG', shellLen: 4.2, spin: V / (0.24 * 1), target: `${t.T.name} ${t.team === 0 ? '(allié)' : '(ennemi)'} · ${Math.round(xm)} m`,
         friendly: t.team === by.team, mods: t.mods.map(m => ({ kind: m.kind, frame: m.frame, c: m.c, s: m.s })),
         before: t.mods.map(m => m.hp / m.max0), after: t.mods.map(m => Math.max(0, m.hp) / m.max0), touch: [], sim: null, sparks: [], chunks: [],
-        results: lines.map(l => ({ t: l.t, c: l.c, time: 0 })), data: [], detT: null, ricDir: null, outcome, metal: null,
+        results: lines.map(l => ({ t: l.t, c: l.c, time: 0 })), data: [], detT: null, ricDir: null, outcome, metal: null, scars: scarsForXray(t),
       };
       for (let k = 0; k < 10; k++) ev.sparks.push({ d: norm3([-d[0] + gauss() * 0.7, -d[1] + gauss() * 0.7, -d[2] + gauss() * 0.7 + 0.2]), v: rnd(100, 400), life: rnd(0.8e-3, 2e-3) });
       // aux rayons X, le chef à découvert est montré debout dans sa coupole
@@ -1280,7 +1347,7 @@
         ev.touch[mod] = tHit;
         ev.sim = { tEnd: tHit + 1.2e-3, core: [{ t: 0, p: E, v: V }, { t: tHit, p: mc, v: V * 0.6 }], coreStop: true, frags: [], exit: null, blast: null, jet: null, fuel: null };
       } else if (outcome === 'nopen') for (let k = 0; k < 7; k++) ev.chunks.push({ d: norm3([-d[0] * 0.3 + gauss() * 0.6, -d[1] * 0.3 + gauss() * 0.6, gauss() * 0.4 + 0.3]), v: rnd(60, 250), r: 0.004 });
-      ev.data.push({ t: `Balle 7,92 mm ${Am.full} · ${f(Am.m, 1)} g · bouche ${Am.v0} m/s`, c: '#e9d9a6' });
+      ev.data.push({ t: b.type === 'CAN' ? `Bille d'acier de 18 mm (Kartätsche) · ${f(Am.m, 0)} g · bouche ${Am.v0} m/s` : `Balle 7,92 mm ${Am.full} · ${f(Am.m, 1)} g · bouche ${Am.v0} m/s`, c: '#e9d9a6' });
       ev.data.push({ t: `Vitesse d'impact ${Math.round(V)} m/s · énergie ${f(0.5 * Am.m / 1000 * V * V / 1000, 2)} kJ · perforation ${f(pen, 1)} mm à ${Math.round(xm)} m`, c: '#d8d4c6' });
       if (best.exposed) ev.data.push({ t: 'Point visé : chef de char debout dans la coupole, tête et buste hors du blindage', c: '#d8d4c6' });
       else if (kind === 'pen') ev.data.push({ t: `${plate} : ${mm} mm · ${Math.round(eff)} mm effectifs`, c: '#d8d4c6' });
@@ -1290,6 +1357,15 @@
     return 'stop';
   }
 
+  // Obus fumigène : la charge éjecte et allume la composition fumigène, rideau en quelques secondes
+  function smokeShell(s, x, y) {
+    const k = s.by.T.caliber / 75;
+    smokes.push({ x, y, r: 12, maxR: 85 * Math.sqrt(k) + 25, life: 22 });
+    for (let i = 0; i < 14; i++) P3({ x, y, z: 0.4, vx: rnd(-6, 6), vy: rnd(-6, 6), vz: rnd(1, 5), drag: 1.6, g: -0.2, wind: 1, size: rnd(0.5, 1), grow: 1.8, life: rnd(4, 7), c: [0.85, 0.85, 0.83, 0.55] });
+    parts.push({ k: 'flash', x, y, life: 0.08, max: 0.08, size: 14, z: 0.4 });
+    Sfx.smoke(listenerDist(x, y));
+    return 'stop';
+  }
   function deploySmoke(t) {
     if (t.smoke <= 0) return;
     t.smoke--;
@@ -1400,6 +1476,7 @@
   // Obus qui touche le sol. Sous un angle de chute rasant, un obus perforant rebondit (« ricochet de
   // sol », bien connu des artilleurs) ; sinon il s'enfonce en soulevant une gerbe de terre.
   function hitGround(s, x, y, forced) {
+    if (s.key === 'SMOKE') { stampCrater(x, y, 4); return smokeShell(s, x, y); }
     const ux = s.vx / s.sp, uy = s.vy / s.sp, fall = Math.atan(-s.slope * PX * RK) / D2R;
     if (!forced && s.key !== 'HE' && s.key !== 'HEAT' && fall < 7 && s.ric < 2 && Math.random() < 0.75 - fall * 0.07) {
       s.slope = -s.slope * 0.35 + rnd(0.002, 0.008); s.z = 0.05; s.ric++;
@@ -1453,6 +1530,126 @@
     return [0, sideSign * c, n];
   }
 
+  // ===================== Blindage marqué par les impacts =====================
+  // Chaque coup laisse une trace qui reste sur le char et affaiblit la plaque autour du point d'impact :
+  // - obus arrêté : cratère et zone écrouie, fissurée s'il a failli percer (rapport pén./blindage > 0,8) ;
+  //   l'acier perd jusqu'à 45 % de sa résistance sur environ 1,5 calibre, plus loin s'il est fissuré ;
+  // - perforation : trou du calibre, pétales et fissures autour ; un coup dans le trou ne rencontre
+  //   presque plus rien ;
+  // - explosif : suie, piqûres, et sur une tôle mince, soudures et plaque fissurées ;
+  // - balles : écaillage de la peinture et de la surface, presque rien sur l'acier, mais ça s'accumule.
+  // La perte locale se somme (gaussienne de rayon rz), plafonnée à 80 %.
+  function scarFrame(t, h, E) {
+    if (h.part !== 'turret') return { frame: 'hull', p: E };
+    return { frame: 'turret', p: rotZ([E[0] - t.T.I.pivotX, E[1] - t.T.I.pivotY, E[2]], t.turret) };
+  }
+  function scarWeak(t, frame, p, plate) {
+    let w = 0, hole = null, near = 1e9;
+    for (const sc of t.scars) {
+      if (sc.frame !== frame || sc.plate !== plate) continue;
+      const d = Math.hypot(p[0] - sc.p[0], p[1] - sc.p[1], p[2] - sc.p[2]);
+      if (sc.hole && d < sc.hole) hole = sc;
+      const k = sc.w * Math.exp(-Math.pow(d / sc.rz, 2));
+      if (k > 0.01) near = Math.min(near, d);
+      w += k;
+    }
+    return { w: Math.min(0.8, w), hole, near };
+  }
+  // Rayon contre les triangles du modèle (Möller-Trumbore) : point et normale de la vraie surface
+  function rayMesh(v, o, d) {
+    let best = 1e9, n = null;
+    for (let i = 0; i < v.length; i += 30) {
+      const ax = v[i], ay = v[i + 1], az = v[i + 2];
+      const e1x = v[i + 10] - ax, e1y = v[i + 11] - ay, e1z = v[i + 12] - az, e2x = v[i + 20] - ax, e2y = v[i + 21] - ay, e2z = v[i + 22] - az;
+      const px = d[1] * e2z - d[2] * e2y, py = d[2] * e2x - d[0] * e2z, pz = d[0] * e2y - d[1] * e2x;
+      const det = e1x * px + e1y * py + e1z * pz;
+      if (Math.abs(det) < 1e-9) continue;
+      const inv = 1 / det, tx = o[0] - ax, ty = o[1] - ay, tz = o[2] - az;
+      const u = (tx * px + ty * py + tz * pz) * inv;
+      if (u < 0 || u > 1) continue;
+      const qx = ty * e1z - tz * e1y, qy = tz * e1x - tx * e1z, qz = tx * e1y - ty * e1x;
+      const w = (d[0] * qx + d[1] * qy + d[2] * qz) * inv;
+      if (w < 0 || u + w > 1) continue;
+      const tt = (e2x * qx + e2y * qy + e2z * qz) * inv;
+      if (tt > 0 && tt < best) { best = tt; n = norm3([e1y * e2z - e1z * e2y, e1z * e2x - e1x * e2z, e1x * e2y - e1y * e2x]); }
+    }
+    if (!n) return null;
+    if (dot3(n, d) > 0) n = [-n[0], -n[1], -n[2]];
+    return { p: [o[0] + d[0] * best, o[1] + d[1] * best, o[2] + d[2] * best], n };
+  }
+  // kind : dent, crack, ric, pen, heat, heatpen, he, hepen, mg, mgpen
+  function addScar(t, h, E, d, plate, kind, cal, q) {
+    const { frame, p } = scarFrame(t, h, E), c = cal / 1000;
+    const dl = frame === 'turret' ? rotZ(d, t.turret) : d;
+    let sp = p, n = [-dl[0], -dl[1], -dl[2]];
+    const tri = RAYTRI[t.T.id] && RAYTRI[t.T.id][frame];
+    if (tri) { const r = rayMesh(tri, [p[0] - dl[0] * 3, p[1] - dl[1] * 3, p[2] - dl[2] * 3], dl); if (r) { sp = r.p; n = r.n; } }
+    const sc = { frame, plate, p, sp, n, kind, dl, r: c * 0.6, rz: c * 1.5, w: 0, hole: 0, seed: Math.random() * 1000 };
+    if (kind === 'dent') { sc.w = 0.45 * q * q; if (q > 0.8) { sc.kind = 'crack'; sc.rz = c * 2.5; sc.w += 0.15; } sc.r = c * (0.45 + 0.4 * q); }
+    else if (kind === 'ric') { sc.w = 0.1 * q; sc.rz = c * 1.2; sc.r = c * 0.5; }
+    else if (kind === 'pen') { sc.hole = c * 0.53; sc.w = 0.35; sc.rz = c * 2; sc.r = c * 0.53; }
+    else if (kind === 'heatpen') { sc.hole = c * 0.18; sc.w = 0.12; sc.rz = c; sc.r = 0.17; }
+    else if (kind === 'heat') { sc.w = 0.2; sc.rz = c; sc.r = 0.15; }
+    else if (kind === 'he' || kind === 'hepen') { sc.w = q; sc.rz = 0.4; sc.r = 0.14 + 0.12 * Math.min(1, cal / 88); if (kind === 'hepen') sc.hole = 0.12; }
+    else if (kind === 'mg') { sc.w = 0.015; sc.rz = 0.03; sc.r = 0.012; }
+    else if (kind === 'mgpen') { sc.hole = 0.005; sc.w = 0.05; sc.rz = 0.02; sc.r = 0.006; }
+    t.scars.push(sc);
+    // on garde les plus importantes : les traces de balles partent en premier
+    if (t.scars.length > 140) { const i = t.scars.findIndex(x => x.kind === 'mg'); t.scars.splice(i >= 0 ? i : 0, 1); }
+    t.scarDirty = true;
+    return sc;
+  }
+  // Maillage des traces, collées à la surface (léger décalage le long de la normale)
+  function scarMesh(t, frame) {
+    const g = new G3.Builder();
+    const disc = (sc, rad, col, mat, off, sx = 1, jit = 0.15, k = 12) => {
+      const n = sc.n, up = Math.abs(n[2]) > 0.9 ? [1, 0, 0] : [0, 0, 1];
+      let u = norm3([n[1] * up[2] - n[2] * up[1], n[2] * up[0] - n[0] * up[2], n[0] * up[1] - n[1] * up[0]]);
+      if (sc.kind === 'ric') { const dd = sc.dl, pr = dot3(dd, n), tg = norm3([dd[0] - n[0] * pr, dd[1] - n[1] * pr, dd[2] - n[2] * pr]); if (Math.hypot(...tg) > 0.1) u = tg; }
+      const v = [n[1] * u[2] - n[2] * u[1], n[2] * u[0] - n[0] * u[2], n[0] * u[1] - n[1] * u[0]];
+      const R = mulberry32(Math.floor(sc.seed * 97 + rad * 1000)), c = [sc.sp[0] + n[0] * off, sc.sp[1] + n[1] * off, sc.sp[2] + n[2] * off];
+      const pts = [];
+      for (let i = 0; i < k; i++) {
+        const a = i / k * TAU, rr = rad * (1 - jit + 2 * jit * R());
+        pts.push([c[0] + (u[0] * Math.cos(a) * sx + v[0] * Math.sin(a)) * rr, c[1] + (u[1] * Math.cos(a) * sx + v[1] * Math.sin(a)) * rr, c[2] + (u[2] * Math.cos(a) * sx + v[2] * Math.sin(a)) * rr]);
+      }
+      for (let i = 0; i < k; i++) g.triN(c, pts[i], pts[(i + 1) % k], n, n, n, col, mat);
+    };
+    const PRIMER = '#7a4430', STEEL = '#a8a7a0', SOOT = '#2e2a25', DARKS = '#4c4b46', HOLE = '#040404';
+    for (const sc of t.scars) {
+      if (sc.frame !== frame) continue;
+      const r = sc.r;
+      switch (sc.kind) {
+        case 'dent': case 'crack':
+          disc(sc, r * 1.9, PRIMER, 7, 0.006, 1, 0.35); disc(sc, r, STEEL, 3, 0.009); disc(sc, r * 0.5, DARKS, 3, 0.012);
+          if (sc.kind === 'crack') for (let k = 0; k < 4; k++) disc(Object.assign({}, sc, { seed: sc.seed + k }), r * 2.6, SOOT, 7, 0.0075, 0.08, 0.05, 4);
+          break;
+        case 'ric': disc(sc, r * 3.6, PRIMER, 7, 0.006, 2.2, 0.3); disc(sc, r * 2.6, STEEL, 3, 0.009, 2.8, 0.1); break;
+        case 'pen': disc(sc, r * 3.2, SOOT, 7, 0.005, 1, 0.4); disc(sc, r * 2, PRIMER, 7, 0.007, 1, 0.35); disc(sc, r * 1.35, STEEL, 3, 0.009, 1, 0.3, 9); disc(sc, r, HOLE, 7, 0.012, 1, 0.12); break;
+        case 'heatpen': disc(sc, r, SOOT, 7, 0.005, 1, 0.5, 14); disc(sc, sc.hole * 1.6, STEEL, 3, 0.009); disc(sc, sc.hole, HOLE, 7, 0.012); break;
+        case 'heat': disc(sc, r, SOOT, 7, 0.005, 1, 0.5, 14); disc(sc, 0.04, STEEL, 3, 0.009); break;
+        case 'he': case 'hepen':
+          disc(sc, r, SOOT, 7, 0.005, 1, 0.55, 16); disc(sc, r * 0.45, '#2a2724', 7, 0.007, 1, 0.4);
+          if (sc.hole) disc(sc, sc.hole, HOLE, 7, 0.012, 1, 0.3);
+          break;
+        case 'mg': disc(sc, r * 2.2, PRIMER, 7, 0.006, 1, 0.4, 7); disc(sc, r, '#c4c3bc', 3, 0.009, 1, 0.3, 7); break;
+        case 'mgpen': disc(sc, r * 3, STEEL, 3, 0.008, 1, 0.3, 7); disc(sc, r, HOLE, 7, 0.011, 1, 0.2, 7); break;
+      }
+    }
+    return g;
+  }
+  function updateScarMeshes(t, dt) {
+    t.scarT -= dt;
+    if (!t.scarDirty || t.scarT > 0 || !W3D) return;
+    t.scarDirty = false; t.scarT = 0.25;
+    if (t.scar3) { W3D.free(t.scar3.hull); W3D.free(t.scar3.turret); }
+    t.scar3 = { hull: W3D.upload(scarMesh(t, 'hull')), turret: W3D.upload(scarMesh(t, 'turret')) };
+  }
+  // traces pour la vue aux rayons X (repère de la caisse)
+  function scarsForXray(t) {
+    return t.scars.filter(sc => sc.kind !== 'mg').map(sc => ({ kind: sc.kind, p: sc.frame === 'turret' ? (() => { const q = rotZ(sc.sp, -t.turret); return [q[0] + t.T.I.pivotX, q[1] + t.T.I.pivotY, q[2]]; })() : sc.sp }));
+  }
+
   // Plaque touchée : épaisseur, inclinaison, normale extérieure et protections annexes
   function platePick(t, h, d, key) {
     const Sd = t.T.S, A = Sd.armor, tAng = -t.turret;
@@ -1487,6 +1684,7 @@
 
   function hitTank(s, t, h, hx, hy) {
     if (t === player) s.hitPlayer = true;
+    if (s.key === 'SMOKE') { Fx.armorHit(hx, hy, h.z, 'mg', s.vx / s.sp, s.vy / s.sp); Sfx.clang(listenerDist(hx, hy)); return smokeShell(s, hx, hy); }
     if (t.dead) {
       Fx.armorHit(hx, hy, h.z || 1, 'non', s.vx / s.sp, s.vy / s.sp);
       if (s.key === 'HE') explode(hx, hy, s, null);
@@ -1505,7 +1703,10 @@
     const d = norm3([h.ldx / ll, -h.ldy / ll, s.slope * PX * RK]);
     const E = [h.lx / PX, -h.ly / PX, h.z];
     const tAng = -t.turret;
-    const { face, plate, mm, slope, dd, extra, heatK, trackHit, n } = platePick(t, h, d, s.key);
+    const { face, plate, mm: mm0, slope, dd, extra, heatK, trackHit, n } = platePick(t, h, d, s.key);
+    const scf = scarFrame(t, h, E), scw = scarWeak(t, scf.frame, scf.p, plate);
+    const mm = scw.hole ? Math.round(mm0 * 0.1) : Math.round(mm0 * (1 - scw.w));
+    rock(t, sb.m * Ballistics.velAt(sb, s.dist * RK), -d[0], -d[1], Math.max(0.2, h.z - T.S.ht * 0.5));
     const nHull = h.part === 'turret' ? rotZ(n, tAng) : n;
     const cosI = Math.max(0.03, -dot3(dd, n));
     const angle = Math.acos(Math.min(1, cosI)) / D2R;
@@ -1524,7 +1725,7 @@
       target: `${T.name} ${t.team === 0 ? '(allié)' : '(ennemi)'} · ${Math.round(xm)} m`,
       friendly: t.team === by.team, mods: t.mods.map(m => ({ kind: m.kind, frame: m.frame, c: m.c, s: m.s })),
       before: t.mods.map(m => m.hp / m.max0), after: null, touch: [], sim: null, sparks: [], chunks: [],
-      results: [], data: [], detT: null, ricDir: null, outcome: null,
+      results: [], data: [], detT: null, ricDir: null, outcome: null, scars: scarsForXray(t),
     } : null;
     if (ev) {
       for (let k = 0; k < 18; k++) ev.sparks.push({ d: norm3([nHull[0] + gauss() * 0.6, nHull[1] + gauss() * 0.6, nHull[2] + gauss() * 0.6 + 0.15]), v: rnd(150, 700), life: rnd(1.5e-3, 4e-3) });
@@ -1534,6 +1735,7 @@
       const fall = Math.atan(-s.slope * PX * RK) / D2R;
       ev.data.push({ t: `Trajectoire : ${fall >= 0 ? 'chute' : 'montée'} de ${f(Math.abs(fall), 2)}° sous l'effet de la pesanteur · impact à ${f(h.z, 2)} m du sol${s.ric ? ' · après ricochet' : ''}`, c: '#d8d4c6' });
       ev.data.push({ t: `${plate} : ${mm} mm à ${slope}° · incidence ${Math.round(angle)}°${!sb.heat && !sb.he ? ` → normalisée ${Math.round(ef.angN)}°` : ''}`, c: '#d8d4c6' });
+      if (mm < mm0) ev.data.push({ t: scw.hole ? `Dans le trou d'une perforation précédente : il ne reste que ${mm} mm des ${mm0} mm` : `Plaque déjà marquée par un impact à ${Math.round(scw.near * 100)} cm : ${mm} mm utiles au lieu de ${mm0} mm (acier écroui, fissuré)`, c: '#ffcf7a' });
       ev.data.push({ t: `Blindage effectif ${Math.round(eff)} mm${extra ? ` (dont ${extra} mm ${trackHit ? 'de chenille' : 'de jupe'})` : ''} · pénétration ${Math.round(pen)} mm${heatK < 1 ? ' (jet perturbé par la jupe)' : ''}`, c: '#d8d4c6' });
     }
     t.hitFlash = 0.15;
@@ -1555,6 +1757,7 @@
       // une plaque inclinée renvoie l'obus vers le haut : réflexion de la direction 3D sur la normale
       const dn3 = dot3(dd, n), rz = dd[2] - 2 * dn3 * n[2];
       s.slope = rz / Math.sqrt(Math.max(0.05, 1 - rz * rz)) / (PX * RK); s.z = h.z;
+      addScar(t, h, E, d, plate, 'ric', sb.cal, Math.min(1, pen / eff));
       Fx.armorHit(hx, hy, h.z, 'ric', s.vx / s.sp, s.vy / s.sp);
       s.owner = t; // l'obus dévié peut toucher n'importe qui d'autre
       Sfx.ricochet(listenerDist(hx, hy));
@@ -1591,6 +1794,8 @@
 
     let out = null;
     if (sim) out = applySim(t, sim, by, ev);
+    addScar(t, h, E, d, plate, penetrated ? (sb.heat ? 'heatpen' : sb.he ? 'hepen' : 'pen') : (sb.heat ? 'heat' : sb.he ? 'he' : 'dent'), sb.cal,
+      sb.he ? (mm0 < 30 ? 0.2 : 0.06) : Math.min(1, pen / eff));
     if (penetrated) {
       if (by === player) waveStats.pens++;
       if (show) {
@@ -1752,6 +1957,7 @@
   }
 
   function hitObstacle(s, o, h, hx, hy) {
+    if (s.key === 'SMOKE') return smokeShell(s, hx, hy);
     if (o.type === 'tree') {
       knockTree(o, Math.atan2(s.vy, s.vx));
       if (s.key === 'HE') { explode(hx, hy, s, null); return 'stop'; }
@@ -2143,7 +2349,7 @@
     { az: 210, el: 34, sunCol: [0.28, 0.33, 0.5], skyCol: [0.03, 0.045, 0.08], bounce: [0.04, 0.05, 0.07], horizon: [0.02, 0.03, 0.06], zenith: [0.004, 0.006, 0.016], fogD: 0.011, snow: 1 },
   ];
 
-  let CMDR3 = null;
+  let CMDR3 = null; const RAYTRI = {};
   let W3D = null, MESH3 = {}, bush3 = null, scene3 = null, scene3Dirty = false, scene3T = 0;
   // modes de caméra (touche C) : hauteur, recul et part du regard portée vers la visée
   const CAM_MODES = [
@@ -2157,7 +2363,7 @@
     const c3 = document.getElementById('game3d');
     if (c3 && typeof World3D !== 'undefined' && !Q.has('2d')) {
       W3D = World3D.create(c3);
-      if (W3D) for (const id of Object.keys(TYPES)) { const b = TankModels.build(id); MESH3[id] = { hull: W3D.upload(b.hull), turret: W3D.upload(b.turret) }; }
+      if (W3D) for (const id of Object.keys(TYPES)) { const b = TankModels.build(id); MESH3[id] = { hull: W3D.upload(b.hull), turret: W3D.upload(b.turret), body: W3D.upload(b.turretBody), gun: W3D.upload(b.gun), gunPivot: b.gunPivot }; RAYTRI[id] = { hull: b.hull.v, turret: b.turret.v }; }
       if (W3D) {
         // chef de char debout dans sa coupole : buste en vareuse, bras, tête, calot et écouteurs
         const g = new G3.Builder();
@@ -2344,6 +2550,15 @@
     }
     return best;
   }
+  const T3recoil = t => t.dead ? 0 : t.T.recoilLen;
+  const M4 = G3.M4;
+  function rotYm(a) { const c = Math.cos(a), s = Math.sin(a); return new Float32Array([c, 0, -s, 0, 0, 1, 0, 0, s, 0, c, 0, 0, 0, 0, 1]); }
+  function rotXm(a) { const c = Math.cos(a), s = Math.sin(a); return new Float32Array([1, 0, 0, 0, 0, c, s, 0, 0, -s, c, 0, 0, 0, 0, 1]); }
+  // tangage et roulis de la caisse, autour d'un point à mi-hauteur des chenilles
+  function susM(t) {
+    const zc = t.T.S.tt * 0.6, u = t.sus;
+    return M4.mul(M4.trs(0, 0, zc, 0), M4.mul(rotYm(-u.p), M4.mul(rotXm(u.r), M4.trs(0, 0, -zc, 0))));
+  }
   function updateCam3(dt) {
     if (sight.on && !(player && !player.dead && !player.ai && (state === 'play' || state === 'intro' || state === 'ending'))) setSight(false);
     if (sight.on) { sightCam(dt); return; }
@@ -2396,10 +2611,12 @@
     for (const t of tanks) {
       if (!t.dead && !visibleToPlayer(t)) continue;
       if (sight.on && t === player) continue;
-      const p = to3(t.x, t.y), hm = M4.trs(p[0], p[1], 0, -t.angle);
+      const p = to3(t.x, t.y), hm = M4.mul(M4.trs(p[0], p[1], 0, -t.angle), susM(t));
       const o = { camo: TEAM[t.team].camo, seed: t.team * 3.7 + t.id * 0.37, burnt: t.dead ? 1 : 0, tread: -t.treadPhase / PX, tint: t.hitFlash > 0 ? [1, 0.9, 0.7, t.hitFlash * 2.5] : null };
       const MS = MESH3[t.T.id];
       items.push({ mesh: MS.hull, model: hm, o });
+      updateScarMeshes(t, 1 / 60);
+      if (t.scar3) items.push({ mesh: t.scar3.hull, model: hm, o: { burnt: o.burnt } });
       if (t.hatch && !t.dead && CMDR3 && roleOk(t, 'commander')) {
         const hp = hatchPos(t), I = t.T.I;
         const base = t.T.S.turret ? M4.mul(hm, M4.mul(M4.trs(I.pivotX, I.pivotY, 0, -t.turret), M4.trs(hp.m[0], hp.m[1], hp.z0 - 0.05, 0))) : M4.mul(hm, M4.trs(hp.m[0], hp.m[1], hp.z0 - 0.05, 0));
@@ -2407,8 +2624,13 @@
       }
       if (!t.turretGone) {
         const I = t.T.I;
-        const tmm = M4.mul(hm, M4.mul(M4.trs(I.pivotX, I.pivotY, 0, -t.turret), M4.trs(-t.recoil * 0.3, 0, 0, 0)));
-        items.push({ mesh: MS.turret, model: tmm, o });
+        const tmm = M4.mul(hm, M4.trs(I.pivotX, I.pivotY, 0, -t.turret));
+        items.push({ mesh: MS.body, model: tmm, o });
+        if (t.scar3) items.push({ mesh: t.scar3.turret, model: tmm, o: { burnt: o.burnt } });
+        // canon : élévation autour des tourillons, recul rapide (≈ 0,05 s) puis retour en batterie
+        const fa = t.fireAge, rc = fa < 0.05 ? fa / 0.05 : Math.exp(-(fa - 0.05) * 4.5), gp = MS.gunPivot;
+        const gm = M4.mul(tmm, M4.mul(M4.trs(gp[0], gp[1], gp[2], 0), M4.mul(rotYm(-t.elev), M4.trs(-T3recoil(t) * rc, 0, 0, 0))));
+        items.push({ mesh: MS.gun, model: gm, o });
       }
     }
     // particules et lumières
@@ -3235,13 +3457,13 @@
     for (const k of SHELL_KEYS) {
       const sh = SHELLS[k], sel = player.shell === k, n = player.ammo[k];
       ctx.fillStyle = sel ? '#4a3f1a' : 'rgba(255,255,255,0.06)';
-      ctx.fillRect(x, by + 52, 86, 30);
-      if (sel) { ctx.strokeStyle = '#e9c46a'; ctx.lineWidth = 1.5; ctx.strokeRect(x + 0.5, by + 52.5, 85, 29); }
-      ctx.fillStyle = n ? (sel ? '#ffe27a' : '#ddd') : '#666'; ctx.font = '700 11px system-ui, sans-serif';
-      ctx.fillText(`[${sh.n}] ${k}`, x + 5, by + 65);
-      ctx.font = '600 10px system-ui, sans-serif'; ctx.fillStyle = n ? '#aaa' : '#555';
-      ctx.fillText(`${n} · ${Math.round(penAt(player.T, k, 200))} mm`, x + 5, by + 77);
-      x += 89;
+      ctx.fillRect(x, by + 52, 62, 30);
+      if (sel) { ctx.strokeStyle = '#e9c46a'; ctx.lineWidth = 1.5; ctx.strokeRect(x + 0.5, by + 52.5, 61, 29); }
+      ctx.fillStyle = n ? (sel ? '#ffe27a' : '#ddd') : '#666'; ctx.font = '700 10px system-ui, sans-serif';
+      ctx.fillText(`[${sh.n}] ${sh.tag || k}`, x + 4, by + 65);
+      ctx.font = '600 9.5px system-ui, sans-serif'; ctx.fillStyle = n ? '#aaa' : '#555';
+      ctx.fillText(sh.tag ? `${n} coups` : `${n} · ${Math.round(penAt(player.T, k, 200))}`, x + 4, by + 77);
+      x += 64;
     }
     // rechargement
     const rf = player.reloadT > 0 ? 1 - player.reloadT / T.reload : 1;
@@ -3355,7 +3577,7 @@
     if (A.turret) h += row('Tourelle avant', A.turret.front) + row('Masque de canon', A.turret.mantlet) + row('Flancs de tourelle', A.turret.side) + row('Arrière de tourelle', A.turret.rear);
     h += `<tr><td>Toit</td><td>${A.hull.roof} mm</td><td></td></tr></table>`;
     h += '<table class="spec"><tr><th>Obus</th><th>100 m</th><th>500 m</th><th>Coups</th></tr>';
-    for (const k of SHELL_KEYS) h += `<tr><td>${Ballistics.shell(T.id, k).name}</td><td>${Math.round(penAt(T, k, 100 / RK))} mm</td><td>${Math.round(penAt(T, k, 500 / RK))} mm</td><td>${T.ammo[k]}</td></tr>`;
+    for (const k of SHELL_KEYS) h += SHELLS[k].tag ? `<tr><td>${Ballistics.shell(T.id, k).name}</td><td>—</td><td>—</td><td>${T.ammo[k]}</td></tr>` : `<tr><td>${Ballistics.shell(T.id, k).name}</td><td>${Math.round(penAt(T, k, 100 / RK))} mm</td><td>${Math.round(penAt(T, k, 500 / RK))} mm</td><td>${T.ammo[k]}</td></tr>`;
     return h + '</table>';
   }
   function buildMenu() {
@@ -3489,7 +3711,7 @@
   function initBench() {
     const g = $('bGun'), sS = $('bShell');
     g.innerHTML = Object.values(TYPES).map(T => `<option value="${T.id}">${Ballistics.GUNS[T.id].gun} (${T.name})</option>`).join('');
-    const fillShells = () => { sS.innerHTML = SHELL_KEYS.map(k => `<option value="${k}">${Ballistics.shell(g.value, k).name}</option>`).join(''); sS.value = 'APHE'; };
+    const fillShells = () => { sS.innerHTML = SHELL_KEYS.filter(k => k !== 'SMOKE' && k !== 'CAN').map(k => `<option value="${k}">${Ballistics.shell(g.value, k).name}</option>`).join(''); sS.value = 'APHE'; };
     fillShells();
     g.onchange = () => { fillShells(); labels(); };
     const labels = () => { $('bTv').textContent = $('bT').value + ' mm'; $('bAv').textContent = $('bA').value + '°'; $('bDv').textContent = $('bD').value + ' m'; };
@@ -3565,7 +3787,7 @@
       showMsg(CAM_MODES[cam3.mode].name, '#bcd8ff', 1.2);
     }
     if (!player || player.dead || player.ai || state === 'menu' || state === 'pause' || state === 'result') return;
-    const dm = e.code.match(/^(?:Digit|Numpad)([1-5])$/);
+    const dm = e.code.match(/^(?:Digit|Numpad)([1-7])$/);
     if (dm) {
       const key = SHELL_KEYS[Number(dm[1]) - 1];
       if (player.ammo[key] <= 0) showMsg(`Plus d'obus ${SHELLS[key].name.toLowerCase()}`, '#ff9a7a', 1.2);
@@ -3643,6 +3865,7 @@
         const pv = pivot(player);
         player.turret = angNorm(Math.atan2(e.y - pv.y, e.x - pv.x) - player.angle);
         player.aim3 = { x: e.x, y: e.y, z: e.T.S.ht - 0.3 };
+        { const sb = Ballistics.shell(player.T.id, player.shell === 'CAN' || player.shell === 'SMOKE' ? 'HE' : player.shell); player.elev = Math.atan(aimSlope(sb, Math.hypot(e.x - pv.x, e.y - pv.y), player.T.S.gun.z, e.T.S.ht - 0.3) * PX * RK); }
         player.disp = 0; player.reloadT = 0; fireShell(player);
         return true;
       },

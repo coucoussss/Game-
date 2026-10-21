@@ -133,6 +133,101 @@ const TankModels = (() => {
         ['fuel', null, 'hull', -2.0, -0.82, 1.1, 1.1, 0.35, 0.7],
       ],
     },
+    pz4: {
+      inspired: 'Inspiré du Pz.Kpfw. IV Ausf. H', real: '5,9 × 2,9 × 2,7 m · 25 t · 5 hommes',
+      L: 5.89, W: 2.88, tw: 0.4, gc: 0.4, tt: 0.9, ht: 1.65, zn: 1.0, xn: 2.92,
+      sUp: 10, sLow: 14, sRear: 10, sideSlope: 0, rearX: -2.9,
+      wheels: { n: 8, r: 0.235, x0: 1.95, x1: -2.05, inter: false }, rollers: [1.4, 0.45, -0.45, -1.35], rollerR: 0.11,
+      spr: { x: 2.55, z: 0.6, r: 0.3 }, idl: { x: -2.65, z: 0.55, r: 0.27 },
+      turret: {
+        x: -0.15, h: 0.78, ts: 0.82,
+        poly: [[0.95, 0.55], [0.75, 0.85], [-0.95, 0.92], [-1.1, 0.65], [-1.1, -0.65], [-0.95, -0.92], [0.75, -0.85], [0.95, -0.55]],
+        mantlet: { type: 'box', d: 0.2, w: 0.32, h: 0.22 }, cupola: [-0.75, 0.0, 0.3, 0.25], bin: true,
+      },
+      gun: { z: 2.1, fx: 0.98, len: 3.6, r: 0.045, sleeve: [0.075, 0.55], brake: { r: 0.09, len: 0.32 }, name: '7,5 cm KwK 40 L/48' },
+      exhaust: [[-2.88, 0.6], [-2.88, -0.6]], skirts: true, mg: true,
+      armor: {
+        hull: { up: [80, 10], low: [80, 12], side: [30, 0], rear: [20, 10], roof: 12 },
+        turret: { front: [50, 10], side: [30, 25], rear: [30, 25], mantlet: [50, 0] },
+      },
+      crew: ['driver', 'radio', 'gunner', 'commander', 'loader'],
+      modules: [
+        ['crew', 'driver', 'hull', 1.95, 0.5, 0.9, 0.5, 0.45, 0.82],
+        ['crew', 'radio', 'hull', 1.95, -0.5, 0.9, 0.5, 0.45, 0.82],
+        ['trans', null, 'hull', 2.35, 0, 0.72, 0.45, 0.55, 0.45],
+        ['crew', 'gunner', 'turret', 0.15, 0.42, 1.55, 0.42, 0.4, 0.85],
+        ['crew', 'commander', 'turret', -0.7, 0.0, 1.75, 0.42, 0.42, 0.85],
+        ['crew', 'loader', 'turret', -0.1, -0.45, 1.5, 0.42, 0.4, 0.85],
+        ['breech', null, 'turret', 0.05, 0, 2.1, 0.9, 0.28, 0.3],
+        ['ammo', null, 'hull', 0.2, 1.0, 1.05, 1.6, 0.3, 0.4],
+        ['ammo', null, 'hull', 0.2, -1.0, 1.05, 1.6, 0.3, 0.4],
+        ['engine', null, 'hull', -1.9, 0, 1.05, 1.2, 1.0, 0.85],
+        ['fuel', null, 'hull', -0.7, 0.6, 0.6, 0.9, 0.5, 0.35],
+        ['fuel', null, 'hull', -0.7, -0.6, 0.6, 0.9, 0.5, 0.35],
+      ],
+    },
+    kingtiger: {
+      inspired: 'Inspiré du Pz.Kpfw. VI Ausf. B Tiger II', real: '7,4 × 3,8 × 3,1 m · 68 t · 5 hommes',
+      L: 7.38, W: 3.755, tw: 0.8, gc: 0.5, tt: 1.2, ht: 2.05, zn: 1.2, xn: 3.65,
+      sUp: 50, sLow: 50, sRear: 30, sideSlope: 25, rearX: -3.6,
+      wheels: { n: 9, r: 0.4, x0: 2.65, x1: -2.65, inter: true }, rollers: [], rollerR: 0,
+      spr: { x: 3.25, z: 0.7, r: 0.38 }, idl: { x: -3.3, z: 0.65, r: 0.33 },
+      turret: {
+        x: 0.15, h: 0.95, ts: 0.8,
+        poly: [[1.1, 0.55], [0.95, 0.95], [-1.7, 1.05], [-1.85, 0.8], [-1.85, -0.8], [-1.7, -1.05], [0.95, -0.95], [1.1, -0.55]],
+        mantlet: { type: 'cyl', r: 0.32, w: 0.4 }, cupola: [-0.75, 0.5, 0.34, 0.25],
+      },
+      gun: { z: 2.55, fx: 1.25, len: 6.3, r: 0.055, sleeve: [0.1, 0.8], brake: { r: 0.12, len: 0.45 }, name: '8,8 cm KwK 43 L/71' },
+      exhaust: [[-3.5, 0.4], [-3.5, -0.4]], tallExhaust: true, mg: true,
+      armor: {
+        hull: { up: [150, 50], low: [100, 50], side: [80, 25], rear: [80, 30], roof: 40 },
+        turret: { front: [180, 9], side: [80, 21], rear: [80, 21], mantlet: [150, 0] },
+      },
+      crew: ['driver', 'radio', 'gunner', 'commander', 'loader'],
+      modules: [
+        ['crew', 'driver', 'hull', 2.4, 0.6, 1.1, 0.55, 0.5, 0.9],
+        ['crew', 'radio', 'hull', 2.4, -0.6, 1.1, 0.55, 0.5, 0.9],
+        ['trans', null, 'hull', 2.85, 0, 0.85, 0.5, 0.6, 0.5],
+        ['crew', 'gunner', 'turret', 0.3, 0.45, 1.95, 0.45, 0.42, 0.9],
+        ['crew', 'commander', 'turret', -0.75, 0.45, 2.15, 0.45, 0.42, 0.9],
+        ['crew', 'loader', 'turret', -0.2, -0.5, 1.85, 0.45, 0.42, 0.9],
+        ['breech', null, 'turret', 0.05, 0, 2.55, 1.2, 0.34, 0.36],
+        ['ammo', null, 'turret', -1.45, 0, 2.4, 0.7, 1.4, 0.4],
+        ['ammo', null, 'hull', 0.2, 1.4, 1.45, 2.4, 0.4, 0.5],
+        ['ammo', null, 'hull', 0.2, -1.4, 1.45, 2.4, 0.4, 0.5],
+        ['engine', null, 'hull', -2.4, 0, 1.4, 1.4, 1.2, 1.0],
+        ['fuel', null, 'hull', -2.4, 0.95, 1.1, 1.2, 0.35, 0.7],
+        ['fuel', null, 'hull', -2.4, -0.95, 1.1, 1.2, 0.35, 0.7],
+      ],
+    },
+    stug: {
+      inspired: 'Inspiré du Sturmgeschütz III Ausf. G', real: '5,4 × 3,0 × 2,2 m · 24 t · 4 hommes',
+      L: 5.38, W: 2.95, tw: 0.38, gc: 0.4, tt: 0.9, ht: 1.95, zn: 0.95, xn: 2.65,
+      sUp: 10, sLow: 21, sRear: 10, sideSlope: 11, rearX: -2.65,
+      wheels: { n: 6, r: 0.26, x0: 1.7, x1: -1.8, inter: false }, rollers: [1.2, 0, -1.2], rollerR: 0.1,
+      spr: { x: 2.25, z: 0.58, r: 0.28 }, idl: { x: -2.35, z: 0.55, r: 0.25 },
+      turret: null, mount: { x: 1.25, y: -0.12 },
+      gun: { z: 1.62, fx: 0.35, len: 3.6, r: 0.045, sleeve: null, brake: { r: 0.09, len: 0.32 }, name: '7,5 cm StuK 40 L/48' },
+      exhaust: [[-2.6, 0.5], [-2.6, -0.5]], skirts: true,
+      armor: {
+        hull: { up: [80, 10], low: [80, 21], side: [30, 11], rear: [30, 10], roof: 17 },
+        turret: null,
+      },
+      crew: ['driver', 'gunner', 'commander', 'loader'],
+      modules: [
+        ['crew', 'driver', 'hull', 1.6, 0.55, 0.85, 0.5, 0.45, 0.82],
+        ['trans', null, 'hull', 2.1, 0, 0.7, 0.45, 0.55, 0.45],
+        ['crew', 'gunner', 'hull', 0.6, 0.5, 1.35, 0.42, 0.4, 0.85],
+        ['crew', 'commander', 'hull', 0.0, 0.55, 1.5, 0.42, 0.42, 0.85],
+        ['crew', 'loader', 'hull', 0.5, -0.6, 1.35, 0.42, 0.4, 0.85],
+        ['breech', null, 'hull', 0.75, -0.12, 1.62, 1.0, 0.3, 0.3],
+        ['ammo', null, 'hull', 0.2, 1.0, 1.05, 1.4, 0.3, 0.4],
+        ['ammo', null, 'hull', 0.2, -1.0, 1.05, 1.4, 0.3, 0.4],
+        ['engine', null, 'hull', -1.75, 0, 1.0, 1.2, 1.0, 0.85],
+        ['fuel', null, 'hull', -1.6, 0.75, 0.85, 0.9, 0.3, 0.6],
+        ['fuel', null, 'hull', -1.6, -0.75, 0.85, 0.9, 0.3, 0.6],
+      ],
+    },
   };
 
   // Tourelle en fer à cheval du Tiger : avant plat, arrière arrondi
@@ -316,17 +411,25 @@ const TankModels = (() => {
       hb.box(-0.6, 0.0, ht + 0.02, 0.6, 0.6, 0.04, CAMO, 1);
       hb.cyl([-0.3, -0.5, ht], [-0.3, -0.5, ht + 0.35], 0.03, 0.03, 6, DARK, 3);
     }
-    // Canon
-    if (g.sleeve) tb.cyl([g.fx - 0.05, 0, g.z], [g.fx + g.sleeve[1], 0, g.z], g.sleeve[0], g.sleeve[0] * 0.92, 16, CAMO, 1);
-    tb.cyl([g.fx, 0, g.z], [g.fx + g.len, 0, g.z], g.r * 1.15, g.r * 0.9, 16, CAMO, 1);
-    if (g.brake) {
-      const bx = g.fx + g.len;
-      tb.cyl([bx - 0.02, 0, g.z], [bx + g.brake.len * 0.45, 0, g.z], g.brake.r, g.brake.r, 16, DARK, 3);
-      tb.cyl([bx + g.brake.len * 0.55, 0, g.z], [bx + g.brake.len, 0, g.z], g.brake.r, g.brake.r, 16, DARK, 3);
-      tb.cyl([bx, 0, g.z], [bx + g.brake.len, 0, g.z], g.r * 0.9, g.r * 0.9, 10, DARK, 3);
-    } else tb.cyl([g.fx + g.len - 0.08, 0, g.z], [g.fx + g.len, 0, g.z], g.r * 1.2, g.r * 1.2, 12, DARK, 3);
+    // Canon : construit deux fois, dans la tourelle (vitrine, rayons X) et à part, autour de ses
+    // tourillons, pour que le jeu le pointe en hauteur et le fasse reculer
+    const gunPivot = [g.fx - 0.25, 0, g.z];
+    const addGun = (b, ox, oz) => {
+      const P = (x, z) => [x - ox, 0, z - oz];
+      if (g.sleeve) b.cyl(P(g.fx - 0.05, g.z), P(g.fx + g.sleeve[1], g.z), g.sleeve[0], g.sleeve[0] * 0.92, 16, CAMO, 1);
+      b.cyl(P(g.fx, g.z), P(g.fx + g.len, g.z), g.r * 1.15, g.r * 0.9, 16, CAMO, 1);
+      if (g.brake) {
+        const bx = g.fx + g.len;
+        b.cyl(P(bx - 0.02, g.z), P(bx + g.brake.len * 0.45, g.z), g.brake.r, g.brake.r, 16, DARK, 3);
+        b.cyl(P(bx + g.brake.len * 0.55, g.z), P(bx + g.brake.len, g.z), g.brake.r, g.brake.r, 16, DARK, 3);
+        b.cyl(P(bx, g.z), P(bx + g.brake.len, g.z), g.r * 0.9, g.r * 0.9, 10, DARK, 3);
+      } else b.cyl(P(g.fx + g.len - 0.08, g.z), P(g.fx + g.len, g.z), g.r * 1.2, g.r * 1.2, 12, DARK, 3);
+    };
+    const body = new G3.Builder(); body.v = tb.v.slice();
+    addGun(tb, 0, 0);
+    const gb = new G3.Builder(); addGun(gb, gunPivot[0], gunPivot[2]);
 
-    return { S, I, hull: hb, turret: tb };
+    return { S, I, hull: hb, turret: tb, turretBody: body, gun: gb, gunPivot };
   }
 
 

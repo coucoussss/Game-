@@ -133,6 +133,17 @@ const HitCam = (() => {
       ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); ctx.globalAlpha = fade;
     };
     ctx.lineCap = 'round';
+    // traces des impacts précédents, gardées par le blindage
+    if (ev.scars) for (const sc of ev.scars) {
+      const q = P(sc.p);
+      if (q.behind) continue;
+      const hole = sc.kind.indexOf('pen') >= 0, col = hole ? '#ff6a4a' : sc.kind === 'he' || sc.kind === 'heat' ? '#c8a070' : sc.kind === 'crack' ? '#ffb070' : '#9fd0ff';
+      ctx.globalAlpha = fade * 0.9; ctx.strokeStyle = col; ctx.lineWidth = hole ? 2 : 1.4;
+      ctx.beginPath(); ctx.arc(q.x, q.y, hole ? 5 : 3.5, 0, Math.PI * 2); ctx.stroke();
+      if (hole) { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(q.x, q.y, 1.6, 0, Math.PI * 2); ctx.fill(); }
+      if (sc.kind === 'crack') { ctx.beginPath(); ctx.moveTo(q.x - 7, q.y - 4); ctx.lineTo(q.x + 6, q.y + 5); ctx.moveTo(q.x - 3, q.y + 6); ctx.lineTo(q.x + 4, q.y - 6); ctx.stroke(); }
+      ctx.globalAlpha = fade;
+    }
     const cal = ev.cal / 1000, r0 = cal / 2;
 
     // Trou dans la plaque : section de l'obus projetée sur le plan incliné (allongée de 1/cos i)

@@ -52,6 +52,36 @@ const Ballistics = (() => {
         HE: { name: '8,8 cm Sprgr. (HE)', m: 9.0, v0: 820, cd: 0.33, filler: 0.9, ric: [85, 89], len: 4.6 },
       },
     },
+    pz4: {
+      gun: '7,5 cm KwK 40 L/48', cal: 75, twist: 25,
+      shells: {
+        AP: { name: '7,5 cm PzGr. (AP)', m: 6.8, v0: 790, cd: 0.33, k: 1.0, norm: 2, ric: [64, 74], len: 4.0 },
+        APHE: { name: '7,5 cm PzGr. 39 (APCBC-HE)', m: 6.8, v0: 790, cd: 0.30, k: 0.95, norm: 5, ric: [68, 78], filler: 0.018, fuse: 1.3e-3, sens: 15, len: 4.4 },
+        APCR: { name: '7,5 cm PzGr. 40 (APCR)', m: 4.1, v0: 990, cd: 0.45, k: 1.3, norm: -3, ric: [58, 68], core: 0.35, len: 3.4 },
+        HEAT: { name: '7,5 cm Gr. 38 HL/C (HEAT)', m: 4.4, v0: 450, cd: 0.35, pen: 100, ric: [80, 86], len: 4.2 },
+        HE: { name: '7,5 cm Sprgr. 34 (HE)', m: 5.74, v0: 550, cd: 0.33, filler: 0.68, ric: [85, 89], len: 4.6 },
+      },
+    },
+    stug: {
+      gun: '7,5 cm StuK 40 L/48', cal: 75, twist: 25,
+      shells: {
+        AP: { name: '7,5 cm PzGr. (AP)', m: 6.8, v0: 790, cd: 0.33, k: 1.0, norm: 2, ric: [64, 74], len: 4.0 },
+        APHE: { name: '7,5 cm PzGr. 39 (APCBC-HE)', m: 6.8, v0: 790, cd: 0.30, k: 0.95, norm: 5, ric: [68, 78], filler: 0.018, fuse: 1.3e-3, sens: 15, len: 4.4 },
+        APCR: { name: '7,5 cm PzGr. 40 (APCR)', m: 4.1, v0: 990, cd: 0.45, k: 1.3, norm: -3, ric: [58, 68], core: 0.35, len: 3.4 },
+        HEAT: { name: '7,5 cm Gr. 38 HL/C (HEAT)', m: 4.4, v0: 450, cd: 0.35, pen: 100, ric: [80, 86], len: 4.2 },
+        HE: { name: '7,5 cm Sprgr. 34 (HE)', m: 5.74, v0: 550, cd: 0.33, filler: 0.68, ric: [85, 89], len: 4.6 },
+      },
+    },
+    kingtiger: {
+      gun: '8,8 cm KwK 43 L/71', cal: 88, twist: 30,
+      shells: {
+        AP: { name: '8,8 cm PzGr. (AP)', m: 10.16, v0: 1000, cd: 0.33, k: 1.0, norm: 2, ric: [64, 74], len: 4.0 },
+        APHE: { name: '8,8 cm PzGr. 39/43 (APCBC-HE)', m: 10.16, v0: 1000, cd: 0.30, k: 0.95, norm: 5, ric: [68, 78], filler: 0.05, fuse: 1.3e-3, sens: 15, len: 4.4 },
+        APCR: { name: '8,8 cm PzGr. 40/43 (APCR)', m: 7.3, v0: 1130, cd: 0.45, k: 1.3, norm: -3, ric: [58, 68], core: 0.35, len: 3.4 },
+        HEAT: { name: '8,8 cm Gr. 39/43 HL (HEAT)', m: 7.65, v0: 600, cd: 0.35, pen: 110, ric: [80, 86], len: 4.2 },
+        HE: { name: '8,8 cm Sprgr. 43 (HE)', m: 9.4, v0: 750, cd: 0.33, filler: 1.0, ric: [85, 89], len: 4.6 },
+      },
+    },
     destroyer: {
       gun: '8,8 cm PaK 43 L/71', cal: 88, twist: 30,
       shells: {
@@ -63,9 +93,15 @@ const Ballistics = (() => {
       },
     },
   };
+  // Munitions spéciales communes : obus fumigène (Nebelgranate) et boîte à mitraille (Kartätsche)
+  for (const g of Object.values(GUNS)) {
+    const c = g.cal === 50 ? '5 cm' : g.cal === 75 ? '7,5 cm' : '8,8 cm', k = Math.pow(g.cal / 75, 3);
+    g.shells.SMOKE = { name: `${c} Nb.Gr. (fumigène)`, m: +(6.2 * k).toFixed(2), v0: 540, cd: 0.33, filler: 0.05 * k, ric: [85, 89], len: 4.6 };
+    g.shells.CAN = { name: `${c} Kart. (mitraille)`, m: +(6.0 * k).toFixed(2), v0: 450, cd: 0.45, ric: [85, 89], len: 2.6, balls: Math.round(110 * k), ballM: 0.024 };
+  }
   for (const g of Object.values(GUNS)) for (const [key, s] of Object.entries(g.shells)) {
     s.key = key; s.cal = g.cal; s.twist = g.twist;
-    s.heat = key === 'HEAT'; s.he = key === 'HE';
+    s.heat = key === 'HEAT'; s.he = key === 'HE'; s.smoke = key === 'SMOKE'; s.can = key === 'CAN';
   }
   const shell = (id, key) => GUNS[id].shells[key];
 
@@ -75,6 +111,7 @@ const Ballistics = (() => {
   const heContact = s => 14.5 * Math.pow(s.filler, 0.38); // perforation par contact d'une charge explosive (mm)
   const deMarreK = s => C_DM * s.k * Math.pow(s.m, 0.71) / Math.pow(s.cal / 10, 1.07);
   function penVel(s, v) {
+    if (s.smoke || s.can) return 4;
     if (s.heat) return s.pen;
     if (s.he) return heContact(s);
     return deMarreK(s) * Math.pow(v, 1.43);

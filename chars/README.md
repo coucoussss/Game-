@@ -85,6 +85,51 @@ Une balle de 7,92 mm ne perce pas un char, sauf en des points précis, comme dan
   perforation), la caméra d'impact montre la balle, sa vitesse, son énergie et sa perforation à cette
   distance, le point faible touché, et le chef debout dans sa coupole.
 
+## Blindage marqué par les impacts
+
+Chaque coup laisse une trace qui reste sur le char et affaiblit la plaque autour du point touché.
+
+- **Obus arrêté** : cratère d'acier mis à nu, apprêt rouge visible autour, zone écrouie. La plaque y
+  perd jusqu'à 45 % de sa résistance sur environ 1,5 calibre. S'il a failli percer (rapport
+  perforation / blindage au-delà de 0,8), elle se fissure plus loin.
+- **Perforation** : trou du calibre, bord déchiqueté, suie. Un coup qui retombe dans le trou ne
+  rencontre presque plus rien ; autour, l'acier fissuré perd 35 %.
+- **Ricochet** : saignée allongée dans le sens du coup.
+- **Explosif et charge creuse** : suie et piqûres ; sur une tôle mince, plaque et soudures fissurées.
+- **Balles** : écaillage de la peinture. Presque rien sur l'acier, mais les coups s'accumulent au même
+  endroit.
+- Les pertes se somment (gaussienne autour de chaque impact), plafonnées à 80 %. Les rayons X
+  indiquent l'épaisseur utile restante et la distance à l'impact précédent, et marquent les anciens
+  impacts sur la caisse.
+- Les traces sont collées à la vraie surface du modèle, trouvée par un rayon contre ses triangles
+  (Möller-Trumbore). Elles restent sur les épaves.
+
+## Chars et munitions
+
+Sept chars : Lynx (Pz. II L), Panzer IV H, Panthère, Tigre, Tigre royal, StuG III G et Jagd
+(Jagdpanther), avec leurs dimensions, blindages, canons et munitions d'époque. Le Tigre royal range
+des obus dans la nuque de sa tourelle. Les nouveaux chars entrent dans les vagues de la campagne et de
+la survie.
+
+Deux munitions s'ajoutent (touches `6` et `7`) :
+
+- **Obus fumigène** (Nebelgranate) : rideau de fumée au point d'impact, qui coupe la vue de l'ennemi.
+- **Boîte à mitraille** (Kartätsche) : une gerbe d'une centaine de billes d'acier de 18 mm, ouverte
+  d'environ 3° et vite freinée. Elle ne fait rien à l'acier, mais balaie les chefs de char à découvert
+  et brise les optiques.
+
+## Animations
+
+- **Suspension à barres de torsion** : ressort amorti (environ 1,2 Hz, amortissement 0,3) en tangage
+  et en roulis. La caisse s'accroupit à l'accélération, plonge au freinage, se couche dans les virages,
+  encaisse les bosses.
+- **Recul et coups reçus** : impulsion = quantité de mouvement × bras de levier / inertie de la caisse
+  (masse réelle du char).
+- **Canon** : séparé de la tourelle et monté sur ses tourillons. Il prend l'élévation qui amène l'obus
+  sur le point visé, chute comprise, à 8,6°/s ; c'est cette élévation réelle qui fixe le départ de
+  l'obus. Il recule d'une longueur réaliste (0,3 à 0,6 m selon le calibre) en 0,05 s, puis revient
+  en batterie.
+
 ## Effets physiques
 
 Chaque particule a une position en 3D, des vitesses en m/s, la pesanteur, la traînée de l'air, le vent,
