@@ -202,11 +202,12 @@ const Ballistics = (() => {
     if (s.he) return { eff: T / Math.pow(Math.cos(Math.min(ang, 86) * D2R), 0.3), angN: ang };
     return { eff: T * obliquity(s.key, T / s.cal, ang), angN: clamp(ang - (s.norm || 0), 0, 86) };
   }
-  // Probabilité de ricochet ; un calibre très supérieur au blindage ne ricoche pas (surcalibrage)
-  function ricochetChance(s, T, ang) {
+  // Probabilité de ricochet ; un calibre très supérieur au blindage ne ricoche pas (surcalibrage).
+  // off abaisse les angles critiques (obus déjà déformé, en travers)
+  function ricochetChance(s, T, ang, off = 0) {
     const ratio = s.cal / T;
     if (ratio > 3) return 0;
-    let lo = s.ric[0], hi = s.ric[1];
+    let lo = s.ric[0] - off, hi = s.ric[1] - off;
     if (ratio > 2) { lo += 6; hi += 6; }
     return clamp((ang - lo) / (hi - lo), 0, 1);
   }
