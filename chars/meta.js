@@ -7,6 +7,9 @@ const Meta = (() => {
   // Le SDK v3 est chargé par index.html. Hors de CrazyGames (fichier local, page intégrée), il est
   // absent ou en mode « disabled » : les publicités récompensées sont alors simulées par un court écran.
   let SDK = null, env = 'none', adBusy = false, lastMidgame = Date.now();
+  // partie en cours côté SDK : gameplayStart et gameplayStop ne partent que sur un vrai changement,
+  // et jamais pendant une publicité (le départ est alors reporté à la fin de celle-ci)
+  let playing = false, wantPlay = false, lastHappy = -1e9;
   const hooks = { adStart: () => {}, adEnd: () => {}, change: () => {} };
   const MIDGAME_GAP = 180000; // au plus une publicité entre deux parties toutes les 3 minutes
 
@@ -25,9 +28,11 @@ const Meta = (() => {
     get env() { return env; },
     loadingStart: () => call(s => s.game.loadingStart()),
     loadingStop: () => call(s => s.game.loadingStop()),
-    gameplayStart: () => call(s => s.game.gameplayStart()),
-    gameplayStop: () => call(s => s.game.gameplayStop()),
-    happytime: () => call(s => s.game.happytime()),
+    gameplayStart() { if (adBusy) { wantPlay = true; return; } if (playing) return; playing = true; call(s => s.game.gameplayStart()); },
+    gameplayStop() { wantPlay = false; if (!playing) return; playing = false; call(s => s.game.gameplayStop()); },
+    get playing() { return playing; },
+    // moments de joie : au plus un toutes les 45 s, pour ne pas en abuser
+    happytime() { const n = Date.now(); if (n - lastHappy < 45000) return; lastHappy = n; call(s => s.game.happytime()); },
   };
 
   // écran de publicité simulée (hors CrazyGames) : 3 secondes, puis récompense
@@ -46,7 +51,13 @@ const Meta = (() => {
   function requestAd(type, done) {
     if (adBusy) { done(false); return; }
     adBusy = true;
-    const fin = ok => { adBusy = false; hooks.adEnd(); done(ok); };
+    let ended = false;
+    const fin = ok => {
+      if (ended) return; // le SDK peut signaler deux fois la fin (erreur puis fin)
+      ended = true; adBusy = false; hooks.adEnd();
+      if (wantPlay) { wantPlay = false; sdk.gameplayStart(); }
+      done(ok);
+    };
     hooks.adStart();
     if (!SDK) {
       if (type === 'rewarded') simAd(fin); else fin(true);
@@ -67,8 +78,9 @@ const Meta = (() => {
     requestAd('midgame', () => then());
   }
   // Publicité récompensée : la récompense n'est donnée que si la publicité est allée au bout
+  // Une publicité récompensée vue jusqu'au bout repousse aussi la prochaine publicité de mi-partie
   function rewarded(onReward, onFail) {
-    requestAd('rewarded', ok => { if (ok) onReward(); else if (onFail) onFail(); });
+    requestAd('rewarded', ok => { if (ok) { lastMidgame = Date.now(); onReward(); } else if (onFail) onFail(); });
   }
 
   // ===================== Contenu =====================
@@ -291,7 +303,7 @@ const Meta = (() => {
   }
 
   return {
-    sdk, midgame, rewarded, hooks, RANKS, RARITY, MK, TANKS, SKINS, PARTS, WHEEL, MISSIONS, STREAK, xpFor, rankName,
+    sdk, midgame, rewarded, hooks, adActive: () => adBusy, RANKS, RARITY, MK, TANKS, SKINS, PARTS, WHEEL, MISSIONS, STREAK, xpFor, rankName,
     get P() { return P; }, save, addXP, buyTank, canBuyTank, buySkin, grantSkin, selectSkin, skinOf,
     featured, skinPrice, skinAd, adsLeft, partLv, buyPart, partAd, mods,
     dailyRoll, track, claim, canSpinFree, spinResult, applyPrize, battleEnd,

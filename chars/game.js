@@ -207,7 +207,8 @@
   addEventListener('resize', resize);
   resize();
 
-  let state = 'menu'; // menu, intro, play, ending, result, pause
+  let state = 'menu'; // menu, intro, play, ending, result, pause, revive, leaving (publicité avant de quitter)
+  const inBattle = () => state === 'intro' || state === 'play' || state === 'ending';
   let levelIdx = 0, waveIdx = 0, chosenType = 'medium';
   let bullets = [], mgCamT = -99;
   let tanks = [], shells = [], parts = [], texts = [], feed = [], smokes = [], logs = [];
@@ -2395,7 +2396,7 @@
     if (state === 'menu') renderBench();
     if (groundCv) render(dt);
     else { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#0d0f0c'; ctx.fillRect(0, 0, cv.width, cv.height); }
-    const v = player && !player.dead && state !== 'menu' && state !== 'result' && state !== 'pause' ? Math.abs(player.speed) / player.T.speed : -1;
+    const v = player && !player.dead && inBattle() ? Math.abs(player.speed) / player.T.speed : -1;
     Sfx.engine(v);
     // chenilles et moteur de tourelle du char du joueur
     const live = v >= 0 && player;
@@ -4035,41 +4036,60 @@
     location.reload();
   };
   Meta.hooks.change = () => { if (state === 'menu') updateTopbar(); };
-  Meta.hooks.adStart = () => { Sfx.setMuted(true); stopMusic(); Meta.sdk.gameplayStop(); };
+  Meta.hooks.adStart = () => { Sfx.setMuted(true); stopMusic(); releaseInput(); Meta.sdk.gameplayStop(); };
   Meta.hooks.adEnd = () => { Sfx.setMuted(false); if (state === 'menu') playMusic(); };
 
   function startLevel() { genMap(); setup3D(); spawnWave(); }
   // ===================== Réparation (publicité récompensée ou kit) =====================
-  let reviveT = 0, reviveUsed = false, reviveIt = null;
-  const revivePending = () => reviveT > 0 || state === 'revive';
+  // Le compte à rebours de 8 s est figé pendant la publicité de réparation (15 à 30 s sur CrazyGames)
+  // et quand l'onglet est masqué ; la réparation n'est appliquée que si l'écran est encore ouvert.
+  let reviveT = 0, reviveUsed = false, reviveIt = null, reviveAd = false, reviveLeft = 0;
+  const REVIVE_S = 8;
+  const revivePending = () => reviveT > 0 || state === 'revive' || reviveAd;
   function openRevive() {
     if (!player || !player.dead || state !== 'play') return;
     state = 'revive'; freePointer(); setSight(false);
     Meta.sdk.gameplayStop();
     show('revive');
+    reviveAd = false; reviveButtons(true);
+    reviveCountdown(REVIVE_S);
+  }
+  function reviveButtons(on) {
     $('revKit').textContent = `Repair kit (${Meta.P.kits})`;
-    $('revKit').disabled = Meta.P.kits <= 0;
-    let n = 8, t0 = performance.now();
-    $('revN').textContent = n;
+    $('revKit').disabled = !on || Meta.P.kits <= 0;
+    $('revAd').disabled = !on; $('revNo').disabled = !on;
+  }
+  function reviveCountdown(sec) {
     clearInterval(reviveIt);
+    reviveLeft = sec;
+    let prev = performance.now();
+    const draw = () => {
+      $('revRing').style.setProperty('--p', clamp(reviveLeft / REVIVE_S * 100, 0, 100) + '%');
+      $('revN').textContent = Math.max(0, Math.ceil(reviveLeft));
+    };
+    draw();
     reviveIt = setInterval(() => {
-      const el = (performance.now() - t0) / 1000;
-      $('revRing').style.setProperty('--p', Math.max(0, 100 - el / 8 * 100) + '%');
-      $('revN').textContent = Math.max(0, Math.ceil(8 - el));
-      if (el >= 8) closeRevive(false);
+      const now = performance.now(), d = Math.min(0.5, (now - prev) / 1000);
+      prev = now;
+      if (reviveAd || Meta.adActive() || document.hidden) return;
+      reviveLeft -= d; draw();
+      if (reviveLeft <= 0) closeRevive(false);
     }, 100);
   }
   function closeRevive(ok) {
+    if (reviveAd) return;
     clearInterval(reviveIt); reviveIt = null;
     hide('revive');
     reviveUsed = true;
-    if (state === 'revive') { state = 'play'; last = performance.now(); Meta.sdk.gameplayStart(); }
+    if (state !== 'revive') return;
+    state = 'play'; last = performance.now(); Meta.sdk.gameplayStart();
     if (ok) revivePlayer();
   }
   // Le char est remis en état sur place : équipage soigné, modules réparés, tourelle remontée,
   // un peu de munitions, 3 s d'invulnérabilité pour se remettre à couvert
   function revivePlayer() {
     const t = player;
+    if (!t || !t.dead || state !== 'play') return;
     t.dead = false; t.deadT = 0; t.turretGone = false; t.fireT = 0; t.trackT = 0; t.speed = 0;
     for (const m of t.mods) m.hp = m.max0;
     for (const k of SHELL_KEYS) t.ammo[k] = Math.min(t.T.ammo[k], t.ammo[k] + Math.ceil(t.T.ammo[k] * 0.3));
@@ -4080,9 +4100,18 @@
     addLog('Field repair: crew and modules restored', '#8fd46a');
     Sfx.reload();
   }
-  $('revAd').onclick = () => Meta.rewarded(() => closeRevive(true), () => toast('Ad unavailable right now'));
-  $('revKit').onclick = () => { if (Meta.P.kits > 0) { Meta.P.kits--; Meta.save(); closeRevive(true); } };
-  $('revNo').onclick = () => closeRevive(false);
+  $('revAd').onclick = () => {
+    if (reviveAd || state !== 'revive') return;
+    reviveAd = true; reviveButtons(false);
+    Meta.rewarded(() => { reviveAd = false; closeRevive(true); }, () => {
+      // publicité indisponible : on rend la main avec au moins 3 s pour choisir
+      reviveAd = false; reviveButtons(true);
+      reviveLeft = clamp(reviveLeft + 2, 3, REVIVE_S);
+      toast('Ad unavailable right now');
+    });
+  };
+  $('revKit').onclick = () => { if (!reviveAd && state === 'revive' && Meta.P.kits > 0) { Meta.P.kits--; Meta.save(); closeRevive(true); } };
+  $('revNo').onclick = () => { if (!reviveAd) closeRevive(false); };
 
 
   function showResult() {
@@ -4148,7 +4177,7 @@
       add(label, fn, alt) {
         const b = document.createElement('button');
         b.className = 'btn' + (alt ? ' alt' : ''); b.textContent = label;
-        b.onclick = () => { Sfx.init(); hide('result'); Meta.midgame(fn); };
+        b.onclick = () => { if (state !== 'result') return; Sfx.init(); hide('result'); state = 'leaving'; Meta.midgame(fn); };
         btns.appendChild(b); shown++;
       },
     };
@@ -4263,10 +4292,10 @@
     startLevel();
   };
   $('resumeBtn').onclick = togglePause;
-  $('quitBtn').onclick = () => { hide('pause'); Meta.midgame(toMenu); };
+  $('quitBtn').onclick = () => { if (state !== 'pause') return; hide('pause'); state = 'leaving'; Meta.sdk.gameplayStop(); Meta.midgame(toMenu); };
   $('xrayBtn').onclick = () => { viewer.xray = !viewer.xray; $('xrayBtn').classList.toggle('on', viewer.xray); };
   const vc = $('viewer');
-  vc.addEventListener('pointerdown', e => { viewer.drag = { x: e.clientX, y: e.clientY, a: viewer.ang, e: viewer.elev }; vc.setPointerCapture(e.pointerId); });
+  vc.addEventListener('pointerdown', e => { if (adOn()) return; viewer.drag = { x: e.clientX, y: e.clientY, a: viewer.ang, e: viewer.elev }; vc.setPointerCapture(e.pointerId); });
   vc.addEventListener('pointermove', e => {
     if (!viewer.drag) return;
     viewer.ang = viewer.drag.a - (e.clientX - viewer.drag.x) * 0.01;
@@ -4275,10 +4304,17 @@
   vc.addEventListener('pointerup', () => { viewer.drag = null; });
 
   // ===================== Entrées =====================
+  // Pendant une publicité, le SDK l'affiche dans la page du jeu : nos gestionnaires de clavier et de
+  // souris l'ignorent (sans bloquer l'interface de la publicité elle-même)
+  const adOn = () => Meta.adActive();
+  function releaseInput() { for (const k in keys) keys[k] = false; mouse.down = false; mouse.right = false; cam3.drag = null; }
+  const SCROLL_KEYS = ['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab', 'PageUp', 'PageDown', 'Home', 'End'];
   addEventListener('keydown', e => {
+    // ces touches ne doivent jamais faire défiler la page du portail
+    if (SCROLL_KEYS.includes(e.code) && !(e.target && e.target.closest && e.target.closest('input, select'))) e.preventDefault();
+    if (adOn()) return;
     if (e.repeat && keys[e.code]) return;
     keys[e.code] = true;
-    if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.code)) e.preventDefault();
     if (e.code === 'Escape' || e.code === 'KeyP') togglePause();
     if (e.code === 'KeyM') Sfx.toggle();
     if (e.code === 'KeyH' && state !== 'menu') { hitcamOn = !hitcamOn; if (!hitcamOn) HitCam.stop(); showMsg(hitcamOn ? 'Impact camera on' : 'Impact camera off', '#bcd8ff', 1.4); }
@@ -4289,7 +4325,7 @@
       cam3.dist = CAM_MODES[cam3.mode].dist; cam3.off = 0;
       showMsg(CAM_MODES[cam3.mode].name, '#bcd8ff', 1.2);
     }
-    if (!player || player.dead || player.ai || state === 'menu' || state === 'pause' || state === 'result') return;
+    if (!player || player.dead || player.ai || !inBattle()) return;
     const dm = e.code.match(/^(?:Digit|Numpad)([1-7])$/);
     if (dm) {
       const key = SHELL_KEYS[Number(dm[1]) - 1];
@@ -4312,7 +4348,7 @@
     }
   });
   addEventListener('keyup', e => { keys[e.code] = false; });
-  addEventListener('blur', () => { for (const k in keys) keys[k] = false; mouse.down = false; });
+  addEventListener('blur', releaseInput);
   // position de la souris dans le repère du canvas (décalage et mise à l'échelle éventuels de la page)
   function trackMouse(e) {
     const r = cv.getBoundingClientRect();
@@ -4333,6 +4369,7 @@
   });
   addEventListener('pointerdown', trackMouse);
   cv.addEventListener('mousedown', e => {
+    if (adOn()) return;
     Sfx.init();
     if (e.button === 0) {
       mouse.down = true;
@@ -4341,16 +4378,17 @@
     }
   });
   addEventListener('mouseup', e => { if (e.button === 0) mouse.down = false; if (e.button === 2) mouse.right = false; });
-  cv.addEventListener('mousedown', e => { if (e.button === 2) mouse.right = true; });
+  cv.addEventListener('mousedown', e => { if (e.button === 2 && !adOn()) mouse.right = true; });
   cv.addEventListener('contextmenu', e => e.preventDefault());
   cv.addEventListener('wheel', e => {
-    if (!W3D) return; e.preventDefault();
+    e.preventDefault();
+    if (!W3D || adOn()) return;
     if (sight.on) { sight.mag = clamp(sight.mag + (e.deltaY < 0 ? 1 : -1), 0, MAGS.length - 1); return; }
     cam3.dist = clamp(cam3.dist * Math.exp(e.deltaY * 0.0012), 14, 160); }, { passive: false });
-  cv.addEventListener('mousedown', e => { if (e.button === 2) cam3.drag = { x: e.clientX, off: cam3.off }; });
+  cv.addEventListener('mousedown', e => { if (e.button === 2 && !adOn()) cam3.drag = { x: e.clientX, off: cam3.off }; });
   addEventListener('mousemove', e => { if (cam3.drag) cam3.off = cam3.drag.off - (e.clientX - cam3.drag.x) * 0.006; });
   addEventListener('mouseup', e => { if (e.button === 2) cam3.drag = null; });
-  cv.addEventListener('dblclick', () => { cam3.off = 0; });
+  cv.addEventListener('dblclick', () => { if (!adOn()) cam3.off = 0; });
 
   // Démarrage direct en développement
   if (Q.has('level')) levelIdx = clamp(Number(Q.get('level')) - 1, 0, LEVELS.length - 1);
