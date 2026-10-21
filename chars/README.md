@@ -9,6 +9,7 @@ modélisés en 3D par le code et les sons sont synthétisés en temps réel (Web
 ## Lancer le jeu
 
 Ouvrir `chars/index.html` dans un navigateur récent, au clavier et à la souris.
+Le fichier `chars/front-dacier.html` contient tout le jeu en un seul fichier, à ouvrir directement.
 
 ## Commandes
 
