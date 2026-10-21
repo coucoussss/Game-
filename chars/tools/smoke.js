@@ -42,6 +42,9 @@ const probe = () => {
     for (const t of await p.$$eval('.tab', ts => ts.map(x => x.dataset.tab))) { await p.click(`.tab[data-tab="${t}"]`); await p.waitForTimeout(400); }
     if (OUT) await p.screenshot({ path: path.join(OUT, 'smoke-menu.png') });
     check('menu', menuOn && !errs.length, { errs: errs.slice(0, 5) });
+    // profils anciens ou abîmés : le menu doit toujours se construire
+    const self = await p.evaluate(() => __fa.profileSelfTest()).catch(e => ({ err: String(e) }));
+    check('profile', Object.values(self).every(v => v === 'ok'), self);
     await p.close();
   }
   // 2. batailles automatiques (rendu 2D pour la vitesse)

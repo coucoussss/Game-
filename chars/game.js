@@ -227,17 +227,14 @@
     duel: { name: 'Duel', sub: '1 vs 1, identical tanks, best of 3' },
   };
   let mode = 'campagne', survWave = 0, nextWaveT = 0, duelScore = [0, 0], enemyN = 0;
-  let survBest = 0;
-  try { survBest = Number(localStorage.getItem('frontdacier.survie')) || 0; } catch (e) { /* stockage indisponible */ }
   // vue du tireur : lunette à grossissement fixe, la souris oriente la visée
   const MAGS = [2.5, 5, 8];
   const sight = { on: false, yaw: 0, pitch: 0, cx: 0, cy: 0, aimYaw: 0, aimPitch: 0, mag: 0, probe: null, probeT: 0, z0: 2, gunPitch: 0 };
   const mouse = { x: W / 2, y: H / 2, down: false };
   const keys = {};
 
-  let unlocked = 0;
-  try { unlocked = Number(localStorage.getItem('frontdacier.unlocked')) || 0; } catch (e) { /* stockage indisponible */ }
-  function saveUnlocked() { try { localStorage.setItem('frontdacier.unlocked', String(unlocked)); } catch (e) { /* ignoré */ } }
+  // secteurs de campagne ouverts (profil sauvegardé, borné au nombre de secteurs)
+  const unlockedIdx = () => Math.min(Meta.P.unlocked, LEVELS.length - 1);
 
   const L = () => LEVELS[levelIdx];
 
@@ -3805,14 +3802,14 @@
     for (const [id, M] of Object.entries(MODES)) {
       const d = document.createElement('div');
       d.className = 'card mode' + (id === mode ? ' sel' : '');
-      d.innerHTML = `<div class="em">${MODE_EM[id]}</div><div><b>${M.name}</b><small>${M.sub}${id === 'survie' && survBest ? ` · best: wave ${survBest}` : ''}</small></div>`;
+      d.innerHTML = `<div class="em">${MODE_EM[id]}</div><div><b>${M.name}</b><small>${M.sub}${id === 'survie' && P.survBest ? ` · best: wave ${P.survBest}` : ''}</small></div>`;
       d.onclick = () => { mode = id; buildMenu(); };
       mc.appendChild(d);
     }
     const lc = $('levelCards'); lc.innerHTML = '';
     LEVELS.forEach((lv, i) => {
       const d = document.createElement('div');
-      const locked = mode === 'campagne' && i > unlocked;
+      const locked = mode === 'campagne' && i > unlockedIdx();
       d.className = 'card' + (i === levelIdx ? ' sel' : '') + (locked ? ' locked' : '');
       d.innerHTML = `<b>${i + 1}. ${lv.name}</b><small>${locked ? '🔒 Conquer the previous sector' : lv.sub}</small>`;
       d.onclick = () => { if (!locked) { levelIdx = i; buildMenu(); } };
@@ -4030,11 +4027,25 @@
   $('oQuality').onchange = e => { Meta.P.opts.quality = e.target.value; Meta.save(); applyOptions(); };
   $('oHitcam').onchange = e => { Meta.P.opts.hitcam = e.target.checked; Meta.save(); applyOptions(); };
   $('oFull').onclick = () => { try { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen(); } catch (e) { /* refusé */ } };
-  $('oReset').onclick = () => {
-    if (!confirm('Erase all progress (credits, tanks, camos)?')) return;
-    try { localStorage.removeItem('frontdacier.profil'); } catch (e) { /* */ }
-    location.reload();
-  };
+  // Fenêtre de confirmation du jeu (les fenêtres natives sont bloquées dans l'iframe du portail
+  // et font sortir du plein écran)
+  function askConfirm(title, text, okLabel, onOk) {
+    $('cfTitle').textContent = title; $('cfText').textContent = text; $('cfOk').textContent = okLabel;
+    const close = ok => { hide('confirm'); removeEventListener('keydown', key, true); if (ok) onOk(); };
+    const key = e => { if (e.code === 'Escape') { e.stopPropagation(); close(false); } };
+    $('cfOk').onclick = () => close(true);
+    $('cfNo').onclick = () => close(false);
+    addEventListener('keydown', key, true);
+    show('confirm');
+  }
+  $('oReset').onclick = () => askConfirm('Erase everything?', 'Credits, tanks, camos, upgrades, campaign progress and records will be lost for good. Settings are kept.', 'Erase', () => {
+    Meta.reset();
+    levelIdx = 0; mode = 'campagne'; chosenType = 'pz4'; skinPreview = null;
+    applyOptions(); buildMenu();
+    toast('Progress erased');
+    const b = Meta.dailyRoll();
+    if (b) setTimeout(() => toast(`Daily login · day ${Meta.P.streak}: +✪ ${fmt(b)}`), 600);
+  });
   Meta.hooks.change = () => { if (state === 'menu') updateTopbar(); };
   Meta.hooks.adStart = () => { Sfx.setMuted(true); stopMusic(); releaseInput(); Meta.sdk.gameplayStop(); };
   // fin de publicité : seule la coupure de la publicité est levée (touche M, onglet et portail restent)
@@ -4147,7 +4158,7 @@
     if (!win) add('Retry wave', () => spawnWave());
     else if (!lastWave) add('Next wave', () => { waveIdx++; spawnWave(); });
     else {
-      if (levelIdx + 1 > unlocked && !lastLevel) { unlocked = levelIdx + 1; saveUnlocked(); }
+      if (levelIdx + 1 > Meta.P.unlocked && !lastLevel) { Meta.P.unlocked = levelIdx + 1; Meta.save(); }
       if (!lastLevel) add('Next sector', () => { levelIdx++; waveIdx = 0; startLevel(); });
     }
     add('Main menu', toMenu, true);
@@ -4200,11 +4211,11 @@
     if (mode === 'survie') Meta.track('wave', survWave);
     const add = resultButtons({ win: mode === 'survie' ? survWave > 3 : win, kills: ws.kills, pens: ws.pens, crew: ws.crew, waves: mode === 'survie' ? survWave - 1 : 0 }).add;
     if (mode === 'survie') {
-      const held = survWave - 1, rec = held > survBest;
-      if (rec) { survBest = held; try { localStorage.setItem('frontdacier.survie', String(held)); } catch (e) { /* stockage indisponible */ } }
+      const held = survWave - 1, rec = held > Meta.P.survBest;
+      if (rec) { Meta.P.survBest = held; Meta.save(); }
       $('resTitle').className = held > 0 ? 'win' : 'lose';
       $('resTitle').textContent = rec && held > 0 ? 'NEW RECORD' : 'SURVIVAL OVER';
-      $('resSub').textContent = `${L().name} · ${held} wave${held > 1 ? 's' : ''} repelled · best: ${survBest}`;
+      $('resSub').textContent = `${L().name} · ${held} wave${held > 1 ? 's' : ''} repelled · best: ${Meta.P.survBest}`;
       $('resTable').innerHTML = `<tr><td>Wave reached</td><td>${survWave}</td></tr>` + statRows(ws);
       add('Play again', () => startLevel());
     } else {
@@ -4311,7 +4322,7 @@
   $('startBtn').onclick = () => {
     if (!Meta.P.tanks.includes(chosenType)) return;
     Sfx.init(); stopMusic(); hide('menu'); waveIdx = 0; campaignScore = 0; duelScore = [0, 0];
-    if (mode === 'campagne') levelIdx = Math.min(levelIdx, unlocked);
+    if (mode === 'campagne') levelIdx = Math.min(levelIdx, unlockedIdx());
     startLevel();
   };
   // reprendre reverrouille le curseur dans le geste du clic (sinon la vue tourne seule en 3D)
@@ -4463,6 +4474,23 @@
       kill(i, det) { const e = tanks.filter(t => t.team === 1 && !t.dead)[i || 0]; if (e) destroyTank(e, player, !!det); return !!e; },
       get bullets() { return bullets; }, get parts() { return parts; },
       w2s: (x, y, z) => worldToScreen(x, y, z), hatchPos, viewer, pick(id) { chosenType = id; buildMenu(); },
+      // autotest : des profils anciens ou abîmés doivent toujours donner un menu (profil jetable)
+      profileSelfTest() {
+        Meta.devProfile();
+        const cases = {
+          v1: JSON.stringify({ v: 1, credits: 5000, tanks: ['light', 'pz4', 'kingtiger'], skins: ['std', 'tigre'], skinSel: { pz4: 'tigre' }, opts: { sfx: 0.5 } }),
+          corrupt: '{"credits":',
+          nulls: JSON.stringify({ tanks: null, skins: 7, missions: 'x', opts: null, stats: null, parts: { pz4: null, ghost: { engine: 9 } }, skinSel: { pz4: 'nope' } }),
+          unknown: JSON.stringify({ v: 2, tanks: ['tiger3', 'kingtiger'], feat: 'nope', level: 'abc', credits: -50, unlocked: 1e9 }),
+          array: '[1,2,3]', nul: 'null',
+        };
+        const out = {}, ct = chosenType;
+        for (const [k, raw] of Object.entries(cases)) {
+          try { const p = Meta.parse(raw); Meta.devUse(p); chosenType = 'kingtiger'; buildMenu(); chosenType = 'pz4'; buildMenu(); out[k] = p.tanks.includes('pz4') && Number.isFinite(p.credits) ? 'ok' : 'bad'; } catch (e) { out[k] = String(e); }
+        }
+        chosenType = ct; Meta.devUse(Meta.parse('')); buildMenu();
+        return out;
+      },
     };
   }
   requestAnimationFrame(frame);

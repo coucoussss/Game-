@@ -151,26 +151,97 @@ const Meta = (() => {
   const STREAK = [200, 300, 450, 600, 800, 1000, 2000]; // récompenses de connexion, jours 1 à 7
 
   // ===================== Profil =====================
-  const KEY = 'frontdacier.profil';
+  // Tout ce qui est conservé tient dans ce profil, sauvegardé dans le nuage par SDK.data (compte
+  // CrazyGames) et en local. Version 2 : progression de la campagne et record de survie inclus.
+  const KEY = 'frontdacier.profil', VERSION = 2;
+  const LEGACY = { unlocked: 'frontdacier.unlocked', survBest: 'frontdacier.survie' }; // clés de la version 1
   const today = () => { const d = new Date(); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; };
   const dayNum = s => { const [y, m, d] = s.split('-').map(Number); return Math.floor(Date.UTC(y, m - 1, d) / 864e5); };
   const fresh = () => ({
-    v: 1, credits: 600, xp: 0, level: 1, tanks: ['light', 'pz4'], skins: ['std'], skinSel: {}, kits: 1, x2: 0,
+    v: VERSION, credits: 600, xp: 0, level: 1, tanks: ['light', 'pz4'], skins: ['std'], skinSel: {}, kits: 1, x2: 0,
     wheelDay: '', streakDay: '', streak: 0, missionsDay: '', missions: [], stats: { battles: 0, kills: 0, wins: 0 },
     opts: { sfx: 0.8, music: 0.6, quality: 'haute', hitcam: true, mute: false }, parts: {}, adProg: {}, featDay: '', feat: '',
+    unlocked: 0, survBest: 0,
   });
-  let P = fresh();
+  let P = fresh(), devMode = false;
+  // Remise en état d'un profil lu (ancien, corrompu ou modifié à la main) : chaque champ est vérifié,
+  // les identifiants inconnus sont écartés, et les deux premiers chars sont toujours possédés.
+  const isObj = o => !!o && typeof o === 'object' && !Array.isArray(o);
+  const int = (v, d, lo, hi) => { const n = Math.floor(Number(v)); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : d; };
+  const unit = (v, d) => { const n = Number(v); return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : d; };
+  const str = (v, d) => typeof v === 'string' ? v : d;
+  const ids = (a, ok) => Array.isArray(a) ? [...new Set(a.filter(x => typeof x === 'string' && ok(x)))] : [];
+  function sanitize(o) {
+    const f = fresh(), p = fresh();
+    if (!isObj(o)) return p;
+    p.v = int(o.v, 1, 1, VERSION);
+    p.credits = int(o.credits, f.credits, 0, 1e9); p.xp = int(o.xp, 0, 0, 1e9); p.level = int(o.level, 1, 1, 999);
+    p.kits = int(o.kits, f.kits, 0, 999); p.x2 = int(o.x2, 0, 0, 999); p.streak = int(o.streak, 0, 0, STREAK.length);
+    p.unlocked = int(o.unlocked, 0, 0, 99); p.survBest = int(o.survBest, 0, 0, 9999);
+    for (const k of ['wheelDay', 'streakDay', 'missionsDay', 'featDay']) p[k] = str(o[k], '');
+    p.feat = SKINS.some(k => k.id === o.feat) ? o.feat : '';
+    p.tanks = ids(o.tanks, id => id in TANKS);
+    for (const id of ['pz4', 'light']) if (!p.tanks.includes(id)) p.tanks.unshift(id);
+    p.skins = ids(o.skins, id => SKINS.some(k => k.id === id));
+    if (!p.skins.includes('std')) p.skins.unshift('std');
+    if (isObj(o.skinSel)) for (const [t, k] of Object.entries(o.skinSel)) if (t in TANKS && p.skins.includes(k)) p.skinSel[t] = k;
+    if (isObj(o.parts)) for (const [t, ps] of Object.entries(o.parts)) {
+      if (!(t in TANKS) || !isObj(ps)) continue;
+      for (const d of PARTS) { const lv = int(ps[d.id], 0, 0, 3); if (lv) (p.parts[t] = p.parts[t] || {})[d.id] = lv; }
+    }
+    if (isObj(o.adProg)) for (const [k, n] of Object.entries(o.adProg)) { const v = int(n, 0, 0, 99); if (v) p.adProg[k] = v; }
+    if (Array.isArray(o.missions)) p.missions = o.missions.filter(m => isObj(m) && MISSIONS.some(d => d.id === m.id)).slice(0, 3)
+      .map(m => ({ id: m.id, prog: int(m.prog, 0, 0, 1e6), claimed: m.claimed === true }));
+    if (p.missions.length < 3) p.missionsDay = ''; // missions illisibles : nouveau tirage
+    if (isObj(o.stats)) for (const k of ['battles', 'kills', 'wins']) p.stats[k] = int(o.stats[k], 0, 0, 1e9);
+    if (isObj(o.opts)) {
+      const q = o.opts;
+      p.opts.sfx = unit(q.sfx, f.opts.sfx); p.opts.music = unit(q.music, f.opts.music);
+      p.opts.quality = ['haute', 'moyenne', 'basse'].includes(q.quality) ? q.quality : f.opts.quality;
+      p.opts.hitcam = q.hitcam !== false; p.opts.mute = q.mute === true;
+    }
+    return p;
+  }
+  // Passage d'une version à la suivante ; v1 : campagne et record de survie dans des clés à part
+  function migrate(p) {
+    if (p.v < 2) {
+      let ls = null;
+      try { ls = localStorage; } catch (e) { /* stockage indisponible */ }
+      if (ls) for (const [k, key] of Object.entries(LEGACY)) {
+        try { p[k] = Math.max(p[k], int(ls.getItem(key), 0, 0, 9999)); if (!devMode) ls.removeItem(key); } catch (e) { /* */ }
+      }
+      p.v = 2;
+    }
+    return p;
+  }
+  function parse(raw) {
+    let o = {}; // pas de profil : on part d'une « version 1 » vide, pour reprendre d'éventuelles anciennes clés
+    if (raw) try { o = JSON.parse(raw); } catch (e) { console.warn('Unreadable profile, starting fresh', e); o = { v: VERSION }; }
+    if (!isObj(o)) o = { v: VERSION };
+    return migrate(sanitize(o));
+  }
   async function load() {
     let raw = null;
     try { if (SDK && SDK.data) raw = SDK.data.getItem(KEY); } catch (e) { /* */ }
     if (!raw) try { raw = localStorage.getItem(KEY); } catch (e) { /* stockage indisponible */ }
-    if (raw) try { P = Object.assign(fresh(), JSON.parse(raw)); P.opts = Object.assign(fresh().opts, P.opts); } catch (e) { P = fresh(); }
+    P = parse(raw);
   }
   function save() {
+    if (devMode) { hooks.change(); return; } // profil jetable des réglages de développement
     const raw = JSON.stringify(P);
     try { if (SDK && SDK.data) SDK.data.setItem(KEY, raw); } catch (e) { /* */ }
     try { localStorage.setItem(KEY, raw); } catch (e) { /* */ }
     hooks.change();
+  }
+  // Effacement complet de la progression (nuage et local) ; seuls les réglages sont gardés
+  function reset() {
+    const opts = P.opts;
+    P = fresh(); P.opts = opts;
+    if (!devMode) {
+      try { if (SDK && SDK.data) SDK.data.removeItem(KEY); } catch (e) { /* */ }
+      try { for (const k of Object.keys(localStorage)) if (k.startsWith('frontdacier.')) localStorage.removeItem(k); } catch (e) { /* */ }
+    }
+    save();
   }
 
   // ===================== Économie =====================
@@ -311,7 +382,11 @@ const Meta = (() => {
 
   return {
     sdk, midgame, rewarded, hooks, adActive: () => adBusy, get platformMute() { return platformMute; }, RANKS, RARITY, MK, TANKS, SKINS, PARTS, WHEEL, MISSIONS, STREAK, xpFor, rankName,
-    get P() { return P; }, save, addXP, buyTank, canBuyTank, buySkin, grantSkin, selectSkin, skinOf,
+    get P() { return P; }, save, reset, parse, addXP,
+    // réglages de développement : profil neuf jamais sauvegardé, le vrai profil reste intact
+    devProfile() { devMode = true; const o = P.opts; P = fresh(); P.opts = o; P.tanks = Object.keys(TANKS); P.unlocked = 99; },
+    devUse(p) { if (devMode) P = p; },
+    get dev() { return devMode; }, buyTank, canBuyTank, buySkin, grantSkin, selectSkin, skinOf,
     featured, skinPrice, skinAd, adsLeft, partLv, buyPart, partAd, mods,
     dailyRoll, track, claim, canSpinFree, spinResult, applyPrize, battleEnd,
     async init() { await initSDK(); sdk.loadingStart(); await load(); return dailyRoll(); },
