@@ -1,6 +1,6 @@
 # 🪖 Front d'Acier
 
-Combat de chars d'assaut en vue de dessus, en équipes de 5 contre 5 face à des IA. Le jeu tourne
+Combat de chars d'assaut en 3D, en équipes de 5 contre 5 face à des IA. Le jeu tourne
 entièrement dans le navigateur (HTML5 Canvas et WebGL), sans aucune dépendance. Les chars sont
 modélisés en 3D par le code et les sons sont synthétisés en temps réel (Web Audio API).
 
@@ -34,6 +34,42 @@ Le fichier `chars/front-dacier.html` contient tout le jeu en un seul fichier, à
   ennemis. On ne réapparaît pas pendant une vague : si tu es détruit, tu observes tes alliés.
 - **4 chars**, inspirés de chars réels : Lynx (Luchs), Panthère (Panther), Tigre (Tiger I) et
   Jagd (Jagdpanther, sans tourelle, avec un secteur de tir de ±12°).
+
+## Rendu 3D
+
+Le champ de bataille est rendu en 3D temps réel par un moteur WebGL écrit pour le jeu (`world3d.js`).
+La simulation (déplacements, balistique, dégâts, IA) reste la même. Tout est généré par le code, sans
+aucune image ni modèle externe.
+
+- **Caméra** : au-dessus et en arrière de ton char, elle suit sa caisse avec un léger retard.
+  - Molette : zoom.
+  - Clic droit glissé : tourner la caméra. Double-clic : la recentrer.
+  - La visée se fait à la souris : un rayon part de la caméra et touche le terrain là où tu pointes.
+- **Lumière** :
+  - soleil avec ombres portées (carte d'ombre de 2 048 px, filtrage doux) ;
+  - éclairage du ciel et rebond du sol ;
+  - calcul des couleurs dans un espace linéaire, puis compression des contrastes au rendu (tone mapping ACES) ;
+  - jusqu'à 8 lumières dynamiques : départs de coup, explosions, obus traceurs, incendies et, la nuit,
+    phares des chars alliés.
+- **Atmosphère** : ciel en dégradé avec soleil, brume qui se fond dans l'horizon. Chaque carte a sa
+  lumière : été, sous-bois brumeux, ciel couvert et fumées de la ville, soleil écrasant du désert, nuit
+  de pleine lune sur la neige. Un léger vignettage complète l'image.
+- **Décor** :
+  - sol texturé où restent les traces de chenilles et les cratères, avec un relief de détail ;
+  - herbe en brins, buissons ;
+  - arbres feuillus ou conifères qui bougent au vent, rochers irréguliers, murets ;
+  - bâtiments avec fenêtres, portes et toits (tuiles ou toits plats à acrotère), qui se fissurent puis
+    s'effondrent en gravats ;
+  - arbres abattus ;
+  - lisière de forêt au-delà de la carte.
+- **Chars** : les modèles détaillés, avec rotation de la tourelle, recul du canon, défilement des
+  chenilles et camouflage par camp. Les épaves sont calcinées et les tourelles arrachées s'envolent.
+- **Effets** : traceurs, fumées éclairées par le soleil, flammes, éclairs de départ, étincelles,
+  poussière, fumigènes.
+
+`?2d` dans l'adresse rétablit l'ancien rendu en vue de dessus.
+
+![Ruines de Stalingrad en 3D](captures/17-3d-ville.png)
 
 ## Chars en 3D
 

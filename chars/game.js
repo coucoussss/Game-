@@ -346,7 +346,7 @@
     const lv = L();
     groundCv = document.createElement('canvas');
     groundCv.width = WW; groundCv.height = WH;
-    gctx = groundCv.getContext('2d');
+    gctx = groundCv.getContext('2d', { willReadFrequently: true });
     gctx.fillStyle = lv.ground[0];
     gctx.fillRect(0, 0, WW, WH);
     for (let i = 0; i < 2600; i++) {
@@ -392,7 +392,7 @@
       }
     }
     for (const o of obstacles) {
-      if (o.type === 'tree') continue;
+      if (o.type === 'tree' || W3D) continue;
       gctx.fillStyle = 'rgba(0,0,0,0.22)';
       gctx.fillRect(o.x + 6, o.y + 7, o.w, o.h);
     }
@@ -1430,9 +1430,12 @@
   }
 
   function damageObstacle(o, amount) {
+    const before = Math.floor((1 - o.hp / o.maxHp) * 6);
     o.hp -= amount;
+    if (Math.floor((1 - Math.max(0, o.hp) / o.maxHp) * 6) !== before) scene3Dirty = true;
     if (o.hp <= 0 && !o.dead) {
       o.dead = true;
+      scene3Dirty = true; markDirty(o.x + o.w / 2, o.y + o.h / 2, Math.max(o.w, o.h));
       const R = mulberry32(o.x * 13 + o.y * 7);
       gctx.fillStyle = 'rgba(0,0,0,0.3)';
       gctx.fillRect(o.x - 4, o.y - 4, o.w + 8, o.h + 8);
@@ -1449,7 +1452,8 @@
 
   function knockTree(o, ang) {
     if (o.dead) return;
-    o.dead = true;
+    o.dead = true; o.fall = ang;
+    scene3Dirty = true; markDirty(o.x + 8, o.y + 8, 40);
     const cx = o.x + 8, cy = o.y + 8, len = 34 * o.size;
     gctx.save();
     gctx.translate(cx, cy); gctx.rotate(ang);
@@ -1527,6 +1531,7 @@
     Sfx.explosion(listenerDist(x, y), k > 1);
   }
   function stampTracks(t) {
+    markDirty(t.x, t.y, t.T.len);
     const c = Math.cos(t.angle), s = Math.sin(t.angle), T = t.T;
     const tw = T.S.tw * PX;
     gctx.fillStyle = L().track;
@@ -1543,6 +1548,7 @@
     }
   }
   function stampCrater(x, y, r) {
+    markDirty(x, y, r);
     const g = gctx.createRadialGradient(x, y, 0, x, y, r);
     g.addColorStop(0, 'rgba(20,16,12,0.55)'); g.addColorStop(0.7, 'rgba(30,24,18,0.3)'); g.addColorStop(1, 'rgba(30,24,18,0)');
     gctx.fillStyle = g;
@@ -1579,8 +1585,8 @@
   }
 
   // ===================== Boucle =====================
-  function screenToWorld(x, y) { return { x: camX + (x - W / 2) / S, y: camY + (y - H / 2) / S }; }
-  function worldToScreen(x, y) { return { x: (x - camX) * S + W / 2, y: (y - camY) * S + H / 2 }; }
+  function screenToWorld(x, y) { if (W3D && cam3.vp) return ray3(x, y, 1.6); return { x: camX + (x - W / 2) / S, y: camY + (y - H / 2) / S }; }
+  function worldToScreen(x, y, z = 1.6) { if (W3D && cam3.vp) return project3(x, y, z); return { x: (x - camX) * S + W / 2, y: (y - camY) * S + H / 2 }; }
 
   function playerInput() {
     const k = keys;
@@ -1650,7 +1656,202 @@
     return allies[specIdx % allies.length];
   }
 
+  // ===================== Rendu 3D =====================
+  const ENV = [
+    { az: 135, el: 36, sunCol: [1.9, 1.75, 1.5], skyCol: [0.2, 0.25, 0.34], bounce: [0.13, 0.12, 0.08], horizon: [0.5, 0.58, 0.68], zenith: [0.12, 0.24, 0.5], fogD: 0.0042 },
+    { az: 120, el: 28, sunCol: [1.5, 1.42, 1.2], skyCol: [0.18, 0.23, 0.27], bounce: [0.09, 0.12, 0.06], horizon: [0.4, 0.47, 0.47], zenith: [0.14, 0.22, 0.33], fogD: 0.0075 },
+    { az: 150, el: 40, sunCol: [1.05, 1.0, 0.96], skyCol: [0.27, 0.28, 0.3], bounce: [0.12, 0.11, 0.1], horizon: [0.4, 0.4, 0.41], zenith: [0.24, 0.26, 0.3], fogD: 0.0065 },
+    { az: 160, el: 55, sunCol: [2.3, 2.0, 1.6], skyCol: [0.24, 0.26, 0.32], bounce: [0.26, 0.2, 0.12], horizon: [0.72, 0.64, 0.5], zenith: [0.17, 0.32, 0.58], fogD: 0.0038 },
+    { az: 210, el: 34, sunCol: [0.28, 0.33, 0.5], skyCol: [0.03, 0.045, 0.08], bounce: [0.04, 0.05, 0.07], horizon: [0.02, 0.03, 0.06], zenith: [0.004, 0.006, 0.016], fogD: 0.011, snow: 1 },
+  ];
+
+  let W3D = null, MESH3 = {}, scene3 = null, scene3Dirty = false, scene3T = 0;
+  const cam3 = { yaw: 0, pitch: 0.56, dist: 34, off: 0, eye: [0, 0, 40], target: [0, 0, 0], view: null, vp: null, init: false, drag: null };
+  const dirtyTiles = new Set();
+  try {
+    const c3 = document.getElementById('game3d');
+    if (c3 && typeof World3D !== 'undefined' && !Q.has('2d')) {
+      W3D = World3D.create(c3);
+      if (W3D) for (const id of Object.keys(TYPES)) { const b = TankModels.build(id); MESH3[id] = { hull: W3D.upload(b.hull), turret: W3D.upload(b.turret) }; }
+    }
+  } catch (e) { console.warn('Rendu 3D indisponible, passage en 2D', e); W3D = null; }
+  if (!W3D) { const c3 = document.getElementById('game3d'); if (c3) c3.style.display = 'none'; }
+  const to3 = (x, y, z = 0) => [x / PX, -y / PX, z];
+  function markDirty(x, y, r) {
+    const T = 256;
+    for (let ty = Math.floor((y - r) / T); ty <= Math.floor((y + r) / T); ty++) for (let tx = Math.floor((x - r) / T); tx <= Math.floor((x + r) / T); tx++) {
+      if (tx >= 0 && ty >= 0 && tx * T < WW && ty * T < WH) dirtyTiles.add(ty * 64 + tx);
+    }
+  }
+  function setup3D() {
+    if (!W3D) return;
+    const e = ENV[levelIdx], az = e.az * D2R, el = e.el * D2R;
+    W3D.setEnv({ sun: [Math.cos(el) * Math.cos(az), Math.cos(el) * Math.sin(az), Math.sin(el)], sunCol: e.sunCol, skyCol: e.skyCol, bounce: e.bounce, fogCol: e.horizon, fogD: e.fogD, horizon: e.horizon, zenith: e.zenith, snow: e.snow || 0 });
+    W3D.setGround(groundCv, WW / PX, WH / PX);
+    dirtyTiles.clear();
+    rebuildScene3();
+    cam3.init = false;
+  }
+  function rebuildScene3() {
+    if (scene3) W3D.free(scene3);
+    scene3 = W3D.upload(World3D.buildScene(L(), obstacles, bushes, PX, WW / PX, WH / PX, 1000 + levelIdx * 7919));
+    scene3Dirty = false; scene3T = 0;
+  }
+  // rayon depuis la caméra à travers un point de l'écran, coupé par le plan z = h
+  function ray3(sx, sy, h) {
+    const v = cam3.view, fy = Math.tan(cam3.fov / 2), fx = fy * W / H;
+    const nx = (sx / W) * 2 - 1, ny = 1 - (sy / H) * 2;
+    const r = [v[0], v[4], v[8]], u = [v[1], v[5], v[9]], f = [-v[2], -v[6], -v[10]];
+    const d = [f[0] + r[0] * nx * fx + u[0] * ny * fy, f[1] + r[1] * nx * fx + u[1] * ny * fy, f[2] + r[2] * nx * fx + u[2] * ny * fy];
+    const e = cam3.eye;
+    let t = (h - e[2]) / (d[2] || -1e-6);
+    if (t < 0) t = 2000;
+    return { x: (e[0] + d[0] * t) * PX, y: -(e[1] + d[1] * t) * PX };
+  }
+  function project3(x, y, z) {
+    const q = G3.M4.apply(cam3.vp, to3(x, y, z));
+    return { x: (q[0] * 0.5 + 0.5) * W, y: (1 - (q[1] * 0.5 + 0.5)) * H, behind: q[3] < 0 };
+  }
+  function updateCam3(dt) {
+    const f = camFocus();
+    if (!f) return;
+    const T = to3(f.x, f.y, 0);
+    const heading = -f.angle;
+    if (!cam3.init) { cam3.yaw = heading; cam3.tx = T[0]; cam3.ty = T[1]; cam3.init = true; }
+    // la caméra suit la caisse avec un léger retard ; le clic droit glissé la décale
+    cam3.yaw += angNorm(heading + cam3.off - cam3.yaw) * (1 - Math.pow(0.12, dt));
+    const kk = 1 - Math.pow(0.0008, dt);
+    cam3.tx += (T[0] - cam3.tx) * kk; cam3.ty += (T[1] - cam3.ty) * kk;
+    const ahead = cam3.dist * 0.18;
+    const tgt = [cam3.tx + Math.cos(cam3.yaw) * ahead, cam3.ty + Math.sin(cam3.yaw) * ahead, 1.2];
+    const cp = Math.cos(cam3.pitch), sp = Math.sin(cam3.pitch);
+    let eye = [tgt[0] - Math.cos(cam3.yaw) * cp * cam3.dist, tgt[1] - Math.sin(cam3.yaw) * cp * cam3.dist, tgt[2] + sp * cam3.dist];
+    const sh = shake * 0.025;
+    if (sh > 0.01) eye = [eye[0] + (Math.random() - 0.5) * sh, eye[1] + (Math.random() - 0.5) * sh, eye[2] + (Math.random() - 0.5) * sh];
+    shake *= Math.pow(0.004, dt);
+    cam3.fov = 0.82;
+    cam3.eye = eye; cam3.target = tgt;
+    cam3.view = G3.M4.lookAt(eye, tgt, [0, 0, 1]);
+    cam3.vp = G3.M4.mul(G3.M4.persp(cam3.fov, W / H, 0.8, 2400), cam3.view);
+    camX = cam3.tx * PX; camY = -cam3.ty * PX;
+  }
+  function render3D(dt) {
+    updateCam3(dt);
+    if (!cam3.vp) return;
+    // gravats et arbres abattus : reconstruction du décor (au plus 3 fois par seconde)
+    scene3T += dt;
+    if (scene3Dirty && scene3T > 0.33) rebuildScene3();
+    // traces et cratères : envoi des tuiles modifiées de la texture du sol
+    let n = 0;
+    for (const k of dirtyTiles) {
+      if (n++ >= 6) break;
+      dirtyTiles.delete(k);
+      const tx = (k % 64) * 256, ty = Math.floor(k / 64) * 256, w = Math.min(256, WW - tx), h = Math.min(256, WH - ty);
+      W3D.updateGround(gctx.getImageData(tx, ty, w, h), tx, ty);
+    }
+    const M4 = G3.M4, items = [{ mesh: scene3, model: M4.ident() }];
+    for (const t of tanks) {
+      if (!t.dead && !visibleToPlayer(t)) continue;
+      const p = to3(t.x, t.y), hm = M4.trs(p[0], p[1], 0, -t.angle);
+      const o = { camo: TEAM[t.team].camo, seed: t.team * 3.7 + t.id * 0.37, burnt: t.dead ? 1 : 0, tread: -t.treadPhase / PX, tint: t.hitFlash > 0 ? [1, 0.9, 0.7, t.hitFlash * 2.5] : null };
+      const MS = MESH3[t.T.id];
+      items.push({ mesh: MS.hull, model: hm, o });
+      if (!t.turretGone) {
+        const I = t.T.I;
+        const tmm = M4.mul(hm, M4.mul(M4.trs(I.pivotX, I.pivotY, 0, -t.turret), M4.trs(-t.recoil * 0.3, 0, 0, 0)));
+        items.push({ mesh: MS.turret, model: tmm, o });
+      }
+    }
+    // particules et lumières
+    const soft = [], glow = [], lights = [];
+    const night = !!L().night;
+    for (const p of parts) {
+      const a = p.life / p.max, age = 1 - a;
+      const P = to3(p.x, p.y);
+      switch (p.k) {
+        case 'smoke': {
+          const dark = p.color.indexOf('30,28') > 0 || p.color.indexOf('45,40') > 0;
+          const c = dark ? [0.09, 0.085, 0.08] : [0.55, 0.53, 0.5];
+          const sz = p.size / PX * 1.25;
+          soft.push({ p: [P[0], P[1], Math.max(sz * 0.7, 1.2 + age * (dark ? 7 : 3))], s: sz, c: [c[0], c[1], c[2], a * 0.5], rot: p.x * 0.1 });
+          break;
+        }
+        case 'dust': { const sz = p.size / PX * 1.3; soft.push({ p: [P[0], P[1], Math.max(sz * 0.65, 0.4 + age * 1.2)], s: sz, c: [0.5, 0.45, 0.36, a * 0.3], rot: p.y * 0.1 }); break; }
+        case 'fire': glow.push({ p: [P[0], P[1], 0.8 + age * 2.2], s: p.size / PX * 1.6, c: [1.0, 0.45 + a * 0.35, 0.12, a * 1.4] }); break;
+        case 'spark': glow.push({ p: [P[0], P[1], 1.4], a2: [P[0] - p.vx / PX * 0.03, P[1] + p.vy / PX * 0.03, 1.4], s: 0.05, c: [1, 0.8, 0.4, a * 1.5] }); break;
+        case 'debris': soft.push({ p: [P[0], P[1], 0.3 + Math.sin(age * Math.PI) * 3], s: 0.18, c: [0.05, 0.05, 0.05, a] }); break;
+        case 'leaf': soft.push({ p: [P[0], P[1], 2 + age * 1.5], s: 0.12, c: [0.2, 0.3, 0.1, a] }); break;
+        case 'flash': {
+          glow.push({ p: [P[0], P[1], 1.8], s: p.size / PX * 1.6, c: [1, 0.75, 0.4, a * 2.2] });
+          lights.push({ p: [P[0], P[1], 2.2], r: p.size / PX * 7, c: [6 * a, 3.8 * a, 1.6 * a] });
+          break;
+        }
+        case 'turret': {
+          const up = Math.sin(age * Math.PI) * 9, I = p.tank.T.I;
+          const m = M4.mul(M4.trs(P[0], P[1], up, -p.rot), M4.trs(-I.pivotX * 0, 0, 0, 0));
+          items.push({ mesh: MESH3[p.tank.T.id].turret, model: m, o: { burnt: 1 } });
+          break;
+        }
+      }
+    }
+    for (const s of shells) {
+      const head = to3(s.x, s.y, 1.9), tail = s.trail.length >= 2 ? to3(s.trail[0], s.trail[1], 1.9) : head;
+      const hot = s.key === 'HE' || s.key === 'HEAT';
+      glow.push({ p: tail, a2: head, s: 0.09, c: hot ? [1, 0.45, 0.2, 1.6] : s.key === 'APCR' ? [0.7, 0.85, 1, 1.6] : [1, 0.85, 0.55, 1.6] });
+      glow.push({ p: head, s: 0.55, c: [1, 0.8, 0.5, 1.2] });
+      lights.push({ p: head, r: 7, c: [1.6, 1.1, 0.6] });
+    }
+    for (const sm of smokes) {
+      const a = Math.min(1, sm.life / 2) * 0.8, P = to3(sm.x, sm.y), r = sm.r / PX;
+      for (let k = 0; k < 14; k++) { const ang = k / 14 * TAU * 2.3 + gameTime * 0.05, d = r * (0.2 + 0.5 * ((k * 0.618) % 1)), sz = r * 0.42; soft.push({ p: [P[0] + Math.cos(ang) * d, P[1] + Math.sin(ang) * d, sz * 0.7 + (k % 4) * 1.3], s: sz, c: [0.62, 0.62, 0.6, a * 0.45], rot: k }); }
+    }
+    for (const t of tanks) {
+      const P = to3(t.x, t.y);
+      if (t.dead ? t.deadT < 12 : t.fireT > 0) lights.push({ p: [P[0], P[1], 2], r: 11, c: [3.2 * (0.8 + 0.4 * Math.random()), 1.4, 0.35] });
+      if (night && !t.dead && t.team === 0) { const c = Math.cos(t.angle), sn = Math.sin(t.angle); lights.push({ p: [P[0] + c * 6, P[1] - sn * 6, 1.6], r: 20, c: [0.9, 0.85, 0.7], head: true }); }
+    }
+    const tg = cam3.target;
+    lights.sort((a, b) => Math.hypot(a.p[0] - tg[0], a.p[1] - tg[1]) / a.r - Math.hypot(b.p[0] - tg[0], b.p[1] - tg[1]) / b.r);
+    W3D.render({ cam: { eye: cam3.eye, target: cam3.target, vp: cam3.vp, view: cam3.view, time: gameTime, lights }, items, parts: { soft, glow }, shadowExt: Math.max(60, cam3.dist * 1.6) }, Math.round(W * DPR), Math.round(H * DPR));
+    // interface par-dessus
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    // vignettage léger, comme à travers une optique
+    const vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.hypot(W, H) * 0.6);
+    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.38)');
+    ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+    drawThreats3D();
+    drawWorldLabels();
+    if (state !== 'menu') drawHUD();
+  }
+  // Obus qui menacent le joueur : trajectoire prévue et cercle d'impact au sol
+  function drawThreats3D() {
+    if (!player || player.dead || state === 'menu') return;
+    const T = player.T;
+    for (const s of shells) {
+      if (s.by === player) continue;
+      const rx = player.x - s.x, ry = player.y - s.y, ux = s.vx / s.sp, uy = s.vy / s.sp;
+      const along = rx * ux + ry * uy;
+      if (along < 0) continue;
+      const tt = along / s.sp;
+      if (tt > 1.6) continue;
+      if (Math.abs(rx * -uy + ry * ux) > T.len * 0.6 + 16) continue;
+      s.warned = true;
+      const ix = s.x + ux * along, iy = s.y + uy * along, a = clamp(1.3 - tt, 0.25, 1);
+      const p0 = project3(s.x, s.y, 1.9), p1 = project3(ix, iy, 1.6);
+      if (p0.behind || p1.behind) continue;
+      ctx.strokeStyle = `rgba(255,60,40,${a * 0.85})`; ctx.lineWidth = 2;
+      ctx.setLineDash([8, 6]); ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke(); ctx.setLineDash([]);
+      const rr = (1.6 + 0.6 * Math.sin(gameTime * 20)) * PX;
+      ctx.beginPath();
+      for (let k = 0; k <= 24; k++) { const q = project3(ix + Math.cos(k / 24 * TAU) * rr, iy + Math.sin(k / 24 * TAU) * rr, 0.05); k ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); }
+      ctx.stroke();
+    }
+  }
+
   function render(dt) {
+    if (W3D && groundCv) { render3D(dt); return; }
     const f = camFocus();
     if (f) {
       let tx = f.x, ty = f.y;
@@ -1947,7 +2148,8 @@
     ctx.textAlign = 'center';
     for (const t of tanks) {
       if (t.dead || !visibleToPlayer(t)) continue;
-      const p = worldToScreen(t.x, t.y - t.T.len * 0.8);
+      const p = W3D ? worldToScreen(t.x, t.y, t.T.I.totalH + 1.4) : worldToScreen(t.x, t.y - t.T.len * 0.8);
+      if (p.behind) continue;
       if (p.x < -50 || p.y < -50 || p.x > W + 50 || p.y > H + 50) continue;
       const w = 38, f = crewFrac(t);
       ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(p.x - w / 2 - 1, p.y - 1, w + 2, 6);
@@ -1961,7 +2163,8 @@
       }
     }
     for (const tx of texts) {
-      const p = worldToScreen(tx.x, tx.y);
+      const p = worldToScreen(tx.x, tx.y, 2.6 + (1 - tx.life / tx.max) * 1.5);
+      if (p.behind) continue;
       const a = Math.min(1, tx.life / tx.max * 2);
       ctx.font = `700 ${Math.round(13 * tx.scale)}px system-ui, sans-serif`;
       ctx.fillStyle = 'rgba(0,0,0,' + a * 0.7 + ')';
@@ -2206,7 +2409,12 @@
       ctx.fillRect(x0 + t.x * k - s / 2, y0 + t.y * k - s / 2, s, s);
     }
     ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1;
-    ctx.strokeRect(x0 + (camX - W / 2 / S) * k, y0 + (camY - H / 2 / S) * k, W / S * k, H / S * k);
+    if (W3D && cam3.vp) {
+      ctx.beginPath();
+      [[0, 0], [W, 0], [W, H], [0, H]].forEach((c, i) => { const q = screenToWorld(c[0], c[1]); const x = x0 + clamp(q.x, -200, WW + 200) * k, y = y0 + clamp(q.y, -200, WH + 200) * k; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+      ctx.closePath(); ctx.save(); ctx.beginPath(); ctx.rect(x0, y0, mw, mh); ctx.clip(); ctx.restore();
+      ctx.stroke();
+    } else ctx.strokeRect(x0 + (camX - W / 2 / S) * k, y0 + (camY - H / 2 / S) * k, W / S * k, H / S * k);
     return { bottom: y0 + mh + 3 };
   }
 
@@ -2322,7 +2530,7 @@
     });
   }
 
-  function startLevel() { genMap(); spawnWave(); }
+  function startLevel() { genMap(); setup3D(); spawnWave(); }
 
   function showResult() {
     state = 'result';
@@ -2475,6 +2683,11 @@
   });
   addEventListener('mouseup', e => { if (e.button === 0) mouse.down = false; });
   cv.addEventListener('contextmenu', e => e.preventDefault());
+  cv.addEventListener('wheel', e => { if (!W3D) return; e.preventDefault(); cam3.dist = clamp(cam3.dist * Math.exp(e.deltaY * 0.0012), 14, 120); }, { passive: false });
+  cv.addEventListener('mousedown', e => { if (e.button === 2) cam3.drag = { x: e.clientX, off: cam3.off }; });
+  addEventListener('mousemove', e => { if (cam3.drag) cam3.off = cam3.drag.off - (e.clientX - cam3.drag.x) * 0.006; });
+  addEventListener('mouseup', e => { if (e.button === 2) cam3.drag = null; });
+  cv.addEventListener('dblclick', () => { cam3.off = 0; });
 
   // Démarrage direct en développement
   if (Q.has('level')) levelIdx = clamp(Number(Q.get('level')) - 1, 0, LEVELS.length - 1);
