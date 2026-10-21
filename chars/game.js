@@ -160,7 +160,7 @@
   const WAVES = 3;
   const WW = 2600, WH = 1700, CELL = 20, STEP = 1 / 60;
 
-  // Réglages de développement : ?auto ?god ?speed=4 ?level=2 ?wave=1 ?type=heavy
+  // Réglages de développement : ?auto ?god ?speed=4 ?level=2 ?wave=1 ?type=heavy ?mode=survie|duel
   const Q = new URLSearchParams(location.search);
   const AUTO = Q.has('auto'), GOD = Q.has('god');
   const timeScale = Number(Q.get('speed')) || 1;
@@ -193,6 +193,18 @@
   let groundCv = null, gctx = null;
   let waveStats = null, campaignScore = 0, msg = null, ffMsgT = 0;
   let tankId = 0, shellId = 0, hitcamOn = true;
+  // modes de jeu : campagne 5 contre 5, survie seul contre des vagues, duel en 3 manches
+  const MODES = {
+    campagne: { name: 'Campagne', sub: '5 contre 5 · 3 vagues par champ de bataille' },
+    survie: { name: 'Survie', sub: 'Seul contre des vagues de plus en plus dures' },
+    duel: { name: 'Duel', sub: '1 contre 1, chars identiques, en 3 manches' },
+  };
+  let mode = 'campagne', survWave = 0, nextWaveT = 0, duelScore = [0, 0], enemyN = 0;
+  let survBest = 0;
+  try { survBest = Number(localStorage.getItem('frontdacier.survie')) || 0; } catch (e) { /* stockage indisponible */ }
+  // vue du tireur : lunette à grossissement fixe, la souris oriente la visée
+  const MAGS = [2.5, 5, 8];
+  const sight = { on: false, yaw: 0, pitch: 0, mag: 0, probe: null, probeT: 0, z0: 2, gunPitch: 0 };
   const mouse = { x: W / 2, y: H / 2, down: false };
   const keys = {};
 
@@ -578,14 +590,23 @@
     const slots = [-300, -150, 0, 150, 300];
     const aT = [allyTypes[0], allyTypes[1], chosenType, allyTypes[2], allyTypes[3]];
     let n = 1;
-    for (let i = 0; i < 5; i++) {
+    enemyN = 0;
+    if (mode !== 'campagne') {
+      player = makeTank(chosenType, 0, 200, WH / 2, 0, true, 'Vous', aSkill);
+      tanks.push(player);
+      if (mode === 'duel') {
+        const t = makeTank(chosenType, 1, WW - 200, WH / 2 + rnd(-300, 300), Math.PI, false, 'Ennemi 1', 0.85);
+        t.ai.laneY = clamp(t.y + rnd(-200, 200), 150, WH - 150);
+        tanks.push(t); enemyN = 1;
+      } else { survWave = 1; nextWaveT = 0; survivalEnemies(survWave); }
+    } else for (let i = 0; i < 5; i++) {
       const isP = i === 2;
       const t = makeTank(aT[i], 0, 200 + (i % 2) * 60, WH / 2 + slots[i], 0, isP, isP ? 'Vous' : 'Allié ' + (n++), aSkill);
       if (t.ai) t.ai.laneY = clamp(t.y + rnd(-150, 150), 150, WH - 150);
       tanks.push(t);
       if (isP) player = t;
     }
-    for (let i = 0; i < 5; i++) {
+    if (mode === 'campagne') for (let i = 0; i < 5; i++) {
       const t = makeTank(enemyTypes[i], 1, WW - 200 - (i % 2) * 60, WH / 2 + slots[i], Math.PI, false, 'Ennemi ' + (i + 1), eSkill);
       t.ai.laneY = clamp(t.y + rnd(-200, 200), 150, WH - 150);
       tanks.push(t);
@@ -595,6 +616,28 @@
     waveStats = { kills: 0, pens: 0, crew: 0, mods: 0, ffCrew: 0, tk: 0, hits: 0, shots: 0, ric: 0, dodged: 0 };
     state = 'intro'; introT = 3.2; waveTime = 0;
     msg = null;
+  }
+
+  // Survie : la vague n arrive du côté opposé au joueur, plus nombreuse, plus lourde et plus habile
+  function survivalEnemies(n) {
+    const count = Math.min(5, Math.ceil(n * 0.7));
+    const pool = ['light', 'light', 'medium', 'medium', 'destroyer', 'heavy'];
+    const skill = Math.min(0.95, 0.3 + n * 0.06);
+    const right = !player || player.x < WW / 2, x0 = right ? WW - 200 : 200;
+    for (let i = 0; i < count; i++) {
+      const type = pool[clamp(Math.floor(Math.random() * (1.5 + n * 0.8)), 0, pool.length - 1)];
+      const t = makeTank(type, 1, x0 + (right ? -1 : 1) * (i % 2) * 60, WH / 2 + (i - (count - 1) / 2) * 150 + rnd(-40, 40), right ? Math.PI : 0, false, 'Ennemi ' + (++enemyN), skill);
+      t.ai.laneY = clamp(t.y + rnd(-200, 200), 150, WH - 150);
+      tanks.push(t);
+    }
+    return count;
+  }
+  // Entre deux vagues de survie : munitions complétées de moitié, réparations de campagne
+  function resupply(t) {
+    for (const k of SHELL_KEYS) t.ammo[k] = Math.min(t.T.ammo[k], t.ammo[k] + Math.ceil(t.T.ammo[k] * 0.5));
+    for (const m of t.mods) if (m.kind !== 'crew') m.hp = m.max0;
+    t.rep = {}; t.trackT = 0; t.fireT = 0; t.smoke = Math.min(2, t.smoke + 1);
+    if (t.ammo[t.shell] <= 0) t.shell = nextShell(t);
   }
 
   // ===================== Visibilité =====================
@@ -969,6 +1012,7 @@
       id: ++shellId, x: mx, y: my, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, sp, team: t.team, owner: t, by: t,
       key, base: sp, v0: sb.v0, dist: 0, zErr: gauss() * 0.32 * Math.sqrt(t.disp / T.disp), range: 1600, trail: [], ric: 0, whiz: false, warned: false,
     });
+    if (t === player && sight.on) { const sh0 = shells[shells.length - 1]; sh0.z0 = sight.z0; sh0.slope = Math.tan(sight.gunPitch); }
     t.reloadT = T.reload;
     t.disp += T.disp * 3;
     t.recoil = 1; t.flash = 0.09; t.revealT = 3;
@@ -1006,31 +1050,12 @@
         const h = segAABB(s.x, s.y, dx, dy, o.x, o.y, o.x + o.w, o.y + o.h);
         if (h && (!best || h.t < best.t)) best = { t: h.t, o, nx: h.nx, ny: h.ny };
       }
+      // hauteur de la ligne de visée à cette distance (tir du joueur depuis la vue du tireur)
+      const zLine = s.slope != null ? s.z0 + s.slope * s.dist / PX : null;
       for (const t of tanks) {
         if (t === s.owner || t.x > maxx + 30 || t.x < minx - 30 || t.y > maxy + 30 || t.y < miny - 30) continue;
-        const c = Math.cos(t.angle), sn = Math.sin(t.angle);
-        const lx = (s.x - t.x) * c + (s.y - t.y) * sn, ly = -(s.x - t.x) * sn + (s.y - t.y) * c;
-        const ldx = dx * c + dy * sn, ldy = -dx * sn + dy * c;
-        const hl = t.T.len / 2, hw = t.T.wid / 2;
-        const hh = segAABB(lx, ly, ldx, ldy, -hl, -hw, hl, hw);
-        if (!hh) continue;
-        let cand = null;
-        if (t.dead) cand = { t: hh.t, part: 'hull', nx: hh.nx, ny: hh.ny, z: 1 };
-        else {
-          // Hauteur d'impact : le tireur vise le haut de caisse, la dispersion fait le reste
-          const Sd = t.T.S, z = clamp(Sd.ht - 0.2 + s.zErr, 0.15, 9);
-          if (z <= Sd.ht) cand = { t: hh.t, part: 'hull', nx: hh.nx, ny: hh.ny, z };
-          else if (t.T.tb && !t.turretGone && z <= t.T.I.totalH) {
-            const tc = Math.cos(t.turret), ts = Math.sin(t.turret);
-            const qx = lx - t.T.pivX, qy = ly - t.T.pivY;
-            const tx = qx * tc + qy * ts, ty = -qx * ts + qy * tc, tdx = ldx * tc + ldy * ts, tdy = -ldx * ts + ldy * tc;
-            const B = t.T.tb, th = segAABB(tx, ty, tdx, tdy, B.x0, B.y0, B.x1, B.y1);
-            if (th) cand = { t: th.t, part: 'turret', nx: th.nx, ny: th.ny, z, tx: tx + tdx * th.t, ty: ty + tdy * th.t };
-          }
-        }
-        if (cand && (!best || cand.t < best.t)) {
-          best = Object.assign(cand, { tank: t, c, sn, lx: lx + ldx * cand.t, ly: ly + ldy * cand.t, ldx, ldy });
-        }
+        const cand = tankCand(t, s.x, s.y, dx, dy, (zLine != null ? zLine : t.T.S.ht - 0.2) + s.zErr);
+        if (cand && (!best || cand.t < best.t)) best = cand;
       }
       if (player && !player.dead && s.by !== player && !s.whiz) {
         const rx = player.x - s.x, ry = player.y - s.y, l2 = dx * dx + dy * dy || 1;
@@ -1055,6 +1080,7 @@
         s.skipObs = null;
       }
       s.range -= s.sp * dt;
+      if (zLine != null && zLine < 0.05) s.range = 0;
       if (!remove && (s.range <= 0 || s.x < -50 || s.y < -50 || s.x > WW + 50 || s.y > WH + 50)) {
         remove = true;
         if (s.range <= 0) {
@@ -1067,6 +1093,34 @@
         shells.splice(i, 1);
       }
     }
+  }
+
+  // Impact du segment (x, y) → (x + dx, y + dy) sur un char, à la hauteur z : caisse ou tourelle.
+  // Rien si le segment passe à côté ou au-dessus du char.
+  function tankCand(t, x, y, dx, dy, zRaw) {
+    const c = Math.cos(t.angle), sn = Math.sin(t.angle);
+    const lx = (x - t.x) * c + (y - t.y) * sn, ly = -(x - t.x) * sn + (y - t.y) * c;
+    const ldx = dx * c + dy * sn, ldy = -dx * sn + dy * c;
+    const hl = t.T.len / 2, hw = t.T.wid / 2;
+    const hh = segAABB(lx, ly, ldx, ldy, -hl, -hw, hl, hw);
+    if (!hh) return null;
+    let cand = null;
+    if (t.dead) cand = { t: hh.t, part: 'hull', nx: hh.nx, ny: hh.ny, z: 1 };
+    else {
+      // Hauteur d'impact : le haut de caisse pour l'IA, la ligne de visée pour le joueur à la vue
+      // du tireur ; la dispersion fait le reste
+      const Sd = t.T.S, z = clamp(zRaw, 0.15, 9);
+      if (z <= Sd.ht) cand = { t: hh.t, part: 'hull', nx: hh.nx, ny: hh.ny, z };
+      else if (t.T.tb && !t.turretGone && z <= t.T.I.totalH) {
+        const tc = Math.cos(t.turret), ts = Math.sin(t.turret);
+        const qx = lx - t.T.pivX, qy = ly - t.T.pivY;
+        const tx = qx * tc + qy * ts, ty = -qx * ts + qy * tc, tdx = ldx * tc + ldy * ts, tdy = -ldx * ts + ldy * tc;
+        const B = t.T.tb, th = segAABB(tx, ty, tdx, tdy, B.x0, B.y0, B.x1, B.y1);
+        if (th) cand = { t: th.t, part: 'turret', nx: th.nx, ny: th.ny, z, tx: tx + tdx * th.t, ty: ty + tdy * th.t };
+      }
+    }
+    if (cand) Object.assign(cand, { tank: t, c, sn, lx: lx + ldx * cand.t, ly: ly + ldy * cand.t, ldx, ldy });
+    return cand;
   }
 
   function visibleToPlayer(t) { return t.team === 0 || spotted[0].has(t) || t.dead; }
@@ -1107,6 +1161,38 @@
     return [0, sideSign * c, n];
   }
 
+  // Plaque touchée : épaisseur, inclinaison, normale extérieure et protections annexes
+  function platePick(t, h, d, key) {
+    const Sd = t.T.S, A = Sd.armor, tAng = -t.turret;
+    const face = h.nx > 0.5 ? 'front' : h.nx < -0.5 ? 'rear' : 'side';
+    const sideSign = h.ny > 0 ? -1 : 1;
+    let plate, mm, slope, dd = d, low = false, extra = 0, heatK = 1, trackHit = false;
+    if (h.part === 'hull') {
+      if (face === 'front') {
+        low = h.z < Sd.zn;
+        [mm, slope] = low ? A.hull.low : A.hull.up;
+        plate = low ? 'Caisse avant (bas)' : 'Caisse avant (haut)';
+      } else if (face === 'rear') { [mm, slope] = A.hull.rear; plate = 'Arrière de caisse'; }
+      else {
+        [mm, slope] = A.hull.side; plate = 'Flanc de caisse';
+        if (h.z < Sd.tt) {
+          if (Sd.skirts && h.z > Sd.tt - 0.5) { plate = 'Jupe + flanc'; if (key === 'HEAT') heatK = 0.5; else extra = 5; }
+          else { plate = 'Chenille + flanc'; extra = 20; trackHit = true; }
+        }
+      }
+    } else {
+      dd = rotZ(d, -tAng);
+      const ty = -h.ty / PX;
+      if (face === 'front') {
+        const M = Sd.turret.mantlet, mw = M.w || 0.3, mh = M.h || M.r;
+        if (Math.abs(ty) < mw + 0.05 && Math.abs(h.z - Sd.gun.z) < mh + 0.05) { mm = A.turret.mantlet[0]; slope = Math.round(rnd(0, 30)); plate = 'Masque de canon'; }
+        else { [mm, slope] = A.turret.front; plate = 'Tourelle avant'; }
+      } else if (face === 'rear') { [mm, slope] = A.turret.rear; plate = 'Arrière de tourelle'; }
+      else { [mm, slope] = A.turret.side; plate = 'Flanc de tourelle'; }
+    }
+    return { face, sideSign, plate, mm, slope, dd, low, extra, heatK, trackHit, n: plateNormal(face, slope, sideSign, low) };
+  }
+
   function hitTank(s, t, h, hx, hy) {
     if (t === player) s.hitPlayer = true;
     if (t.dead) {
@@ -1126,33 +1212,7 @@
     const d = norm3([h.ldx / ll, -h.ldy / ll, -0.02]);
     const E = [h.lx / PX, -h.ly / PX, h.z];
     const tAng = -t.turret;
-    const face = h.nx > 0.5 ? 'front' : h.nx < -0.5 ? 'rear' : 'side';
-    const sideSign = h.ny > 0 ? -1 : 1;
-    let plate, mm, slope, dd = d, low = false, extra = 0, heatK = 1, trackHit = false;
-    if (h.part === 'hull') {
-      if (face === 'front') {
-        low = h.z < Sd.zn;
-        [mm, slope] = low ? A.hull.low : A.hull.up;
-        plate = low ? 'Caisse avant (bas)' : 'Caisse avant (haut)';
-      } else if (face === 'rear') { [mm, slope] = A.hull.rear; plate = 'Arrière de caisse'; }
-      else {
-        [mm, slope] = A.hull.side; plate = 'Flanc de caisse';
-        if (h.z < Sd.tt) {
-          if (Sd.skirts && h.z > Sd.tt - 0.5) { plate = 'Jupe + flanc'; if (s.key === 'HEAT') heatK = 0.5; else extra = 5; }
-          else { plate = 'Chenille + flanc'; extra = 20; trackHit = true; }
-        }
-      }
-    } else {
-      dd = rotZ(d, -tAng);
-      const ty = -h.ty / PX;
-      if (face === 'front') {
-        const M = Sd.turret.mantlet, mw = M.w || 0.3, mh = M.h || M.r;
-        if (Math.abs(ty) < mw + 0.05 && Math.abs(h.z - Sd.gun.z) < mh + 0.05) { mm = A.turret.mantlet[0]; slope = Math.round(rnd(0, 30)); plate = 'Masque de canon'; }
-        else { [mm, slope] = A.turret.front; plate = 'Tourelle avant'; }
-      } else if (face === 'rear') { [mm, slope] = A.turret.rear; plate = 'Arrière de tourelle'; }
-      else { [mm, slope] = A.turret.side; plate = 'Flanc de tourelle'; }
-    }
-    const n = plateNormal(face, slope, sideSign, low);
+    const { face, plate, mm, slope, dd, extra, heatK, trackHit, n } = platePick(t, h, d, s.key);
     const nHull = h.part === 'turret' ? rotZ(n, tAng) : n;
     const cosI = Math.max(0.03, -dot3(dd, n));
     const angle = Math.acos(Math.min(1, cosI)) / D2R;
@@ -1597,7 +1657,7 @@
     if (k.KeyD || k.ArrowRight) turn += 1;
     const m = screenToWorld(mouse.x, mouse.y), pv = pivot(player);
     player.in.throttle = thr; player.in.turn = turn;
-    player.in.aim = Math.atan2(m.y - pv.y, m.x - pv.x);
+    player.in.aim = sight.on ? sight.yaw : Math.atan2(m.y - pv.y, m.x - pv.x);
     player.in.fire = mouse.down || !!k.Space;
   }
 
@@ -1614,7 +1674,21 @@
     tankCollisions();
     updateShells(dt);
     updateParts(dt);
-    if (state === 'play') {
+    if (state === 'play' && mode === 'survie') {
+      const e = tanks.some(t => t.team === 1 && !t.dead);
+      if (player.dead) { state = 'ending'; endT = 3.5; waveResult = 'lose'; showMsg('CHAR DÉTRUIT', '#ff7a5c', 3); }
+      else if (!e) {
+        if (nextWaveT <= 0) {
+          nextWaveT = 8; resupply(player);
+          showMsg(`VAGUE ${survWave} REPOUSSÉE · ravitaillement`, '#b8e07a', 3);
+          addLog('Ravitaillement : munitions complétées, modules réparés', '#b8e07a');
+        } else if ((nextWaveT -= dt) <= 0) {
+          survWave++;
+          const k = survivalEnemies(survWave);
+          showMsg(`VAGUE ${survWave} · ${k} char${k > 1 ? 's' : ''} ennemi${k > 1 ? 's' : ''}`, '#ffb070', 2.5);
+        }
+      }
+    } else if (state === 'play') {
       const a = tanks.some(t => t.team === 0 && !t.dead), e = tanks.some(t => t.team === 1 && !t.dead);
       if (!a || !e) { state = 'ending'; endT = 3.5; waveResult = a ? 'win' : 'lose'; showMsg(a ? 'VAGUE REMPORTÉE' : 'VAGUE PERDUE', a ? '#b8e07a' : '#ff7a5c', 3); }
     } else if (state === 'ending') {
@@ -1720,7 +1794,79 @@
     const q = G3.M4.apply(cam3.vp, to3(x, y, z));
     return { x: (q[0] * 0.5 + 0.5) * W, y: (1 - (q[1] * 0.5 + 0.5)) * H, behind: q[3] < 0 };
   }
+  function setSight(on) {
+    on = !!(on && W3D && player && !player.dead && (state === 'play' || state === 'intro' || state === 'ending'));
+    if (on === sight.on) return;
+    sight.on = on;
+    if (on) {
+      sight.yaw = player.angle + player.turret; sight.pitch = -0.004; sight.probe = null;
+      try { cv.requestPointerLock && cv.requestPointerLock(); } catch (e) { /* verrouillage refusé */ }
+      showMsg(`Vue du tireur · ×${MAGS[sight.mag]}`, '#bcd8ff', 1);
+    } else if (document.pointerLockElement === cv) document.exitPointerLock();
+  }
+  // Lunette du tireur, coaxiale au canon, à gauche du masque. Sans stabilisateur (aucun char de
+  // l'époque n'en avait), l'image tremble quand le char roule ou pivote, et saute au départ du coup.
+  function sightCam(dt) {
+    const T = player.T, Sd = T.S, pv = pivot(player), ta = player.angle + player.turret;
+    const mv = Math.abs(player.speed) / T.speed, tr = Math.abs(player.turnRate) / T.turn, g = gameTime;
+    const sw = mv * 0.7 + tr * 0.5;
+    // sans verrouillage du curseur (page intégrée), la souris au bord de l'écran fait pivoter la visée
+    if (document.pointerLockElement !== cv) {
+      const ex = (mouse.x - W / 2) / (W / 2);
+      if (Math.abs(ex) > 0.85) sight.yaw += Math.sign(ex) * Math.min(1, (Math.abs(ex) - 0.85) / 0.15) * cam3.fov * 0.8 * dt;
+    }
+    const yaw = sight.yaw + sw * (0.005 * Math.sin(g * 6.1) + 0.0025 * Math.sin(g * 15.7));
+    const pitch = sight.pitch + sw * (0.007 * Math.sin(g * 7.3 + 1) + 0.0035 * Math.sin(g * 17.9)) + player.recoil * 0.03;
+    sight.gunPitch = pitch;
+    const fx = pv.x + Math.cos(ta) * 0.9 * PX - Math.sin(ta) * 0.35 * PX, fy = pv.y + Math.sin(ta) * 0.9 * PX + Math.cos(ta) * 0.35 * PX;
+    sight.z0 = Sd.gun.z + 0.08;
+    const eye = to3(fx, fy, sight.z0), cp = Math.cos(pitch);
+    const dir = [Math.cos(yaw) * cp, -Math.sin(yaw) * cp, Math.sin(pitch)];
+    const tgt = [eye[0] + dir[0] * 60, eye[1] + dir[1] * 60, eye[2] + dir[2] * 60];
+    cam3.fov = 2 * Math.atan(Math.tan(0.49) / MAGS[sight.mag]);
+    cam3.eye = eye; cam3.target = tgt;
+    cam3.view = G3.M4.lookAt(eye, tgt, [0, 0, 1]);
+    cam3.vp = G3.M4.mul(G3.M4.persp(cam3.fov, W / H, 0.25, 2400), cam3.view);
+    camX = player.x; camY = player.y;
+    // la vue extérieure reprendra derrière le char
+    const P = to3(player.x, player.y, 0); cam3.tx = P[0]; cam3.ty = P[1]; cam3.yaw = -player.angle;
+    sight.probeT -= dt;
+    if (sight.probeT <= 0) { sight.probeT = 0.1; sight.probe = sightProbe(); }
+  }
+  // Ce que vise la lunette : premier obstacle, char ou point du sol sur la ligne de visée,
+  // et, sur un char, la plaque touchée et la perforation attendue
+  function sightProbe() {
+    const pv = pivot(player), a = sight.yaw, ux = Math.cos(a), uy = Math.sin(a), L0 = 1600;
+    const slope = Math.tan(sight.gunPitch), z0 = sight.z0;
+    let best = { t: 1, kind: 'sky' };
+    if (slope < 0) { const tg = (z0 / -slope) * PX / L0; if (tg < 1) best = { t: tg, kind: 'ground' }; }
+    for (const o of obstacles) {
+      if (o.dead) continue;
+      const h = segAABB(pv.x, pv.y, ux * L0, uy * L0, o.x, o.y, o.x + o.w, o.y + o.h);
+      if (h && h.t < best.t) best = { t: h.t, kind: 'obstacle', o };
+    }
+    for (const t of tanks) {
+      if (t === player || (!t.dead && !visibleToPlayer(t))) continue;
+      const dd = Math.hypot(t.x - pv.x, t.y - pv.y);
+      const c = tankCand(t, pv.x, pv.y, ux * L0, uy * L0, z0 + slope * dd / PX);
+      if (c && c.t < best.t) best = { t: c.t, kind: 'tank', tank: t, h: c };
+    }
+    const dist = best.t * L0;
+    best.dist = dist;
+    if (best.kind === 'tank' && !best.tank.dead) {
+      const t = best.tank, h = best.h, key = player.shell, sb = Ballistics.shell(player.T.id, key);
+      const ll = Math.hypot(h.ldx, h.ldy) || 1;
+      const pp = platePick(t, h, norm3([h.ldx / ll, -h.ldy / ll, -0.02]), key);
+      const cosI = Math.max(0.03, -dot3(pp.dd, pp.n)), angle = Math.acos(Math.min(1, cosI)) / D2R;
+      const eff = Ballistics.effective(sb, pp.mm, angle).eff + pp.extra;
+      const pen = penAt(player.T, key, dist) * pp.heatK;
+      Object.assign(best, { plate: pp.plate, mm: pp.mm, angle, eff, pen, ric: key === 'HE' ? 0 : Ballistics.ricochetChance(sb, pp.mm, angle) });
+    }
+    return best;
+  }
   function updateCam3(dt) {
+    if (sight.on && !(player && !player.dead && !player.ai && (state === 'play' || state === 'intro' || state === 'ending'))) setSight(false);
+    if (sight.on) { sightCam(dt); return; }
     const f = camFocus();
     if (!f) return;
     const T = to3(f.x, f.y, 0);
@@ -1769,6 +1915,7 @@
     const M4 = G3.M4, items = [{ mesh: scene3, model: M4.ident() }, { mesh: bush3, model: M4.ident() }];
     for (const t of tanks) {
       if (!t.dead && !visibleToPlayer(t)) continue;
+      if (sight.on && t === player) continue;
       const p = to3(t.x, t.y), hm = M4.trs(p[0], p[1], 0, -t.angle);
       const o = { camo: TEAM[t.team].camo, seed: t.team * 3.7 + t.id * 0.37, burnt: t.dead ? 1 : 0, tread: -t.treadPhase / PX, tint: t.hitFlash > 0 ? [1, 0.9, 0.7, t.hitFlash * 2.5] : null };
       const MS = MESH3[t.T.id];
@@ -1829,15 +1976,18 @@
     }
     const tg = cam3.target;
     lights.sort((a, b) => Math.hypot(a.p[0] - tg[0], a.p[1] - tg[1]) / a.r - Math.hypot(b.p[0] - tg[0], b.p[1] - tg[1]) / b.r);
-    W3D.render({ cam: { eye: cam3.eye, target: cam3.target, vp: cam3.vp, view: cam3.view, time: gameTime, lights }, items, parts: { soft, glow }, shadowExt: Math.max(60, cam3.dist * 1.6) }, Math.round(W * DPR), Math.round(H * DPR));
+    W3D.render({ cam: { eye: cam3.eye, target: cam3.target, vp: cam3.vp, view: cam3.view, time: gameTime, lights }, items, parts: { soft, glow }, shadowExt: sight.on ? 110 : Math.max(60, cam3.dist * 1.6) }, Math.round(W * DPR), Math.round(H * DPR));
     // interface par-dessus
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, cv.width, cv.height);
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    // vignettage léger, comme à travers une optique
-    const vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.hypot(W, H) * 0.6);
-    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.38)');
-    ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+    if (sight.on) drawSightMask();
+    else {
+      // vignettage léger, comme à travers une optique
+      const vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.hypot(W, H) * 0.6);
+      vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.38)');
+      ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+    }
     drawThreats3D();
     drawWorldLabels();
     if (state !== 'menu') drawHUD();
@@ -2161,6 +2311,99 @@
     ctx.drawImage(dark, 0, 0);
   }
 
+  // ===================== Lunette du tireur =====================
+  const sightR = () => Math.min(W, H - 130) * 0.5;
+  function drawSightMask() {
+    const R = sightR(), cx = W / 2, cy = H / 2;
+    ctx.fillStyle = '#050605';
+    ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.arc(cx, cy, R, 0, TAU, true); ctx.fill();
+    // bord de l'oculaire : assombrissement et léger liseré coloré (aberration chromatique)
+    const g = ctx.createRadialGradient(cx, cy, R * 0.78, cx, cy, R);
+    g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(0.85, 'rgba(0,0,0,0.45)'); g.addColorStop(1, 'rgba(0,0,0,0.95)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, R, 0, TAU); ctx.fill();
+    ctx.strokeStyle = 'rgba(120,90,255,0.18)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(cx, cy, R - 3, 0, TAU); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,150,60,0.12)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(cx, cy, R - 6, 0, TAU); ctx.stroke();
+  }
+  // Réticule inspiré de la TZF allemande : triangle central (pointe = point visé), triangles de
+  // part et d'autre tous les 4 millièmes pour estimer la correction sur une cible en mouvement,
+  // et réglette des distances à gauche. Les traits sont gravés à l'échelle angulaire réelle.
+  function drawSightReticle() {
+    const R = sightR(), cx = W / 2, cy = H / 2;
+    const ppr = (H / 2) / Math.tan(cam3.fov / 2), mil = ppr / 1000;
+    const night = !!L().night, ink = night ? 'rgba(255,120,60,0.95)' : 'rgba(8,8,8,0.92)';
+    ctx.save();
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, TAU); ctx.clip();
+    ctx.strokeStyle = ink; ctx.fillStyle = ink; ctx.lineWidth = 1.4;
+    const tri = (x, w, hh) => { ctx.beginPath(); ctx.moveTo(x, cy); ctx.lineTo(x - w / 2, cy + hh); ctx.lineTo(x + w / 2, cy + hh); ctx.closePath(); ctx.fill(); };
+    const step = 4 * mil, tw = Math.max(9, 4 * mil);
+    tri(cx, tw * 1.3, tw * 1.3);
+    for (let k = 1; k <= 3; k++) { tri(cx - k * step * 2, tw * 0.75, tw * 0.75); tri(cx + k * step * 2, tw * 0.75, tw * 0.75); }
+    ctx.beginPath();
+    ctx.moveTo(cx - R, cy); ctx.lineTo(cx - 7 * step * 2 / 7 * 3.6, cy);
+    ctx.moveTo(cx + 7 * step * 2 / 7 * 3.6, cy); ctx.lineTo(cx + R, cy);
+    ctx.moveTo(cx, cy + R); ctx.lineTo(cx, cy + tw * 1.3 + 8 * mil);
+    ctx.stroke();
+    // réglette des distances (en hectomètres), curseur sur la distance télémétrée
+    const pr = sight.probe, dm = pr && pr.kind !== 'sky' ? pr.dist * RK : null;
+    const sx = cx - R * 0.72, sy0 = cy - R * 0.45, sy1 = cy + R * 0.45;
+    ctx.lineWidth = 1; ctx.font = '600 10px system-ui, sans-serif'; ctx.textAlign = 'right';
+    for (let hm = 0; hm <= 20; hm++) {
+      const y = sy1 - (sy1 - sy0) * hm / 20, big = hm % 4 === 0;
+      ctx.beginPath(); ctx.moveTo(sx, y); ctx.lineTo(sx + (big ? 10 : 5), y); ctx.stroke();
+      if (big) ctx.fillText(String(hm), sx - 4, y + 3);
+    }
+    if (dm != null) {
+      const y = sy1 - (sy1 - sy0) * Math.min(1, dm / 2000);
+      ctx.beginPath(); ctx.moveTo(sx + 12, y); ctx.lineTo(sx + 20, y - 4); ctx.lineTo(sx + 20, y + 4); ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+
+    // canon réel (la tourelle suit à sa vitesse de rotation) et cercle de dispersion
+    const pv = pivot(player), ta = player.angle + player.turret, dd = pr && pr.kind !== 'sky' ? pr.dist : 400;
+    const gz = sight.z0 + Math.tan(sight.gunPitch) * dd / PX;
+    const gp = project3(pv.x + Math.cos(ta) * dd, pv.y + Math.sin(ta) * dd, gz);
+    if (!gp.behind) {
+      const rr = Math.max(5, player.disp * ppr);
+      ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 1.3;
+      ctx.beginPath(); ctx.arc(gp.x, gp.y, rr, 0, TAU); ctx.stroke();
+      const rf = player.reloadT > 0 ? 1 - player.reloadT / player.T.reload : 1;
+      ctx.strokeStyle = rf >= 1 ? '#ffe27a' : 'rgba(255,200,90,0.75)'; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(gp.x, gp.y, rr + 4, -Math.PI / 2, -Math.PI / 2 + TAU * rf); ctx.stroke();
+    }
+
+    // indicateur de perforation sous le réticule
+    ctx.textAlign = 'center';
+    const sb = SHELLS[player.shell];
+    ctx.font = '700 13px system-ui, sans-serif';
+    const top = `×${MAGS[sight.mag]} · ${sb.name}${dm != null ? ` · ${Math.round(dm)} m · ${Math.round(penAt(player.T, player.shell, pr.dist))} mm` : ''}`;
+    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillText(top, cx + 1, cy + R * 0.42 + 1);
+    ctx.fillStyle = '#e9d9a6'; ctx.fillText(top, cx, cy + R * 0.42);
+    if (pr && pr.kind === 'tank') {
+      const t = pr.tank, ally = t.team === 0;
+      let col, verdict;
+      if (t.dead) { col = '#aaa'; verdict = 'épave'; }
+      else if (ally) { col = '#6ab8ff'; verdict = 'ALLIÉ : NE PAS TIRER'; }
+      else if (player.shell === 'HE') { col = pr.pen >= pr.eff ? '#7ad06a' : '#ffb070'; verdict = pr.pen >= pr.eff ? 'perce' : 'effet de souffle'; }
+      else if (pr.ric > 0.5) { col = '#ffb070'; verdict = 'ricochet probable'; }
+      else if (pr.pen >= pr.eff * 1.08) { col = '#7ad06a'; verdict = 'perce'; }
+      else if (pr.pen >= pr.eff * 0.92) { col = '#ffe27a'; verdict = 'incertain'; }
+      else { col = '#ff6a50'; verdict = 'ne perce pas'; }
+      ctx.fillStyle = col; ctx.beginPath(); ctx.arc(cx, cy, 2.2, 0, TAU); ctx.fill();
+      const l1 = `${t.T.name}${ally ? ' (allié)' : ''} · ${verdict}`;
+      const l2 = t.dead ? '' : `${pr.plate} : ${pr.mm} mm à ${Math.round(pr.angle)}° → ${Math.round(pr.eff)} mm effectifs · pénétration ${Math.round(pr.pen)} mm`;
+      ctx.font = '700 14px system-ui, sans-serif';
+      ctx.fillStyle = 'rgba(0,0,0,0.65)'; ctx.fillText(l1, cx + 1, cy + R * 0.55 + 1);
+      ctx.fillStyle = col; ctx.fillText(l1, cx, cy + R * 0.55);
+      if (l2) {
+        ctx.font = '600 12px system-ui, sans-serif';
+        ctx.fillStyle = 'rgba(0,0,0,0.65)'; ctx.fillText(l2, cx + 1, cy + R * 0.55 + 19);
+        ctx.fillStyle = '#e8e4d8'; ctx.fillText(l2, cx, cy + R * 0.55 + 18);
+      }
+    }
+    ctx.font = '600 11px system-ui, sans-serif'; ctx.fillStyle = 'rgba(220,215,200,0.7)';
+    ctx.fillText('Maj : vue extérieure · molette : grossissement', cx, cy - R * 0.72);
+  }
+
   // ennemis repérés : chevron au-dessus d'eux, ou flèche au bord de l'écran s'ils sont hors champ
   function drawEnemyMarkers() {
     const f = camFocus();
@@ -2198,6 +2441,7 @@
     ctx.textAlign = 'center';
     for (const t of tanks) {
       if (t.dead || !visibleToPlayer(t)) continue;
+      if (sight.on && t === player) continue;
       const p = W3D ? worldToScreen(t.x, t.y, t.T.I.totalH + 1.4) : worldToScreen(t.x, t.y - t.T.len * 0.8);
       if (p.behind) continue;
       if (p.x < -50 || p.y < -50 || p.x > W + 50 || p.y > H + 50) continue;
@@ -2244,7 +2488,9 @@
     ctx.font = '600 14px system-ui, sans-serif';
     ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(W / 2 - 190, 8, 380, 46);
     ctx.fillStyle = '#e9d9a6';
-    ctx.fillText(`Niveau ${levelIdx + 1} · ${lv.name} · Vague ${waveIdx + 1}/${WAVES}`, W / 2, 26);
+    ctx.fillText(mode === 'survie' ? `Survie · ${lv.name} · Vague ${survWave}${nextWaveT > 0 ? ` · prochaine dans ${Math.ceil(nextWaveT)} s` : ''}`
+      : mode === 'duel' ? `Duel · ${lv.name} · Manche ${duelScore[0] + duelScore[1] + 1} · ${duelScore[0]} – ${duelScore[1]}`
+      : `Niveau ${levelIdx + 1} · ${lv.name} · Vague ${waveIdx + 1}/${WAVES}`, W / 2, 26);
     for (let team = 0; team < 2; team++) {
       const list = tanks.filter(t => t.team === team);
       list.forEach((t, i) => {
@@ -2287,7 +2533,8 @@
     if (player) drawTankPanel();
 
     // réticule
-    if (player && !player.dead && (state === 'play' || state === 'intro' || state === 'ending')) {
+    if (sight.on) drawSightReticle();
+    else if (player && !player.dead && (state === 'play' || state === 'intro' || state === 'ending')) {
       const m = screenToWorld(mouse.x, mouse.y), pv = pivot(player);
       const d = Math.hypot(m.x - pv.x, m.y - pv.y), ta = player.angle + player.turret;
       const gp = worldToScreen(pv.x + Math.cos(ta) * d, pv.y + Math.sin(ta) * d);
@@ -2329,7 +2576,9 @@
       ctx.fillStyle = '#e9d9a6'; ctx.font = '800 34px system-ui, sans-serif';
       ctx.fillText(`${lv.name.toUpperCase()}`, W / 2, H / 2 - 45);
       ctx.font = '600 16px system-ui, sans-serif'; ctx.fillStyle = '#bdb7a2';
-      ctx.fillText(`${lv.sub} · Vague ${waveIdx + 1}/${WAVES} · 5 contre 5`, W / 2, H / 2 - 18);
+      ctx.fillText(mode === 'survie' ? `${lv.sub} · Survie · seul contre tous`
+        : mode === 'duel' ? `${lv.sub} · Duel · manche ${duelScore[0] + duelScore[1] + 1}`
+        : `${lv.sub} · Vague ${waveIdx + 1}/${WAVES} · 5 contre 5`, W / 2, H / 2 - 18);
       ctx.font = '800 48px system-ui, sans-serif'; ctx.fillStyle = '#fff';
       ctx.fillText(String(Math.max(1, Math.ceil(introT))), W / 2, H / 2 + 38);
     }
@@ -2569,10 +2818,18 @@
     }
     $('specs').innerHTML = specsHTML(TYPES[chosenType]);
     $('showcase').classList.toggle('no3d', !R3);
+    const mc = $('modeCards'); mc.innerHTML = '';
+    for (const [id, M] of Object.entries(MODES)) {
+      const d = document.createElement('div');
+      d.className = 'card' + (id === mode ? ' sel' : '');
+      d.innerHTML = `<b>${M.name}</b><small>${M.sub}${id === 'survie' && survBest ? ` · record : ${survBest} vagues` : ''}</small>`;
+      d.onclick = () => { mode = id; buildMenu(); };
+      mc.appendChild(d);
+    }
     const lc = $('levelCards'); lc.innerHTML = '';
     LEVELS.forEach((lv, i) => {
       const d = document.createElement('div');
-      const locked = i > unlocked;
+      const locked = mode === 'campagne' && i > unlocked;
       d.className = 'card' + (i === levelIdx ? ' sel' : '') + (locked ? ' locked' : '');
       d.innerHTML = `<b>${i + 1}. ${lv.name}</b><small>${locked ? '🔒 Verrouillé' : lv.sub}</small>`;
       d.onclick = () => { if (!locked) { levelIdx = i; buildMenu(); } };
@@ -2583,6 +2840,7 @@
   function startLevel() { genMap(); setup3D(); spawnWave(); }
 
   function showResult() {
+    if (mode !== 'campagne') { showModeResult(); return; }
     state = 'result';
     const win = waveResult === 'win';
     const ws = waveStats;
@@ -2613,6 +2871,43 @@
     else {
       if (levelIdx + 1 > unlocked && !lastLevel) { unlocked = levelIdx + 1; saveUnlocked(); }
       if (!lastLevel) add('Niveau suivant', () => { levelIdx++; waveIdx = 0; startLevel(); });
+    }
+    add('Menu principal', toMenu, true);
+    show('result');
+  }
+
+  function statRows(ws) {
+    const acc = ws.shots ? Math.round(ws.hits / ws.shots * 100) : 0;
+    return `<tr><td>Chars ennemis détruits</td><td>${ws.kills}</td></tr>` +
+      `<tr><td>Perforations</td><td>${ws.pens}</td></tr>` +
+      `<tr><td>Équipiers ennemis neutralisés</td><td>${ws.crew}</td></tr>` +
+      `<tr><td>Modules ennemis détruits</td><td>${ws.mods}</td></tr>` +
+      `<tr><td>Précision</td><td>${acc} % (${ws.hits}/${ws.shots})</td></tr>` +
+      `<tr><td>Ricochets</td><td>${ws.ric}</td></tr>` +
+      `<tr><td>Obus esquivés</td><td>${ws.dodged}</td></tr>`;
+  }
+  function showModeResult() {
+    state = 'result';
+    const win = waveResult === 'win', ws = waveStats;
+    const btns = $('resBtns'); btns.innerHTML = '';
+    const add = (label, fn, alt) => { const b = document.createElement('button'); b.textContent = label; if (alt) b.className = 'alt'; b.onclick = () => { Sfx.init(); hide('result'); fn(); }; btns.appendChild(b); };
+    if (mode === 'survie') {
+      const held = survWave - 1, rec = held > survBest;
+      if (rec) { survBest = held; try { localStorage.setItem('frontdacier.survie', String(held)); } catch (e) { /* stockage indisponible */ } }
+      $('resTitle').className = held > 0 ? 'win' : 'lose';
+      $('resTitle').textContent = rec && held > 0 ? 'NOUVEAU RECORD' : 'FIN DE LA SURVIE';
+      $('resSub').textContent = `${L().name} · ${held} vague${held > 1 ? 's' : ''} repoussée${held > 1 ? 's' : ''} · record : ${survBest}`;
+      $('resTable').innerHTML = `<tr><td>Vague atteinte</td><td>${survWave}</td></tr>` + statRows(ws);
+      add('Recommencer', () => startLevel());
+    } else {
+      duelScore[win ? 0 : 1]++;
+      const over = duelScore[0] >= 2 || duelScore[1] >= 2;
+      $('resTitle').className = win ? 'win' : 'lose';
+      $('resTitle').textContent = over ? (duelScore[0] >= 2 ? 'DUEL GAGNÉ' : 'DUEL PERDU') : (win ? 'MANCHE GAGNÉE' : 'MANCHE PERDUE');
+      $('resSub').textContent = `${L().name} · ${TYPES[chosenType].name} contre ${TYPES[chosenType].name} · score ${duelScore[0]} – ${duelScore[1]}`;
+      $('resTable').innerHTML = statRows(ws);
+      if (over) add('Nouveau duel', () => { duelScore = [0, 0]; startLevel(); });
+      else add('Manche suivante', () => spawnWave());
     }
     add('Menu principal', toMenu, true);
     show('result');
@@ -2680,7 +2975,11 @@
       `Prédiction balistique : <b>${P.perforate ? 'perforation' : P.ric >= 0.5 ? 'ricochet' : 'non perforé'}</b> · la simulation du métal est calée sur la même vitesse limite`;
   }
 
-  $('startBtn').onclick = () => { Sfx.init(); hide('menu'); waveIdx = 0; campaignScore = 0; startLevel(); };
+  $('startBtn').onclick = () => {
+    Sfx.init(); hide('menu'); waveIdx = 0; campaignScore = 0; duelScore = [0, 0];
+    if (mode === 'campagne') levelIdx = Math.min(levelIdx, unlocked);
+    startLevel();
+  };
   $('resumeBtn').onclick = togglePause;
   $('quitBtn').onclick = toMenu;
   $('xrayBtn').onclick = () => { viewer.xray = !viewer.xray; $('xrayBtn').classList.toggle('on', viewer.xray); };
@@ -2701,7 +3000,9 @@
     if (e.code === 'Escape' || e.code === 'KeyP') togglePause();
     if (e.code === 'KeyM') Sfx.toggle();
     if (e.code === 'KeyH' && state !== 'menu') { hitcamOn = !hitcamOn; if (!hitcamOn) HitCam.stop(); showMsg(hitcamOn ? "Caméra d'impact activée" : "Caméra d'impact désactivée", '#bcd8ff', 1.4); }
+    if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyV') && state !== 'menu') setSight(!sight.on);
     if (e.code === 'KeyC' && W3D && state !== 'menu') {
+      setSight(false);
       cam3.mode = (cam3.mode + 1) % CAM_MODES.length;
       cam3.dist = CAM_MODES[cam3.mode].dist; cam3.off = 0;
       showMsg(CAM_MODES[cam3.mode].name, '#bcd8ff', 1.2);
@@ -2728,6 +3029,13 @@
     mouse.y = (e.clientY - r.top) * (H / (r.height || H));
   }
   addEventListener('mousemove', trackMouse);
+  // à la lunette, la souris oriente la visée (déplacement relatif, curseur verrouillé si possible)
+  addEventListener('mousemove', e => {
+    if (!sight.on) return;
+    const k = cam3.fov / H * 0.9;
+    sight.yaw += (e.movementX || 0) * k;
+    sight.pitch = clamp(sight.pitch - (e.movementY || 0) * k, -0.14, 0.3);
+  });
   addEventListener('pointerdown', trackMouse);
   cv.addEventListener('mousedown', e => {
     Sfx.init();
@@ -2738,7 +3046,10 @@
   });
   addEventListener('mouseup', e => { if (e.button === 0) mouse.down = false; });
   cv.addEventListener('contextmenu', e => e.preventDefault());
-  cv.addEventListener('wheel', e => { if (!W3D) return; e.preventDefault(); cam3.dist = clamp(cam3.dist * Math.exp(e.deltaY * 0.0012), 14, 160); }, { passive: false });
+  cv.addEventListener('wheel', e => {
+    if (!W3D) return; e.preventDefault();
+    if (sight.on) { sight.mag = clamp(sight.mag + (e.deltaY < 0 ? 1 : -1), 0, MAGS.length - 1); return; }
+    cam3.dist = clamp(cam3.dist * Math.exp(e.deltaY * 0.0012), 14, 160); }, { passive: false });
   cv.addEventListener('mousedown', e => { if (e.button === 2) cam3.drag = { x: e.clientX, off: cam3.off }; });
   addEventListener('mousemove', e => { if (cam3.drag) cam3.off = cam3.drag.off - (e.clientX - cam3.drag.x) * 0.006; });
   addEventListener('mouseup', e => { if (e.button === 2) cam3.drag = null; });
@@ -2747,6 +3058,7 @@
   // Démarrage direct en développement
   if (Q.has('level')) levelIdx = clamp(Number(Q.get('level')) - 1, 0, LEVELS.length - 1);
   if (Q.has('type') && TYPES[Q.get('type')]) chosenType = Q.get('type');
+  if (MODES[Q.get('mode')]) mode = Q.get('mode');
   buildMenu();
   initBench();
   if (Q.has('level') || AUTO) {
@@ -2756,7 +3068,7 @@
   if (Q.has('debug')) {
     window.__fa = {
       get tanks() { return tanks; }, get state() { return state; }, get stats() { return waveStats; }, get shells() { return shells; },
-      get time() { return gameTime; }, get player() { return player; }, get bushes() { return bushes; }, cam3, hitcam: HitCam, TYPES, SHELLS, bench, benchFire,
+      get time() { return gameTime; }, get player() { return player; }, get bushes() { return bushes; }, cam3, sight, setSight, sightProbe, get mode() { return mode; }, get survWave() { return survWave; }, hitcam: HitCam, TYPES, SHELLS, bench, benchFire,
       // test : tir forcé du joueur sur la cible la plus proche
       fireAt(i, key) {
         const e = tanks.filter(t => t.team === 1 && !t.dead)[i || 0];

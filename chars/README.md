@@ -35,6 +35,31 @@ Le fichier `chars/front-dacier.html` contient tout le jeu en un seul fichier, à
 - **4 chars**, inspirés de chars réels : Lynx (Luchs), Panthère (Panther), Tigre (Tiger I) et
   Jagd (Jagdpanther, sans tourelle, avec un secteur de tir de ±12°).
 
+## Modes de jeu
+
+- **Campagne** : 5 contre 5, trois vagues par champ de bataille ; chaque secteur conquis ouvre le suivant.
+- **Survie** : seul contre des vagues de plus en plus nombreuses (jusqu'à 5 chars), lourdes et habiles.
+  Elles arrivent du côté opposé au joueur. Entre deux vagues, 8 s de répit : munitions complétées de
+  moitié, modules réparés, fumigène rendu ; les équipiers tués ne reviennent pas. Le record est gardé.
+- **Duel** : 1 contre 1 à chars identiques, en 3 manches gagnantes, contre une IA d'élite.
+
+## Vue du tireur
+
+`Maj` (ou `V`) passe à la lunette du tireur, coaxiale au canon. La souris oriente la visée (curseur
+verrouillé), la tourelle suit à sa vraie vitesse de rotation : le cercle montre où pointe réellement le
+canon, avec la dispersion et le rechargement. La molette change le grossissement (×2,5, ×5, ×8).
+
+- **Réticule** inspiré de la TZF allemande : triangle central, triangles tous les 4 millièmes pour la
+  correction sur cible mobile, réglette des distances en hectomètres avec le curseur du télémètre. Les
+  traits sont à l'échelle angulaire réelle, donc grossissent avec le zoom. Réticule éclairé la nuit.
+- **Visée en hauteur** : l'obus suit la ligne de visée. On choisit donc la plaque : haut ou bas de
+  caisse, masque, tourelle. Viser trop haut fait passer l'obus au-dessus d'un char bas, trop bas le
+  fiche dans le sol.
+- **Indicateur** : char visé, plaque, épaisseur et inclinaison, blindage effectif, pénétration à cette
+  distance, et verdict (perce, incertain, ne perce pas, ricochet probable, allié).
+- **Sans stabilisateur**, comme tous les chars de l'époque : l'image tremble quand le char roule ou
+  pivote, et saute au départ du coup.
+
 ## Rendu 3D
 
 Le champ de bataille est rendu en 3D temps réel par un moteur WebGL écrit pour le jeu (`world3d.js`).
