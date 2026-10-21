@@ -223,6 +223,34 @@ canon, avec la dispersion et le rechargement. La molette change le grossissement
 - **Sans stabilisateur**, comme tous les chars de l'époque : l'image tremble quand le char roule ou
   pivote, et saute au départ du coup.
 
+## Publication sur CrazyGames
+
+Le jeu est prêt pour CrazyGames : téléverser le contenu du dossier `chars/` (ou l'archive
+`chars/dist/front-dacier-crazygames.zip`) comme jeu HTML5, `index.html` à la racine.
+
+- **SDK CrazyGames v3** (`meta.js`) : `loadingStart` / `loadingStop` autour du chargement,
+  `gameplayStart` / `gameplayStop` en début et fin de bataille, en pause et pendant les publicités,
+  `happytime` aux promotions et aux gros lots de la roue. La sauvegarde passe par `SDK.data`
+  (et `localStorage` en secours).
+- **Publicités** : une publicité de mi-partie au plus toutes les 3 minutes, seulement entre deux
+  batailles (jamais pendant le jeu ni avant la première partie). Publicités récompensées, toujours
+  optionnelles : réparer son char détruit, doubler les gains d'une bataille, tirage bonus de la roue,
+  camouflage « Opération nocturne ». Le son est coupé pendant les publicités. Hors de CrazyGames
+  (fichier local, page intégrée), elles sont simulées par un écran de 3 s.
+- **Progression** :
+  - crédits et expérience à chaque bataille ; 16 grades, de Soldat à Maréchal, avec 500 crédits par
+    promotion ;
+  - chars à acheter, avec un grade minimal (le Lynx et le Panzer IV sont offerts) ;
+  - 8 camouflages, du commun au légendaire ;
+  - roue quotidienne : crédits, kits de réparation, gains × 2, camouflages ;
+  - 3 missions du jour ;
+  - prime de présence sur 7 jours ;
+  - kits de réparation.
+- **Menu** : vitrine 3D plein écran du char choisi, avec son camouflage, et onglets Jouer, Garage,
+  Roue, Missions, Atelier (banc d'essai, commandes) et Options (volumes, qualité graphique, caméra
+  d'impact, plein écran, remise à zéro).
+- **Musique** : `music/menu.mp3`, voir `music/README.md`.
+
 ## Rendu 3D
 
 Le champ de bataille est rendu en 3D temps réel par un moteur WebGL écrit pour le jeu (`world3d.js`).

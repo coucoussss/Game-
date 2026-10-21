@@ -1,7 +1,7 @@
 'use strict';
 // Sons générés en temps réel avec la Web Audio API (aucun fichier).
 const Sfx = (() => {
-  let ac = null, master = null, noiseBuf = null, eng = null, trk = null, muted = false;
+  let ac = null, master = null, noiseBuf = null, eng = null, trk = null, muted = false, adMute = false, vol = 0.8;
   const VOL = 0.55;
 
   function init() {
@@ -10,7 +10,7 @@ const Sfx = (() => {
     if (!AC) return;
     ac = new AC();
     master = ac.createGain();
-    master.gain.value = muted ? 0 : VOL;
+    master.gain.value = muted || adMute ? 0 : VOL * vol;
     const comp = ac.createDynamicsCompressor();
     comp.threshold.value = -16; comp.ratio.value = 6;
     master.connect(comp); comp.connect(ac.destination);
@@ -80,7 +80,10 @@ const Sfx = (() => {
 
   return {
     init,
-    toggle() { muted = !muted; if (master) master.gain.value = muted ? 0 : VOL; return muted; },
+    toggle() { muted = !muted; if (master) master.gain.value = muted || adMute ? 0 : VOL * vol; return muted; },
+    // volume des effets (options) et coupure pendant les publicités
+    setVolume(v) { vol = v; if (master) master.gain.value = muted || adMute ? 0 : VOL * vol; },
+    setMuted(m) { adMute = m; if (master) master.gain.value = muted || adMute ? 0 : VOL * vol; if (ac) { if (m) ac.suspend(); else ac.resume(); } },
     fire(d, big) {
       play(d, (t, a) => {
         const k = big ? 1.15 : 1;
