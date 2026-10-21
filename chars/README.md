@@ -130,6 +130,33 @@ Deux munitions s'ajoutent (touches `6` et `7`) :
   l'obus. Il recule d'une longueur réaliste (0,3 à 0,6 m selon le calibre) en 0,05 s, puis revient
   en batterie.
 
+## Conduite et physique des chars
+
+- **Puissance et terrain** : effort moteur = puissance utile (rendement de transmission 0,6) / vitesse,
+  limité par l'adhérence (0,5 g), contre la résistance au roulement du sol (herbe 0,06, gravats 0,07,
+  sable 0,08, boue 0,085, neige 0,09). La vitesse de pointe dépend donc du terrain et du rapport
+  poids / puissance : sur herbe, environ 43 km/h pour la Panthère et 28 km/h pour le Tigre royal ;
+  dans la boue de l'Ardenne, 30 et 20 km/h. Freinage des chenilles : 0,6 g.
+- **Virages** : les chenilles ripent ; plus le sol colle, plus le pivot est lent.
+- **Chenille cassée** : le char ne peut plus que pivoter autour d'elle, entraîné par la chenille
+  intacte. Les roues du côté cassé s'arrêtent.
+- **Collisions** : les masses réelles comptent, le plus lourd pousse le plus léger. Le choc échange
+  la quantité de mouvement (restitution 0,1) et fait basculer les caisses. Au-delà de 4 m/s, le plus
+  léger peut déchausser une chenille.
+- **Obstacles** : un arbre se couche si la quantité de mouvement dépasse 30 t·m/s (un Tigre royal au
+  pas, un Lynx lancé) ; un muret cède au-delà de 140 t·m/s.
+- **Roues porteuses** : chacune tourne selon le chemin de sa chenille (v ± ω·W/2) et débat sur les
+  bosses.
+- **Râtelier** : les premiers obus (6 à 10 selon le char) sont dans la tourelle. Ensuite le chargeur
+  va les chercher dans les soutes de caisse, avec un rechargement 45 % plus long. Hors du tir, il
+  regarnit le râtelier à raison d'un obus toutes les 8 s.
+- **Repérage** : un char qui roule à plus de mi-vitesse soulève un panache de poussière ; on le voit
+  20 % plus loin, sauf de nuit ou sur la neige.
+- **Détails** : fumée de poudre qui s'échappe de la bouche après le coup ; fumée grise d'un moteur
+  touché ; traçant éteint après environ 2 km.
+- **Son** : boîte à 7 rapports (le régime monte puis retombe à chaque passage), cliquetis des
+  chenilles au rythme des maillons sur le barbotin, bourdonnement du moteur de tourelle.
+
 ## Effets physiques
 
 Chaque particule a une position en 3D, des vitesses en m/s, la pesanteur, la traînée de l'air, le vent,

@@ -286,8 +286,9 @@ const TankModels = (() => {
 
   // ===================== Construction 3D =====================
   const CAMO = '#808080', DARK = '#2f2e2a', STEEL = '#4b4a46', RUBBER = '#1d1c1a', RUST = '#5c3d2a', GLASS = '#1a2228';
-  function build(id) {
-    const S = SPECS[id], I = info(id);
+  // sepWheels : roues porteuses à part (le jeu les fait tourner et débattre une à une)
+  function build(id, sepWheels) {
+    const S = SPECS[id], I = info(id), wheels = [];
     const hb = new G3.Builder(), tb = new G3.Builder();
     const { L, W, tw, gc, tt, ht, zn, xn } = S;
     const tanU = Math.tan(S.sUp * D2R), tanL = Math.tan(S.sLow * D2R), tanR = Math.tan(S.sRear * D2R), tanS = Math.tan(S.sideSlope * D2R);
@@ -321,6 +322,7 @@ const TankModels = (() => {
       hb.band(loop, th, Math.min(yOut, yIn), Math.max(yOut, yIn), '#3c3a36', 2);
       const wheelAt = (x, yc, w, r) => {
         const z = rw + th;
+        if (sepWheels) { wheels.push({ x, y: yc, z, r, w, side }); return; }
         hb.cyl([x, yc - w / 2, z], [x, yc + w / 2, z], r, r, 20, RUBBER, 4);
         hb.cyl([x, yc - w / 2 - 0.012, z], [x, yc + w / 2 + 0.012, z], r * 0.8, r * 0.8, 20, CAMO, 1);
         hb.cyl([x, yc - w / 2 - 0.03, z], [x, yc + w / 2 + 0.03, z], r * 0.2, r * 0.2, 10, STEEL, 3);
@@ -429,7 +431,15 @@ const TankModels = (() => {
     addGun(tb, 0, 0);
     const gb = new G3.Builder(); addGun(gb, gunPivot[0], gunPivot[2]);
 
-    return { S, I, hull: hb, turret: tb, turretBody: body, gun: gb, gunPivot };
+    // roue unitaire (rayon 1, largeur 1, axe y) : bandage, flasque, moyeu, boulons pour voir la rotation
+    const wb = new G3.Builder();
+    if (sepWheels) {
+      wb.cyl([0, -0.5, 0], [0, 0.5, 0], 1, 1, 20, RUBBER, 4);
+      wb.cyl([0, -0.512, 0], [0, 0.512, 0], 0.8, 0.8, 20, CAMO, 1);
+      wb.cyl([0, -0.56, 0], [0, 0.56, 0], 0.2, 0.2, 10, STEEL, 3);
+      for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2; wb.box(Math.cos(a) * 0.48, 0, Math.sin(a) * 0.48, 0.09, 1.07, 0.09, DARK, 3); }
+    }
+    return { S, I, hull: hb, turret: tb, turretBody: body, gun: gb, gunPivot, wheels, wheel: wb };
   }
 
 

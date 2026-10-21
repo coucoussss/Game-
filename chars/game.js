@@ -66,43 +66,43 @@
   const G = 9.81;  // pesanteur (m/s²)
   const TYPES = {
     light: {
-      id: 'light', mass: 12, name: 'Lynx', cls: 'Char léger', kmh: 60, speed: 150, rev: 70, accel: 230, turn: 2.3, tturn: 2.6,
+      id: 'light', hp: 180, ready: 10, mass: 12, name: 'Lynx', cls: 'Char léger', kmh: 60, speed: 150, rev: 70, accel: 230, turn: 2.3, tturn: 2.6,
       reload: 3.2, shell: 640, disp: 0.016, view: 760, range: 470,
       caliber: 50, obs: 60,
       ammo: { AP: 20, APHE: 30, APCR: 10, HEAT: 6, HE: 20, SMOKE: 4, CAN: 8 },
     },
     medium: {
-      id: 'medium', mass: 45, name: 'Panthère', cls: 'Char moyen', kmh: 46, speed: 112, rev: 52, accel: 170, turn: 1.6, tturn: 1.4,
+      id: 'medium', hp: 700, ready: 8, mass: 45, name: 'Panthère', cls: 'Char moyen', kmh: 46, speed: 112, rev: 52, accel: 170, turn: 1.6, tturn: 1.4,
       reload: 5.5, shell: 720, disp: 0.011, view: 680, range: 420,
       caliber: 75, obs: 110,
       ammo: { AP: 15, APHE: 35, APCR: 10, HEAT: 5, HE: 15, SMOKE: 4, CAN: 5 },
     },
     heavy: {
-      id: 'heavy', mass: 57, name: 'Tigre', cls: 'Char lourd', kmh: 38, speed: 80, rev: 38, accel: 115, turn: 1.1, tturn: 1.0,
+      id: 'heavy', hp: 700, ready: 6, mass: 57, name: 'Tigre', cls: 'Char lourd', kmh: 38, speed: 80, rev: 38, accel: 115, turn: 1.1, tturn: 1.0,
       reload: 7.0, shell: 680, disp: 0.010, view: 620, range: 330,
       caliber: 88, obs: 150,
       ammo: { AP: 12, APHE: 40, APCR: 8, HEAT: 10, HE: 22, SMOKE: 4, CAN: 4 },
     },
     pz4: {
-      id: 'pz4', mass: 25, name: 'Panzer IV', cls: 'Char moyen', kmh: 38, speed: 95, rev: 45, accel: 150, turn: 1.5, tturn: 1.0,
+      id: 'pz4', hp: 300, ready: 8, mass: 25, name: 'Panzer IV', cls: 'Char moyen', kmh: 38, speed: 95, rev: 45, accel: 150, turn: 1.5, tturn: 1.0,
       reload: 5.0, shell: 700, disp: 0.012, view: 680, range: 420,
       caliber: 75, obs: 100,
       ammo: { AP: 15, APHE: 40, APCR: 8, HEAT: 6, HE: 20, SMOKE: 4, CAN: 6 },
     },
     stug: {
-      id: 'stug', mass: 24, name: 'StuG', cls: "Canon d'assaut", kmh: 40, speed: 100, rev: 45, accel: 150, turn: 1.5, tturn: 0.9,
+      id: 'stug', hp: 300, ready: 6, mass: 24, name: 'StuG', cls: "Canon d'assaut", kmh: 40, speed: 100, rev: 45, accel: 150, turn: 1.5, tturn: 0.9,
       reload: 5.0, shell: 700, disp: 0.010, view: 650, range: 450, arc: 0.17,
       caliber: 75, obs: 100,
       ammo: { AP: 12, APHE: 30, APCR: 6, HEAT: 4, HE: 18, SMOKE: 4, CAN: 4 },
     },
     kingtiger: {
-      id: 'kingtiger', mass: 68, name: 'Tigre royal', cls: 'Char lourd', kmh: 35, speed: 70, rev: 33, accel: 95, turn: 0.9, tturn: 0.8,
+      id: 'kingtiger', hp: 700, ready: 6, mass: 68, name: 'Tigre royal', cls: 'Char lourd', kmh: 35, speed: 70, rev: 33, accel: 95, turn: 0.9, tturn: 0.8,
       reload: 8.0, shell: 800, disp: 0.008, view: 640, range: 520,
       caliber: 88, obs: 170,
       ammo: { AP: 10, APHE: 40, APCR: 8, HEAT: 4, HE: 20, SMOKE: 4, CAN: 4 },
     },
     destroyer: {
-      id: 'destroyer', mass: 46, name: 'Jagd', cls: 'Chasseur de chars', kmh: 46, speed: 95, rev: 45, accel: 145, turn: 1.4, tturn: 0.9,
+      id: 'destroyer', hp: 700, ready: 6, mass: 46, name: 'Jagd', cls: 'Chasseur de chars', kmh: 46, speed: 95, rev: 45, accel: 145, turn: 1.4, tturn: 0.9,
       reload: 7.5, shell: 780, disp: 0.007, view: 720, range: 600, arc: 0.21,
       caliber: 88, obs: 160,
       ammo: { AP: 12, APHE: 25, APCR: 10, HEAT: 5, HE: 5, SMOKE: 3, CAN: 2 },
@@ -146,35 +146,35 @@
   const W_ = (a, b, c, d, e) => [a, b, c, d, e];
   const LEVELS = [
     {
-      name: 'Plaine de Koursk', sub: 'Steppe d’été, grands espaces',
+      name: 'Plaine de Koursk', crr: 0.06, soil: 'herbe sèche', sub: 'Steppe d’été, grands espaces',
       ground: ['#7b8446', '#6c763b', '#8a9352'], road: '#8d7d58', dust: '#a59a6a', track: 'rgba(40,35,20,0.16)',
       trees: 45, treeCl: 6, bushes: 34, buildings: 6, walls: 9, rocks: 8,
       tree: ['#36521f', '#4a6a2b'], bush: '#4c6b2a', wall: '#a59a86', roof: ['#8a4f3a', '#73402f'],
       waves: [W_('light', 'light', 'medium', 'light', 'medium'), W_('pz4', 'light', 'medium', 'stug', 'light'), W_('pz4', 'medium', 'heavy', 'stug', 'medium')],
     },
     {
-      name: 'Forêt des Ardennes', sub: 'Sous-bois denses, combats rapprochés',
+      name: 'Forêt des Ardennes', crr: 0.085, soil: 'sous-bois boueux', sub: 'Sous-bois denses, combats rapprochés',
       ground: ['#4c5c30', '#425228', '#58693a'], road: '#6d5d3f', dust: '#6b6a48', track: 'rgba(25,25,10,0.2)',
       trees: 150, treeCl: 14, bushes: 70, buildings: 3, walls: 4, rocks: 10,
       tree: ['#24401a', '#335726'], bush: '#3a5a22', wall: '#8f8a7a', roof: ['#5a4a3a', '#4a3c30'],
       waves: [W_('medium', 'light', 'medium', 'light', 'medium'), W_('pz4', 'medium', 'heavy', 'stug', 'destroyer'), W_('heavy', 'medium', 'medium', 'destroyer', 'light')],
     },
     {
-      name: 'Ruines de Stalingrad', sub: 'Rues en ruines, bâtiments destructibles', city: true,
+      name: 'Ruines de Stalingrad', crr: 0.07, soil: 'gravats', sub: 'Rues en ruines, bâtiments destructibles', city: true,
       ground: ['#6d665c', '#615a51', '#79726a'], road: '#55504a', dust: '#8a8378', track: 'rgba(20,18,15,0.18)',
       trees: 8, treeCl: 2, bushes: 10, buildings: 0, walls: 12, rocks: 4,
       tree: ['#3c4a2a', '#4a5a34'], bush: '#4a5530', wall: '#8f877b', roof: ['#7a7268', '#686057'],
       waves: [W_('medium', 'heavy', 'medium', 'light', 'medium'), W_('heavy', 'pz4', 'destroyer', 'medium', 'kingtiger'), W_('heavy', 'heavy', 'destroyer', 'medium', 'medium')],
     },
     {
-      name: "Désert d'El Alamein", sub: 'Terrain ouvert, tirs à longue portée',
+      name: "Désert d'El Alamein", crr: 0.08, soil: 'sable', sub: 'Terrain ouvert, tirs à longue portée',
       ground: ['#cdb27a', '#c1a46b', '#d9c08c'], road: '#b39463', dust: '#dcc391', track: 'rgba(90,60,30,0.16)',
       trees: 0, treeCl: 1, bushes: 16, buildings: 5, walls: 5, rocks: 36,
       tree: ['#5a6a2a', '#6a7a3a'], bush: '#8c8a4a', wall: '#d8c7a0', roof: ['#e0d2ad', '#cdbd96'],
       waves: [W_('destroyer', 'medium', 'light', 'destroyer', 'medium'), W_('heavy', 'destroyer', 'stug', 'destroyer', 'pz4'), W_('heavy', 'heavy', 'destroyer', 'destroyer', 'medium')],
     },
     {
-      name: 'Nuit de Bastogne', sub: 'Neige et obscurité, vision réduite', night: true,
+      name: 'Nuit de Bastogne', crr: 0.09, soil: 'neige', sub: 'Neige et obscurité, vision réduite', night: true,
       ground: ['#dfe4e8', '#cfd6dc', '#eaeef1'], road: '#b9b3a8', dust: '#ffffff', track: 'rgba(60,60,70,0.22)',
       trees: 95, treeCl: 10, bushes: 34, buildings: 8, walls: 6, rocks: 6,
       tree: ['#203828', '#2c4a36'], bush: '#3c5a46', wall: '#9a958c', roof: ['#eef3f6', '#d8e0e6'], snow: true,
@@ -576,7 +576,7 @@
       reloadT: rnd(0.8, 1.6), disp: T.disp * 3, smoke: 2, trackT: 0, fireT: 0, fireBy: null,
       mg: { ammo: 2700, ammoH: 150, type: 'SmK', heat: 0, jam: 0, cd: 0, n: 0, burst: 0, wait: rnd(1, 4) },
       // chef de char sorti de la coupole (meilleure vue, mais exposé aux balles), optiques endommagées
-      sus: { p: 0, vp: 0, r: 0, vr: 0, v0: 0 }, elev: 0, fireAge: 9, scars: [], scarDirty: false, scarT: 0, scar3: null,
+      sus: { p: 0, vp: 0, r: 0, vr: 0, v0: 0 }, wd: [0, 0], trackSide: 1, ready: T.ready, readyT: 0, reloadMax: T.reload, elev: 0, fireAge: 9, scars: [], scarDirty: false, scarT: 0, scar3: null,
       hatch: !isPlayer, underFire: 0, calm: 20, optic: { driver: 0, gunner: 0, cmd: 0 },
       revealT: 0, recoil: 0, flash: 0, trackAcc: 0, treadPhase: 0, hitFlash: 0, turretGone: false,
       in: { throttle: 0, turn: 0, aim: angle, fire: false },
@@ -715,6 +715,8 @@
           let range = a.T.view * (night ? 0.6 : 1) * (roleOk(a, 'commander') ? (a.hatch ? 1.15 : 1) : 0.75) * (a.optic.cmd > 0 && !a.hatch ? 0.8 : 1);
           if (bush) range = Math.min(range, 210);
           if (e.revealT > 0) range *= 1.3;
+          // un char qui roule vite soulève un panache de poussière qui se voit de loin
+          if (!night && !L().snow && Math.abs(e.speed) > e.T.speed * 0.5) range *= 1.2;
           if (d < range && losClear(a.x, a.y, e.x, e.y, true)) { set.add(e); break; }
         }
       }
@@ -906,7 +908,11 @@
       const cx = clamp(t.x, o.x, o.x + o.w), cy = clamp(t.y, o.y, o.y + o.h);
       const dx = t.x - cx, dy = t.y - cy, d2 = dx * dx + dy * dy;
       if (d2 >= t.r * t.r) continue;
-      if (o.type === 'tree' && Math.abs(t.speed) > 22) { knockTree(o, t.angle); t.speed *= 0.7; continue; }
+      // quantité de mouvement (t·m/s) : un char lourd couche un arbre au pas, un char léger doit
+      // prendre de l'élan ; un muret cède sous un choc assez violent
+      const q = t.T.mass * Math.abs(t.speed) / PX;
+      if (o.type === 'tree' && q > 30) { knockTree(o, t.angle); t.speed *= 1 - Math.min(0.5, 12 / q); continue; }
+      if (o.type === 'wall' && q > 140 && !t.dead) { damageObstacle(o, q * 2.5); t.speed *= 0.55; Sfx.impact(listenerDist(t.x, t.y)); if (o.dead) continue; }
       if (d2 < 1e-6) {
         const l = t.x - o.x, r = o.x + o.w - t.x, u = t.y - o.y, b = o.y + o.h - t.y;
         const m = Math.min(l, r, u, b);
@@ -927,11 +933,28 @@
         const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy), m = a.r + b.r;
         if (d >= m || d < 1e-6) continue;
         const p = m - d, nx = dx / d, ny = dy / d;
-        const ma = a.T.S.L * a.T.S.W, mb = b.T.S.L * b.T.S.W;
-        let wa = mb / (ma + mb), wb = 1 - wa;
-        if (a.dead) { wa = 0; wb = 1; } else if (b.dead) { wa = 1; wb = 0; }
+        // le plus lourd pousse le plus léger (masses réelles) ; une épave pèse autant qu'un char
+        const ma = a.T.mass, mb = b.T.mass;
+        const wa = mb / (ma + mb), wb = 1 - wa;
         a.x -= nx * p * wa; a.y -= ny * p * wa;
         b.x += nx * p * wb; b.y += ny * p * wb;
+        // choc : vitesse relative le long de la normale, restitution 0,1 (acier contre acier, chenilles)
+        const vrel = ((a.vx - b.vx) * nx + (a.vy - b.vy) * ny) / PX;
+        if (vrel > 0.3) {
+          const J = 1.1 * vrel * ma * mb / (ma + mb); // t·m/s
+          a.speed -= J / ma * PX * (Math.cos(a.angle) * nx + Math.sin(a.angle) * ny);
+          b.speed += J / mb * PX * (Math.cos(b.angle) * nx + Math.sin(b.angle) * ny);
+          if (!a.dead) rock(a, J * 1000, -(Math.cos(a.angle) * nx + Math.sin(a.angle) * ny), 0, 0.6);
+          if (!b.dead) rock(b, J * 1000, (Math.cos(b.angle) * nx + Math.sin(b.angle) * ny), 0, 0.6);
+          if (vrel > 2.5 && gameTime - (a.bumpT || 0) > 0.6) {
+            a.bumpT = gameTime;
+            Sfx.clang(listenerDist((a.x + b.x) / 2, (a.y + b.y) / 2));
+            Fx.armorHit((a.x + b.x) / 2, (a.y + b.y) / 2, 0.8, 'non', nx, ny);
+            // au-delà de 4 m/s, le plus léger peut perdre une chenille
+            const lt = ma < mb ? a : b;
+            if (vrel > 4 && !lt.dead && Math.random() < 0.5) { lt.trackT = Math.max(lt.trackT, 8); lt.trackSide = Math.random() < 0.5 ? 1 : -1; if (lt === player) addLog('Choc : chenille déchaussée', '#ffb070'); }
+          }
+        }
       }
     }
   }
@@ -1024,10 +1047,17 @@
     const T = t.T, inp = t.in;
     let thr = clamp(inp.throttle, -1, 1), turn = clamp(inp.turn, -1, 1);
     if (t.trackT > 0) t.trackT -= dt;
-    const canDrive = roleOk(t, 'driver') && modOk(t, 'engine') && modOk(t, 'trans') && t.trackT <= 0;
+    const canDrive = roleOk(t, 'driver') && modOk(t, 'engine') && modOk(t, 'trans');
     if (!canDrive) { thr = 0; turn = 0; }
     const eng = modOf(t, 'engine'), engK = eng.hp < eng.max0 * 0.5 ? 0.6 : 1;
-    const target = (thr >= 0 ? thr * T.speed * engK : thr * T.rev * engK) * (t.optic.driver > 0 ? 0.7 : 1);
+    // Puissance utile (rendement de transmission 0,6) contre résistance au roulement du sol :
+    // la vitesse de pointe dépend du terrain et du rapport poids/puissance, comme en vrai
+    const lv = L(), crr = lv.crr || 0.06, mkg = T.mass * 1000, Pw = T.hp * 745.7 * 0.6 * engK;
+    const vTerrain = Pw / (mkg * G * crr) * PX;
+    const vmax = Math.min(T.speed * engK, Math.max(T.speed * 0.5, vTerrain));
+    let target = (thr >= 0 ? thr * vmax : thr * Math.min(T.rev, vmax * 0.5)) * (t.optic.driver > 0 ? 0.7 : 1);
+    const broken = t.trackT > 0 && roleOk(t, 'driver') && modOk(t, 'engine') && modOk(t, 'trans');
+    if (broken) target = clamp(inp.throttle, -1, 1) * T.speed * 0.15; // chenille cassée : seule l'autre tire
     // optiques : l'équipage remplace la visière ou l'épiscope brisé ; le chef rentre sous le feu
     for (const k in t.optic) if (t.optic[k] > 0 && (t.optic[k] -= dt) <= 0 && t === player) addLog(`${OPTIC_NAMES[k]} remplacé${OPTIC_AGR[k]}`, '#a6f08a');
     t.underFire -= dt;
@@ -1035,9 +1065,14 @@
     else if ((t.calm += dt) > 12 && t.ai && roleOk(t, 'commander')) t.hatch = true;
     if (!roleOk(t, 'commander')) t.hatch = false;
     const braking = target === 0 || (t.speed !== 0 && Math.sign(target) !== Math.sign(t.speed));
-    const maxd = T.accel * (braking ? 2.2 : 1) * dt;
+    // traction limitée par l'adhérence (0,5 g), effort moteur P / v, freinage des chenilles 0,6 g
+    const vm = Math.max(1.5, Math.abs(t.speed) / PX), aDrive = Math.min(0.5 * G, Pw / (mkg * vm)) * PX;
+    const maxd = (braking ? 0.6 * G * PX : aDrive) * dt;
     t.speed += clamp(target - t.speed, -maxd, maxd);
-    const tr = turn * T.turn * engK * (1 - 0.3 * Math.abs(t.speed) / T.speed);
+    // virage : les chenilles ripent sur le sol ; plus il colle (boue, sable), plus le pivot est lent
+    let tr = turn * T.turn * engK * (1 - 0.3 * Math.abs(t.speed) / T.speed) * clamp(Math.sqrt(0.06 / crr), 0.75, 1.05);
+    // chenille cassée : le char pivote autour d'elle, entraîné par la seule chenille intacte
+    if (broken) tr = -t.trackSide * (2 * t.speed) / T.wid;
     t.turnRate = tr;
     t.angle = angNorm(t.angle + tr * dt);
     const ox = t.x, oy = t.y;
@@ -1048,6 +1083,12 @@
     const moved = Math.hypot(t.x - ox, t.y - oy);
     t.vx = (t.x - ox) / dt; t.vy = (t.y - oy) / dt;
     t.treadPhase += t.speed * dt;
+    // chaque chenille avance à sa vitesse : v ± ω·W/2 ; la chenille cassée ne tourne plus
+    for (const k of [0, 1]) {
+      const side = k === 0 ? 1 : -1;
+      if (t.trackT > 0 && side === t.trackSide) continue;
+      t.wd[k] += (t.speed + side * -t.turnRate * T.wid / 2) / PX * dt;
+    }
     t.trackAcc += moved + Math.abs(tr) * 40 * dt;
     if (t.trackAcc > 9) { t.trackAcc = 0; stampTracks(t); }
     if (moved > 0.6 && Math.random() < dt * Math.abs(t.speed) / 9) {
@@ -1076,6 +1117,8 @@
     const goal = T.disp * (t.optic.gunner > 0 ? 2.5 : 1) * (1 + 2.6 * Math.abs(t.speed) / T.speed + 1.6 * Math.abs(tr) / T.turn + 1.1 * Math.abs(t.turretRate) / T.tturn);
     t.disp += (goal - t.disp) * Math.min(1, dt * (goal > t.disp ? 6 : 1.3));
 
+    // hors du tir, le chargeur regarnit le râtelier : un obus toutes les 8 s
+    if (t.reloadT <= 0 && t.ready < T.ready && (t.readyT += dt) > 8) { t.ready++; t.readyT = 0; }
     if (t.reloadT > 0) { t.reloadT -= dt / reloadMul(t); if (t.reloadT <= 0 && t === player) Sfx.reload(); }
     t.recoil = Math.max(0, t.recoil - dt * 3);
     t.fireAge += dt;
@@ -1088,6 +1131,16 @@
       t.elev += clamp(want - t.elev, -0.15 * dt, 0.15 * dt);
     }
     suspension(t, dt);
+    // fumée de poudre qui s'échappe encore de la bouche après le coup
+    if (t.fireAge < 2.5 && Math.random() < dt * 7 * (1 - t.fireAge / 2.5)) {
+      const pv = pivot(t), ta = t.angle + t.turret;
+      P3({ x: pv.x + Math.cos(ta) * T.gunEnd, y: pv.y + Math.sin(ta) * T.gunEnd, z: T.S.gun.z, vz: rnd(0.3, 0.8), drag: 1, g: -0.15, wind: 1, size: rnd(0.08, 0.15), grow: 0.35, life: rnd(1.5, 2.5), c: [0.7, 0.7, 0.68, 0.3] });
+    }
+    // moteur endommagé : fumée grise qui sort des grilles
+    if (eng.hp < eng.max0 * 0.5 && Math.random() < dt * 5) {
+      const c = Math.cos(t.angle), sn = Math.sin(t.angle);
+      P3({ x: t.x - c * T.len * 0.32 + rnd(-4, 4), y: t.y - sn * T.len * 0.32 + rnd(-4, 4), z: T.S.ht, vz: rnd(0.8, 1.6), drag: 0.8, g: -0.25, wind: 1.2, size: rnd(0.25, 0.4), grow: 0.6, life: rnd(2, 3.5), c: [0.3, 0.3, 0.3, 0.45] });
+    }
     t.flash = Math.max(0, t.flash - dt);
     t.hitFlash = Math.max(0, t.hitFlash - dt);
     t.revealT -= dt;
@@ -1137,7 +1190,11 @@
       id: ++shellId, x: mx, y: my, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, sp, sp0: sp, team: t.team, owner: t, by: t,
       key, base: sp, v0: sb.v0, dist: 0, z: z0, slope, range: 2400, trail: [], ric: 0, whiz: false, warned: false,
     });
-    t.reloadT = T.reload;
+    // les premiers obus viennent du râtelier de tourelle ; ensuite le chargeur va les chercher dans
+    // les soutes de caisse, plus lentement
+    if (t.ready > 0) t.ready--;
+    t.reloadMax = T.reload * (t.ready > 0 ? 1 : 1.45);
+    t.reloadT = t.reloadMax; t.readyT = 0;
     t.disp += T.disp * 3;
     t.recoil = 1; t.flash = 0.09; t.revealT = 3;
     t.speed -= 14 * Math.sign(Math.cos(t.turret)) * (T.caliber / 75);
@@ -1740,7 +1797,7 @@
     }
     t.hitFlash = 0.15;
     if (trackHit && pen >= 20) {
-      t.trackT = Math.max(t.trackT, 8);
+      t.trackT = Math.max(t.trackT, 8); t.trackSide = h.ny > 0 ? -1 : 1;
       if (show) floatText(hx, hy + 8, 'Chenille cassée', '#ffb070');
       if (t === player) addLog('Chenille cassée : réparation 8 s', '#ffb070');
     }
@@ -1939,7 +1996,7 @@
   function heExternal(t, s, by, face, z, k) {
     const Sd = t.T.S;
     if ((face === 'side' || z < Sd.tt) && Math.random() < 0.6 * k) {
-      t.trackT = Math.max(t.trackT, 8);
+      t.trackT = Math.max(t.trackT, 8); t.trackSide = Math.random() < 0.5 ? 1 : -1;
       if (visibleToPlayer(t)) floatText(t.x, t.y + 10, 'Chenille cassée', '#ffb070');
       if (t === player) addLog('Chenille cassée par une explosion', '#ffb070');
     }
@@ -2329,6 +2386,10 @@
     else { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#0d0f0c'; ctx.fillRect(0, 0, cv.width, cv.height); }
     const v = player && !player.dead && state !== 'menu' && state !== 'result' && state !== 'pause' ? Math.abs(player.speed) / player.T.speed : -1;
     Sfx.engine(v);
+    // chenilles et moteur de tourelle du char du joueur
+    const live = v >= 0 && player;
+    Sfx.tracks(live ? Math.abs(player.speed) / PX : -1);
+    Sfx.turret(live ? Math.abs(player.turretRate) / player.T.tturn : 0);
     requestAnimationFrame(frame);
   }
 
@@ -2363,7 +2424,7 @@
     const c3 = document.getElementById('game3d');
     if (c3 && typeof World3D !== 'undefined' && !Q.has('2d')) {
       W3D = World3D.create(c3);
-      if (W3D) for (const id of Object.keys(TYPES)) { const b = TankModels.build(id); MESH3[id] = { hull: W3D.upload(b.hull), turret: W3D.upload(b.turret), body: W3D.upload(b.turretBody), gun: W3D.upload(b.gun), gunPivot: b.gunPivot }; RAYTRI[id] = { hull: b.hull.v, turret: b.turret.v }; }
+      if (W3D) for (const id of Object.keys(TYPES)) { const b = TankModels.build(id, true); MESH3[id] = { wheel: W3D.upload(b.wheel), wheels: b.wheels, hull: W3D.upload(b.hull), turret: W3D.upload(b.turret), body: W3D.upload(b.turretBody), gun: W3D.upload(b.gun), gunPivot: b.gunPivot }; RAYTRI[id] = { hull: b.hull.v, turret: b.turret.v }; }
       if (W3D) {
         // chef de char debout dans sa coupole : buste en vareuse, bras, tête, calot et écouteurs
         const g = new G3.Builder();
@@ -2624,6 +2685,12 @@
       const o = { camo: TEAM[t.team].camo, seed: t.team * 3.7 + t.id * 0.37, burnt: t.dead ? 1 : 0, tread: -t.treadPhase / PX, tint: t.hitFlash > 0 ? [1, 0.9, 0.7, t.hitFlash * 2.5] : null };
       const MS = MESH3[t.T.id];
       items.push({ mesh: MS.hull, model: hm, o });
+      // roues porteuses : rotation selon le chemin parcouru par leur chenille, débattement sur les bosses
+      const bk = t.dead ? 0 : Math.min(1, Math.abs(t.speed) / t.T.speed * 2);
+      MS.wheels.forEach((w, i) => {
+        const d = t.wd[w.side === 1 ? 0 : 1], bz = 0.028 * bk * Math.sin(d * 3.1 + i * 1.9) * (t.trackT > 0 && w.side === t.trackSide ? 0 : 1);
+        items.push({ mesh: MS.wheel, model: M4.mul(hm, M4.mul(M4.trs(w.x, w.y, w.z + bz, 0), M4.mul(rotYm(d / w.r), M4.trs(0, 0, 0, 0, w.r, w.w, w.r)))), o });
+      });
       updateScarMeshes(t, 1 / 60);
       if (t.scar3) items.push({ mesh: t.scar3.hull, model: hm, o: { burnt: o.burnt } });
       if (t.hatch && !t.dead && CMDR3 && roleOk(t, 'commander')) {
@@ -2688,6 +2755,7 @@
       }
     }
     for (const s of shells) {
+      if (s.dist * RK > 2000) continue; // le traceur s'éteint après environ 2 km de vol
       // traceur au culot : il brûle derrière l'obus, la traînée suit la vraie trajectoire
       const head = to3(s.x, s.y, s.z), tail = s.trail.length >= 3 ? to3(s.trail[0], s.trail[1], s.trail[2]) : head;
       const hot = s.key === 'HE' || s.key === 'HEAT';
@@ -3120,7 +3188,7 @@
       const rr = Math.max(5, player.disp * ppr);
       ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 1.3;
       ctx.beginPath(); ctx.arc(gp.x, gp.y, rr, 0, TAU); ctx.stroke();
-      const rf = player.reloadT > 0 ? 1 - player.reloadT / player.T.reload : 1;
+      const rf = player.reloadT > 0 ? 1 - player.reloadT / player.reloadMax : 1;
       ctx.strokeStyle = rf >= 1 ? '#ffe27a' : 'rgba(255,200,90,0.75)'; ctx.lineWidth = 2.5;
       ctx.beginPath(); ctx.arc(gp.x, gp.y, rr + 4, -Math.PI / 2, -Math.PI / 2 + TAU * rf); ctx.stroke();
     }
@@ -3308,7 +3376,7 @@
       const rr = Math.max(4, d * Math.tan(player.disp) * 2 * S);
       ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.arc(gp.x, gp.y, rr, 0, TAU); ctx.stroke();
-      const rf = player.reloadT > 0 ? 1 - player.reloadT / player.T.reload : 1;
+      const rf = player.reloadT > 0 ? 1 - player.reloadT / player.reloadMax : 1;
       ctx.strokeStyle = rf >= 1 ? '#ffe27a' : 'rgba(255,200,90,0.8)'; ctx.lineWidth = 3;
       ctx.beginPath(); ctx.arc(gp.x, gp.y, rr + 5, -Math.PI / 2, -Math.PI / 2 + TAU * rf); ctx.stroke();
       ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 1.5;
@@ -3413,15 +3481,17 @@
 
   // Panneau du char : équipage, modules, obus
   function drawTankPanel() {
-    const T = player.T, pw = 470, bx = W / 2 - pw / 2, by = H - 98;
+    const T = player.T, pw = 560, bx = W / 2 - pw / 2, by = H - 98;
     ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(bx, by, pw, 90);
     ctx.textAlign = 'left'; ctx.font = '700 13px system-ui, sans-serif'; ctx.fillStyle = '#f0e6c8';
     ctx.fillText(`${T.name} · ${T.cls}`, bx + 10, by + 17);
     const g = player.mg;
     ctx.font = '600 11px system-ui, sans-serif'; ctx.fillStyle = g.jam > 0 ? '#ff9a5c' : '#c9c4b2';
     ctx.fillText(g.jam > 0 ? `MG : changement du canon ${Math.ceil(g.jam)} s` : `MG (F/G) ${MG_AMMO[g.type].name} : ${g.type === 'SmKH' ? g.ammoH : g.ammo}`, bx + 175, by + 17);
+    ctx.fillStyle = player.ready > 0 ? '#c9c4b2' : '#ffb070';
+    ctx.fillText(`Râtelier ${player.ready}/${T.ready}`, bx + 468, by + 64);
     ctx.fillStyle = player.hatch ? '#ffcf7a' : '#8f8a77';
-    ctx.fillText(player.hatch ? 'Chef sorti (U)' : 'Fermé (U)', bx + 395, by + 17);
+    ctx.fillText(player.hatch ? 'Chef sorti (U)' : 'Fermé (U)', bx + 468, by + 79);
     if (!(g.jam > 0)) { ctx.fillStyle = '#2c3024'; ctx.fillRect(bx + 335, by + 9, 50, 6); ctx.fillStyle = g.heat > 180 ? '#ff6a3a' : '#c98a3a'; ctx.fillRect(bx + 335, by + 9, 50 * Math.min(1, g.heat / 250), 6); }
     // équipage
     let x = bx + 10;
@@ -3475,7 +3545,7 @@
       x += 64;
     }
     // rechargement
-    const rf = player.reloadT > 0 ? 1 - player.reloadT / T.reload : 1;
+    const rf = player.reloadT > 0 ? 1 - player.reloadT / player.reloadMax : 1;
     ctx.fillStyle = '#2a2a24'; ctx.fillRect(bx + pw - 120, by + 8, 110, 8);
     ctx.fillStyle = rf >= 1 ? '#ffe27a' : '#9a8a5a'; ctx.fillRect(bx + pw - 120, by + 8, 110 * rf, 8);
   }
@@ -3806,7 +3876,7 @@
       if (player.ammo[key] <= 0) showMsg(`Plus d'obus ${SHELLS[key].name.toLowerCase()}`, '#ff9a7a', 1.2);
       else if (key !== player.shell) {
         player.shell = key;
-        player.reloadT = player.T.reload; // changer d'obus impose de recharger
+        player.reloadT = player.reloadMax = player.T.reload; // changer d'obus impose de recharger
         showMsg(SHELLS[key].full, '#e9d9a6', 1.2);
       }
     }

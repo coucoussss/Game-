@@ -1,7 +1,7 @@
 'use strict';
 // Sons générés en temps réel avec la Web Audio API (aucun fichier).
 const Sfx = (() => {
-  let ac = null, master = null, noiseBuf = null, eng = null, muted = false;
+  let ac = null, master = null, noiseBuf = null, eng = null, trk = null, muted = false;
   const VOL = 0.55;
 
   function init() {
@@ -26,6 +26,23 @@ const Sfx = (() => {
     o.connect(f); o2.connect(f); f.connect(g); g.connect(master);
     o.start(); o2.start();
     eng = { o, o2, f, g };
+
+    // Chenilles : bruit filtré modulé par le passage des maillons sur le barbotin (pas de 15 cm)
+    const ns = ac.createBufferSource(); ns.buffer = noiseBuf; ns.loop = true;
+    const tf = ac.createBiquadFilter(); tf.type = 'bandpass'; tf.frequency.value = 700; tf.Q.value = 0.9;
+    const tg = ac.createGain(); tg.gain.value = 0;
+    const am = ac.createGain(); am.gain.value = 0.5;
+    const lfo = ac.createOscillator(); lfo.type = 'square'; lfo.frequency.value = 5;
+    const lg = ac.createGain(); lg.gain.value = 0.5;
+    lfo.connect(lg); lg.connect(am.gain);
+    ns.connect(tf); tf.connect(am); am.connect(tg); tg.connect(master);
+    ns.start(); lfo.start();
+    // moteur électrique ou hydraulique de la tourelle : bourdonnement
+    const to = ac.createOscillator(); to.type = 'sawtooth'; to.frequency.value = 110;
+    const tlp = ac.createBiquadFilter(); tlp.type = 'lowpass'; tlp.frequency.value = 600;
+    const tgg = ac.createGain(); tgg.gain.value = 0;
+    to.connect(tlp); tlp.connect(tgg); tgg.connect(master); to.start();
+    trk = { tg, lfo, tf, tgg, to };
   }
 
   // Atténuation avec la distance à l'auditeur (la caméra)
@@ -137,10 +154,25 @@ const Sfx = (() => {
     engine(v) {
       if (!eng) return;
       const t = ac.currentTime;
-      eng.o.frequency.setTargetAtTime(36 + v * 46, t, 0.12);
-      eng.o2.frequency.setTargetAtTime(18 + v * 23, t, 0.12);
-      eng.f.frequency.setTargetAtTime(150 + v * 320, t, 0.12);
+      // boîte à 7 rapports : le régime monte dans chaque rapport puis retombe au passage du suivant
+      const g7 = Math.max(0, v) * 7, rpm = v < 0 ? 0 : Math.min(1, g7 < 1 ? 0.35 + g7 * 0.55 : 0.55 + (g7 % 1) * 0.45);
+      eng.o.frequency.setTargetAtTime(34 + rpm * 52, t, 0.09);
+      eng.o2.frequency.setTargetAtTime(17 + rpm * 26, t, 0.09);
+      eng.f.frequency.setTargetAtTime(150 + rpm * 340, t, 0.12);
       eng.g.gain.setTargetAtTime(v < 0 ? 0 : 0.06 + v * 0.1, t, 0.2);
+    },
+    tracks(vms) {
+      if (!trk) return;
+      const t = ac.currentTime, k = vms < 0 ? 0 : Math.min(1, vms / 12);
+      trk.lfo.frequency.setTargetAtTime(Math.max(2, vms / 0.15 * 0.5), t, 0.1);
+      trk.tf.frequency.setTargetAtTime(500 + k * 900, t, 0.1);
+      trk.tg.gain.setTargetAtTime(vms <= 0.2 ? 0 : 0.03 + k * 0.09, t, 0.15);
+    },
+    turret(k) {
+      if (!trk) return;
+      const t = ac.currentTime;
+      trk.to.frequency.setTargetAtTime(90 + k * 70, t, 0.1);
+      trk.tgg.gain.setTargetAtTime(k > 0.05 ? 0.012 + k * 0.025 : 0, t, 0.08);
     },
   };
 })();
