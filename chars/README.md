@@ -42,6 +42,11 @@ La simulation (déplacements, balistique, dégâts, IA) reste la même. Tout est
 aucune image ni modèle externe.
 
 - **Caméra** : au-dessus et en arrière de ton char, elle suit sa caisse avec un léger retard.
+  Ton char reste en bas de l'écran ; le regard se porte devant lui et vers la souris, pour voir loin
+  là où tu vises.
+  - `C` : changer de caméra (poursuite, tactique vue de haut, rapprochée).
+  - Ennemis repérés : chevron rouge au-dessus d'eux ; hors champ, une flèche au bord de l'écran
+    indique leur direction et leur distance.
   - Molette : zoom.
   - Clic droit glissé : tourner la caméra. Double-clic : la recentrer.
   - La visée se fait à la souris : un rayon part de la caméra et touche le terrain là où tu pointes.

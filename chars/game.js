@@ -1666,7 +1666,13 @@
   ];
 
   let W3D = null, MESH3 = {}, bush3 = null, scene3 = null, scene3Dirty = false, scene3T = 0;
-  const cam3 = { yaw: 0, pitch: 0.56, dist: 34, off: 0, eye: [0, 0, 40], target: [0, 0, 0], view: null, vp: null, init: false, drag: null };
+  // modes de caméra (touche C) : hauteur, recul et part du regard portée vers la visée
+  const CAM_MODES = [
+    { name: 'Caméra de poursuite', pitch: 0.52, dist: 46, ahead: 0.18, look: 0.3 },
+    { name: 'Caméra tactique', pitch: 1.15, dist: 90, ahead: 0, look: 0.25 },
+    { name: 'Caméra rapprochée', pitch: 0.48, dist: 24, ahead: 0.14, look: 0.3 },
+  ];
+  const cam3 = { mode: 0, lx: 0, ly: 0, yaw: 0, pitch: 0.52, dist: 46, off: 0, eye: [0, 0, 40], target: [0, 0, 0], view: null, vp: null, init: false, drag: null };
   const dirtyTiles = new Set();
   try {
     const c3 = document.getElementById('game3d');
@@ -1686,7 +1692,7 @@
   function setup3D() {
     if (!W3D) return;
     const e = ENV[levelIdx], az = e.az * D2R, el = e.el * D2R;
-    W3D.setEnv({ sun: [Math.cos(el) * Math.cos(az), Math.cos(el) * Math.sin(az), Math.sin(el)], sunCol: e.sunCol, skyCol: e.skyCol, bounce: e.bounce, fogCol: e.horizon, fogD: e.fogD, horizon: e.horizon, zenith: e.zenith, snow: e.snow || 0 });
+    W3D.setEnv({ sun: [Math.cos(el) * Math.cos(az), Math.cos(el) * Math.sin(az), Math.sin(el)], sunCol: e.sunCol, skyCol: e.skyCol, bounce: e.bounce, fogCol: e.horizon, fogD: e.fogD * 0.6, horizon: e.horizon, zenith: e.zenith, snow: e.snow || 0 });
     W3D.setGround(groundCv, WW / PX, WH / PX);
     dirtyTiles.clear();
     if (bush3) W3D.free(bush3);
@@ -1724,14 +1730,23 @@
     cam3.yaw += angNorm(heading + cam3.off - cam3.yaw) * (1 - Math.pow(0.12, dt));
     const kk = 1 - Math.pow(0.0008, dt);
     cam3.tx += (T[0] - cam3.tx) * kk; cam3.ty += (T[1] - cam3.ty) * kk;
-    const ahead = cam3.dist * 0.18;
-    const tgt = [cam3.tx + Math.cos(cam3.yaw) * ahead, cam3.ty + Math.sin(cam3.yaw) * ahead, 1.2];
+    // le regard se porte devant le char et vers la souris : le char reste en bas de l'écran,
+    // le terrain devant lui (et les ennemis) occupe le reste. On lit la position de la souris
+    // à l'écran, pas dans le monde, pour éviter que la caméra ne coure après sa propre visée.
+    const md = CAM_MODES[cam3.mode], fw = [Math.cos(cam3.yaw), Math.sin(cam3.yaw)];
+    const mx = clamp((mouse.x - W / 2) / (W / 2), -1, 1), my = clamp((H / 2 - mouse.y) / (H / 2), -1, 1);
+    const reach = cam3.dist * md.look * (player && !player.dead ? 1 : 0.3);
+    const lx = mx * reach * (W / H) * 0.5, ly = cam3.dist * md.ahead + my * reach;
+    const kl = 1 - Math.pow(0.08, dt);
+    cam3.lx += (lx - cam3.lx) * kl; cam3.ly += (ly - cam3.ly) * kl;
+    const tgt = [cam3.tx + fw[0] * cam3.ly + fw[1] * cam3.lx, cam3.ty + fw[1] * cam3.ly - fw[0] * cam3.lx, 1.2];
+    cam3.pitch += (md.pitch - cam3.pitch) * (1 - Math.pow(0.02, dt));
     const cp = Math.cos(cam3.pitch), sp = Math.sin(cam3.pitch);
     let eye = [tgt[0] - Math.cos(cam3.yaw) * cp * cam3.dist, tgt[1] - Math.sin(cam3.yaw) * cp * cam3.dist, tgt[2] + sp * cam3.dist];
     const sh = shake * 0.025;
     if (sh > 0.01) eye = [eye[0] + (Math.random() - 0.5) * sh, eye[1] + (Math.random() - 0.5) * sh, eye[2] + (Math.random() - 0.5) * sh];
     shake *= Math.pow(0.004, dt);
-    cam3.fov = 0.82;
+    cam3.fov = 0.9;
     cam3.eye = eye; cam3.target = tgt;
     cam3.view = G3.M4.lookAt(eye, tgt, [0, 0, 1]);
     cam3.vp = G3.M4.mul(G3.M4.persp(cam3.fov, W / H, 0.8, 2400), cam3.view);
@@ -2146,7 +2161,40 @@
     ctx.drawImage(dark, 0, 0);
   }
 
+  // ennemis repérés : chevron au-dessus d'eux, ou flèche au bord de l'écran s'ils sont hors champ
+  function drawEnemyMarkers() {
+    const f = camFocus();
+    if (!W3D || !cam3.vp || !f) return;
+    // marges : bandeau du haut, panneau du bas
+    const mx0 = 26, my0 = 70, my1 = H - 120, cx = W / 2, cy = (my0 + my1) / 2;
+    ctx.textAlign = 'center'; ctx.font = '700 11px system-ui, sans-serif';
+    for (const t of tanks) {
+      if (t.dead || t.team === 0 || !spotted[0].has(t)) continue;
+      const d = Math.round(Math.hypot(t.x - f.x, t.y - f.y) / PX);
+      const p = worldToScreen(t.x, t.y, t.T.I.totalH + 2.6);
+      const inside = !p.behind && p.x > mx0 && p.y > my0 && p.x < W - mx0 && p.y < my1;
+      ctx.fillStyle = '#ff4a3d'; ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 2;
+      if (inside) {
+        const b = 2 * Math.sin(gameTime * 5);
+        ctx.beginPath(); ctx.moveTo(p.x - 7, p.y - 18 + b); ctx.lineTo(p.x + 7, p.y - 18 + b); ctx.lineTo(p.x, p.y - 9 + b); ctx.closePath();
+        ctx.stroke(); ctx.fill();
+        continue;
+      }
+      // direction vers l'ennemi à l'écran (inversée s'il est derrière la caméra)
+      let dx = p.x - cx, dy = p.y - cy;
+      if (p.behind) { dx = -dx; dy = -dy; }
+      const a = Math.atan2(dy, dx), k = Math.min((W / 2 - mx0) / Math.abs(Math.cos(a) || 1e-6), ((my1 - my0) / 2) / Math.abs(Math.sin(a) || 1e-6));
+      const ex = cx + Math.cos(a) * k, ey = cy + Math.sin(a) * k;
+      ctx.save(); ctx.translate(ex, ey); ctx.rotate(a);
+      ctx.beginPath(); ctx.moveTo(12, 0); ctx.lineTo(-6, -8); ctx.lineTo(-2, 0); ctx.lineTo(-6, 8); ctx.closePath();
+      ctx.stroke(); ctx.fill(); ctx.restore();
+      ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillText(d + ' m', ex - Math.cos(a) * 20 + 1, ey - Math.sin(a) * 20 + 5);
+      ctx.fillStyle = '#ffb0a8'; ctx.fillText(d + ' m', ex - Math.cos(a) * 20, ey - Math.sin(a) * 20 + 4);
+    }
+  }
+
   function drawWorldLabels() {
+    drawEnemyMarkers();
     ctx.textAlign = 'center';
     for (const t of tanks) {
       if (t.dead || !visibleToPlayer(t)) continue;
@@ -2653,6 +2701,11 @@
     if (e.code === 'Escape' || e.code === 'KeyP') togglePause();
     if (e.code === 'KeyM') Sfx.toggle();
     if (e.code === 'KeyH' && state !== 'menu') { hitcamOn = !hitcamOn; if (!hitcamOn) HitCam.stop(); showMsg(hitcamOn ? "Caméra d'impact activée" : "Caméra d'impact désactivée", '#bcd8ff', 1.4); }
+    if (e.code === 'KeyC' && W3D && state !== 'menu') {
+      cam3.mode = (cam3.mode + 1) % CAM_MODES.length;
+      cam3.dist = CAM_MODES[cam3.mode].dist; cam3.off = 0;
+      showMsg(CAM_MODES[cam3.mode].name, '#bcd8ff', 1.2);
+    }
     if (!player || player.dead || player.ai || state === 'menu' || state === 'pause' || state === 'result') return;
     const dm = e.code.match(/^(?:Digit|Numpad)([1-5])$/);
     if (dm) {
@@ -2685,7 +2738,7 @@
   });
   addEventListener('mouseup', e => { if (e.button === 0) mouse.down = false; });
   cv.addEventListener('contextmenu', e => e.preventDefault());
-  cv.addEventListener('wheel', e => { if (!W3D) return; e.preventDefault(); cam3.dist = clamp(cam3.dist * Math.exp(e.deltaY * 0.0012), 14, 120); }, { passive: false });
+  cv.addEventListener('wheel', e => { if (!W3D) return; e.preventDefault(); cam3.dist = clamp(cam3.dist * Math.exp(e.deltaY * 0.0012), 14, 160); }, { passive: false });
   cv.addEventListener('mousedown', e => { if (e.button === 2) cam3.drag = { x: e.clientX, off: cam3.off }; });
   addEventListener('mousemove', e => { if (cam3.drag) cam3.off = cam3.drag.off - (e.clientX - cam3.drag.x) * 0.006; });
   addEventListener('mouseup', e => { if (e.button === 2) cam3.drag = null; });
