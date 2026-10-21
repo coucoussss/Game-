@@ -10,7 +10,8 @@ const Meta = (() => {
   // partie en cours côté SDK : gameplayStart et gameplayStop ne partent que sur un vrai changement,
   // et jamais pendant une publicité (le départ est alors reporté à la fin de celle-ci)
   let playing = false, wantPlay = false, lastHappy = -1e9;
-  const hooks = { adStart: () => {}, adEnd: () => {}, change: () => {} };
+  const hooks = { adStart: () => {}, adEnd: () => {}, change: () => {}, mute: () => {} };
+  let platformMute = false; // réglage « son coupé » du portail (SDK.game.settings.muteAudio)
   const MIDGAME_GAP = 180000; // au plus une publicité entre deux parties toutes les 3 minutes
 
   async function initSDK() {
@@ -20,6 +21,12 @@ const Meta = (() => {
         await SDK.init();
         env = SDK.environment || 'crazygames';
         if (env === 'disabled') SDK = null;
+        // le portail a son propre bouton « muet » : on le suit, et on écoute ses changements
+        const g = SDK && SDK.game;
+        if (g) {
+          platformMute = !!(g.settings && g.settings.muteAudio);
+          if (g.addSettingsChangeListener) g.addSettingsChangeListener(st => { platformMute = !!(st && st.muteAudio); hooks.mute(platformMute); });
+        }
       }
     } catch (e) { console.warn('CrazyGames SDK unavailable', e); SDK = null; env = 'none'; }
   }
@@ -150,7 +157,7 @@ const Meta = (() => {
   const fresh = () => ({
     v: 1, credits: 600, xp: 0, level: 1, tanks: ['light', 'pz4'], skins: ['std'], skinSel: {}, kits: 1, x2: 0,
     wheelDay: '', streakDay: '', streak: 0, missionsDay: '', missions: [], stats: { battles: 0, kills: 0, wins: 0 },
-    opts: { sfx: 0.8, music: 0.6, quality: 'haute', hitcam: true }, parts: {}, adProg: {}, featDay: '', feat: '',
+    opts: { sfx: 0.8, music: 0.6, quality: 'haute', hitcam: true, mute: false }, parts: {}, adProg: {}, featDay: '', feat: '',
   });
   let P = fresh();
   async function load() {
@@ -303,7 +310,7 @@ const Meta = (() => {
   }
 
   return {
-    sdk, midgame, rewarded, hooks, adActive: () => adBusy, RANKS, RARITY, MK, TANKS, SKINS, PARTS, WHEEL, MISSIONS, STREAK, xpFor, rankName,
+    sdk, midgame, rewarded, hooks, adActive: () => adBusy, get platformMute() { return platformMute; }, RANKS, RARITY, MK, TANKS, SKINS, PARTS, WHEEL, MISSIONS, STREAK, xpFor, rankName,
     get P() { return P; }, save, addXP, buyTank, canBuyTank, buySkin, grantSkin, selectSkin, skinOf,
     featured, skinPrice, skinAd, adsLeft, partLv, buyPart, partAd, mods,
     dailyRoll, track, claim, canSpinFree, spinResult, applyPrize, battleEnd,

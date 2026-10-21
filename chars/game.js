@@ -2555,7 +2555,7 @@
     sight.on = on;
     if (on) {
       sight.yaw = sight.aimYaw = player.angle + player.turret; sight.pitch = sight.aimPitch = -0.004; sight.cx = sight.cy = 0; sight.probe = null;
-      try { cv.requestPointerLock && cv.requestPointerLock(); } catch (e) { /* verrouillage refusé */ }
+      lockPointer();
       showMsg(`Gunner sight · ×${MAGS[sight.mag]}`, '#bcd8ff', 1);
     }
   }
@@ -4013,12 +4013,12 @@
   function playMusic() {
     if (!music) return;
     music.volume = Meta.P.opts.music * 0.7;
-    if (state === 'menu' && music.paused && Meta.P.opts.music > 0) music.play().catch(() => {});
+    if (state === 'menu' && music.paused && Meta.P.opts.music > 0 && !Sfx.silenced && !document.hidden) music.play().catch(() => {});
   }
   function stopMusic() { if (music && !music.paused) music.pause(); }
   function applyOptions() {
     const o = Meta.P.opts;
-    Sfx.setVolume(o.sfx); hitcamOn = o.hitcam;
+    Sfx.setVolume(o.sfx); Sfx.setUserMute(o.mute); Sfx.setPortalMute(Meta.platformMute); hitcamOn = o.hitcam;
     QDPR = o.quality === 'basse' ? 1 : o.quality === 'moyenne' ? 1.25 : 2;
     PCAP = o.quality === 'basse' ? 900 : o.quality === 'moyenne' ? 1700 : 2600;
     resize();
@@ -4037,7 +4037,9 @@
   };
   Meta.hooks.change = () => { if (state === 'menu') updateTopbar(); };
   Meta.hooks.adStart = () => { Sfx.setMuted(true); stopMusic(); releaseInput(); Meta.sdk.gameplayStop(); };
-  Meta.hooks.adEnd = () => { Sfx.setMuted(false); if (state === 'menu') playMusic(); };
+  // fin de publicité : seule la coupure de la publicité est levée (touche M, onglet et portail restent)
+  Meta.hooks.adEnd = () => { Sfx.setMuted(false); playMusic(); };
+  Meta.hooks.mute = m => { Sfx.setPortalMute(m); if (m) stopMusic(); else playMusic(); };
 
   function startLevel() { genMap(); setup3D(); spawnWave(); }
   // ===================== Réparation (publicité récompensée ou kit) =====================
@@ -4230,12 +4232,33 @@
     buildMenu(); show('menu'); playMusic();
   }
   let pausedFrom = 'play';
-  function freePointer() { if (document.pointerLockElement === cv) document.exitPointerLock(); }
+  // Curseur verrouillé en 3D. Les deux appels renvoient une promesse qui peut être rejetée (par
+  // exemple si l'on reverrouille moins d'une seconde après Échap) : l'erreur est absorbée.
+  let lockedBefore = false, intentionalUnlock = false, pausedAt = -1e9;
+  function lockPointer() {
+    if (!W3D || !cv.requestPointerLock || document.pointerLockElement === cv) return;
+    try { const r = cv.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch (e) { /* verrouillage refusé */ }
+  }
+  function freePointer() { if (document.pointerLockElement === cv) { intentionalUnlock = true; document.exitPointerLock(); } }
   function togglePause() {
     freePointer();
     if (state === 'pause') { state = pausedFrom; hide('pause'); last = performance.now(); Meta.sdk.gameplayStart(); }
-    else if (state === 'play' || state === 'intro' || state === 'ending') { pausedFrom = state; state = 'pause'; show('pause'); Meta.sdk.gameplayStop(); }
+    else if (inBattle()) { pausedFrom = state; state = 'pause'; pausedAt = performance.now(); show('pause'); Meta.sdk.gameplayStop(); }
   }
+  // Pause automatique (onglet masqué, fenêtre quittée, curseur libéré par le navigateur), sauf en
+  // partie automatique de test où personne ne joue
+  function autoPause() { if (inBattle() && !AUTO) togglePause(); }
+  document.addEventListener('pointerlockchange', () => {
+    const locked = document.pointerLockElement === cv;
+    // Échap libère le curseur sans toujours transmettre la touche à la page : on met en pause
+    if (!locked && lockedBefore && !intentionalUnlock) autoPause();
+    lockedBefore = locked; intentionalUnlock = false;
+  });
+  document.addEventListener('pointerlockerror', () => { lockedBefore = false; });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { autoPause(); releaseInput(); Sfx.setBgMute(true); stopMusic(); }
+    else { Sfx.setBgMute(false); last = performance.now(); playMusic(); }
+  });
 
   // Banc d'essai : un tir sur une plaque, prédiction empirique et simulation du métal
   const bench = { sim: null, t0: 0, pred: null };
@@ -4291,7 +4314,8 @@
     if (mode === 'campagne') levelIdx = Math.min(levelIdx, unlocked);
     startLevel();
   };
-  $('resumeBtn').onclick = togglePause;
+  // reprendre reverrouille le curseur dans le geste du clic (sinon la vue tourne seule en 3D)
+  $('resumeBtn').onclick = () => { if (state !== 'pause') return; togglePause(); if (state === 'play' || state === 'intro') lockPointer(); };
   $('quitBtn').onclick = () => { if (state !== 'pause') return; hide('pause'); state = 'leaving'; Meta.sdk.gameplayStop(); Meta.midgame(toMenu); };
   $('xrayBtn').onclick = () => { viewer.xray = !viewer.xray; $('xrayBtn').classList.toggle('on', viewer.xray); };
   const vc = $('viewer');
@@ -4315,8 +4339,13 @@
     if (adOn()) return;
     if (e.repeat && keys[e.code]) return;
     keys[e.code] = true;
-    if (e.code === 'Escape' || e.code === 'KeyP') togglePause();
-    if (e.code === 'KeyM') Sfx.toggle();
+    // la même pression d'Échap peut libérer le curseur (pause automatique) puis arriver ici
+    if ((e.code === 'Escape' || e.code === 'KeyP') && !(state === 'pause' && performance.now() - pausedAt < 400)) togglePause();
+    if (e.code === 'KeyM') {
+      Meta.P.opts.mute = Sfx.toggle(); Meta.save();
+      if (Meta.P.opts.mute) stopMusic(); else playMusic();
+      if (state !== 'menu') showMsg(Meta.P.opts.mute ? 'Sound off' : 'Sound on', '#bcd8ff', 1);
+    }
     if (e.code === 'KeyH' && state !== 'menu') { hitcamOn = !hitcamOn; if (!hitcamOn) HitCam.stop(); showMsg(hitcamOn ? 'Impact camera on' : 'Impact camera off', '#bcd8ff', 1.4); }
     if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyV') && state !== 'menu') setSight(!sight.on);
     if (e.code === 'KeyC' && W3D && state !== 'menu') {
@@ -4348,7 +4377,7 @@
     }
   });
   addEventListener('keyup', e => { keys[e.code] = false; });
-  addEventListener('blur', releaseInput);
+  addEventListener('blur', () => { releaseInput(); autoPause(); });
   // position de la souris dans le repère du canvas (décalage et mise à l'échelle éventuels de la page)
   function trackMouse(e) {
     const r = cv.getBoundingClientRect();
@@ -4373,7 +4402,7 @@
     Sfx.init();
     if (e.button === 0) {
       mouse.down = true;
-      if (W3D && (state === 'play' || state === 'intro') && document.pointerLockElement !== cv) { try { cv.requestPointerLock && cv.requestPointerLock(); } catch (er) { /* refusé */ } }
+      if (state === 'play' || state === 'intro') lockPointer();
       if (player && player.dead) specIdx++;
     }
   });
