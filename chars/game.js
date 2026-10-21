@@ -2473,7 +2473,7 @@
       sight.yaw = sight.aimYaw = player.angle + player.turret; sight.pitch = sight.aimPitch = -0.004; sight.cx = sight.cy = 0; sight.probe = null;
       try { cv.requestPointerLock && cv.requestPointerLock(); } catch (e) { /* verrouillage refusé */ }
       showMsg(`Vue du tireur · ×${MAGS[sight.mag]}`, '#bcd8ff', 1);
-    } else if (document.pointerLockElement === cv) document.exitPointerLock();
+    }
   }
   // Lunette du tireur, coaxiale au canon, à gauche du masque. Sans stabilisateur (aucun char de
   // l'époque n'en avait), l'image tremble quand le char roule ou pivote, et saute au départ du coup.
@@ -2565,10 +2565,19 @@
     const f = camFocus();
     if (!f) return;
     const T = to3(f.x, f.y, 0);
-    const heading = -f.angle;
+    // la caméra suit la tourelle (la direction du canon), pas la caisse : on peut pivoter la caisse
+    // sans que la vue bouge ; le clic droit glissé la décale
+    const heading = -(f.angle + (f.turretGone ? 0 : f.turret));
     if (!cam3.init) { cam3.yaw = heading; cam3.tx = T[0]; cam3.ty = T[1]; cam3.init = true; }
-    // la caméra suit la caisse avec un léger retard ; le clic droit glissé la décale
-    cam3.yaw += angNorm(heading + cam3.off - cam3.yaw) * (1 - Math.pow(0.12, dt));
+    const dyaw = angNorm(heading + cam3.off - cam3.yaw) * (1 - Math.pow(0.08, dt));
+    cam3.yaw += dyaw;
+    // curseur verrouillé : il reste sur le même point du terrain pendant que la vue tourne, si bien
+    // que la tourelle rejoint la visée et que la caméra s'arrête (visée à la World of Tanks).
+    // Sans verrouillage, un curseur décalé fait tourner tourelle et caméra tant qu'il le reste.
+    if (document.pointerLockElement === cv && cam3.view) {
+      const ppr = (W / 2) / (Math.tan(cam3.fov / 2) * W / H);
+      mouse.x = clamp(mouse.x + dyaw * ppr, 0, W);
+    }
     const kk = 1 - Math.pow(0.0008, dt);
     cam3.tx += (T[0] - cam3.tx) * kk; cam3.ty += (T[1] - cam3.ty) * kk;
     // le regard se porte devant le char et vers la souris : le char reste en bas de l'écran,
@@ -3619,6 +3628,7 @@
   function startLevel() { genMap(); setup3D(); spawnWave(); }
 
   function showResult() {
+    freePointer();
     if (mode !== 'campagne') { showModeResult(); return; }
     state = 'result';
     const win = waveResult === 'win';
@@ -3695,13 +3705,16 @@
   function show(id) { $(id).classList.add('on'); }
   function hide(id) { $(id).classList.remove('on'); }
   function toMenu() {
+    freePointer();
     hide('pause'); hide('result');
     state = 'menu'; campaignScore = 0;
     HitCam.stop();
     buildMenu(); show('menu');
   }
   let pausedFrom = 'play';
+  function freePointer() { if (document.pointerLockElement === cv) document.exitPointerLock(); }
   function togglePause() {
+    freePointer();
     if (state === 'pause') { state = pausedFrom; hide('pause'); last = performance.now(); }
     else if (state === 'play' || state === 'intro' || state === 'ending') { pausedFrom = state; state = 'pause'; show('pause'); }
   }
@@ -3813,6 +3826,11 @@
   // position de la souris dans le repère du canvas (décalage et mise à l'échelle éventuels de la page)
   function trackMouse(e) {
     const r = cv.getBoundingClientRect();
+    if (document.pointerLockElement === cv) {
+      mouse.x = clamp(mouse.x + (e.movementX || 0) * (W / (r.width || W)), 0, W);
+      mouse.y = clamp(mouse.y + (e.movementY || 0) * (H / (r.height || H)), 0, H);
+      return;
+    }
     mouse.x = (e.clientX - r.left) * (W / (r.width || W));
     mouse.y = (e.clientY - r.top) * (H / (r.height || H));
   }
@@ -3828,6 +3846,7 @@
     Sfx.init();
     if (e.button === 0) {
       mouse.down = true;
+      if (W3D && (state === 'play' || state === 'intro') && document.pointerLockElement !== cv) { try { cv.requestPointerLock && cv.requestPointerLock(); } catch (er) { /* refusé */ } }
       if (player && player.dead) specIdx++;
     }
   });

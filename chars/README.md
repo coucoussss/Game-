@@ -175,7 +175,11 @@ Le champ de bataille est rendu en 3D temps réel par un moteur WebGL écrit pour
 La simulation (déplacements, balistique, dégâts, IA) reste la même. Tout est généré par le code, sans
 aucune image ni modèle externe.
 
-- **Caméra** : au-dessus et en arrière de ton char, elle suit sa caisse avec un léger retard.
+- **Caméra** : au-dessus et en arrière de ton char, elle suit la **tourelle** (la direction du canon)
+  avec un léger retard, pas la caisse : on peut pivoter la caisse sans que la vue bouge. Un clic dans
+  le jeu verrouille le curseur : la souris oriente la visée, le curseur reste sur le même point du
+  terrain pendant que la vue tourne, la tourelle le rejoint et la caméra s'arrête. Sans verrouillage
+  (page intégrée), un curseur décalé fait tourner tourelle et caméra tant qu'il le reste.
   Ton char reste en bas de l'écran ; le regard se porte devant lui et vers la souris, pour voir loin
   là où tu vises.
   - `C` : changer de caméra (poursuite, tactique vue de haut, rapprochée).
