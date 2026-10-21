@@ -2,7 +2,7 @@
 // Balistique extérieure et terminale.
 // - vitesse le long de la trajectoire : traînée aérodynamique, v(x) = v0·exp(−ρ·Cd·A·x / 2m)
 // - perforation : formule de de Marre, P ∝ v^1,43 · m^0,71 / d^1,07
-// - obliquité : normalisation de l'obus coiffé, épaisseur effective T / cos(θ)^n, n selon T/d
+// - obliquité : tables d'essais de tir par type d'obus (coiffé, non coiffé, sous-calibré), selon T/d
 // - vitesse résiduelle : Lambert-Jonas, Vr = √(V² − Vlim²), puis quantité de mouvement du bouchon
 // - éclats : masses selon la loi de Mott, énergie ½mv², ricochets sur les parois
 // - charge explosive : surpression de Kinney-Graham, rayon de Sedov-Taylor, éclats à la vitesse de Gurney
@@ -118,13 +118,58 @@ const Ballistics = (() => {
   }
   const vLimit = (s, mm) => Math.pow(mm / deMarreK(s), 1 / 1.43);
   const penAt = (id, key, x) => { const s = shell(id, key); return penVel(s, velAt(s, x)); };
-  // Épaisseur effective : normalisation, puis loi d'obliquité dépendant du rapport T/d
+  // Lois d'obliquité tirées des essais de tir contre de l'acier laminé (Bird & Livingston, essais
+  // britanniques et américains) : multiplicateur de l'épaisseur selon T/d (calibre plein) et l'incidence.
+  // Une coiffe (APCBC) mord mieux sur une plaque inclinée ; le noyau de carbure (APCR) glisse et
+  // perd vite pied ; en surcalibrage (T/d faible), la loi passe sous le cosinus.
+  const OBL_A = [0, 10, 20, 30, 40, 45, 50, 55, 60, 65, 70], OBL_R = [0.25, 0.5, 1.0, 1.5];
+  const OBL = {
+    APHE: [
+      [1, 1, 1.03, 1.08, 1.17, 1.24, 1.32, 1.43, 1.58, 1.80, 2.10],
+      [1, 1.01, 1.05, 1.12, 1.25, 1.35, 1.48, 1.65, 1.90, 2.30, 2.90],
+      [1, 1.02, 1.08, 1.20, 1.40, 1.55, 1.78, 2.10, 2.55, 3.20, 4.20],
+      [1, 1.03, 1.10, 1.26, 1.52, 1.70, 1.98, 2.38, 2.95, 3.80, 5.00],
+    ],
+    AP: [
+      [1, 1, 1.03, 1.09, 1.19, 1.27, 1.36, 1.48, 1.66, 1.92, 2.30],
+      [1, 1.01, 1.05, 1.13, 1.28, 1.40, 1.55, 1.75, 2.05, 2.50, 3.20],
+      [1, 1.02, 1.08, 1.22, 1.45, 1.65, 1.95, 2.40, 3.10, 4.20, 6.00],
+      [1, 1.03, 1.11, 1.28, 1.58, 1.82, 2.18, 2.70, 3.50, 4.80, 7.00],
+    ],
+    APCR: [
+      [1, 1.01, 1.05, 1.13, 1.27, 1.38, 1.52, 1.72, 2.00, 2.45, 3.10],
+      [1, 1.02, 1.08, 1.20, 1.42, 1.60, 1.85, 2.20, 2.70, 3.40, 4.60],
+      [1, 1.03, 1.12, 1.32, 1.70, 2.00, 2.45, 3.10, 4.10, 5.60, 8.00],
+      [1, 1.04, 1.15, 1.40, 1.88, 2.25, 2.80, 3.60, 4.90, 6.80, 10],
+    ],
+  };
+  // interpolation linéaire dans une ligne de la table ; au-delà de 70°, prolongement en 1/cos^n
+  // (exposant tiré du dernier intervalle) jusque dans la bande de ricochet
+  function oblRow(row, a) {
+    if (a >= 70) {
+      const n = Math.log(row[10] / row[9]) / Math.log(Math.cos(65 * D2R) / Math.cos(70 * D2R));
+      return row[10] * Math.pow(Math.cos(70 * D2R) / Math.cos(Math.min(a, 86) * D2R), n);
+    }
+    let i = 0;
+    while (OBL_A[i + 1] < a) i++;
+    const k = (a - OBL_A[i]) / (OBL_A[i + 1] - OBL_A[i]);
+    return row[i] + (row[i + 1] - row[i]) * k;
+  }
+  // multiplicateur d'obliquité : bilinéaire en T/d (borné à 0,25..1,5) et en incidence
+  function obliquity(key, Td, ang) {
+    const tab = OBL[key] || OBL.APHE, r = clamp(Td, 0.25, 1.5), a = clamp(ang, 0, 86);
+    let j = 0;
+    while (OBL_R[j + 1] < r) j++;
+    const k = (r - OBL_R[j]) / (OBL_R[j + 1] - OBL_R[j]);
+    const m0 = oblRow(tab[j], a), m1 = oblRow(tab[j + 1], a);
+    return m0 + (m1 - m0) * k;
+  }
+  // Épaisseur effective selon la loi d'obliquité du type d'obus ; l'angle « normalisé » (incidence
+  // moins la normalisation de la coiffe) ne sert plus qu'à l'affichage et au trajet après perforation
   function effective(s, T, ang) {
     if (s.heat) return { eff: T / Math.cos(Math.min(ang, 86) * D2R), angN: ang };
     if (s.he) return { eff: T / Math.pow(Math.cos(Math.min(ang, 86) * D2R), 0.3), angN: ang };
-    const a = clamp(ang - s.norm, 0, 86);
-    const n = clamp(1.0 + 0.3 * Math.min(1.5, T / s.cal), 0.95, 1.45);
-    return { eff: T / Math.pow(Math.cos(a * D2R), n), angN: a };
+    return { eff: T * obliquity(s.key, T / s.cal, ang), angN: clamp(ang - (s.norm || 0), 0, 86) };
   }
   // Probabilité de ricochet ; un calibre très supérieur au blindage ne ricoche pas (surcalibrage)
   function ricochetChance(s, T, ang) {
@@ -365,5 +410,5 @@ const Ballistics = (() => {
     return out;
   }
 
-  return { GUNS, shell, velAt, penVel, penAt, vLimit, effective, ricochetChance, blastKPa, sedov, gurney, spin, simulate };
+  return { GUNS, shell, velAt, penVel, penAt, vLimit, obliquity, effective, ricochetChance, blastKPa, sedov, gurney, spin, simulate };
 })();
