@@ -170,7 +170,9 @@ const Meta = (() => {
     opts: { sfx: 0.8, music: 0.6, quality: 'haute', hitcam: true, mute: false }, parts: {}, adProg: {}, featDay: '', feat: '',
     unlocked: 0, survBest: 0,
   });
-  let P = fresh(), devMode = false;
+  // ready : aucune sauvegarde avant la lecture du profil (sinon le profil neuf du démarrage
+  // écraserait la vraie sauvegarde, en local comme dans le nuage)
+  let P = fresh(), devMode = false, ready = false;
   // Remise en état d'un profil lu (ancien, corrompu ou modifié à la main) : chaque champ est vérifié,
   // les identifiants inconnus sont écartés, et les deux premiers chars sont toujours possédés.
   const isObj = o => !!o && typeof o === 'object' && !Array.isArray(o);
@@ -232,9 +234,10 @@ const Meta = (() => {
     try { if (SDK && SDK.data) raw = SDK.data.getItem(KEY); } catch (e) { /* */ }
     if (!raw) try { raw = localStorage.getItem(KEY); } catch (e) { /* stockage indisponible */ }
     P = parse(raw);
+    ready = true;
   }
   function save() {
-    if (devMode) { hooks.change(); return; } // profil jetable des réglages de développement
+    if (devMode || !ready) { hooks.change(); return; } // profil jetable des réglages de développement
     const raw = JSON.stringify(P);
     try { if (SDK && SDK.data) SDK.data.setItem(KEY, raw); } catch (e) { /* */ }
     try { localStorage.setItem(KEY, raw); } catch (e) { /* */ }

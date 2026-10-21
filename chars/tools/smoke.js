@@ -29,7 +29,7 @@ function check(name, ok, info) {
 }
 const probe = () => {
   const bad = __fa.tanks.filter(t => ![t.x, t.y, t.angle, t.speed || 0].every(Number.isFinite)).length;
-  return { st: __fa.state, t: Math.round(__fa.time), alive: __fa.tanks.filter(t => !t.dead).map(t => t.team).join(''), bad, res: document.getElementById('result').classList.contains('on') ? document.getElementById('resTitle').textContent : '' };
+  return { st: __fa.state, t: Math.round(__fa.time), tt: __fa.time, alive: __fa.tanks.filter(t => !t.dead).map(t => t.team).join(''), bad, res: document.getElementById('result').classList.contains('on') ? document.getElementById('resTitle').textContent : '' };
 };
 
 (async () => {
@@ -39,7 +39,7 @@ const probe = () => {
     const { p, errs } = await page(b, '?debug');
     await p.waitForFunction(() => window.__fa && document.getElementById('menu').classList.contains('on'), null, { timeout: 60000 }).catch(() => {});
     const menuOn = await p.evaluate(() => document.getElementById('menu').classList.contains('on'));
-    for (const t of await p.$$eval('.tab', ts => ts.map(x => x.dataset.tab))) { await p.click(`.tab[data-tab="${t}"]`); await p.waitForTimeout(400); }
+    for (const t of await p.$$eval('.tab', ts => ts.map(x => x.dataset.tab))) { await p.click(`.tab[data-tab="${t}"]`, { timeout: 90000 }); await p.waitForTimeout(400); }
     if (OUT) await p.screenshot({ path: path.join(OUT, 'smoke-menu.png') });
     check('menu', menuOn && !errs.length, { errs: errs.slice(0, 5) });
     // profils anciens ou abîmés : le menu doit toujours se construire
@@ -57,8 +57,9 @@ const probe = () => {
       await p.waitForTimeout(3000);
       info = await p.evaluate(probe).catch(e => ({ err: String(e) }));
       if (info.err || info.res || info.bad) break;
-      if (info.t === last) stall++; else stall = 0;
-      last = info.t;
+      // blocage : le temps simulé n'avance plus du tout (une machine chargée ralentit sans bloquer)
+      if (info.tt === last) stall++; else stall = 0;
+      last = info.tt;
       if (stall >= 4) break;
     }
     check(`${mode}:${level}`, !!info && !info.err && !info.bad && stall < 4 && !errs.length, { info, stall, errs: errs.slice(0, 5) });
