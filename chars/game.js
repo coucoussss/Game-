@@ -67,43 +67,43 @@
   const TYPES = {
     light: {
       id: 'light', hp: 180, ready: 10, mass: 12, name: 'Lynx', cls: 'Light tank', kmh: 60, speed: 150, rev: 70, accel: 230, turn: 2.3, tturn: 2.6,
-      reload: 3.2, shell: 640, disp: 0.016, view: 760, range: 470,
+      reload: 3.2, disp: 0.016, view: 760, range: 470,
       caliber: 50, obs: 60,
       ammo: { AP: 20, APHE: 30, APCR: 10, HEAT: 6, HE: 20, SMOKE: 4, CAN: 8 },
     },
     medium: {
       id: 'medium', hp: 700, ready: 8, mass: 45, name: 'Panther', cls: 'Medium tank', kmh: 46, speed: 112, rev: 52, accel: 170, turn: 1.6, tturn: 1.4,
-      reload: 5.5, shell: 720, disp: 0.011, view: 680, range: 420,
+      reload: 5.5, disp: 0.011, view: 680, range: 420,
       caliber: 75, obs: 110,
       ammo: { AP: 15, APHE: 35, APCR: 10, HEAT: 5, HE: 15, SMOKE: 4, CAN: 5 },
     },
     heavy: {
       id: 'heavy', hp: 700, ready: 6, mass: 57, name: 'Tiger', cls: 'Heavy tank', kmh: 38, speed: 80, rev: 38, accel: 115, turn: 1.1, tturn: 1.0,
-      reload: 7.0, shell: 680, disp: 0.010, view: 620, range: 330,
+      reload: 7.0, disp: 0.010, view: 620, range: 330,
       caliber: 88, obs: 150,
       ammo: { AP: 12, APHE: 40, APCR: 8, HEAT: 10, HE: 22, SMOKE: 4, CAN: 4 },
     },
     pz4: {
       id: 'pz4', hp: 300, ready: 8, mass: 25, name: 'Panzer IV', cls: 'Medium tank', kmh: 38, speed: 95, rev: 45, accel: 150, turn: 1.5, tturn: 1.0,
-      reload: 5.0, shell: 700, disp: 0.012, view: 680, range: 420,
+      reload: 5.0, disp: 0.012, view: 680, range: 420,
       caliber: 75, obs: 100,
       ammo: { AP: 15, APHE: 40, APCR: 8, HEAT: 6, HE: 20, SMOKE: 4, CAN: 6 },
     },
     stug: {
       id: 'stug', hp: 300, ready: 6, mass: 24, name: 'StuG', cls: 'Assault gun', kmh: 40, speed: 100, rev: 45, accel: 150, turn: 1.5, tturn: 0.9,
-      reload: 5.0, shell: 700, disp: 0.010, view: 650, range: 450, arc: 0.17,
+      reload: 5.0, disp: 0.010, view: 650, range: 450, arc: 0.17,
       caliber: 75, obs: 100,
       ammo: { AP: 12, APHE: 30, APCR: 6, HEAT: 4, HE: 18, SMOKE: 4, CAN: 4 },
     },
     kingtiger: {
       id: 'kingtiger', hp: 700, ready: 6, mass: 68, name: 'King Tiger', cls: 'Heavy tank', kmh: 35, speed: 70, rev: 33, accel: 95, turn: 0.9, tturn: 0.8,
-      reload: 8.0, shell: 800, disp: 0.008, view: 640, range: 520,
+      reload: 8.0, disp: 0.008, view: 640, range: 520,
       caliber: 88, obs: 170,
       ammo: { AP: 10, APHE: 40, APCR: 8, HEAT: 4, HE: 20, SMOKE: 4, CAN: 4 },
     },
     destroyer: {
       id: 'destroyer', hp: 700, ready: 6, mass: 46, name: 'Jagd', cls: 'Tank destroyer', kmh: 46, speed: 95, rev: 45, accel: 145, turn: 1.4, tturn: 0.9,
-      reload: 7.5, shell: 780, disp: 0.007, view: 720, range: 600, arc: 0.21,
+      reload: 7.5, disp: 0.007, view: 720, range: 600, arc: 0.21,
       caliber: 88, obs: 160,
       ammo: { AP: 12, APHE: 25, APCR: 10, HEAT: 5, HE: 5, SMOKE: 3, CAN: 2 },
     },
@@ -125,15 +125,19 @@
   }
 
   const SHELLS = {
-    AP: { key: 'AP', n: 1, name: 'Armor-piercing', full: 'Armor-piercing (AP)', pen: 1.0, vel: 1.0, drop: 0.15, ric: 70 },
-    APHE: { key: 'APHE', n: 2, name: 'AP high-explosive', full: 'Armor-piercing high-explosive (APHE)', pen: 0.92, vel: 0.98, drop: 0.15, ric: 70, fuse: 1.2, sens: 15 },
-    APCR: { key: 'APCR', n: 3, name: 'Sub-caliber', full: 'Sub-caliber (APCR)', pen: 1.32, vel: 1.25, drop: 0.45, ric: 62 },
-    HEAT: { key: 'HEAT', n: 4, name: 'Shaped charge', full: 'Shaped charge (HEAT)', vel: 0.72, drop: 0, ric: 80 },
-    HE: { key: 'HE', n: 5, name: 'High-explosive', full: 'High-explosive (HE)', vel: 0.82, drop: 0, ric: 90 },
-    SMOKE: { key: 'SMOKE', n: 6, tag: 'SMK', name: 'Smoke', full: 'Smoke shell (Nebelgranate): smoke screen at the point of impact', vel: 0.72, drop: 0, ric: 90 },
-    CAN: { key: 'CAN', n: 7, tag: 'CAN', name: 'Canister', full: 'Canister (Kartätsche): a spray of steel balls at short range', vel: 0.62, drop: 0, ric: 90 },
+    AP: { key: 'AP', n: 1, name: 'Armor-piercing', full: 'Armor-piercing (AP)', pen: 1.0, drop: 0.15, ric: 70 },
+    APHE: { key: 'APHE', n: 2, name: 'AP high-explosive', full: 'Armor-piercing high-explosive (APHE)', pen: 0.92, drop: 0.15, ric: 70, fuse: 1.2, sens: 15 },
+    APCR: { key: 'APCR', n: 3, name: 'Sub-caliber', full: 'Sub-caliber (APCR)', pen: 1.32, drop: 0.45, ric: 62 },
+    HEAT: { key: 'HEAT', n: 4, name: 'Shaped charge', full: 'Shaped charge (HEAT)', drop: 0, ric: 80 },
+    HE: { key: 'HE', n: 5, name: 'High-explosive', full: 'High-explosive (HE)', drop: 0, ric: 90 },
+    SMOKE: { key: 'SMOKE', n: 6, tag: 'SMK', name: 'Smoke', full: 'Smoke shell (Nebelgranate): smoke screen at the point of impact', drop: 0, ric: 90 },
+    CAN: { key: 'CAN', n: 7, tag: 'CAN', name: 'Canister', full: 'Canister (Kartätsche): a spray of steel balls at short range', drop: 0, ric: 90 },
   };
   const SHELL_KEYS = ['AP', 'APHE', 'APCR', 'HEAT', 'HE', 'SMOKE', 'CAN'];
+  // Vitesse des obus à l'écran : 1 px = RK m de balistique ; en balistique réaliste, chaque obus vole à
+  // sa vraie vitesse (durées de trajet réelles), en arcade à 60 % pour qu'on le voie venir
+  let TOF = 1;
+  const shellPxK = () => TOF / RK;
   // Pénétration à une distance donnée (pixels de jeu), selon la balistique réelle
   const penAt = (T, key, dpx) => Ballistics.penAt(T.id, key, dpx * RK);
 
@@ -823,7 +827,8 @@
       if (t.smoke > 0 && best && ai.los && crewFrac(t) < 0.6 && Math.random() < 0.4) { deploySmoke(t); ai.retreatT = 5; }
     }
 
-    // Esquive des obus qui arrivent
+    // Esquive des obus qui arrivent : seulement s'il reste plus de 0,6 s avant l'impact (temps de réaction
+    // de l'équipage), donc en pratique contre une charge creuse ou un explosif lent tiré de loin
     if (ai.dodgeT <= 0) {
       for (const s of shells) {
         if (s.owner === t || ai.seen.has(s.id)) continue;
@@ -831,11 +836,11 @@
         const along = rx * ux + ry * uy;
         if (along < 0) continue;
         const tt = along / s.sp;
-        if (tt > 1.1) continue;
+        if (tt > 2.5) continue;
         const perp = rx * -uy + ry * ux;
         if (Math.abs(perp) > T.len * 0.5 + 8) continue;
         ai.seen.add(s.id);
-        if (tt < 0.12 || Math.random() > ai.dodge) continue;
+        if (tt < 0.6 || Math.random() > ai.dodge) continue;
         const sg = perp >= 0 ? 1 : -1;
         const nx = -uy * sg, ny = ux * sg;
         const f = Math.cos(t.angle) * nx + Math.sin(t.angle) * ny;
@@ -888,7 +893,7 @@
     if (tg && !tg.dead) {
       const pv = pivot(t);
       const d = Math.hypot(tg.x - pv.x, tg.y - pv.y);
-      const tt = d / (T.shell * SHELLS[t.shell].vel);
+      const tt = Ballistics.tof(Ballistics.shell(T.id, t.shell), d * RK) / TOF;
       const px = tg.x + tg.vx * tt * ai.lead, py = tg.y + tg.vy * tt * ai.lead;
       aim = Math.atan2(py - pv.y, px - pv.x) + ai.aimErr;
       if (ai.los && ai.reactT <= 0 && t.reloadT <= 0 && seen.has(tg) && canFire(t)) {
@@ -1176,9 +1181,8 @@
     const ang = ta + gauss() * t.disp;
     const pv = pivot(t);
     const mx = pv.x + Math.cos(ta) * T.gunEnd, my = pv.y + Math.sin(ta) * T.gunEnd;
-    const sp = T.shell * sh.vel;
     t.ammo[key]--;
-    const sb = Ballistics.shell(T.id, key);
+    const sb = Ballistics.shell(T.id, key), pxk = shellPxK(), sp = sb.v0 * pxk;
     // vertical : élévation du canon (débattement de −8° à +20°) et dispersion, isotrope avec l'horizontale
     const z0 = T.S.gun.z, k3 = PX * RK;
     let slope = Math.tan(t.elev) / k3 + gauss() * t.disp / k3;
@@ -1193,8 +1197,8 @@
         bullets.push({ x: mx, y: my, z: z0, vx: Math.cos(a) * bsp, vy: Math.sin(a) * bsp, sp: bsp, slope: slope + gauss() * 0.028 / k3, dist: 0, tracer: i % 9 === 0, by: t, team: t.team, type: 'CAN' });
       }
     } else shells.push({
-      id: ++shellId, x: mx, y: my, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, sp, pxk: sp / sb.v0, V: sb.v0, team: t.team, owner: t, by: t,
-      key, sb, v0: sb.v0, dist: 0, z: z0, slope, range: 2400, trail: [], ric: 0, yaw: false, whiz: false, warned: false,
+      id: ++shellId, x: mx, y: my, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, sp, pxk, V: sb.v0, team: t.team, owner: t, by: t,
+      key, sb, v0: sb.v0, dist: 0, z: z0, slope, trail: [], ric: 0, yaw: false, whiz: false, warned: false,
     });
     // les premiers obus viennent du râtelier de tourelle ; ensuite le chargeur va les chercher dans
     // les soutes de caisse, plus lentement
@@ -1497,11 +1501,9 @@
         shellAim(s, s.vx / s.sp, s.vy / s.sp);
         s.skipObs = null;
       }
-      s.range -= s.sp * dt;
-      if (!remove && (s.range <= 0 || s.x < -50 || s.y < -50 || s.x > WW + 50 || s.y > WH + 50)) {
-        remove = true;
-        if (s.range <= 0) hitGround(s, s.x, s.y, true);
-      }
+      // l'obus vole jusqu'au sol (traité plus haut), hors de la carte ou très haut après un ricochet ;
+      // un compteur de sécurité borne son trajet
+      if (!remove && (s.z > 60 || s.dist > 8000 || s.x < -50 || s.y < -50 || s.x > WW + 50 || s.y > WH + 50)) remove = true;
       if (remove) {
         if (player && !player.dead && s.by !== player && s.warned && !s.hitPlayer) waveStats.dodged++;
         shells.splice(i, 1);
@@ -4053,12 +4055,14 @@
     PCAP = o.quality === 'basse' ? 900 : o.quality === 'moyenne' ? 1700 : 2600;
     resize();
     if (music) music.volume = o.music * 0.7;
-    $('oSfx').value = o.sfx; $('oMusic').value = o.music; $('oQuality').value = o.quality; $('oHitcam').checked = o.hitcam;
+    TOF = o.ballistics === 'arcade' ? 0.6 : 1;
+    $('oSfx').value = o.sfx; $('oMusic').value = o.music; $('oQuality').value = o.quality; $('oHitcam').checked = o.hitcam; $('oBallistics').value = o.ballistics || 'real';
   }
   $('oSfx').oninput = e => { Meta.P.opts.sfx = +e.target.value; Meta.save(); applyOptions(); };
   $('oMusic').oninput = e => { Meta.P.opts.music = +e.target.value; Meta.save(); applyOptions(); playMusic(); };
   $('oQuality').onchange = e => { Meta.P.opts.quality = e.target.value; Meta.save(); applyOptions(); };
   $('oHitcam').onchange = e => { Meta.P.opts.hitcam = e.target.checked; Meta.save(); applyOptions(); };
+  $('oBallistics').onchange = e => { Meta.P.opts.ballistics = e.target.value; Meta.save(); applyOptions(); };
   $('oFull').onclick = () => { try { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen(); } catch (e) { /* refusé */ } };
   $('oReset').onclick = () => {
     if (!confirm('Erase all progress (credits, tanks, camos)?')) return;
@@ -4427,8 +4431,8 @@
       freeze(on) { dbgFreeze = on !== false; },
       run(n) { for (let i = 0; i < n; i++) step(STEP); },
       shoot(o) {
-        const by = o.by || player, key = o.key || 'APHE', sb = Ballistics.shell(by.T.id, key), V = o.V || sb.v0, pxk = by.T.shell * SHELLS[key].vel / sb.v0;
-        const s = { id: ++shellId, x: o.x, y: o.y, vx: 0, vy: 0, sp: V * pxk, pxk, V, team: by.team, owner: by, by, key, sb, v0: sb.v0, dist: o.dist || 0, z: o.z, slope: o.slope || 0, range: 2400, trail: [], ric: 0, yaw: !!o.yaw, whiz: true, warned: false };
+        const by = o.by || player, key = o.key || 'APHE', sb = Ballistics.shell(by.T.id, key), V = o.V || sb.v0, pxk = shellPxK();
+        const s = { id: ++shellId, x: o.x, y: o.y, vx: 0, vy: 0, sp: V * pxk, pxk, V, team: by.team, owner: by, by, key, sb, v0: sb.v0, dist: o.dist || 0, z: o.z, slope: o.slope || 0, trail: [], ric: 0, yaw: !!o.yaw, whiz: true, warned: false };
         shellAim(s, Math.cos(o.ang), Math.sin(o.ang));
         shells.push(s);
         return s;
