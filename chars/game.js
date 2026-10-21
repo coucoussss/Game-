@@ -2458,7 +2458,14 @@
   });
   addEventListener('keyup', e => { keys[e.code] = false; });
   addEventListener('blur', () => { for (const k in keys) keys[k] = false; mouse.down = false; });
-  cv.addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
+  // position de la souris dans le repère du canvas (décalage et mise à l'échelle éventuels de la page)
+  function trackMouse(e) {
+    const r = cv.getBoundingClientRect();
+    mouse.x = (e.clientX - r.left) * (W / (r.width || W));
+    mouse.y = (e.clientY - r.top) * (H / (r.height || H));
+  }
+  addEventListener('mousemove', trackMouse);
+  addEventListener('pointerdown', trackMouse);
   cv.addEventListener('mousedown', e => {
     Sfx.init();
     if (e.button === 0) {
