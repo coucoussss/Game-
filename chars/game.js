@@ -3960,7 +3960,7 @@
       },
       kill(i, det) { const e = tanks.filter(t => t.team === 1 && !t.dead)[i || 0]; if (e) destroyTank(e, player, !!det); return !!e; },
       get bullets() { return bullets; }, get parts() { return parts; },
-      w2s: (x, y, z) => worldToScreen(x, y, z), hatchPos,
+      w2s: (x, y, z) => worldToScreen(x, y, z), hatchPos, viewer, pick(id) { chosenType = id; buildMenu(); },
     };
   }
   requestAnimationFrame(frame);

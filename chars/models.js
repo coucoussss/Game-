@@ -10,12 +10,12 @@ const TankModels = (() => {
       inspired: 'Inspiré du Pz.Kpfw. II Luchs', real: '4,6 × 2,5 × 2,1 m · 12 t · 4 hommes',
       L: 4.6, W: 2.5, tw: 0.38, gc: 0.42, tt: 0.86, ht: 1.45, zn: 0.95, xn: 2.25,
       sUp: 22, sLow: 45, sRear: 12, sideSlope: 0, rearX: -2.2,
-      wheels: { n: 5, r: 0.3, x0: 1.5, x1: -1.55, inter: false }, rollers: [0.75, -0.6], rollerR: 0.08,
+      wheels: { n: 5, r: 0.37, x0: 1.45, x1: -1.55, inter: true }, rollers: [], rollerR: 0,
       spr: { x: 1.95, z: 0.5, r: 0.27 }, idl: { x: -1.98, z: 0.45, r: 0.24 },
       turret: {
         x: 0.2, h: 0.62, ts: 0.84,
         poly: [[0.78, 0.42], [0.55, 0.72], [-0.7, 0.72], [-0.88, 0.45], [-0.88, -0.45], [-0.7, -0.72], [0.55, -0.72], [0.78, -0.42]],
-        mantlet: { type: 'box', d: 0.16, w: 0.26, h: 0.17 }, cupola: [-0.4, 0.3, 0.26, 0.18],
+        mantlet: { type: 'box', d: 0.16, w: 0.26, h: 0.17 }, cupola: [-0.4, 0.3, 0.24, 0.08, 2], smoke: true,
       },
       gun: { z: 1.75, fx: 0.78, len: 2.9, r: 0.035, sleeve: [0.065, 0.5], brake: null, name: '5 cm KwK 39 L/60' },
       exhaust: [[-2.12, 0.45], [-2.12, -0.45]], jerry: true,
@@ -47,10 +47,10 @@ const TankModels = (() => {
       turret: {
         x: 0.25, h: 0.88, ts: 0.8,
         poly: [[1.05, 0.55], [0.8, 0.95], [-1.05, 1.0], [-1.3, 0.7], [-1.3, -0.7], [-1.05, -1.0], [0.8, -0.95], [1.05, -0.55]],
-        mantlet: { type: 'cyl', r: 0.3, w: 0.36 }, cupola: [-0.55, 0.42, 0.33, 0.24], bin: true,
+        mantlet: { type: 'cyl', r: 0.3, w: 0.36 }, cupola: [-0.55, 0.42, 0.33, 0.24, 7], rearHatch: true, ports: true, pilze: true,
       },
       gun: { z: 2.37, fx: 1.2, len: 5.25, r: 0.045, sleeve: [0.085, 0.9], brake: { r: 0.085, len: 0.36 }, name: '7,5 cm KwK 42 L/70' },
-      exhaust: [[-3.22, 0.42], [-3.22, -0.42]], skirts: true, mg: true,
+      exhaust: [[-3.22, 0.42], [-3.22, -0.42]], skirts: true, mg: true, zim: true, fans: true, rearBins: true, dampers: true,
       armor: {
         hull: { up: [80, 55], low: [60, 55], side: [40, 40], rear: [40, 30], roof: 16 },
         turret: { front: [100, 11], side: [45, 25], rear: [45, 25], mantlet: [110, 0] },
@@ -79,10 +79,10 @@ const TankModels = (() => {
       spr: { x: 2.75, z: 0.62, r: 0.36 }, idl: { x: -2.8, z: 0.6, r: 0.3 },
       turret: {
         x: -0.15, h: 0.82, ts: 0.97, poly: null,
-        mantlet: { type: 'box', d: 0.3, w: 0.72, h: 0.33 }, cupola: [-0.45, 0.55, 0.34, 0.28], smoke: true, spare: true,
+        mantlet: { type: 'box', d: 0.3, w: 0.72, h: 0.33 }, cupola: [-0.45, 0.55, 0.34, 0.28, 7], smoke: true, spare: true, bin: true, ports: true,
       },
       gun: { z: 2.26, fx: 1.25, len: 4.9, r: 0.055, sleeve: [0.095, 0.6], brake: { r: 0.13, len: 0.42 }, name: '8,8 cm KwK 36 L/56' },
-      exhaust: [[-3.0, 0.55], [-3.0, -0.55]], tallExhaust: true, mg: true,
+      exhaust: [[-3.0, 0.55], [-3.0, -0.55]], tallExhaust: true, mg: true, zim: true, smines: true, grilles: true,
       armor: {
         hull: { up: [100, 10], low: [100, 45], side: [80, 0], rear: [80, 9], roof: 25 },
         turret: { front: [100, 0], side: [80, 0], rear: [80, 0], mantlet: [150, 0] },
@@ -112,7 +112,7 @@ const TankModels = (() => {
       spr: { x: 3.0, z: 0.68, r: 0.36 }, idl: { x: -3.0, z: 0.62, r: 0.32 },
       turret: null, mount: { x: 2.27, y: -0.1 },
       gun: { z: 1.86, fx: 0.35, len: 6.3, r: 0.055, sleeve: null, brake: { r: 0.12, len: 0.45 }, name: '8,8 cm PaK 43 L/71' },
-      exhaust: [[-3.22, 0.42], [-3.22, -0.42]], skirts: true,
+      exhaust: [[-3.22, 0.42], [-3.22, -0.42]], skirts: true, zim: true, fans: true, dampers: true, rearBins: true,
       armor: {
         hull: { up: [80, 55], low: [60, 55], side: [50, 30], rear: [40, 35], roof: 25 },
         turret: null,
@@ -137,15 +137,15 @@ const TankModels = (() => {
       inspired: 'Inspiré du Pz.Kpfw. IV Ausf. H', real: '5,9 × 2,9 × 2,7 m · 25 t · 5 hommes',
       L: 5.89, W: 2.88, tw: 0.4, gc: 0.4, tt: 0.9, ht: 1.65, zn: 1.0, xn: 2.92,
       sUp: 10, sLow: 14, sRear: 10, sideSlope: 0, rearX: -2.9,
-      wheels: { n: 8, r: 0.235, x0: 1.95, x1: -2.05, inter: false }, rollers: [1.4, 0.45, -0.45, -1.35], rollerR: 0.11,
+      wheels: { n: 8, r: 0.235, x0: 1.95, x1: -2.05, inter: false, xs: [1.95, 1.45, 0.9, 0.4, -0.25, -0.75, -1.3, -1.8], bogies: true }, rollers: [1.4, 0.45, -0.45, -1.35], rollerR: 0.11,
       spr: { x: 2.55, z: 0.6, r: 0.3 }, idl: { x: -2.65, z: 0.55, r: 0.27 },
       turret: {
         x: -0.15, h: 0.78, ts: 0.82,
         poly: [[0.95, 0.55], [0.75, 0.85], [-0.95, 0.92], [-1.1, 0.65], [-1.1, -0.65], [-0.95, -0.92], [0.75, -0.85], [0.95, -0.55]],
-        mantlet: { type: 'box', d: 0.2, w: 0.32, h: 0.22 }, cupola: [-0.75, 0.0, 0.3, 0.25], bin: true,
+        mantlet: { type: 'box', d: 0.2, w: 0.32, h: 0.22 }, cupola: [-0.75, 0.0, 0.3, 0.25, 5], bin: true, tskirt: true, sideDoors: true,
       },
       gun: { z: 2.1, fx: 0.98, len: 3.6, r: 0.045, sleeve: [0.075, 0.55], brake: { r: 0.09, len: 0.32 }, name: '7,5 cm KwK 40 L/48' },
-      exhaust: [[-2.88, 0.6], [-2.88, -0.6]], skirts: true, mg: true,
+      exhaust: [[-2.88, 0.45]], skirts: { off: 0.2, z0: 0.38, z1: 1.18 }, mg: true, zim: true, muffler: true, links: 'front',
       armor: {
         hull: { up: [80, 10], low: [80, 12], side: [30, 0], rear: [20, 10], roof: 12 },
         turret: { front: [50, 10], side: [30, 25], rear: [30, 25], mantlet: [50, 0] },
@@ -175,10 +175,10 @@ const TankModels = (() => {
       turret: {
         x: 0.15, h: 0.95, ts: 0.8,
         poly: [[1.1, 0.55], [0.95, 0.95], [-1.7, 1.05], [-1.85, 0.8], [-1.85, -0.8], [-1.7, -1.05], [0.95, -0.95], [1.1, -0.55]],
-        mantlet: { type: 'cyl', r: 0.32, w: 0.4 }, cupola: [-0.75, 0.5, 0.34, 0.25],
+        mantlet: { type: 'bell', r: 0.36, len: 0.5 }, cupola: [-0.75, 0.5, 0.34, 0.25, 7], spare: true, rearHatch: true, ports: true, pilze: true,
       },
       gun: { z: 2.55, fx: 1.25, len: 6.3, r: 0.055, sleeve: [0.1, 0.8], brake: { r: 0.12, len: 0.45 }, name: '8,8 cm KwK 43 L/71' },
-      exhaust: [[-3.5, 0.4], [-3.5, -0.4]], tallExhaust: true, mg: true,
+      exhaust: [[-3.5, 0.4], [-3.5, -0.4]], tallExhaust: true, mg: true, zim: true, fans: true, dampers: true,
       armor: {
         hull: { up: [150, 50], low: [100, 50], side: [80, 25], rear: [80, 30], roof: 40 },
         turret: { front: [180, 9], side: [80, 21], rear: [80, 21], mantlet: [150, 0] },
@@ -208,7 +208,7 @@ const TankModels = (() => {
       spr: { x: 2.25, z: 0.58, r: 0.28 }, idl: { x: -2.35, z: 0.55, r: 0.25 },
       turret: null, mount: { x: 1.25, y: -0.12 },
       gun: { z: 1.62, fx: 0.35, len: 3.6, r: 0.045, sleeve: null, brake: { r: 0.09, len: 0.32 }, name: '7,5 cm StuK 40 L/48' },
-      exhaust: [[-2.6, 0.5], [-2.6, -0.5]], skirts: true,
+      exhaust: [[-2.6, 0.45]], skirts: { off: 0.2, z0: 0.38, z1: 1.15 }, zim: true, muffler: true, hullCupola: [0.0, 0.55, 0.28, 0.18, 7], mgShield: true, links: 'front',
       armor: {
         hull: { up: [80, 10], low: [80, 21], side: [30, 11], rear: [30, 10], roof: 17 },
         turret: null,
@@ -296,19 +296,22 @@ const TankModels = (() => {
     const rearAt = z => S.rearX + (ht - z) * tanR;
     const hwIn = W / 2 - tw - 0.03;
     const hwAt = z => W / 2 - Math.max(0, z - tt) * tanS;
+    // Zimmerit (pâte antimagnétique striée, 1943-1944) : matériau 1,25, relief dans le shader
+    const ZM = S.zim ? 1.25 : 1;
 
     // Caisse inférieure entre les chenilles
-    hb.loftXZ([[xLow(gc), gc], [xn, zn], [xUp(ht), ht], [S.rearX, ht], [rearAt(gc), gc]], () => hwIn, CAMO, 1);
+    hb.loftXZ([[xLow(gc), gc], [xn, zn], [xUp(ht), ht], [S.rearX, ht], [rearAt(gc), gc]], () => hwIn, CAMO, ZM);
     // Superstructure au-dessus des chenilles (flancs éventuellement inclinés)
     const sp = [];
     if (tt < zn) sp.push([xLow(tt), tt], [xn, zn]); else sp.push([xUp(tt), tt]);
     sp.push([xUp(ht), ht], [S.rearX, ht], [rearAt(tt), tt]);
-    hb.loftXZ(sp, hwAt, CAMO, 1);
+    hb.loftXZ(sp, hwAt, CAMO, ZM);
 
     // Train de roulement et chenilles
     const th = id === 'light' ? 0.06 : 0.075;
     const ws = [];
-    for (let k = 0; k < S.wheels.n; k++) ws.push(S.wheels.x0 + (S.wheels.x1 - S.wheels.x0) * k / (S.wheels.n - 1));
+    if (S.wheels.xs) ws.push(...S.wheels.xs);
+    else for (let k = 0; k < S.wheels.n; k++) ws.push(S.wheels.x0 + (S.wheels.x1 - S.wheels.x0) * k / (S.wheels.n - 1));
     const rw = S.wheels.r;
     const circ = (x, z, r, out) => { for (let k = 0; k < 20; k++) { const a = k / 20 * Math.PI * 2; out.push([x + Math.cos(a) * r, z + Math.sin(a) * r]); } };
     const pts = [];
@@ -326,6 +329,7 @@ const TankModels = (() => {
         hb.cyl([x, yc - w / 2, z], [x, yc + w / 2, z], r, r, 20, RUBBER, 4);
         hb.cyl([x, yc - w / 2 - 0.012, z], [x, yc + w / 2 + 0.012, z], r * 0.8, r * 0.8, 20, CAMO, 1);
         hb.cyl([x, yc - w / 2 - 0.03, z], [x, yc + w / 2 + 0.03, z], r * 0.2, r * 0.2, 10, STEEL, 3);
+        for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2; hb.box(x + Math.cos(a) * r * 0.48, yc, z + Math.sin(a) * r * 0.48, r * 0.09, w + 0.035, r * 0.09, DARK, 3); }
       };
       ws.forEach((x, k) => {
         if (S.wheels.inter) {
@@ -345,11 +349,24 @@ const TankModels = (() => {
       if (rr > S.idl.x - S.idl.r * 0.9) hb.box((rr + S.idl.x - S.idl.r * 0.9) / 2, yc, tt + 0.01, rr - (S.idl.x - S.idl.r * 0.9), tw + 0.04, 0.03, CAMO, 1);
       // jupes latérales (Schürzen), un panneau manque d'un côté
       if (S.skirts) {
-        const n = 5, x0 = S.idl.x + 0.1, x1 = S.spr.x - 0.15, pw = (x1 - x0) / n;
+        const sk = typeof S.skirts === 'object' ? S.skirts : { off: 0.02, z0: tt - 0.52, z1: tt - 0.02 };
+        const n = 5, x0 = S.idl.x + 0.1, x1 = S.spr.x - 0.15, pw = (x1 - x0) / n, ys = side * (W / 2 + sk.off);
         for (let k = 0; k < n; k++) {
           if (side === -1 && k === 3) continue;
-          hb.box(x0 + pw * (k + 0.5), side * (W / 2 + 0.02), tt - 0.27, pw - 0.03, 0.02, 0.5, CAMO, 1);
+          hb.box(x0 + pw * (k + 0.5), ys, (sk.z0 + sk.z1) / 2, pw - 0.03, 0.02, sk.z1 - sk.z0, CAMO, 1);
         }
+        if (sk.off > 0.05) {
+          // rail de suspension et ses supports
+          hb.box((x0 + x1) / 2, side * (W / 2 + sk.off * 0.5), sk.z1 - 0.03, x1 - x0, sk.off, 0.03, DARK, 3);
+          for (let k = 0; k <= n; k++) hb.box(x0 + pw * k, side * (W / 2 + sk.off * 0.5), sk.z1 - 0.1, 0.03, sk.off, 0.12, DARK, 3);
+        }
+      }
+      // bogies à ressorts à lames du Panzer IV : un boîtier et un ressort par paire de roues
+      if (S.wheels.bogies) for (let k = 0; k + 1 < ws.length; k += 2) {
+        const xm = (ws[k] + ws[k + 1]) / 2, yb = side * (W / 2 - tw - 0.06), zb = rw + th;
+        hb.box(xm, yb, zb, 0.32, 0.12, 0.22, CAMO, 1);
+        hb.box(xm, yb, zb + 0.16, Math.abs(ws[k] - ws[k + 1]) * 0.9, 0.1, 0.05, DARK, 3);
+        hb.cyl([xm, yb, zb], [xm, side * (W / 2 - tw * 0.2), zb], 0.05, 0.05, 8, STEEL, 3);
       }
       // outils et câble de remorquage sur les flancs
       hb.cyl([-1.2, side * (hwAt(ht) - 0.12), ht + 0.03], [1.0, side * (hwAt(ht) - 0.12), ht + 0.03], 0.025, 0.025, 6, DARK, 3);
@@ -374,27 +391,81 @@ const TankModels = (() => {
       const zt = S.tallExhaust ? ht + 0.55 : ht + 0.35;
       hb.cyl([e[0], e[1], ht - 0.55], [e[0], e[1], zt], 0.085, 0.075, 12, RUST, 0);
       if (S.tallExhaust) hb.cyl([e[0] + 0.02, e[1], ht - 0.2], [e[0] + 0.02, e[1], ht + 0.25], 0.13, 0.13, 12, CAMO, 1);
+      if (S.dampers) hb.cyl([e[0] - 0.02, e[1], zt - 0.25], [e[0] - 0.02, e[1], zt + 0.05], 0.11, 0.11, 12, RUST, 0);
     }
     if (S.jerry) for (const sy of [0.35, -0.35]) hb.box(S.rearX - 0.07, sy, ht - 0.2, 0.14, 0.3, 0.42, '#3e4a2c', 0);
     if (id === 'heavy') for (let k = 0; k < 6; k++) hb.box(xUp(1.5) + 0.04, -0.95 + k * 0.38, 1.5, 0.06, 0.34, 0.1, '#3c3a36', 2);
+    {
+      const xf = sp[0][0], yf = W / 2 - tw / 2;
+      // phare Bosch sur le garde-boue avant gauche, feu de convoi Notek à droite
+      hb.cyl([xf + 0.05, yf, tt + 0.14], [xf + 0.2, yf, tt + 0.14], 0.07, 0.08, 12, DARK, 3);
+      hb.cyl([xf + 0.2, yf, tt + 0.14], [xf + 0.21, yf, tt + 0.14], 0.065, 0.065, 12, GLASS, 5);
+      hb.cyl([xf + 0.12, yf, tt + 0.01], [xf + 0.12, yf, tt + 0.08], 0.015, 0.015, 6, DARK, 3);
+      hb.box(xf + 0.12, -yf, tt + 0.07, 0.08, 0.1, 0.07, DARK, 3);
+      // crochets de remorquage avant et arrière
+      for (const sy of [1, -1]) {
+        hb.box(xLow(gc + 0.15) + 0.05, sy * hwIn * 0.75, gc + 0.15, 0.12, 0.06, 0.16, DARK, 3);
+        hb.box(rearAt(gc + 0.2) - 0.05, sy * hwIn * 0.75, gc + 0.2, 0.12, 0.06, 0.16, DARK, 3);
+      }
+      // pelle et hache sur la plage avant, extincteur, cric à l'arrière
+      hb.cyl([xUp(ht) - 0.9, -hwIn * 0.8, ht + 0.03], [xUp(ht) - 0.1, -hwIn * 0.8, ht + 0.03], 0.018, 0.018, 6, '#5a4630', 6);
+      hb.box(xUp(ht) - 0.05, -hwIn * 0.8, ht + 0.03, 0.2, 0.17, 0.02, DARK, 3);
+      hb.cyl([-0.6, yf, tt + 0.02], [-0.6, yf, tt + 0.36], 0.06, 0.06, 10, '#7a2a20', 0);
+      hb.cyl([rearAt(ht - 0.35) - 0.08, -0.5, ht - 0.35], [rearAt(ht - 0.35) - 0.08, 0.1, ht - 0.35], 0.07, 0.07, 10, DARK, 3);
+    }
+    // maillons de chenille de rechange sur le glacis (Panzer IV, StuG)
+    if (S.links === 'front') for (let k = 0; k < 7; k++) {
+      const z = zn + 0.08, x = xLow(z) + 0.02 + (z - zn) * 0;
+      hb.box(xn + 0.03, -0.9 + k * 0.3, zn - 0.05, 0.05, 0.27, 0.12, '#3c3a36', 2);
+    }
+    // silencieux transversal sous la plaque arrière (Panzer IV, StuG)
+    if (S.muffler) hb.cyl([rearAt(gc + 0.45) - 0.16, -W * 0.3, gc + 0.45], [rearAt(gc + 0.45) - 0.16, W * 0.3, gc + 0.45], 0.13, 0.13, 14, RUST, 0);
+    // deux ventilateurs ronds sur le compartiment moteur (Panthère, Jagdpanther, Tigre royal)
+    if (S.fans) for (const sy of [1, -1]) {
+      hb.cyl([S.rearX + 0.75, sy * 0.6, ht], [S.rearX + 0.75, sy * 0.6, ht + 0.06], 0.34, 0.32, 20, CAMO, 1);
+      hb.cyl([S.rearX + 0.75, sy * 0.6, ht + 0.06], [S.rearX + 0.75, sy * 0.6, ht + 0.065], 0.27, 0.27, 20, '#1c1b18', 7);
+      for (let k = 0; k < 4; k++) hb.box(S.rearX + 0.75, sy * 0.6, ht + 0.07, 0.52, 0.025, 0.012, '#34332e', 7); // grille de protection
+    }
+    // grilles d'admission d'air (Tigre)
+    if (S.grilles) for (const sy of [1, -1]) hb.box(S.rearX + 1.4, sy * 1.05, ht + 0.02, 0.9, 0.55, 0.04, '#22211e', 3);
+    // lance-mines S aux coins du toit (Tigre)
+    if (S.smines) for (const [x, y] of [[xUp(ht) - 0.3, 1.3], [xUp(ht) - 0.3, -1.3], [0.2, 1.4], [0.2, -1.4], [S.rearX + 0.3, 0]]) hb.cyl([x, y, ht], [x, y, ht + 0.16], 0.05, 0.05, 8, DARK, 3);
+    // coffres de paquetage sur la plaque arrière
+    if (S.rearBins) for (const sy of [1, -1]) hb.box(rearAt(ht - 0.25) - 0.15, sy * (hwIn - 0.25), ht - 0.25, 0.28, 0.45, 0.35, CAMO, 1);
 
     // Tourelle (repère du pivot)
     const T = S.turret, g = S.gun;
     if (T) {
       const z1 = ht + T.h;
-      tb.prism(T.poly, ht, z1, T.ts, CAMO, 1);
+      tb.prism(T.poly, ht, z1, T.ts, CAMO, ZM);
       tb.cyl([0, 0, ht - 0.05], [0, 0, ht + 0.02], 0.95 * Math.min(1, W / 3.4), 0.95 * Math.min(1, W / 3.4), 24, CAMO, 1);
       const fx = Math.max(...T.poly.map(p => p[0]));
       const m = T.mantlet;
-      if (m.type === 'box') tb.box(fx + m.d / 2 - 0.05, 0, g.z, m.d, m.w * 2, m.h * 2, CAMO, 1);
-      else tb.cyl([fx - 0.05, -m.w, g.z], [fx - 0.05, m.w, g.z], m.r, m.r, 18, CAMO, 1);
+      if (m.type === 'box') {
+        tb.box(fx + m.d / 2 - 0.05, 0, g.z, m.d, m.w * 2, m.h * 2, CAMO, ZM);
+        // embrasures de la mitrailleuse coaxiale et du viseur
+        tb.box(fx + m.d - 0.04, -0.2, g.z + 0.02, 0.03, 0.06, 0.05, DARK, 3);
+        tb.box(fx + m.d - 0.04, 0.2, g.z + 0.05, 0.03, 0.05, 0.05, DARK, 3);
+      } else if (m.type === 'bell') {
+        // « Saukopf » : masque coulé en cloche autour du canon
+        tb.cyl([fx - 0.08, 0, g.z], [fx + m.len, 0, g.z], m.r, m.r * 0.42, 20, CAMO, ZM);
+        tb.box(fx + 0.02, -0.3, g.z + 0.03, 0.08, 0.06, 0.06, DARK, 3);
+        tb.box(fx + 0.02, 0.3, g.z + 0.08, 0.08, 0.05, 0.05, DARK, 3);
+      } else {
+        tb.cyl([fx - 0.05, -m.w, g.z], [fx - 0.05, m.w, g.z], m.r, m.r, 18, CAMO, ZM);
+        tb.box(fx + m.r - 0.08, -0.22, g.z + 0.02, 0.05, 0.06, 0.05, DARK, 3);
+        tb.box(fx + m.r - 0.1, 0.22, g.z + 0.06, 0.05, 0.05, 0.05, DARK, 3);
+      }
       const c = T.cupola;
       tb.cyl([c[0], c[1], z1 - 0.05], [c[0], c[1], z1 + c[3]], c[2], c[2] * 0.95, 18, CAMO, 1);
       tb.cyl([c[0], c[1], z1 + c[3]], [c[0], c[1], z1 + c[3] + 0.04], c[2] * 0.8, c[2] * 0.75, 18, CAMO, 1);
-      for (let k = 0; k < 6; k++) {
-        const a = k / 6 * Math.PI * 2;
-        tb.box(c[0] + Math.cos(a) * c[2] * 0.98, c[1] + Math.sin(a) * c[2] * 0.98, z1 + c[3] * 0.6, 0.06, 0.06, 0.06, GLASS, 5);
+      const np = c[4] || 6;
+      for (let k = 0; k < np; k++) {
+        const a = k / np * Math.PI * 2;
+        tb.box(c[0] + Math.cos(a) * c[2] * 0.98, c[1] + Math.sin(a) * c[2] * 0.98, z1 + Math.max(0.03, c[3] * 0.6), 0.07, 0.07, 0.05, GLASS, 5);
       }
+      // trappe de la coupole, ouverte (le chef se tient debout)
+      tb.cyl([c[0], c[1] + c[2] * 0.95, z1 + c[3] + c[2] * 0.8], [c[0], c[1] + c[2] * 0.95 + 0.035, z1 + c[3] + c[2] * 0.8], c[2] * 0.78, c[2] * 0.78, 16, CAMO, 1);
       tb.box(-0.2, -0.45, z1 + 0.02, 0.45, 0.4, 0.04, CAMO, 1); // trappe du chargeur
       tb.box(fx - 0.35, 0.42, z1 + 0.03, 0.1, 0.1, 0.07, GLASS, 5); // viseur
       if (T.bin) { const bx = Math.min(...T.poly.map(p => p[0])); tb.box(bx - 0.22, 0, ht + 0.42, 0.45, 1.25, 0.45, CAMO, 1); }
@@ -404,9 +475,51 @@ const TankModels = (() => {
       }
       if (T.spare) for (const sy of [1, -1]) for (let k = 0; k < 4; k++) tb.box(-0.3 + k * 0.3, sy * 1.0, ht + 0.42, 0.27, 0.05, 0.2, '#3c3a36', 2);
       tb.cyl([-0.9, -0.55, z1], [-0.9, -0.55, z1 + 1.6], 0.008, 0.005, 4, DARK, 3); // antenne
+      // largeur de la tourelle à une abscisse donnée (pour poser les détails sur ses flancs)
+      const ySide = x => { let y = 0; for (let i = 0; i < T.poly.length; i++) { const a = T.poly[i], b = T.poly[(i + 1) % T.poly.length]; if ((a[0] - x) * (b[0] - x) <= 0 && a[0] !== b[0]) { const k = (x - a[0]) / (b[0] - a[0]); y = Math.max(y, Math.abs(a[1] + (b[1] - a[1]) * k)); } } return y; };
+      const bx0 = Math.min(...T.poly.map(p => p[0])), zm = ht + T.h * 0.5, kMid = (1 + T.ts) / 2;
+      // bouchons des meurtrières de pistolet sur les flancs et l'arrière
+      if (T.ports) for (const sy of [1, -1]) { const y = ySide(-0.3) * kMid; tb.cyl([-0.3, sy * (y - 0.02), zm], [-0.3, sy * (y + 0.05), zm], 0.07, 0.06, 10, CAMO, 1); }
+      // trappe d'évacuation ronde à l'arrière (Panthère, Tigre royal)
+      if (T.rearHatch) tb.cyl([bx0 * kMid + 0.02, 0, zm], [bx0 * kMid - 0.04, 0, zm], 0.27, 0.26, 18, CAMO, 1);
+      // portes latérales en deux battants (Panzer IV)
+      if (T.sideDoors) for (const sy of [1, -1]) { const y = ySide(0.05) * kMid; tb.box(0.05, sy * (y + 0.02), zm, 0.5, 0.03, T.h * 0.75, CAMO, 1); tb.box(0.05, sy * (y + 0.04), zm, 0.02, 0.02, T.h * 0.7, DARK, 3); }
+      // « Pilze » : douilles de la grue de levage sur le toit
+      if (T.pilze) for (const [x, y] of [[0.4, 0.5], [0.4, -0.5], [-0.8, -0.1]]) tb.cyl([x, y, z1], [x, y, z1 + 0.07], 0.05, 0.04, 8, DARK, 3);
+      // ventilateur de tourelle
+      tb.cyl([0.1, -0.15, z1], [0.1, -0.15, z1 + 0.06], 0.1, 0.08, 10, CAMO, 1);
+      // jupes de tourelle du Panzer IV : plaques espacées tout autour, ouvertes à l'avant
+      if (T.tskirt) {
+        const off = 0.14, z0 = ht + 0.1, zt = z1 + 0.02, n = T.poly.length;
+        for (let i = 0; i < n; i++) {
+          const a = T.poly[i], b = T.poly[(i + 1) % n];
+          if (a[0] > 0.6 && b[0] > 0.6) continue;
+          const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+          if (mx > 0.6 || l < 0.05) continue;
+          const nx = (b[1] - a[1]) / l, ny = -(b[0] - a[0]) / l, sg = nx * mx + ny * my > 0 ? 1 : -1;
+          const cx = mx * kMid + nx * sg * off, cy = my * kMid + ny * sg * off;
+          const ang = Math.atan2(b[1] - a[1], b[0] - a[0]);
+          const ux = Math.cos(ang), uy = Math.sin(ang), hl = l * kMid / 2 + 0.06, hw = 0.012;
+          const P = (s, t, z) => [cx + ux * s - uy * t, cy + uy * s + ux * t, z];
+          tb.hexa([P(-hl, -hw, z0), P(hl, -hw, z0), P(hl, hw, z0), P(-hl, hw, z0)], [P(-hl, -hw, zt), P(hl, -hw, zt), P(hl, hw, zt), P(-hl, hw, zt)], CAMO, 1);
+        }
+      }
     } else {
       // Masque en « tête de cochon » du chasseur
-      tb.cyl([-0.15, 0, g.z], [g.fx + 0.05, 0, g.z], 0.34, 0.16, 18, CAMO, 1);
+      tb.cyl([-0.15, 0, g.z], [g.fx + 0.05, 0, g.z], 0.34, 0.16, 18, CAMO, ZM);
+      const hc = S.hullCupola;
+      if (hc) {
+        hb.cyl([hc[0], hc[1], ht - 0.02], [hc[0], hc[1], ht + hc[3]], hc[2], hc[2] * 0.95, 16, CAMO, 1);
+        for (let k = 0; k < hc[4]; k++) { const a = k / hc[4] * Math.PI * 2; hb.box(hc[0] + Math.cos(a) * hc[2], hc[1] + Math.sin(a) * hc[2], ht + hc[3] * 0.6, 0.06, 0.06, 0.05, GLASS, 5); }
+        // périscope en ciseaux du chef, déployé
+        hb.cyl([hc[0], hc[1] + 0.05, ht + hc[3]], [hc[0], hc[1] + 0.05, ht + hc[3] + 0.35], 0.025, 0.025, 6, DARK, 3);
+      }
+      if (S.mgShield) {
+        // bouclier rabattable du chargeur et sa MG 34
+        hb.box(0.55, -0.6, ht + 0.25, 0.03, 0.62, 0.42, CAMO, 1);
+        hb.box(0.4, -0.6, ht + 0.06, 0.3, 0.62, 0.03, CAMO, 1);
+        hb.cyl([0.45, -0.6, ht + 0.36], [1.15, -0.6, ht + 0.36], 0.015, 0.015, 6, DARK, 3);
+      }
       // périscopes et trappes de casemate
       hb.box(0.4, 0.55, ht + 0.06, 0.12, 0.2, 0.12, GLASS, 5);
       hb.box(0.0, -0.5, ht + 0.06, 0.12, 0.2, 0.12, GLASS, 5);

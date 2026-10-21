@@ -104,6 +104,33 @@ Chaque coup laisse une trace qui reste sur le char et affaiblit la plaque autour
 - Les traces sont collées à la vraie surface du modèle, trouvée par un rayon contre ses triangles
   (Möller-Trumbore). Elles restent sur les épaves.
 
+## Modèles 3D
+
+Chaque char est construit d'après ses plans, avec ce qui le distingue :
+
+- **Lynx (Pz. II L)** : cinq grandes roues entrelacées sans galets supérieurs, tourelle à épiscopes,
+  lance-pots fumigènes.
+- **Panzer IV H** : huit petites roues sur quatre bogies à ressorts à lames, quatre galets supérieurs,
+  jupes de 5 mm sur rails bien écartées des chenilles, jupes de tourelle ouvertes à l'avant, portes
+  latérales de tourelle, coffre arrière, silencieux transversal, maillons de rechange sur le nez.
+- **Panthère** : roues entrelacées, glacis et flancs inclinés, rotule de mitrailleuse de caisse,
+  coupole à sept épiscopes, trappe d'évacuation ronde à l'arrière de la tourelle, bouchons de
+  meurtrières, douilles de grue (« Pilze »), deux ventilateurs ronds sur le moteur, pare-flammes,
+  coffres de paquetage.
+- **Tigre** : caisse en caisson à flancs verticaux, roues entrelacées, tourelle en fer à cheval avec son
+  coffre, lance-pots fumigènes, maillons de rechange, lance-mines S aux coins du toit, grilles
+  d'admission d'air, hauts échappements.
+- **Tigre royal** : glacis à 50°, masque coulé en cloche (« Saukopf »), roues chevauchantes, longue
+  tourelle à flancs inclinés, trappe arrière, ventilateurs.
+- **StuG III G** : casemate basse, coupole du chef avec périscope en ciseaux, bouclier rabattable de la
+  MG 34 du chargeur, jupes sur rails, silencieux.
+- **Jagd (Jagdpanther)** : superstructure fondue dans la caisse, masque en cloche, ventilateurs.
+
+Pour tous : relief du Zimmerit (pâte antimagnétique striée de 1943-1944, en relief dans le shader et
+atténué au loin contre le moiré), boulons des roues, phare Bosch, feu Notek, crochets de remorquage,
+pelle, hache, extincteur, cric, embrasures de la mitrailleuse coaxiale et du viseur, trappe ouverte de
+la coupole.
+
 ## Chars et munitions
 
 Sept chars : Lynx (Pz. II L), Panzer IV H, Panthère, Tigre, Tigre royal, StuG III G et Jagd

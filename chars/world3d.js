@@ -8,8 +8,9 @@ const World3D = (() => {
   const VS = `
 attribute vec3 aPos; attribute vec3 aNor; attribute vec3 aCol; attribute float aMat;
 uniform mat4 uVP; uniform mat4 uModel; uniform mat4 uLVP; uniform float uTime;
-varying vec3 vW; varying vec3 vN; varying vec3 vC; varying vec3 vO; varying float vM; varying vec4 vL;
+varying vec3 vW; varying vec3 vN; varying vec3 vC; varying vec3 vO; varying float vM; varying vec3 vNO; varying vec4 vL;
 void main(){
+  vNO = aNor;
   vec4 w = uModel * vec4(aPos, 1.0);
   if (aMat > 7.5 && aMat < 8.5) {
     float h = max(0.0, w.z - 0.8);
@@ -30,7 +31,7 @@ void main(){
 }`;
   const FS = `
 precision highp float;
-varying vec3 vW; varying vec3 vN; varying vec3 vC; varying vec3 vO; varying float vM; varying vec4 vL;
+varying vec3 vW; varying vec3 vN; varying vec3 vC; varying vec3 vO; varying float vM; varying vec3 vNO; varying vec4 vL;
 uniform vec3 uEye; uniform vec3 uSun; uniform vec3 uSunCol; uniform vec3 uSkyCol; uniform vec3 uBounce;
 uniform vec3 uFogCol; uniform float uFogD; uniform vec3 uZenith; uniform vec3 uHorizon;
 uniform vec3 uCamo0; uniform vec3 uCamo1; uniform vec3 uCamo2;
@@ -81,6 +82,21 @@ void main(){
     base = uCamo0;
     base = mix(base, uCamo1, smoothstep(0.50, 0.535, a));
     base = mix(base, uCamo2, smoothstep(0.53, 0.565, b));
+    // Zimmerit : pâte striée de cannelures verticales (pas d'environ 3 cm) posée en bandes de 11 cm,
+    // seulement sur les faces verticales ou inclinées
+    if (vM > 1.1) {
+      vec3 no = normalize(vNO);
+      if (abs(no.z) < 0.75) {
+        float u = abs(no.x) > abs(no.y) ? vO.y : vO.x;
+        float row = floor(vO.z * 9.0), fz = fract(vO.z * 9.0);
+        float r = sin((u + row * 0.013 + h3(vec3(row, 1.0, 2.0)) * 0.02) * 140.0);
+        // atténué avec la distance pour éviter le moiré quand les cannelures deviennent plus fines qu'un pixel
+        float band = smoothstep(0.0, 0.1, fz) * smoothstep(1.0, 0.9, fz) * clamp(1.25 - length(uEye - vW) / 14.0, 0.0, 1.0);
+        vec3 tg = normalize(cross(N, vec3(0.0, 0.0, 1.0)) + vec3(1e-4));
+        N = normalize(N + tg * r * 0.3 * band + vec3(0.0, 0.0, 1.0) * band * 0.06);
+        base *= 0.96 + 0.07 * r * band;
+      }
+    }
     paint = 1.0;
   } else if (vM < 2.5) {
     float s = fract((vO.x + uTread + vO.z * 0.6) * 6.5);
