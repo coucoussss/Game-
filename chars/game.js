@@ -185,7 +185,7 @@
 
   let state = 'menu'; // menu, intro, play, ending, result, pause
   let levelIdx = 0, waveIdx = 0, chosenType = 'medium';
-  let bullets = [];
+  let bullets = [], mgCamT = -99;
   let tanks = [], shells = [], parts = [], texts = [], feed = [], smokes = [], logs = [];
   let obstacles = [], bushes = [];
   let player = null, specIdx = 0;
@@ -551,7 +551,9 @@
       dead: false, deadT: 0, isPlayer, name, r: (T.len + T.wid) / 4,
       mods, roles, swap: null, rep: {}, ammo: Object.assign({}, T.ammo), shell: 'APHE',
       reloadT: rnd(0.8, 1.6), disp: T.disp * 3, smoke: 2, trackT: 0, fireT: 0, fireBy: null,
-      mg: { ammo: 2700, heat: 0, jam: 0, cd: 0, n: 0, burst: 0, wait: rnd(1, 4) },
+      mg: { ammo: 2700, ammoH: 150, type: 'SmK', heat: 0, jam: 0, cd: 0, n: 0, burst: 0, wait: rnd(1, 4) },
+      // chef de char sorti de la coupole (meilleure vue, mais exposé aux balles), optiques endommagées
+      hatch: !isPlayer, underFire: 0, calm: 20, optic: { driver: 0, gunner: 0, cmd: 0 },
       revealT: 0, recoil: 0, flash: 0, trackAcc: 0, treadPhase: 0, hitFlash: 0, turretGone: false,
       in: { throttle: 0, turn: 0, aim: angle, fire: false },
       ai: (isPlayer && !AUTO) ? null : makeAI(skill),
@@ -685,7 +687,7 @@
           if (a.dead || a.team !== team) continue;
           const d = dist(a, e);
           if (d < 90 || waveTime > 120) { set.add(e); break; } // après 2 min, l'artillerie trahit les positions
-          let range = a.T.view * (night ? 0.6 : 1) * (roleOk(a, 'commander') ? 1 : 0.75);
+          let range = a.T.view * (night ? 0.6 : 1) * (roleOk(a, 'commander') ? (a.hatch ? 1.15 : 1) : 0.75) * (a.optic.cmd > 0 && !a.hatch ? 0.8 : 1);
           if (bush) range = Math.min(range, 210);
           if (e.revealT > 0) range *= 1.3;
           if (d < range && losClear(a.x, a.y, e.x, e.y, true)) { set.add(e); break; }
@@ -983,7 +985,13 @@
     const canDrive = roleOk(t, 'driver') && modOk(t, 'engine') && modOk(t, 'trans') && t.trackT <= 0;
     if (!canDrive) { thr = 0; turn = 0; }
     const eng = modOf(t, 'engine'), engK = eng.hp < eng.max0 * 0.5 ? 0.6 : 1;
-    const target = thr >= 0 ? thr * T.speed * engK : thr * T.rev * engK;
+    const target = (thr >= 0 ? thr * T.speed * engK : thr * T.rev * engK) * (t.optic.driver > 0 ? 0.7 : 1);
+    // optiques : l'équipage remplace la visière ou l'épiscope brisé ; le chef rentre sous le feu
+    for (const k in t.optic) if (t.optic[k] > 0 && (t.optic[k] -= dt) <= 0 && t === player) addLog(`${OPTIC_NAMES[k]} remplacé${OPTIC_AGR[k]}`, '#a6f08a');
+    t.underFire -= dt;
+    if (t.underFire > 0) { t.calm = 0; if (t.ai) t.hatch = false; }
+    else if ((t.calm += dt) > 12 && t.ai && roleOk(t, 'commander')) t.hatch = true;
+    if (!roleOk(t, 'commander')) t.hatch = false;
     const braking = target === 0 || (t.speed !== 0 && Math.sign(target) !== Math.sign(t.speed));
     const maxd = T.accel * (braking ? 2.2 : 1) * dt;
     t.speed += clamp(target - t.speed, -maxd, maxd);
@@ -1023,7 +1031,7 @@
     t.turretRate = rot / dt;
 
     // Dispersion : elle augmente en mouvement et se resserre à l'arrêt
-    const goal = T.disp * (1 + 2.6 * Math.abs(t.speed) / T.speed + 1.6 * Math.abs(tr) / T.turn + 1.1 * Math.abs(t.turretRate) / T.tturn);
+    const goal = T.disp * (t.optic.gunner > 0 ? 2.5 : 1) * (1 + 2.6 * Math.abs(t.speed) / T.speed + 1.6 * Math.abs(tr) / T.turn + 1.1 * Math.abs(t.turretRate) / T.tturn);
     t.disp += (goal - t.disp) * Math.min(1, dt * (goal > t.disp ? 6 : 1.3));
 
     if (t.reloadT > 0) { t.reloadT -= dt / reloadMul(t); if (t.reloadT <= 0 && t === player) Sfx.reload(); }
@@ -1083,6 +1091,26 @@
   }
 
   // ===================== Mitrailleuses =====================
+  const OPTIC_NAMES = { driver: 'Visière du pilote', gunner: 'Viseur du tireur', cmd: 'Épiscopes de la coupole' };
+  const OPTIC_AGR = { driver: 'e', gunner: '', cmd: 's' }; // accords : brisée, brisé, brisés
+  // Balles perforantes de 7,92 mm : S.m.K. (noyau d'acier) et S.m.K.H. (noyau de carbure de tungstène,
+  // rare). Perforation à incidence nulle, décroissante avec la distance.
+  const MG_AMMO = {
+    SmK: { name: 'S.m.K.', full: "S.m.K. · noyau d'acier", m: 11.5, v0: 785, p100: 11 },
+    SmKH: { name: 'S.m.K.H.', full: 'S.m.K.H. · noyau de carbure de tungstène', m: 11.5, v0: 810, p100: 15 },
+  };
+  const mgPen = (type, xm) => MG_AMMO[type].p100 * Math.exp(-(xm - 100) / 600);
+  const mgVel = (type, xm) => MG_AMMO[type].v0 * Math.exp(-xm / 900);
+  // Point où se tient le chef de char à découvert : coupole (char à tourelle) ou trappe du toit
+  function hatchPos(t) {
+    const T = t.T, S = T.S;
+    if (S.turret) {
+      const c = S.turret.cupola, pv = pivot(t), ta = t.angle + t.turret, ox = c[0] * PX, oy = -c[1] * PX;
+      return { x: pv.x + Math.cos(ta) * ox - Math.sin(ta) * oy, y: pv.y + Math.sin(ta) * ox + Math.cos(ta) * oy, z0: T.I.totalH - 0.05, m: [c[0], c[1]] };
+    }
+    const m = t.mods[t.roles.commander], ox = m.c[0] * PX, oy = -m.c[1] * PX, a = t.angle;
+    return { x: t.x + Math.cos(a) * ox - Math.sin(a) * oy, y: t.y + Math.sin(a) * ox + Math.cos(a) * oy, z0: S.ht, m: [m.c[0], m.c[1]] };
+  }
   // Mitrailleuse coaxiale (type MG 34) : 7,92 mm, 755 m/s, environ 900 coups/min, une balle traçante
   // sur cinq. Le canon chauffe en tir continu : au-delà de 250 coups d'affilée, il faut le changer.
   // Sans effet sur un blindage de char (8 mm perforés à 100 m), mais la gerbe se voit et s'entend.
@@ -1108,7 +1136,9 @@
     const a = ta + gauss() * (0.0035 + t.disp * 0.35), sp = MG_V * 0.92, z0 = T.S.gun.z - 0.05;
     const ap = aimPoint(t, mx, my), X = Math.max(5, ap.D * RK), vm = MG_V * Math.exp(-X * 0.5 / 900);
     const slope = (ap.z - z0) / X + 0.5 * G * X / (vm * vm) + gauss() * (0.0035 + t.disp * 0.35) / (PX * RK);
-    bullets.push({ x: mx, y: my, z: z0, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, sp, slope, dist: 0, tracer: g.n % 5 === 0, by: t, team: t.team });
+    let type = 'SmK';
+    if (g.type === 'SmKH' && g.ammoH > 0) { type = 'SmKH'; g.ammoH--; if (g.ammoH === 0 && t === player) { g.type = 'SmK'; addLog('Plus de S.m.K.H. : retour aux S.m.K.', '#e9d9a6'); } }
+    bullets.push({ x: mx, y: my, z: z0, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, sp, slope, dist: 0, tracer: g.n % 5 === 0, by: t, team: t.team, type });
     t.revealT = Math.max(t.revealT, 1.5);
     if (Math.random() < 0.5) parts.push({ k: 'flash', x: mx, y: my, life: 0.03, max: 0.03, size: 6, z: z0 });
     Sfx.mg(listenerDist(mx, my));
@@ -1127,7 +1157,17 @@
       for (const t of tanks) {
         if (t === b.by || t.x > maxx || t.x < minx || t.y > maxy || t.y < miny) continue;
         const c = tankCand(t, b.x, b.y, dx, dy, (b.z + zNext) / 2);
-        if (c && (!best || c.t < best.t)) best = { t: c.t, tank: t, z: c.z };
+        if (c && (!best || c.t < best.t)) best = { t: c.t, tank: t, z: c.z, h: c };
+        if (t.dead) continue;
+        // balles qui claquent autour : l'équipage se sent pris à partie
+        const rx = t.x - b.x, ry = t.y - b.y, l2 = dx * dx + dy * dy || 1, kk = clamp((rx * dx + ry * dy) / l2, 0, 1);
+        if (Math.hypot(b.x + dx * kk - t.x, b.y + dy * kk - t.y) < t.r + 3 * PX && b.by.team !== t.team) t.underFire = 6;
+        // chef de char debout dans sa coupole : la tête et le buste dépassent du blindage
+        if (t.hatch && roleOk(t, 'commander')) {
+          const hp = hatchPos(t), qx = hp.x - b.x, qy = hp.y - b.y, k2 = clamp((qx * dx + qy * dy) / l2, 0, 1);
+          const zz = b.z + (zNext - b.z) * k2;
+          if (Math.hypot(b.x + dx * k2 - hp.x, b.y + dy * k2 - hp.y) < 0.26 * PX && zz > hp.z0 && zz < hp.z0 + 0.6 && (!best || k2 < best.t)) best = { t: k2, tank: t, z: zz, exposed: hp };
+        }
       }
       if (zNext <= 0) { const tg = b.z / Math.max(1e-6, b.z - zNext); if (!best || tg < best.t) best = { t: tg, ground: true }; }
       if (!best) {
@@ -1139,8 +1179,7 @@
       }
       const hx = b.x + dx * best.t, hy = b.y + dy * best.t, hz = Math.max(0, b.z + (zNext - b.z) * best.t), ux = b.vx / b.sp, uy = b.vy / b.sp;
       if (best.tank) {
-        Fx.armorHit(hx, hy, best.z, 'mg', ux, uy);
-        if (Math.random() < 0.25) Sfx.ping(listenerDist(hx, hy));
+        if (mgHitTank(b, best.tank, best, hx, hy) === 'continue') continue;
       } else if (best.ground) Fx.bulletGround(hx, hy, ux, uy);
       else Fx.chips(hx, hy, hz, best.o.type === 'tree');
       // une traçante qui frappe l'acier ou le sol en rasant repart en chandelle, souvent vers le ciel
@@ -1150,6 +1189,105 @@
       }
       bullets.splice(i, 1);
     }
+  }
+
+  // Balle qui touche un char. Elle ne perce un blindage que s'il est mince (plaque arrière d'un char
+  // léger, à courte portée et avec un noyau de tungstène) ; ailleurs elle cherche les points faibles :
+  // chef à découvert, visière du pilote, viseur du tireur, épiscopes de la coupole.
+  function mgHitTank(b, t, best, hx, hy) {
+    const by = b.by, ux = b.vx / b.sp, uy = b.vy / b.sp, xm = b.dist * RK, Am = MG_AMMO[b.type];
+    const V = mgVel(b.type, xm), pen = mgPen(b.type, xm), show = visibleToPlayer(t) || by === player;
+    if (!t.dead && by.team !== t.team) t.underFire = 6;
+    if (t.dead) { Fx.armorHit(hx, hy, best.z, 'mg', ux, uy); return 'stop'; }
+    const c = Math.cos(t.angle), sn = Math.sin(t.angle), ll = 1;
+    const ldx = ux * c + uy * sn, ldy = -ux * sn + uy * c;
+    const d = norm3([ldx / ll, -ldy / ll, b.slope * PX * RK]);
+    const lx = (hx - t.x) * c + (hy - t.y) * sn, ly = -(hx - t.x) * sn + (hy - t.y) * c;
+    const E = [lx / PX, -ly / PX, best.z], S = t.T.S, tAng = -t.turret;
+    let kind = null, lines = [], mod = null, outcome = 'nopen', eff = 0, mm = 0, plate = '';
+    if (best.exposed) {
+      // le chef de char est touché à la tête ou au buste
+      const m = t.mods[t.roles.commander], dmg = rnd(60, 130);
+      modDamage(t, m, dmg, by); t.hatch = false; mod = m.i; kind = 'cmd'; outcome = 'pen';
+      lines.push({ t: m.hp <= 0 ? 'Chef de char tué à découvert' : 'Chef de char blessé : il rentre dans la tourelle', c: '#ff8a6a' });
+      if (show) floatText(hx, hy - 10, m.hp <= 0 ? 'Chef de char tué' : 'Chef de char blessé', '#ffb070');
+      if (t === player) addLog(m.hp <= 0 ? 'Votre chef de char a été tué à découvert' : 'Votre chef de char est blessé', '#ff6a5a');
+      Fx.armorHit(hx, hy, best.z, 'mg', ux, uy);
+      checkKnock(t, by);
+    } else {
+      const h = best.h, pp = platePick(t, h, d, 'MG');
+      const cosI = Math.max(0.03, -dot3(pp.dd, pp.n)), angle = Math.acos(Math.min(1, cosI)) / D2R;
+      mm = pp.mm; plate = pp.plate; eff = pp.mm / cosI + pp.extra;
+      // points faibles, dans le repère du modèle
+      const tq = h.part === 'turret' ? rotZ([E[0] - t.T.I.pivotX, E[1] - t.T.I.pivotY, E[2]], -tAng) : null;
+      const drv = t.mods[t.roles.driver];
+      if (h.part === 'hull' && pp.face === 'front' && !pp.low && Math.abs(E[1] - drv.c[1]) < 0.16 && E[2] > S.ht - 0.4 && t.optic.driver <= 0) kind = 'driver';
+      else if (tq && pp.face === 'front' && Math.abs(tq[1] - 0.3) < 0.1 && Math.abs(tq[2] - S.gun.z - 0.1) < 0.12 && t.optic.gunner <= 0) kind = 'gunner';
+      else if (tq && S.turret && Math.hypot(tq[0] - S.turret.cupola[0], tq[1] - S.turret.cupola[1]) < S.turret.cupola[2] + 0.06 && tq[2] > t.T.I.totalH - S.turret.cupola[3] && t.optic.cmd <= 0 && Math.random() < 0.5) kind = 'cmdo';
+      if (kind && kind !== 'cmd') {
+        const key = kind === 'cmdo' ? 'cmd' : kind;
+        t.optic[key] = 15;
+        lines.push({ t: `${OPTIC_NAMES[key]} brisé${OPTIC_AGR[key]} : ${key === 'driver' ? 'le pilote conduit à l\'aveugle (−30 % de vitesse)' : key === 'gunner' ? 'visée de secours, dispersion × 2,5' : 'vue réduite tourelle fermée'}`, c: '#ffcf7a' });
+        if (show) floatText(hx, hy - 10, `${OPTIC_NAMES[key]} brisé${OPTIC_AGR[key]}`, '#ffcf7a');
+        if (t === player) addLog(`${OPTIC_NAMES[key]} brisé${OPTIC_AGR[key]} par une balle : remplacement 15 s`, '#ffb070');
+        Fx.armorHit(hx, hy, best.z, 'mg', ux, uy);
+        // éclats de verre
+        for (let i = 0; i < 6; i++) P3({ x: hx, y: hy, z: best.z, vx: -ux * rnd(1, 4) + rnd(-2, 2), vy: -uy * rnd(1, 4) + rnd(-2, 2), vz: rnd(0.5, 3), g: G, glow: true, size: 0.025, life: rnd(0.3, 0.7), c: [0.75, 0.9, 1, 1.4] });
+      } else if (angle < 70 && pen > eff) {
+        // la balle traverse la tôle : premier module rencontré sur sa trajectoire dans le char
+        outcome = 'pen'; kind = 'pen';
+        let tb = 1e9;
+        for (const m of t.mods) {
+          if (m.hp <= 0) continue;
+          const o = m.frame === 'turret' ? rotZ([E[0] - t.T.I.pivotX, E[1] - t.T.I.pivotY, E[2]], -tAng) : E, dl = m.frame === 'turret' ? rotZ(d, -tAng) : d;
+          const tt = slab(o, dl, m.min, m.max);
+          if (tt >= 0 && tt < 3 && tt < tb) { tb = tt; mod = m.i; }
+        }
+        lines.push({ t: `PERFORÉ : ${Math.round(pen)} mm contre ${Math.round(eff)} mm`, c: '#a6f08a' });
+        if (mod != null) {
+          const m = t.mods[mod];
+          modDamage(t, m, m.kind === 'crew' ? rnd(35, 80) : rnd(4, 10), by);
+          lines.push({ t: `${m.name} touché${m.kind === 'crew' ? (m.hp <= 0 ? ' : tué' : ' : blessé') : ''}`, c: '#ff8a6a' });
+          checkKnock(t, by);
+        } else lines.push({ t: 'La balle traverse sans rien toucher', c: '#c8c8c8' });
+        if (show) floatText(hx, hy - 10, 'Balle perforante !', '#ffe27a');
+        if (t === player) addLog(`Balle perforante : ${plate.toLowerCase()} (${mm} mm)`, '#ff8a6a');
+        Fx.armorHit(hx, hy, best.z, 'mg', ux, uy);
+      } else {
+        Fx.armorHit(hx, hy, best.z, 'mg', ux, uy);
+        if (Math.random() < 0.25) Sfx.ping(listenerDist(hx, hy));
+        return 'stop';
+      }
+    }
+    Sfx.ping(listenerDist(hx, hy));
+    // caméra d'impact aux rayons X pour les balles du joueur qui font quelque chose
+    if (by === player && hitcamOn && R3 && !HitCam.active() && gameTime - (mgCamT || -99) > 5) {
+      mgCamT = gameTime;
+      const f = (v, k = 0) => v.toFixed(k).replace('.', ',');
+      const ev = {
+        typeId: t.T.id, turretAng: tAng, dir: d, entry: E, n: [-d[0], -d[1], -d[2]], cosI: 1, V, cal: 7.92,
+        shellKey: 'MG', shellLen: 4.2, spin: V / (0.24 * 1), target: `${t.T.name} ${t.team === 0 ? '(allié)' : '(ennemi)'} · ${Math.round(xm)} m`,
+        friendly: t.team === by.team, mods: t.mods.map(m => ({ kind: m.kind, frame: m.frame, c: m.c, s: m.s })),
+        before: t.mods.map(m => m.hp / m.max0), after: t.mods.map(m => Math.max(0, m.hp) / m.max0), touch: [], sim: null, sparks: [], chunks: [],
+        results: lines.map(l => ({ t: l.t, c: l.c, time: 0 })), data: [], detT: null, ricDir: null, outcome, metal: null,
+      };
+      for (let k = 0; k < 10; k++) ev.sparks.push({ d: norm3([-d[0] + gauss() * 0.7, -d[1] + gauss() * 0.7, -d[2] + gauss() * 0.7 + 0.2]), v: rnd(100, 400), life: rnd(0.8e-3, 2e-3) });
+      // aux rayons X, le chef à découvert est montré debout dans sa coupole
+      if (best.exposed) { const em = ev.mods[mod]; em.c = [best.exposed.m[0], best.exposed.m[1], best.exposed.z0 - 0.12]; }
+      if (mod != null) {
+        const m = ev.mods[mod], mc = m.frame === 'turret' ? (() => { const q = rotZ(m.c, tAng); return [q[0] + t.T.I.pivotX, q[1] + t.T.I.pivotY, q[2]]; })() : m.c;
+        const tHit = 0.25e-3 + Math.hypot(mc[0] - E[0], mc[1] - E[1], mc[2] - E[2]) / V;
+        ev.touch[mod] = tHit;
+        ev.sim = { tEnd: tHit + 1.2e-3, core: [{ t: 0, p: E, v: V }, { t: tHit, p: mc, v: V * 0.6 }], coreStop: true, frags: [], exit: null, blast: null, jet: null, fuel: null };
+      } else if (outcome === 'nopen') for (let k = 0; k < 7; k++) ev.chunks.push({ d: norm3([-d[0] * 0.3 + gauss() * 0.6, -d[1] * 0.3 + gauss() * 0.6, gauss() * 0.4 + 0.3]), v: rnd(60, 250), r: 0.004 });
+      ev.data.push({ t: `Balle 7,92 mm ${Am.full} · ${f(Am.m, 1)} g · bouche ${Am.v0} m/s`, c: '#e9d9a6' });
+      ev.data.push({ t: `Vitesse d'impact ${Math.round(V)} m/s · énergie ${f(0.5 * Am.m / 1000 * V * V / 1000, 2)} kJ · perforation ${f(pen, 1)} mm à ${Math.round(xm)} m`, c: '#d8d4c6' });
+      if (best.exposed) ev.data.push({ t: 'Point visé : chef de char debout dans la coupole, tête et buste hors du blindage', c: '#d8d4c6' });
+      else if (kind === 'pen') ev.data.push({ t: `${plate} : ${mm} mm · ${Math.round(eff)} mm effectifs`, c: '#d8d4c6' });
+      else ev.data.push({ t: `${plate} : ${mm} mm, mais la balle frappe un point faible (optique)`, c: '#d8d4c6' });
+      startHitCam(ev);
+    }
+    return 'stop';
   }
 
   function deploySmoke(t) {
@@ -1360,6 +1498,7 @@
     const show = visibleToPlayer(t) || by === player;
     if (t.ai && by && by.team !== t.team && !t.ai.target) t.ai.lastKnown = { x: by.x, y: by.y };
     if (by === player) waveStats.hits++;
+    if (by.team !== t.team) t.underFire = 8;
 
     // Géométrie 3D de l'impact (repère du modèle : y vers la gauche)
     const ll = Math.hypot(h.ldx, h.ldy) || 1;
@@ -2004,6 +2143,7 @@
     { az: 210, el: 34, sunCol: [0.28, 0.33, 0.5], skyCol: [0.03, 0.045, 0.08], bounce: [0.04, 0.05, 0.07], horizon: [0.02, 0.03, 0.06], zenith: [0.004, 0.006, 0.016], fogD: 0.011, snow: 1 },
   ];
 
+  let CMDR3 = null;
   let W3D = null, MESH3 = {}, bush3 = null, scene3 = null, scene3Dirty = false, scene3T = 0;
   // modes de caméra (touche C) : hauteur, recul et part du regard portée vers la visée
   const CAM_MODES = [
@@ -2018,6 +2158,18 @@
     if (c3 && typeof World3D !== 'undefined' && !Q.has('2d')) {
       W3D = World3D.create(c3);
       if (W3D) for (const id of Object.keys(TYPES)) { const b = TankModels.build(id); MESH3[id] = { hull: W3D.upload(b.hull), turret: W3D.upload(b.turret) }; }
+      if (W3D) {
+        // chef de char debout dans sa coupole : buste en vareuse, bras, tête, calot et écouteurs
+        const g = new G3.Builder();
+        g.cyl([0, 0, 0], [0, 0, 0.42], 0.17, 0.19, 10, '#3d4236', 7);
+        g.box(0.02, 0.2, 0.36, 0.1, 0.09, 0.3, '#3d4236', 7); g.box(0.02, -0.2, 0.36, 0.1, 0.09, 0.3, '#3d4236', 7);
+        g.box(0.12, 0.18, 0.5, 0.18, 0.08, 0.08, '#3d4236', 7); g.box(0.12, -0.18, 0.5, 0.18, 0.08, 0.08, '#3d4236', 7);
+        g.cyl([0, 0, 0.42], [0, 0, 0.47], 0.06, 0.06, 8, '#b48a6a', 7);
+        g.sphere([0.01, 0, 0.56], 0.095, 0.085, 0.11, 10, '#c49a78', 7);
+        g.cyl([-0.01, 0, 0.62], [-0.01, 0, 0.68], 0.1, 0.095, 10, '#1e1f1c', 7);
+        g.box(0, 0.09, 0.57, 0.05, 0.03, 0.06, '#1a1a1a', 7); g.box(0, -0.09, 0.57, 0.05, 0.03, 0.06, '#1a1a1a', 7);
+        CMDR3 = W3D.upload(g);
+      }
     }
   } catch (e) { console.warn('Rendu 3D indisponible, passage en 2D', e); W3D = null; }
   if (!W3D) { const c3 = document.getElementById('game3d'); if (c3) c3.style.display = 'none'; }
@@ -2094,6 +2246,12 @@
         if (t2 >= 0 && (tt < 0 || t2 < tt)) tt = t2;
       }
       if (tt >= 0 && tt < best) { best = tt; hit = t; }
+      // chef de char debout dans sa coupole : on peut le viser
+      if (t.hatch && !t.dead && roleOk(t, 'commander')) {
+        const hp = hatchPos(t), r = 0.22 * PX;
+        const t3 = slab(O, D, [hp.x - r, hp.y - r, hp.z0], [hp.x + r, hp.y + r, hp.z0 + 0.62]);
+        if (t3 >= 0 && t3 < best) { best = t3; hit = t; }
+      }
     }
     return { x: O[0] + D[0] * best, y: O[1] + D[1] * best, z: Math.max(0, O[2] + D[2] * best), tank: hit };
   }
@@ -2242,6 +2400,11 @@
       const o = { camo: TEAM[t.team].camo, seed: t.team * 3.7 + t.id * 0.37, burnt: t.dead ? 1 : 0, tread: -t.treadPhase / PX, tint: t.hitFlash > 0 ? [1, 0.9, 0.7, t.hitFlash * 2.5] : null };
       const MS = MESH3[t.T.id];
       items.push({ mesh: MS.hull, model: hm, o });
+      if (t.hatch && !t.dead && CMDR3 && roleOk(t, 'commander')) {
+        const hp = hatchPos(t), I = t.T.I;
+        const base = t.T.S.turret ? M4.mul(hm, M4.mul(M4.trs(I.pivotX, I.pivotY, 0, -t.turret), M4.trs(hp.m[0], hp.m[1], hp.z0 - 0.05, 0))) : M4.mul(hm, M4.trs(hp.m[0], hp.m[1], hp.z0 - 0.05, 0));
+        items.push({ mesh: CMDR3, model: base, o: {} });
+      }
       if (!t.turretGone) {
         const I = t.T.I;
         const tmm = M4.mul(hm, M4.mul(M4.trs(I.pivotX, I.pivotY, 0, -t.turret), M4.trs(-t.recoil * 0.3, 0, 0, 0)));
@@ -3025,8 +3188,10 @@
     ctx.fillText(`${T.name} · ${T.cls}`, bx + 10, by + 17);
     const g = player.mg;
     ctx.font = '600 11px system-ui, sans-serif'; ctx.fillStyle = g.jam > 0 ? '#ff9a5c' : '#c9c4b2';
-    ctx.fillText(g.jam > 0 ? `MG : changement du canon ${Math.ceil(g.jam)} s` : `MG (F) : ${g.ammo}`, bx + 200, by + 17);
-    if (!(g.jam > 0)) { ctx.fillStyle = '#2c3024'; ctx.fillRect(bx + 300, by + 9, 60, 6); ctx.fillStyle = g.heat > 180 ? '#ff6a3a' : '#c98a3a'; ctx.fillRect(bx + 300, by + 9, 60 * Math.min(1, g.heat / 250), 6); }
+    ctx.fillText(g.jam > 0 ? `MG : changement du canon ${Math.ceil(g.jam)} s` : `MG (F/G) ${MG_AMMO[g.type].name} : ${g.type === 'SmKH' ? g.ammoH : g.ammo}`, bx + 175, by + 17);
+    ctx.fillStyle = player.hatch ? '#ffcf7a' : '#8f8a77';
+    ctx.fillText(player.hatch ? 'Chef sorti (U)' : 'Fermé (U)', bx + 395, by + 17);
+    if (!(g.jam > 0)) { ctx.fillStyle = '#2c3024'; ctx.fillRect(bx + 335, by + 9, 50, 6); ctx.fillStyle = g.heat > 180 ? '#ff6a3a' : '#c98a3a'; ctx.fillRect(bx + 335, by + 9, 50 * Math.min(1, g.heat / 250), 6); }
     // équipage
     let x = bx + 10;
     for (const role of T.S.crew) {
@@ -3411,6 +3576,15 @@
       }
     }
     if (e.code === 'KeyE' && state === 'play') deploySmoke(player);
+    if (e.code === 'KeyG') {
+      const g = player.mg;
+      if (g.type === 'SmK' && g.ammoH <= 0) showMsg('Plus de bandes S.m.K.H.', '#ff9a7a', 1.2);
+      else { g.type = g.type === 'SmK' ? 'SmKH' : 'SmK'; showMsg(`Mitrailleuse : ${MG_AMMO[g.type].full}`, '#e9d9a6', 1.4); }
+    }
+    if (e.code === 'KeyU' && roleOk(player, 'commander')) {
+      player.hatch = !player.hatch;
+      showMsg(player.hatch ? 'Chef de char sorti : meilleure vue, mais exposé aux balles' : 'Tourelle fermée', '#bcd8ff', 1.6);
+    }
   });
   addEventListener('keyup', e => { keys[e.code] = false; });
   addEventListener('blur', () => { for (const k in keys) keys[k] = false; mouse.down = false; });
@@ -3474,6 +3648,7 @@
       },
       kill(i, det) { const e = tanks.filter(t => t.team === 1 && !t.dead)[i || 0]; if (e) destroyTank(e, player, !!det); return !!e; },
       get bullets() { return bullets; }, get parts() { return parts; },
+      w2s: (x, y, z) => worldToScreen(x, y, z), hatchPos,
     };
   }
   requestAnimationFrame(frame);

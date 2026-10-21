@@ -64,6 +64,27 @@ Les obus et les balles volent en vraie 3D, avec la pesanteur et la traînée de 
   faut 7 s pour le changer. Sans effet sur un blindage de char, mais les traçantes qui frappent l'acier
   repartent en chandelle. L'IA lâche des rafales courtes sur ses cibles.
 
+## La mitrailleuse au combat
+
+Une balle de 7,92 mm ne perce pas un char, sauf en des points précis, comme dans la réalité.
+
+- **Munitions** (touche `G`) : S.m.K. à noyau d'acier (11 mm perforés à 100 m, incidence nulle) et
+  S.m.K.H. à noyau de carbure de tungstène (15 mm à 100 m, 150 coups seulement). La perforation baisse
+  avec la distance ; au-delà de 70° d'incidence, la balle ricoche.
+- **Chef de char à découvert** : les chefs de l'IA se tiennent debout dans la coupole (ou à la trappe
+  du chasseur), ce qui leur donne 15 % de vue en plus. Leur tête et leur buste dépassent du blindage :
+  une rafale peut les blesser ou les tuer. Le joueur peut sortir le sien avec `U`.
+- **Feu de neutralisation** : dès que des balles claquent autour d'eux, les chefs rentrent et ferment.
+  Ils ne ressortent qu'après 12 s de calme. Tourelle fermée, l'équipage voit moins bien.
+- **Points faibles optiques** : visière du pilote (vitesse −30 %), viseur du tireur à côté du canon
+  (dispersion × 2,5), épiscopes de la coupole (vue réduite tourelle fermée). Il faut 15 s pour les
+  remplacer.
+- **Tôles minces** : la plaque arrière du char léger (15 mm à 12°) cède aux S.m.K.H. à courte portée.
+  La balle touche alors le premier module sur sa trajectoire : un équipier est blessé ou tué.
+- **Rayons X** : quand une balle du joueur fait quelque chose (chef touché, optique brisée,
+  perforation), la caméra d'impact montre la balle, sa vitesse, son énergie et sa perforation à cette
+  distance, le point faible touché, et le chef debout dans sa coupole.
+
 ## Effets physiques
 
 Chaque particule a une position en 3D, des vitesses en m/s, la pesanteur, la traînée de l'air, le vent,
