@@ -185,10 +185,15 @@ Meta.whenReady(() => {
   const WAVES = 3;
   const WW = 2600, WH = 1700, CELL = 20, STEP = 1 / 60;
 
-  // Réglages de développement : ?auto ?god ?speed=4 ?level=2 ?wave=1 ?type=heavy ?mode=survie|duel
+  // Réglages de développement, actifs seulement avec ?debug : ?auto ?god ?speed=4 ?level=2 ?wave=1
+  // ?type=heavy ?mode=survie|duel ?2d. Ceux qui touchent aux gains font jouer sur un profil jetable,
+  // jamais sauvegardé : l'adresse du jeu ouverte à la main ne débloque rien.
   const Q = new URLSearchParams(location.search);
-  const AUTO = Q.has('auto'), GOD = Q.has('god');
-  const timeScale = Number(Q.get('speed')) || 1;
+  const DEV = Q.has('debug'), dq = k => DEV && Q.has(k);
+  const AUTO = dq('auto'), GOD = dq('god');
+  const timeScale = DEV ? clamp(Number(Q.get('speed')) || 1, 0.1, 16) : 1;
+  const DEV_RUN = DEV && ['auto', 'god', 'speed', 'level', 'wave', 'type', 'mode'].some(k => Q.has(k));
+  const DEV_START = DEV && (Q.has('level') || AUTO);
 
   // ===================== État =====================
   const cv = document.getElementById('game');
@@ -2454,7 +2459,7 @@ Meta.whenReady(() => {
   const dirtyTiles = new Set();
   try {
     const c3 = document.getElementById('game3d');
-    if (c3 && typeof World3D !== 'undefined' && !Q.has('2d')) {
+    if (c3 && typeof World3D !== 'undefined' && !dq('2d')) {
       W3D = World3D.create(c3);
       if (W3D) for (const id of Object.keys(TYPES)) { const b = TankModels.build(id, true); MESH3[id] = { wheel: W3D.upload(b.wheel), wheels: b.wheels, hull: W3D.upload(b.hull), turret: W3D.upload(b.turret), body: W3D.upload(b.turretBody), gun: W3D.upload(b.gun), gunPivot: b.gunPivot }; RAYTRI[id] = { hull: b.hull.v, turret: b.turret.v }; }
       if (W3D) {
@@ -4442,17 +4447,13 @@ Meta.whenReady(() => {
   addEventListener('mouseup', e => { if (e.button === 2) cam3.drag = null; });
   cv.addEventListener('dblclick', () => { if (!adOn()) cam3.off = 0; });
 
-  // Démarrage direct en développement
-  if (Q.has('level')) levelIdx = clamp(Number(Q.get('level')) - 1, 0, LEVELS.length - 1);
-  if (Q.has('type') && TYPES[Q.get('type')]) chosenType = Q.get('type');
-  if (MODES[Q.get('mode')]) mode = Q.get('mode');
+  // Démarrage direct en développement (?debug seulement)
+  if (dq('level')) levelIdx = clamp(Number(Q.get('level')) - 1, 0, LEVELS.length - 1);
+  if (dq('type') && TYPES[Q.get('type')]) chosenType = Q.get('type');
+  if (DEV && MODES[Q.get('mode')]) mode = Q.get('mode');
+  if (DEV_START) waveIdx = clamp(Number(Q.get('wave') || 1) - 1, 0, WAVES - 1);
   buildMenu();
   initBench();
-  if (Q.has('level') || AUTO) {
-    waveIdx = clamp(Number(Q.get('wave') || 1) - 1, 0, WAVES - 1);
-    if (!Meta.P.tanks.includes(chosenType)) Meta.P.tanks.push(chosenType); // essais : char débloqué
-    hide('menu'); startLevel();
-  }
   // profil et prime de présence ; puis le menu remplace l'écran de chargement. Une erreur ou une
   // attente trop longue n'empêche jamais le menu d'apparaître.
   let booted = false;
@@ -4460,18 +4461,19 @@ Meta.whenReady(() => {
     if (booted) { if (state === 'menu') { applyOptions(); buildMenu(); } return; }
     booted = true;
     try {
-      if ((Q.has('level') || AUTO) && !Meta.P.tanks.includes(chosenType)) Meta.P.tanks.push(chosenType);
+      if (DEV_RUN && !Meta.dev) Meta.devProfile();
       applyOptions();
       if (!Meta.P.tanks.includes(chosenType)) chosenType = Meta.P.tanks.includes('pz4') ? 'pz4' : Meta.P.tanks[0];
       buildMenu();
     } catch (e) { console.error(e); }
     hide('loading');
-    if (state === 'menu') show('menu');
     Meta.sdk.loadingStop();
-    if (bonus) setTimeout(() => toast(`Daily login · day ${Meta.P.streak}: +✪ ${fmt(bonus)}`), 600);
+    if (DEV_START) startLevel(); else show('menu');
+    if (DEV_RUN) setTimeout(() => toast('Debug run: progress is not saved'), 300);
+    else if (bonus) setTimeout(() => toast(`Daily login · day ${Meta.P.streak}: +✪ ${fmt(bonus)}`), 600);
   }
   const bootT = setTimeout(() => { console.warn('Profile loading timed out'); boot(0); }, 12000);
-  Meta.init().then(b => { clearTimeout(bootT); boot(b); }, e => { console.error(e); clearTimeout(bootT); boot(0); });
+  Meta.init({ dev: DEV_RUN }).then(b => { clearTimeout(bootT); boot(b); }, e => { console.error(e); clearTimeout(bootT); boot(0); });
   addEventListener('pointerdown', () => { if (state === 'menu') playMusic(); }, { once: false });
   if (Q.has('debug')) {
     window.__fa = {

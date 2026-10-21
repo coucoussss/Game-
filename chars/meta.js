@@ -243,6 +243,9 @@ const Meta = (() => {
     try { localStorage.setItem(KEY, raw); } catch (e) { /* */ }
     hooks.change();
   }
+  // Réglages de développement : profil neuf (tous les chars, tous les secteurs) jamais sauvegardé,
+  // le vrai profil reste intact
+  function devProfile() { devMode = true; const o = P.opts; P = fresh(); P.opts = o; P.tanks = Object.keys(TANKS); P.unlocked = 99; }
   // Effacement complet de la progression (nuage et local) ; seuls les réglages sont gardés
   function reset() {
     const opts = P.opts;
@@ -393,13 +396,12 @@ const Meta = (() => {
   return {
     sdk, midgame, rewarded, hooks, adActive: () => adBusy, get platformMute() { return platformMute; }, RANKS, RARITY, MK, TANKS, SKINS, PARTS, WHEEL, MISSIONS, STREAK, xpFor, rankName,
     get P() { return P; }, save, reset, parse, addXP,
-    // réglages de développement : profil neuf jamais sauvegardé, le vrai profil reste intact
-    devProfile() { devMode = true; const o = P.opts; P = fresh(); P.opts = o; P.tanks = Object.keys(TANKS); P.unlocked = 99; },
-    devUse(p) { if (devMode) P = p; },
+    devProfile, devUse(p) { if (devMode) P = p; },
     get dev() { return devMode; }, buyTank, canBuyTank, buySkin, grantSkin, selectSkin, skinOf,
     featured, skinPrice, skinAd, adsLeft, partLv, buyPart, partAd, mods,
     dailyRoll, track, claim, canSpinFree, spinResult, applyPrize, battleEnd,
     whenReady: fn => sdkReady.then(fn),
-    async init() { await sdkReady; await load(); return dailyRoll(); },
+    // dev : profil jetable (le vrai profil est lu pour ses réglages, puis laissé intact)
+    async init(o = {}) { await sdkReady; await load(); if (o.dev) devProfile(); return dailyRoll(); },
   };
 })();
