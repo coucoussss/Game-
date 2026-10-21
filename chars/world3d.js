@@ -34,7 +34,7 @@ precision highp float;
 varying vec3 vW; varying vec3 vN; varying vec3 vC; varying vec3 vO; varying float vM; varying vec3 vNO; varying vec4 vL;
 uniform vec3 uEye; uniform vec3 uSun; uniform vec3 uSunCol; uniform vec3 uSkyCol; uniform vec3 uBounce;
 uniform vec3 uFogCol; uniform float uFogD; uniform vec3 uZenith; uniform vec3 uHorizon;
-uniform vec3 uCamo0; uniform vec3 uCamo1; uniform vec3 uCamo2;
+uniform vec3 uCamo0; uniform vec3 uCamo1; uniform vec3 uCamo2; uniform float uPat;
 uniform float uBurnt; uniform vec4 uTint; uniform float uTread; uniform float uSeed; uniform float uSnow;
 uniform sampler2D uShadow; uniform float uShadowTexel; uniform sampler2D uGround; uniform vec2 uMap;
 uniform vec4 uLP[8]; uniform vec3 uLC[8]; uniform float uTime;
@@ -79,9 +79,28 @@ void main(){
   if (vM < 0.5) { paint = 1.0; }
   else if (vM < 1.5) {
     float a = fbm(P * 1.25 + 3.1), b = fbm(P * 1.3 + 17.3);
-    base = uCamo0;
-    base = mix(base, uCamo1, smoothstep(0.50, 0.535, a));
-    base = mix(base, uCamo2, smoothstep(0.53, 0.565, b));
+    // motifs : 0 taches (trois tons), 1 uni, 2 bandes ondulées, 3 embuscade (taches et pois clairs),
+    // 4 lavis d'hiver (blanc passé à la brosse, usé, la teinte d'origine reparaît)
+    if (uPat < 0.5 || (uPat > 2.5 && uPat < 3.5)) {
+      base = uCamo0;
+      base = mix(base, uCamo1, smoothstep(0.50, 0.535, a));
+      base = mix(base, uCamo2, smoothstep(0.53, 0.565, b));
+      if (uPat > 2.5) {
+        vec3 q = vO * 7.0; float dd = length(fract(q) - 0.5);
+        float dots = (1.0 - smoothstep(0.16, 0.2, dd)) * step(0.55, h3(floor(q)));
+        base = mix(base, uCamo0 * 1.18, dots * step(0.5, max(smoothstep(0.50, 0.535, a), smoothstep(0.53, 0.565, b))));
+      }
+    } else if (uPat < 1.5) {
+      base = uCamo0;
+    } else if (uPat < 2.5) {
+      float sw = sin((vO.x * 1.7 + vO.z * 0.6 + fbm(P * 0.9) * 2.2) * 3.4);
+      base = mix(uCamo0, uCamo1, smoothstep(0.35, 0.42, sw));
+      base = mix(base, uCamo2, smoothstep(0.35, 0.42, -sw) * step(0.48, b));
+    } else {
+      float w = smoothstep(0.38, 0.58, fbm(P * vec3(2.6, 2.6, 0.8) + 5.0) + 0.12 * fbm(P * 9.0));
+      base = mix(uCamo1, uCamo0, w);
+      base = mix(base, uCamo2, smoothstep(0.62, 0.66, b) * (1.0 - w));
+    }
     // Zimmerit : pâte striée de cannelures verticales (pas d'environ 3 cm) posée en bandes de 11 cm,
     // seulement sur les faces verticales ou inclinées
     if (vM > 1.1) {
@@ -322,6 +341,7 @@ void main(){
       gl.uniformMatrix4fv(U.uModel, false, model);
       const camo = o.camo || [[0.6, 0.55, 0.35], [0.4, 0.3, 0.2], [0.3, 0.35, 0.2]];
       gl.uniform3fv(U.uCamo0, camo[0]); gl.uniform3fv(U.uCamo1, camo[1]); gl.uniform3fv(U.uCamo2, camo[2]);
+      if (U.uPat) gl.uniform1f(U.uPat, o.pat || 0);
       gl.uniform1f(U.uBurnt, o.burnt || 0);
       gl.uniform4fv(U.uTint, o.tint || [0, 0, 0, 0]);
       gl.uniform1f(U.uTread, o.tread || 0);

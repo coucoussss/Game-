@@ -556,6 +556,45 @@ const TankModels = (() => {
   }
 
 
+  // ===================== Blindage additionnel (pièce du garage) =====================
+  // Maillons de chenille de rechange accrochés par l'équipage, comme sur le front : niveau 1 sur le
+  // glacis, niveau 2 aussi sur les flancs avant, niveau 3 aussi sur la tourelle (ou la casemate).
+  // Renvoie deux maillages : caisse et tourelle.
+  function addonArmor(id, lv) {
+    const S = SPECS[id], hb = new G3.Builder(), tb = new G3.Builder();
+    const { W, tw, ht, zn, xn, tt } = S, tanU = Math.tan(S.sUp * D2R), tanS = Math.tan(S.sideSlope * D2R);
+    const xUp = z => xn - (z - zn) * tanU, hwAt = z => W / 2 - Math.max(0, z - tt) * tanS;
+    const LINK = '#3a3833';
+    // maillon posé sur un plan incliné : centre, normale extérieure, largeur (y), hauteur le long de la pente
+    const link = (b, c, n, w, h) => {
+      const up = [0, 0, 1], u = [n[1] * up[2] - n[2] * up[1], n[2] * up[0] - n[0] * up[2], n[0] * up[1] - n[1] * up[0]];
+      const ul = Math.hypot(...u) || 1; u[0] /= ul; u[1] /= ul; u[2] /= ul;
+      const v = [n[1] * u[2] - n[2] * u[1], n[2] * u[0] - n[0] * u[2], n[0] * u[1] - n[1] * u[0]], t = 0.055;
+      const P = (a, bb, cc) => [c[0] + u[0] * a + v[0] * bb + n[0] * cc, c[1] + u[1] * a + v[1] * bb + n[1] * cc, c[2] + u[2] * a + v[2] * bb + n[2] * cc];
+      b.hexa([P(-w / 2, -h / 2, 0), P(w / 2, -h / 2, 0), P(w / 2, h / 2, 0), P(-w / 2, h / 2, 0)], [P(-w / 2, -h / 2, t), P(w / 2, -h / 2, t), P(w / 2, h / 2, t), P(-w / 2, h / 2, t)], LINK, 2);
+      // dents de guidage
+      b.hexa([P(-0.03, -0.02, t), P(0.03, -0.02, t), P(0.03, 0.02, t), P(-0.03, 0.02, t)], [P(-0.03, -0.02, t + 0.05), P(0.03, -0.02, t + 0.05), P(0.03, 0.02, t + 0.05), P(-0.03, 0.02, t + 0.05)], LINK, 3);
+    };
+    const sU = S.sUp * D2R, nG = [Math.cos(sU), 0, Math.sin(sU)];
+    const hw = W / 2 - tw - 0.1, nw = Math.max(3, Math.floor(hw * 2 / 0.32));
+    if (lv >= 1) for (const zf of [0.35, 0.68]) {
+      const z = zn + (ht - zn) * zf, x = xUp(z) + 0.015;
+      for (let k = 0; k < nw; k++) link(hb, [x, -hw + (k + 0.5) * (hw * 2 / nw), z], nG, 0.29, 0.16);
+    }
+    if (lv >= 2) for (const sd of [1, -1]) {
+      const sl = S.sideSlope * D2R, nS = [0, sd * Math.cos(sl), Math.sin(sl)];
+      for (let k = 0; k < 4; k++) { const z = tt + 0.22, x = xUp(ht) - 0.4 - k * 0.32; link(hb, [x, sd * (hwAt(z) + 0.01), z], nS, 0.29, 0.16); }
+    }
+    if (lv >= 3) {
+      const T = S.turret;
+      if (T) {
+        const fx = Math.max(...T.poly.map(p => p[0])), kM = (1 + T.ts) / 2, z = ht + T.h * 0.5;
+        for (const sd of [1, -1]) for (let k = 0; k < 2; k++) link(tb, [fx * kM + 0.02, sd * (0.42 + k * 0.3), z], [1, 0, 0], 0.27, 0.16);
+      } else for (let k = 0; k < nw; k++) link(hb, [xUp(ht - 0.12) + 0.015, -hw + (k + 0.5) * (hw * 2 / nw), ht - 0.12], nG, 0.29, 0.16);
+    }
+    return { hull: hb, turret: tb };
+  }
+
   // ===================== Modules internes détaillés (vue rayons X) =====================
   // Chaque maillage est construit dans le repère du module (centre de sa boîte), à la vraie taille.
   const UNI = '#4d5550', SKIN = '#d8a983', BOOT = '#2a1e16', CAP = '#1b1c1e', STEELM = '#6d7075', DARKM = '#34363a', BRASS = '#c9a24a';
@@ -719,5 +758,5 @@ const TankModels = (() => {
     return { box, crew };
   }
 
-  return { SPECS, NAMES, info, build, makeModules, moduleMeshes, moduleMesh };
+  return { addonArmor, SPECS, NAMES, info, build, makeModules, moduleMeshes, moduleMesh };
 })();

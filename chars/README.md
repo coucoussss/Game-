@@ -246,6 +246,15 @@ Le jeu est prêt pour CrazyGames : téléverser le contenu du dossier `chars/` (
   - 3 missions du jour ;
   - prime de présence sur 7 jours ;
   - kits de réparation.
+- **Pièces** (garage, par char, trois niveaux) : moteur (+8 % de puissance), munitions (+4 % de
+  perforation), blindage additionnel (+6 % d'épaisseur ; maillons de chenille visibles sur le glacis,
+  puis sur les flancs, puis sur la tourelle), chenilles (+6 % d'adhérence), optiques (+6 % de vue,
+  −6 % de dispersion), chargeur entraîné (−5 % de rechargement, +1 obus au râtelier). Chaque niveau
+  s'achète en crédits ou s'installe en regardant niveau + 1 publicités.
+- **Camouflages** : 14 camouflages et 5 motifs dessinés par le shader (taches, uni, bandes ondulées,
+  embuscade à pois, lavis d'hiver usé). On les essaie sur la vitrine avant de les acheter en
+  crédits ou de les débloquer par une série de publicités (1 à 6 selon la rareté). Deux sont réservés
+  aux publicités. Un camouflage du jour est à −50 %.
 - **Menu** : vitrine 3D plein écran du char choisi, avec son camouflage, et onglets Jouer, Garage,
   Roue, Missions, Atelier (banc d'essai, commandes) et Options (volumes, qualité graphique, caméra
   d'impact, plein écran, remise à zéro).

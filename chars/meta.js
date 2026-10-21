@@ -80,16 +80,32 @@ const Meta = (() => {
     light: { price: 0, lvl: 1 }, pz4: { price: 0, lvl: 1 }, stug: { price: 2500, lvl: 2 },
     medium: { price: 6000, lvl: 4 }, destroyer: { price: 8000, lvl: 5 }, heavy: { price: 11000, lvl: 7 }, kingtiger: { price: 18000, lvl: 10 },
   };
-  // Camouflages (trois tons, en couleur linéaire), du plus courant au plus rare
+  // Camouflages : trois tons (couleur linéaire) et un motif (0 taches, 1 uni, 2 bandes,
+  // 3 embuscade, 4 lavis d'hiver). Prix en crédits ou en publicités (ads : nombre à regarder).
   const SKINS = [
-    { id: 'std', name: 'Standard 1944', rar: 'commun', price: 0, camo: [[0.33, 0.36, 0.22], [0.20, 0.25, 0.15], [0.36, 0.27, 0.17]] },
-    { id: 'gris', name: 'Gris Panzer 1940', rar: 'commun', price: 800, camo: [[0.16, 0.17, 0.17], [0.13, 0.14, 0.14], [0.19, 0.2, 0.2]] },
-    { id: 'dak', name: 'Afrikakorps', rar: 'rare', price: 1800, camo: [[0.55, 0.45, 0.28], [0.5, 0.41, 0.25], [0.42, 0.36, 0.24]] },
-    { id: 'hinter', name: 'Hinterhalt (embuscade)', rar: 'rare', price: 2600, camo: [[0.52, 0.45, 0.27], [0.18, 0.24, 0.12], [0.35, 0.2, 0.13]] },
-    { id: 'hiver', name: 'Blanc d’hiver lavable', rar: 'rare', price: 2600, camo: [[0.78, 0.8, 0.8], [0.62, 0.64, 0.62], [0.3, 0.32, 0.25]] },
-    { id: 'disrupt', name: 'Disruptif tricolore', rar: 'épique', price: 4500, camo: [[0.6, 0.52, 0.32], [0.12, 0.18, 0.1], [0.42, 0.22, 0.13]] },
-    { id: 'nuit', name: 'Opération nocturne', rar: 'épique', price: 0, ad: true, camo: [[0.08, 0.09, 0.1], [0.05, 0.06, 0.07], [0.12, 0.13, 0.12]] },
-    { id: 'or', name: 'Or du maréchal', rar: 'légendaire', price: 25000, camo: [[0.75, 0.55, 0.16], [0.6, 0.42, 0.1], [0.85, 0.68, 0.25]] },
+    { id: 'std', name: 'Standard 1944', rar: 'commun', price: 0, pat: 0, camo: [[0.33, 0.36, 0.22], [0.20, 0.25, 0.15], [0.36, 0.27, 0.17]] },
+    { id: 'gris', name: 'Gris Panzer 1940', rar: 'commun', price: 800, ads: 1, pat: 1, camo: [[0.15, 0.16, 0.16], [0.13, 0.14, 0.14], [0.19, 0.2, 0.2]] },
+    { id: 'jaune', name: 'Dunkelgelb d’usine', rar: 'commun', price: 900, ads: 1, pat: 1, camo: [[0.55, 0.46, 0.27], [0.5, 0.42, 0.25], [0.45, 0.38, 0.22]] },
+    { id: 'dak', name: 'Afrikakorps', rar: 'rare', price: 1800, ads: 2, pat: 0, camo: [[0.55, 0.45, 0.28], [0.5, 0.41, 0.25], [0.42, 0.36, 0.24]] },
+    { id: 'koursk', name: 'Koursk 1943', rar: 'rare', price: 2200, ads: 2, pat: 2, camo: [[0.52, 0.45, 0.27], [0.24, 0.27, 0.14], [0.36, 0.22, 0.13]] },
+    { id: 'hinter', name: 'Hinterhalt (embuscade)', rar: 'rare', price: 2600, ads: 2, pat: 3, camo: [[0.52, 0.45, 0.27], [0.18, 0.24, 0.12], [0.35, 0.2, 0.13]] },
+    { id: 'hiver', name: 'Lavis d’hiver', rar: 'rare', price: 2600, ads: 2, pat: 4, camo: [[0.8, 0.82, 0.82], [0.3, 0.33, 0.22], [0.36, 0.27, 0.17]] },
+    { id: 'tigre', name: 'Rayures du tigre', rar: 'épique', price: 4200, ads: 3, pat: 2, camo: [[0.58, 0.48, 0.26], [0.1, 0.1, 0.08], [0.4, 0.22, 0.12]] },
+    { id: 'disrupt', name: 'Disruptif tricolore', rar: 'épique', price: 4500, ads: 3, pat: 0, camo: [[0.6, 0.52, 0.32], [0.12, 0.18, 0.1], [0.42, 0.22, 0.13]] },
+    { id: 'nuit', name: 'Opération nocturne', rar: 'épique', price: 0, ads: 3, adOnly: true, pat: 3, camo: [[0.08, 0.09, 0.1], [0.05, 0.06, 0.07], [0.14, 0.15, 0.13]] },
+    { id: 'foret', name: 'Ardennes enneigées', rar: 'épique', price: 5200, ads: 4, pat: 4, camo: [[0.86, 0.88, 0.88], [0.18, 0.24, 0.12], [0.33, 0.22, 0.14]] },
+    { id: 'rouille', name: 'Épave restaurée', rar: 'légendaire', price: 9000, ads: 5, pat: 0, camo: [[0.36, 0.17, 0.08], [0.2, 0.1, 0.05], [0.48, 0.3, 0.14]] },
+    { id: 'or', name: 'Or du maréchal', rar: 'légendaire', price: 25000, pat: 1, camo: [[0.75, 0.55, 0.16], [0.6, 0.42, 0.1], [0.85, 0.68, 0.25]] },
+    { id: 'parade', name: 'Grande parade', rar: 'légendaire', price: 0, ads: 6, adOnly: true, pat: 2, camo: [[0.1, 0.1, 0.1], [0.55, 0.06, 0.05], [0.8, 0.78, 0.74]] },
+  ];
+  // Pièces : trois niveaux par char. Effet par niveau ; coût en crédits, ou niveau + 1 publicités.
+  const PARTS = [
+    { id: 'engine', name: 'Moteur', ic: '⚙', desc: 'Préparation, carburateurs, régulateur : +8 % de puissance par niveau', k: 0.08, cost: [1200, 2800, 5500] },
+    { id: 'gun', name: 'Munitions', ic: '◎', desc: 'Obus de série choisie, poudre neuve : +4 % de perforation par niveau', k: 0.04, cost: [1500, 3200, 6500] },
+    { id: 'armor', name: 'Blindage additionnel', ic: '▣', desc: 'Maillons de chenille et plaques soudées : +6 % d’épaisseur par niveau', k: 0.06, cost: [1400, 3000, 6000] },
+    { id: 'tracks', name: 'Chenilles', ic: '≋', desc: 'Crampons et barres de torsion neuves : +6 % d’adhérence en virage', k: 0.06, cost: [900, 2000, 4200] },
+    { id: 'optics', name: 'Optiques', ic: '◉', desc: 'Lunette traitée, épiscopes neufs : +6 % de vue, −6 % de dispersion', k: 0.06, cost: [1100, 2500, 5000] },
+    { id: 'loader', name: 'Chargeur entraîné', ic: '↻', desc: 'Exercices de chargement, râtelier réaménagé : −5 % de rechargement, +1 obus au râtelier', k: 0.05, cost: [1300, 2900, 5800] },
   ];
   // Roue quotidienne : poids relatifs
   const WHEEL = [
@@ -119,7 +135,7 @@ const Meta = (() => {
   const fresh = () => ({
     v: 1, credits: 600, xp: 0, level: 1, tanks: ['light', 'pz4'], skins: ['std'], skinSel: {}, kits: 1, x2: 0,
     wheelDay: '', streakDay: '', streak: 0, missionsDay: '', missions: [], stats: { battles: 0, kills: 0, wins: 0 },
-    opts: { sfx: 0.8, music: 0.6, quality: 'haute', hitcam: true },
+    opts: { sfx: 0.8, music: 0.6, quality: 'haute', hitcam: true }, parts: {}, adProg: {}, featDay: '', feat: '',
   });
   let P = fresh();
   async function load() {
@@ -146,14 +162,53 @@ const Meta = (() => {
   const rankName = (lv = P.level) => RANKS[Math.min(RANKS.length - 1, lv - 1)];
   const canBuyTank = id => P.level >= TANKS[id].lvl && P.credits >= TANKS[id].price;
   function buyTank(id) { if (!canBuyTank(id) || P.tanks.includes(id)) return false; P.credits -= TANKS[id].price; P.tanks.push(id); save(); return true; }
+  // camouflage du jour : −50 %
+  function featured() {
+    const d = today();
+    if (P.featDay !== d) { const pool = SKINS.filter(k => k.price > 0 && !P.skins.includes(k.id)); P.feat = pool.length ? pool[Math.floor(Math.random() * pool.length)].id : ''; P.featDay = d; save(); }
+    return P.feat;
+  }
+  const skinPrice = s => s.id === featured() ? Math.round(s.price / 2) : s.price;
   function buySkin(id) {
     const s = SKINS.find(k => k.id === id);
-    if (!s || P.skins.includes(id) || s.ad || P.credits < s.price) return false;
-    P.credits -= s.price; P.skins.push(id); save(); return true;
+    if (!s || P.skins.includes(id) || s.adOnly || P.credits < skinPrice(s)) return false;
+    P.credits -= skinPrice(s); P.skins.push(id); save(); return true;
   }
+  // une publicité de plus vers le déblocage ; renvoie vrai quand le camouflage est obtenu
+  function skinAd(id) {
+    const s = SKINS.find(k => k.id === id);
+    if (!s || !s.ads || P.skins.includes(id)) return false;
+    const k = 'skin:' + id; P.adProg[k] = (P.adProg[k] || 0) + 1;
+    if (P.adProg[k] >= s.ads) { P.skins.push(id); delete P.adProg[k]; save(); return true; }
+    save(); return false;
+  }
+  const adsLeft = (key, need) => need - (P.adProg[key] || 0);
   function grantSkin(id) { if (!P.skins.includes(id)) { P.skins.push(id); save(); } }
   function selectSkin(tank, id) { if (P.skins.includes(id)) { P.skinSel[tank] = id; save(); } }
   const skinOf = tank => SKINS.find(k => k.id === (P.skinSel[tank] || 'std')) || SKINS[0];
+  const partLv = (tank, part) => (P.parts[tank] && P.parts[tank][part]) || 0;
+  function setPart(tank, part, lv) { P.parts[tank] = P.parts[tank] || {}; P.parts[tank][part] = lv; }
+  function buyPart(tank, part) {
+    const d = PARTS.find(k => k.id === part), lv = partLv(tank, part);
+    if (!d || lv >= 3 || P.credits < d.cost[lv]) return false;
+    P.credits -= d.cost[lv]; setPart(tank, part, lv + 1); save(); return true;
+  }
+  function partAd(tank, part) {
+    const lv = partLv(tank, part);
+    if (lv >= 3) return false;
+    const k = `part:${tank}:${part}`; P.adProg[k] = (P.adProg[k] || 0) + 1;
+    if (P.adProg[k] >= lv + 1) { setPart(tank, part, lv + 1); delete P.adProg[k]; save(); return true; }
+    save(); return false;
+  }
+  // multiplicateurs appliqués au char du joueur
+  function mods(tank) {
+    const L = id => partLv(tank, id), K = id => PARTS.find(k => k.id === id).k;
+    return {
+      hp: 1 + K('engine') * L('engine'), pen: 1 + K('gun') * L('gun'), armor: 1 + K('armor') * L('armor'),
+      grip: 1 + K('tracks') * L('tracks'), optic: 1 + K('optics') * L('optics'),
+      reload: 1 - K('loader') * L('loader'), ready: L('loader'), armorLv: L('armor'),
+    };
+  }
 
   // ===================== Missions et série =====================
   function dailyRoll() {
@@ -209,7 +264,7 @@ const Meta = (() => {
     if (p.kit) P.kits += p.kit;
     if (p.x2) P.x2 += p.x2;
     if (p.skin) {
-      const left = SKINS.filter(s => !P.skins.includes(s.id) && s.id !== 'or');
+      const left = SKINS.filter(s => !P.skins.includes(s.id) && s.rar !== 'légendaire');
       if (left.length) { const s = left[Math.floor(Math.random() * left.length)]; P.skins.push(s.id); txt = `Camouflage « ${s.name} »`; }
       else { P.credits += 3000; txt = '3 000 ✪ (tous les camouflages possédés)'; }
     }
@@ -233,8 +288,9 @@ const Meta = (() => {
   }
 
   return {
-    sdk, midgame, rewarded, hooks, RANKS, TANKS, SKINS, WHEEL, MISSIONS, STREAK, xpFor, rankName,
+    sdk, midgame, rewarded, hooks, RANKS, TANKS, SKINS, PARTS, WHEEL, MISSIONS, STREAK, xpFor, rankName,
     get P() { return P; }, save, addXP, buyTank, canBuyTank, buySkin, grantSkin, selectSkin, skinOf,
+    featured, skinPrice, skinAd, adsLeft, partLv, buyPart, partAd, mods,
     dailyRoll, track, claim, canSpinFree, spinResult, applyPrize, battleEnd,
     async init() { await initSDK(); sdk.loadingStart(); await load(); return dailyRoll(); },
   };

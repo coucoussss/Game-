@@ -565,8 +565,9 @@
       angleOff: (Math.random() < 0.5 ? -1 : 1) * rnd(0.25, 0.45), retreatT: 0, waitT: 0, noContactT: 0, pushT: 0,
     };
   }
+  const DEF_UP = { hp: 1, pen: 1, armor: 1, grip: 1, optic: 1, reload: 1, ready: 0, armorLv: 0 };
   function makeTank(typeId, team, x, y, angle, isPlayer, name, skill) {
-    const T = TYPES[typeId];
+    const T = TYPES[typeId], up = isPlayer ? Meta.mods(typeId) : DEF_UP;
     const mods = TankModels.makeModules(typeId);
     const roles = {};
     mods.forEach((m, i) => { if (m.kind === 'crew') roles[m.role] = i; });
@@ -577,7 +578,7 @@
       reloadT: rnd(0.8, 1.6), disp: T.disp * 3, smoke: 2, trackT: 0, fireT: 0, fireBy: null,
       mg: { ammo: 2700, ammoH: 150, type: 'SmK', heat: 0, jam: 0, cd: 0, n: 0, burst: 0, wait: rnd(1, 4) },
       // chef de char sorti de la coupole (meilleure vue, mais exposé aux balles), optiques endommagées
-      sus: { p: 0, vp: 0, r: 0, vr: 0, v0: 0 }, wd: [0, 0], trackSide: 1, ready: T.ready, readyT: 0, reloadMax: T.reload, elev: 0, fireAge: 9, scars: [], scarDirty: false, scarT: 0, scar3: null,
+      sus: { p: 0, vp: 0, r: 0, vr: 0, v0: 0 }, wd: [0, 0], trackSide: 1, up, ready: T.ready + up.ready, readyT: 0, reloadMax: T.reload, elev: 0, fireAge: 9, scars: [], scarDirty: false, scarT: 0, scar3: null,
       hatch: !isPlayer, underFire: 0, calm: 20, optic: { driver: 0, gunner: 0, cmd: 0 },
       revealT: 0, recoil: 0, flash: 0, trackAcc: 0, treadPhase: 0, hitFlash: 0, turretGone: false,
       in: { throttle: 0, turn: 0, aim: angle, fire: false },
@@ -715,7 +716,7 @@
           if (a.dead || a.team !== team) continue;
           const d = dist(a, e);
           if (d < 90 || waveTime > 120) { set.add(e); break; } // après 2 min, l'artillerie trahit les positions
-          let range = a.T.view * (night ? 0.6 : 1) * (roleOk(a, 'commander') ? (a.hatch ? 1.15 : 1) : 0.75) * (a.optic.cmd > 0 && !a.hatch ? 0.8 : 1);
+          let range = a.T.view * a.up.optic * (night ? 0.6 : 1) * (roleOk(a, 'commander') ? (a.hatch ? 1.15 : 1) : 0.75) * (a.optic.cmd > 0 && !a.hatch ? 0.8 : 1);
           if (bush) range = Math.min(range, 210);
           if (e.revealT > 0) range *= 1.3;
           // un char qui roule vite soulève un panache de poussière qui se voit de loin
@@ -1055,7 +1056,7 @@
     const eng = modOf(t, 'engine'), engK = eng.hp < eng.max0 * 0.5 ? 0.6 : 1;
     // Puissance utile (rendement de transmission 0,6) contre résistance au roulement du sol :
     // la vitesse de pointe dépend du terrain et du rapport poids/puissance, comme en vrai
-    const lv = L(), crr = lv.crr || 0.06, mkg = T.mass * 1000, Pw = T.hp * 745.7 * 0.6 * engK;
+    const lv = L(), crr = lv.crr || 0.06, mkg = T.mass * 1000, Pw = T.hp * t.up.hp * 745.7 * 0.6 * engK;
     const vTerrain = Pw / (mkg * G * crr) * PX;
     const vmax = Math.min(T.speed * engK, Math.max(T.speed * 0.5, vTerrain));
     let target = (thr >= 0 ? thr * vmax : thr * Math.min(T.rev, vmax * 0.5)) * (t.optic.driver > 0 ? 0.7 : 1);
@@ -1073,7 +1074,7 @@
     const maxd = (braking ? 0.6 * G * PX : aDrive) * dt;
     t.speed += clamp(target - t.speed, -maxd, maxd);
     // virage : les chenilles ripent sur le sol ; plus il colle (boue, sable), plus le pivot est lent
-    let tr = turn * T.turn * engK * (1 - 0.3 * Math.abs(t.speed) / T.speed) * clamp(Math.sqrt(0.06 / crr), 0.75, 1.05);
+    let tr = turn * T.turn * engK * (1 - 0.3 * Math.abs(t.speed) / T.speed) * clamp(Math.sqrt(0.06 / crr), 0.75, 1.05) * t.up.grip;
     // chenille cassée : le char pivote autour d'elle, entraîné par la seule chenille intacte
     if (broken) tr = -t.trackSide * (2 * t.speed) / T.wid;
     t.turnRate = tr;
@@ -1117,11 +1118,11 @@
     t.turretRate = rot / dt;
 
     // Dispersion : elle augmente en mouvement et se resserre à l'arrêt
-    const goal = T.disp * (t.optic.gunner > 0 ? 2.5 : 1) * (1 + 2.6 * Math.abs(t.speed) / T.speed + 1.6 * Math.abs(tr) / T.turn + 1.1 * Math.abs(t.turretRate) / T.tturn);
+    const goal = T.disp / t.up.optic * (t.optic.gunner > 0 ? 2.5 : 1) * (1 + 2.6 * Math.abs(t.speed) / T.speed + 1.6 * Math.abs(tr) / T.turn + 1.1 * Math.abs(t.turretRate) / T.tturn);
     t.disp += (goal - t.disp) * Math.min(1, dt * (goal > t.disp ? 6 : 1.3));
 
     // hors du tir, le chargeur regarnit le râtelier : un obus toutes les 8 s
-    if (t.reloadT <= 0 && t.ready < T.ready && (t.readyT += dt) > 8) { t.ready++; t.readyT = 0; }
+    if (t.reloadT <= 0 && t.ready < T.ready + t.up.ready && (t.readyT += dt) > 8) { t.ready++; t.readyT = 0; }
     if (t.reloadT > 0) { t.reloadT -= dt / reloadMul(t); if (t.reloadT <= 0 && t === player) Sfx.reload(); }
     t.recoil = Math.max(0, t.recoil - dt * 3);
     t.fireAge += dt;
@@ -1196,7 +1197,7 @@
     // les premiers obus viennent du râtelier de tourelle ; ensuite le chargeur va les chercher dans
     // les soutes de caisse, plus lentement
     if (t.ready > 0) t.ready--;
-    t.reloadMax = T.reload * (t.ready > 0 ? 1 : 1.45);
+    t.reloadMax = T.reload * t.up.reload * (t.ready > 0 ? 1 : 1.45);
     t.reloadT = t.reloadMax; t.readyT = 0;
     t.disp += T.disp * 3;
     t.recoil = 1; t.flash = 0.09; t.revealT = 3;
@@ -1342,7 +1343,7 @@
       const h = best.h, pp = platePick(t, h, d, 'MG');
       const cosI = Math.max(0.03, -dot3(pp.dd, pp.n)), angle = Math.acos(Math.min(1, cosI)) / D2R;
       const scf = scarFrame(t, h, E), scw = scarWeak(t, scf.frame, scf.p, pp.plate);
-      mm = scw.hole ? Math.round(pp.mm * 0.1) : Math.round(pp.mm * (1 - scw.w)); plate = pp.plate; eff = mm / cosI + pp.extra;
+      mm = Math.round((scw.hole ? pp.mm * 0.1 : pp.mm * (1 - scw.w)) * t.up.armor); plate = pp.plate; eff = mm / cosI + pp.extra;
       if (mm < pp.mm) lines.push({ t: `Plaque déjà endommagée : ${mm} mm utiles au lieu de ${pp.mm} mm`, c: '#ffcf7a' });
       // points faibles, dans le repère du modèle
       const tq = h.part === 'turret' ? rotZ([E[0] - t.T.I.pivotX, E[1] - t.T.I.pivotY, E[2]], -tAng) : null;
@@ -1766,7 +1767,7 @@
     const tAng = -t.turret;
     const { face, plate, mm: mm0, slope, dd, extra, heatK, trackHit, n } = platePick(t, h, d, s.key);
     const scf = scarFrame(t, h, E), scw = scarWeak(t, scf.frame, scf.p, plate);
-    const mm = scw.hole ? Math.round(mm0 * 0.1) : Math.round(mm0 * (1 - scw.w));
+    const mm = Math.round((scw.hole ? mm0 * 0.1 : mm0 * (1 - scw.w)) * t.up.armor);
     rock(t, sb.m * Ballistics.velAt(sb, s.dist * RK), -d[0], -d[1], Math.max(0.2, h.z - T.S.ht * 0.5));
     const nHull = h.part === 'turret' ? rotZ(n, tAng) : n;
     const cosI = Math.max(0.03, -dot3(dd, n));
@@ -1776,7 +1777,7 @@
     const V = Ballistics.velAt(sb, xm);
     const ef = Ballistics.effective(sb, mm, angle);
     const eff = ef.eff + extra;
-    const pen = Ballistics.penVel(sb, V) * rnd(0.95, 1.05) * heatK;
+    const pen = Ballistics.penVel(sb, V) * rnd(0.95, 1.05) * heatK * by.up.pen;
     const ricP = s.ric < 1 ? Ballistics.ricochetChance(sb, mm, angle) : 0;
     const ric = s.key !== 'HE' && Math.random() < ricP;
     const Ek = 0.5 * sb.m * V * V;
@@ -2420,7 +2421,18 @@
     { az: 210, el: 34, sunCol: [0.28, 0.33, 0.5], skyCol: [0.03, 0.045, 0.08], bounce: [0.04, 0.05, 0.07], horizon: [0.02, 0.03, 0.06], zenith: [0.004, 0.006, 0.016], fogD: 0.011, snow: 1 },
   ];
 
-  let CMDR3 = null; const RAYTRI = {};
+  let CMDR3 = null; const RAYTRI = {}, ADD3 = {}, ADDR = {};
+  // maillages du blindage additionnel, construits à la demande (jeu et vitrine)
+  function addon3(id, lv) {
+    const k = id + lv;
+    if (!ADD3[k] && W3D) { const b = TankModels.addonArmor(id, lv); ADD3[k] = { hull: W3D.upload(b.hull), turret: W3D.upload(b.turret) }; }
+    return ADD3[k];
+  }
+  function addonR3(id, lv) {
+    const k = id + lv;
+    if (!ADDR[k] && R3) { const b = TankModels.addonArmor(id, lv); ADDR[k] = { hull: R3.upload(b.hull), turret: R3.upload(b.turret) }; }
+    return ADDR[k];
+  }
   let W3D = null, MESH3 = {}, bush3 = null, scene3 = null, scene3Dirty = false, scene3T = 0;
   // modes de caméra (touche C) : hauteur, recul et part du regard portée vers la visée
   const CAM_MODES = [
@@ -2615,7 +2627,7 @@
       const pp = platePick(t, h, norm3([h.ldx / ll, -h.ldy / ll, -0.02]), key);
       const cosI = Math.max(0.03, -dot3(pp.dd, pp.n)), angle = Math.acos(Math.min(1, cosI)) / D2R;
       const eff = Ballistics.effective(sb, pp.mm, angle).eff + pp.extra;
-      const pen = penAt(player.T, key, dist) * pp.heatK;
+      const pen = penAt(player.T, key, dist) * pp.heatK * player.up.pen;
       best.fall = Math.atan(G * dist * RK / Math.pow(Ballistics.velAt(sb, dist * RK * 0.5), 2)) / D2R;
       Object.assign(best, { plate: pp.plate, mm: pp.mm, angle, eff, pen, ric: key === 'HE' ? 0 : Ballistics.ricochetChance(sb, pp.mm, angle) });
     }
@@ -2692,9 +2704,12 @@
       if (!t.dead && !visibleToPlayer(t)) continue;
       if (sight.on && t === player) continue;
       const p = to3(t.x, t.y), hm = M4.mul(M4.trs(p[0], p[1], 0, -t.angle), susM(t));
-      const o = { camo: t === player ? Meta.skinOf(t.T.id).camo : TEAM[t.team].camo, seed: t.team * 3.7 + t.id * 0.37, burnt: t.dead ? 1 : 0, tread: -t.treadPhase / PX, tint: t.hitFlash > 0 ? [1, 0.9, 0.7, t.hitFlash * 2.5] : null };
+      const psk = t === player ? Meta.skinOf(t.T.id) : null;
+      const o = { camo: psk ? psk.camo : TEAM[t.team].camo, pat: psk ? psk.pat : 0, seed: t.team * 3.7 + t.id * 0.37, burnt: t.dead ? 1 : 0, tread: -t.treadPhase / PX, tint: t.hitFlash > 0 ? [1, 0.9, 0.7, t.hitFlash * 2.5] : null };
       const MS = MESH3[t.T.id];
       items.push({ mesh: MS.hull, model: hm, o });
+      const ad = t.up.armorLv ? addon3(t.T.id, t.up.armorLv) : null;
+      if (ad) items.push({ mesh: ad.hull, model: hm, o });
       // roues porteuses : rotation selon le chemin parcouru par leur chenille, débattement sur les bosses
       const bk = t.dead ? 0 : Math.min(1, Math.abs(t.speed) / t.T.speed * 2);
       MS.wheels.forEach((w, i) => {
@@ -2712,6 +2727,7 @@
         const I = t.T.I;
         const tmm = M4.mul(hm, M4.trs(I.pivotX, I.pivotY, 0, -t.turret));
         items.push({ mesh: MS.body, model: tmm, o });
+        if (ad) items.push({ mesh: ad.turret, model: tmm, o });
         if (t.scar3) items.push({ mesh: t.scar3.turret, model: tmm, o: { burnt: o.burnt } });
         // canon : élévation autour des tourillons, recul rapide (≈ 0,05 s) puis retour en batterie
         const fa = t.fireAge, rc = fa < 0.05 ? fa / 0.05 : Math.exp(-(fa - 0.05) * 4.5), gp = MS.gunPivot;
@@ -3499,7 +3515,7 @@
     ctx.font = '600 11px system-ui, sans-serif'; ctx.fillStyle = g.jam > 0 ? '#ff9a5c' : '#c9c4b2';
     ctx.fillText(g.jam > 0 ? `MG : changement du canon ${Math.ceil(g.jam)} s` : `MG (F/G) ${MG_AMMO[g.type].name} : ${g.type === 'SmKH' ? g.ammoH : g.ammo}`, bx + 175, by + 17);
     ctx.fillStyle = player.ready > 0 ? '#c9c4b2' : '#ffb070';
-    ctx.fillText(`Râtelier ${player.ready}/${T.ready}`, bx + 468, by + 64);
+    ctx.fillText(`Râtelier ${player.ready}/${T.ready + player.up.ready}`, bx + 468, by + 64);
     ctx.fillStyle = player.hatch ? '#ffcf7a' : '#8f8a77';
     ctx.fillText(player.hatch ? 'Chef sorti (U)' : 'Fermé (U)', bx + 468, by + 79);
     if (!(g.jam > 0)) { ctx.fillStyle = '#2c3024'; ctx.fillRect(bx + 335, by + 9, 50, 6); ctx.fillStyle = g.heat > 180 ? '#ff6a3a' : '#c98a3a'; ctx.fillRect(bx + 335, by + 9, 50 * Math.min(1, g.heat / 250), 6); }
@@ -3588,8 +3604,8 @@
   // ===================== Vitrine 3D du menu =====================
   const viewer = { ang: 0.8, elev: 0.33, drag: null, xray: false, dist: 1 };
   const groundMesh = R3 ? (() => { const g = new G3.Builder(); g.ground(16, 64); return R3.upload(g); })() : null;
-  function drawTank3D(id, w, h, ang, elev, xray, turretAng, clear, camo, hero) {
-    camo = camo || TEAM[0].camo;
+  function drawTank3D(id, w, h, ang, elev, xray, turretAng, clear, sk, hero, armorLv) {
+    const camo = sk ? sk.camo : TEAM[0].camo, pat = sk ? sk.pat : 0;
     const M4 = G3.M4, I = TYPES[id].I, Sd = I.S;
     R3.begin(w, h, clear);
     // vitrine plein écran : plus de recul (même taille apparente pour tous les chars), char à droite
@@ -3608,8 +3624,10 @@
       R3.draw(MESH[id].hull, M4.ident(), { xray: true, alpha: 0.95, additive: true });
       R3.draw(MESH[id].turret, tm, { xray: true, alpha: 0.95, additive: true });
     } else {
-      R3.draw(MESH[id].hull, M4.ident(), { camo });
-      R3.draw(MESH[id].turret, tm, { camo });
+      R3.draw(MESH[id].hull, M4.ident(), { camo, pat });
+      R3.draw(MESH[id].turret, tm, { camo, pat });
+      const ad = armorLv ? addonR3(id, armorLv) : null;
+      if (ad) { R3.draw(ad.hull, M4.ident(), { camo, pat }); R3.draw(ad.turret, tm, { camo, pat }); }
     }
   }
   function renderViewer(dt) {
@@ -3619,7 +3637,7 @@
     if (vc.width !== w || vc.height !== h) { vc.width = w; vc.height = h; }
     if (!viewer.drag) viewer.ang += dt * 0.22;
     const ta = Math.sin(viewerT * 0.4) * 0.35;
-    drawTank3D(chosenType, w, h, viewer.ang, viewer.elev, viewer.xray, ta, [0.05, 0.055, 0.045, 1], Meta.skinOf(chosenType).camo, true);
+    drawTank3D(chosenType, w, h, viewer.ang, viewer.elev, viewer.xray, ta, [0.05, 0.055, 0.045, 1], skinPreview ? Meta.SKINS.find(k => k.id === skinPreview) : Meta.skinOf(chosenType), true, Meta.partLv(chosenType, 'armor'));
     const c2 = vc.getContext('2d');
     c2.drawImage(R3.canvas, 0, 0);
     if (viewer.xray) {
@@ -3686,7 +3704,7 @@
   function tankThumb(id) {
     const sk = Meta.skinOf(id), key = id + ':' + sk.id;
     if (!thumbCache[key] && R3) {
-      drawTank3D(id, 480, 260, 0.75, 0.3, false, 0.25, [0.07, 0.08, 0.07, 1], sk.camo);
+      drawTank3D(id, 480, 260, 0.75, 0.3, false, 0.25, [0.07, 0.08, 0.07, 1], sk);
       const c = document.createElement('canvas'); c.width = 480; c.height = 260;
       c.getContext('2d').drawImage(R3.canvas, 0, 0);
       thumbCache[key] = c.toDataURL('image/jpeg', 0.85);
@@ -3717,7 +3735,7 @@
       d.className = 'card tcard' + (T.id === chosenType ? ' sel' : '') + (own ? '' : ' locked');
       const tag = own ? '<span class="tag own">✓</span>' : P.level < inf.lvl ? `<span class="tag lock">🔒 Niv. ${inf.lvl}</span>` : `<span class="tag">✪ ${fmt(inf.price)}</span>`;
       d.innerHTML = `${tag}<img class="thumb" alt="" src="${tankThumb(T.id)}"><b>${T.name}</b><small>${T.cls}${T.arc ? ' · sans tourelle' : ''}</small>`;
-      d.onclick = () => { chosenType = T.id; buildMenu(); };
+      d.onclick = () => { chosenType = T.id; skinPreview = null; buildMenu(); };
       tc.appendChild(d);
     }
     // achat du char sélectionné
@@ -3730,22 +3748,50 @@
       b.onclick = () => { if (Meta.buyTank(chosenType)) { toast(`${TYPES[chosenType].name} rejoint ton escadron !`); Sfx.reload(); buildMenu(); } };
       tb.appendChild(b);
     }
-    // camouflages
+    buildParts();
+    // camouflages : aperçu au clic, achat en crédits, ou déblocage par publicités
     const sc = $('skinCards'); sc.innerHTML = '';
-    const cur = Meta.skinOf(chosenType);
+    const cur = Meta.skinOf(chosenType), feat = Meta.featured();
     for (const sk of Meta.SKINS) {
-      const d = document.createElement('div'), own = P.skins.includes(sk.id), c = sk.camo.map(lin2hex);
-      d.className = 'skin' + (sk.id === cur.id ? ' sel' : '');
-      d.innerHTML = `<div class="sw" style="background:radial-gradient(circle at 25% 35%, ${c[1]} 0 22%, transparent 23%), radial-gradient(circle at 72% 62%, ${c[2]} 0 26%, transparent 27%), radial-gradient(circle at 60% 20%, ${c[1]} 0 14%, transparent 15%), ${c[0]}"></div><b>${sk.name}</b><span class="r r-${sk.rar}">${own ? '✓ possédé' : sk.ad ? '▶ publicité' : '✪ ' + fmt(sk.price)}</span>`;
+      const d = document.createElement('div'), own = P.skins.includes(sk.id);
+      d.className = 'skin' + (sk.id === cur.id ? ' sel' : '') + (sk.id === skinPreview ? ' prev' : '');
+      const price = Meta.skinPrice(sk), left = sk.ads ? Meta.adsLeft('skin:' + sk.id, sk.ads) : 0;
+      d.innerHTML = `${sk.id === feat && !own ? '<span class="promo">−50 % AUJOURD’HUI</span>' : ''}<div class="sw"></div><b>${sk.name}</b><span class="r r-${sk.rar}">${sk.rar}${own ? ' · ✓ possédé' : ''}</span>`;
+      d.querySelector('.sw').appendChild(skinSwatch(sk));
       d.onclick = () => {
-        if (own) { Meta.selectSkin(chosenType, sk.id); buildMenu(); return; }
-        if (sk.ad) { Meta.rewarded(() => { Meta.grantSkin(sk.id); Meta.selectSkin(chosenType, sk.id); toast(`Camouflage « ${sk.name} » débloqué`); buildMenu(); }, () => toast('Publicité indisponible pour le moment')); return; }
-        if (Meta.buySkin(sk.id)) { Meta.selectSkin(chosenType, sk.id); toast(`Camouflage « ${sk.name} » acheté`); buildMenu(); }
-        else toast('Crédits insuffisants');
+        if (own) { Meta.selectSkin(chosenType, sk.id); skinPreview = null; }
+        else skinPreview = skinPreview === sk.id ? null : sk.id;
+        buildMenu();
       };
+      if (!own) {
+        const act = document.createElement('div'); act.className = 'act';
+        if (!sk.adOnly) {
+          const b = document.createElement('button'); b.className = 'btn';
+          b.innerHTML = price < sk.price ? `<span class="strike">${fmt(sk.price)}</span>✪ ${fmt(price)}` : `✪ ${fmt(price)}`;
+          b.disabled = P.credits < price;
+          b.onclick = e => { e.stopPropagation(); if (Meta.buySkin(sk.id)) { Meta.selectSkin(chosenType, sk.id); skinPreview = null; toast(`Camouflage « ${sk.name} » acheté`); buildMenu(); } };
+          act.appendChild(b);
+        }
+        if (sk.ads) {
+          const b = document.createElement('button'); b.className = 'btn ad';
+          b.textContent = `${sk.ads - left}/${sk.ads}`;
+          b.title = `Débloquer en regardant ${sk.ads} publicité${sk.ads > 1 ? 's' : ''}`;
+          b.onclick = e => {
+            e.stopPropagation();
+            Meta.rewarded(() => {
+              if (Meta.skinAd(sk.id)) { Meta.selectSkin(chosenType, sk.id); skinPreview = null; toast(`Camouflage « ${sk.name} » débloqué !`); Meta.sdk.happytime(); }
+              else toast(`Encore ${Meta.adsLeft('skin:' + sk.id, sk.ads)} publicité(s) pour « ${sk.name} »`);
+              buildMenu();
+            }, () => toast('Publicité indisponible pour le moment'));
+          };
+          act.appendChild(b);
+        }
+        d.appendChild(act);
+      }
       sc.appendChild(d);
     }
-    $('specs').innerHTML = specsHTML(TYPES[chosenType]);
+    $('skinHint').textContent = skinPreview ? `Aperçu : « ${Meta.SKINS.find(k => k.id === skinPreview).name} ». Clique à nouveau pour revenir au tien.` : 'Clique sur un camouflage pour l’essayer sur la vitrine.';
+    $('specs').innerHTML = specsHTML(TYPES[chosenType]) + partsLine(chosenType);
     $('showcase').classList.toggle('no3d', !R3);
     const mc = $('modeCards'); mc.innerHTML = '';
     for (const [id, M] of Object.entries(MODES)) {
@@ -3769,6 +3815,57 @@
     $('spinFree').disabled = !Meta.canSpinFree() || wheelSpin;
     $('spinAd').disabled = wheelSpin;
     updateTopbar();
+  }
+  // Échantillon de camouflage dessiné en 2D selon son motif
+  let skinPreview = null;
+  const swatchCache = {};
+  function skinSwatch(sk) {
+    if (!swatchCache[sk.id]) {
+      const c = document.createElement('canvas'); c.width = 160; c.height = 70;
+      const g = c.getContext('2d'), col = sk.camo.map(lin2hex), R = mulberry32(sk.id.length * 977 + sk.id.charCodeAt(0));
+      g.fillStyle = sk.pat === 4 ? col[1] : col[0]; g.fillRect(0, 0, 160, 70);
+      const blob = (x, y, r, cc) => { g.fillStyle = cc; g.beginPath(); for (let k = 0; k <= 14; k++) { const a = k / 14 * TAU, rr = r * (0.7 + R() * 0.5); k ? g.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr * 0.7) : g.moveTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr * 0.7); } g.fill(); };
+      if (sk.pat === 0 || sk.pat === 3) for (let i = 0; i < 9; i++) blob(R() * 160, R() * 70, 14 + R() * 16, col[1 + (i % 2)]);
+      if (sk.pat === 3) for (let i = 0; i < 40; i++) { g.fillStyle = col[0]; g.beginPath(); g.arc(R() * 160, R() * 70, 2.2, 0, TAU); g.fill(); }
+      if (sk.pat === 2) for (let i = 0; i < 7; i++) { g.strokeStyle = col[1 + (i % 2)]; g.lineWidth = 7 + R() * 5; g.beginPath(); const x0 = i * 26 - 20; g.moveTo(x0, 0); g.bezierCurveTo(x0 + 18, 20, x0 - 6, 45, x0 + 22, 70); g.stroke(); }
+      if (sk.pat === 4) { for (let i = 0; i < 26; i++) { g.fillStyle = col[0]; g.globalAlpha = 0.85; g.fillRect(R() * 160, R() * 70, 18 + R() * 30, 3 + R() * 8); } g.globalAlpha = 1; }
+      const sh = g.createLinearGradient(0, 0, 0, 70); sh.addColorStop(0, 'rgba(255,255,255,0.12)'); sh.addColorStop(1, 'rgba(0,0,0,0.3)');
+      g.fillStyle = sh; g.fillRect(0, 0, 160, 70);
+      swatchCache[sk.id] = c.toDataURL();
+    }
+    const im = document.createElement('img'); im.src = swatchCache[sk.id]; im.style.cssText = 'width:100%;height:100%;display:block;object-fit:cover';
+    return im;
+  }
+  // Pièces du char choisi : niveau, achat en crédits ou en publicités (niveau + 1 publicités)
+  function buildParts() {
+    const P = Meta.P, pl = $('partList'); pl.innerHTML = '';
+    const own = P.tanks.includes(chosenType);
+    for (const pd of Meta.PARTS) {
+      const lv = Meta.partLv(chosenType, pd.id), d = document.createElement('div');
+      d.className = 'part';
+      d.innerHTML = `<div class="pi">${pd.ic}</div><div class="pt"><b>${pd.name}</b><small>${pd.desc}</small><div class="pips">${[0, 1, 2].map(i => `<i class="${i < lv ? 'on' : ''}"></i>`).join('')}</div></div><div class="pb"></div>`;
+      const pb = d.querySelector('.pb');
+      if (lv >= 3) { const b = document.createElement('button'); b.className = 'btn alt'; b.textContent = 'Niveau max.'; b.disabled = true; pb.appendChild(b); }
+      else {
+        const b = document.createElement('button'); b.className = 'btn';
+        b.textContent = `✪ ${fmt(pd.cost[lv])}`;
+        b.disabled = !own || P.credits < pd.cost[lv];
+        b.onclick = () => { if (Meta.buyPart(chosenType, pd.id)) { toast(`${pd.name} : niveau ${lv + 1} installé`); Sfx.reload(); buildMenu(); } };
+        const a = document.createElement('button'); a.className = 'btn ad';
+        const need = lv + 1, left = Meta.adsLeft(`part:${chosenType}:${pd.id}`, need);
+        a.textContent = `${need - left}/${need}`;
+        a.title = `Installer en regardant ${need} publicité${need > 1 ? 's' : ''}`;
+        a.disabled = !own;
+        a.onclick = () => Meta.rewarded(() => {
+          if (Meta.partAd(chosenType, pd.id)) { toast(`${pd.name} : niveau ${lv + 1} installé !`); Sfx.reload(); }
+          else toast(`${pd.name} : encore ${Meta.adsLeft(`part:${chosenType}:${pd.id}`, need)} publicité(s)`);
+          buildMenu();
+        }, () => toast('Publicité indisponible pour le moment'));
+        pb.appendChild(b); pb.appendChild(a);
+      }
+      pl.appendChild(d);
+    }
+    if (!own) { const n = document.createElement('div'); n.className = 'psub'; n.textContent = 'Achète ce char pour le préparer.'; pl.prepend(n); }
   }
   function buildMissions() {
     const P = Meta.P, ml = $('missionList'); ml.innerHTML = '';
@@ -3794,6 +3891,11 @@
       st.appendChild(d);
     });
     $('career').innerHTML = `<div>Batailles : <b>${P.stats.battles}</b> · victoires : <b>${P.stats.wins}</b> · chars détruits : <b>${P.stats.kills}</b></div><div>Grade : <b>${Meta.rankName()}</b> (niveau ${P.level}) · primes × 2 en réserve : <b>${P.x2}</b></div>`;
+  }
+  function partsLine(id) {
+    const m = Meta.mods(id), pc = v => (v >= 1 ? '+' : '−') + Math.round(Math.abs(v - 1) * 100) + ' %';
+    if (!Meta.PARTS.some(p => Meta.partLv(id, p.id))) return '';
+    return `<div class="specLine" style="margin-top:8px;color:var(--gold)">Préparation : puissance ${pc(m.hp)} · perforation ${pc(m.pen)} · blindage ${pc(m.armor)} · adhérence ${pc(m.grip)} · vue ${pc(m.optic)} · rechargement ${pc(m.reload)}${m.ready ? ` · râtelier +${m.ready}` : ''}</div>`;
   }
   // ----- roue -----
   let wheelRot = 0, wheelSpin = false;
