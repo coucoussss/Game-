@@ -7,7 +7,7 @@
 // - éclats : masses selon la loi de Mott, énergie ½mv², ricochets sur les parois
 // - charge explosive : surpression de Kinney-Graham, rayon de Sedov-Taylor, éclats à la vitesse de Gurney
 const Ballistics = (() => {
-  const RHO = 1.225, STEEL = 7850, C_DM = 0.02436, TNT = 4.184e6, D2R = Math.PI / 180;
+  const RHO = 1.225, G = 9.81, STEEL = 7850, C_DM = 0.02436, TNT = 4.184e6, D2R = Math.PI / 180;
   const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
   const rnd = (a, b) => a + Math.random() * (b - a);
   const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
@@ -107,7 +107,38 @@ const Ballistics = (() => {
 
   // ===================== Balistique extérieure et perforation =====================
   const area = s => Math.PI * Math.pow(s.cal / 1000, 2) / 4;
-  const velAt = (s, x) => s.v0 * Math.exp(-x * RHO * s.cd * area(s) / (2 * s.m));
+  // coefficient de traînée (1/m) : dv/dx = −k·v
+  const kDrag = s => RHO * s.cd * area(s) / (2 * s.m);
+  // Table de tir de chaque obus, intégrée une seule fois (pas de 1 m, relevé tous les 10 m) en tir
+  // tendu : vitesse, durée de trajet, chute sous la ligne de départ et pente de descente
+  const TAB_DX = 10, TAB_N = 400;
+  function table(s) {
+    if (s.tab) return s.tab;
+    const v = new Float64Array(TAB_N + 1), t = new Float64Array(TAB_N + 1), z = new Float64Array(TAB_N + 1), q = new Float64Array(TAB_N + 1);
+    let V = s.v0, tt = 0, zz = 0, sl = 0;
+    v[0] = V;
+    for (let i = 1; i <= TAB_N; i++) {
+      for (let j = 0; j < TAB_DX; j++) {
+        // pas de 1 m évalué à mi-chemin : la pente perd g / v² par mètre, la hauteur suit la pente
+        const k = kDrag(s, V), Vm = V * Math.exp(-0.5 * k), g = G / (Vm * Vm);
+        tt += 1 / Vm; zz += sl - 0.5 * g; sl -= g;
+        V *= Math.exp(-k);
+      }
+      v[i] = V; t[i] = tt; z[i] = -zz; q[i] = -sl;
+    }
+    return (s.tab = { v, t, z, q });
+  }
+  const look = (a, x) => { const f = clamp(x / TAB_DX, 0, TAB_N), i = Math.min(TAB_N - 1, Math.floor(f)); return a[i] + (a[i + 1] - a[i]) * (f - i); };
+  const XMAX = TAB_DX * TAB_N;
+  const velAt = (s, x) => x <= XMAX ? look(table(s).v, x) : table(s).v[TAB_N] * Math.exp(-kDrag(s, 0) * (x - XMAX));
+  // durée de trajet (s), chute sous la ligne de départ (m) et pente de descente (m/m) à la distance x
+  const tof = (s, x) => look(table(s).t, x);
+  const drop = (s, x) => look(table(s).z, x);
+  const descent = (s, x) => look(table(s).q, x);
+  // mêmes grandeurs sous forme exacte quand k est constant (vitesse exponentielle)
+  const dropExp = (v0, k, X) => G / (2 * k * v0 * v0) * ((Math.exp(2 * k * X) - 1) / (2 * k) - X);
+  const tofExp = (v0, k, X) => (Math.exp(k * X) - 1) / (k * v0);
+  const descentExp = (v0, k, X) => G / (2 * k * v0 * v0) * (Math.exp(2 * k * X) - 1);
   const heContact = s => 14.5 * Math.pow(s.filler, 0.38); // perforation par contact d'une charge explosive (mm)
   const deMarreK = s => C_DM * s.k * Math.pow(s.m, 0.71) / Math.pow(s.cal / 10, 1.07);
   function penVel(s, v) {
@@ -410,5 +441,5 @@ const Ballistics = (() => {
     return out;
   }
 
-  return { GUNS, shell, velAt, penVel, penAt, vLimit, obliquity, effective, ricochetChance, blastKPa, sedov, gurney, spin, simulate };
+  return { GUNS, shell, kDrag, velAt, tof, drop, descent, dropExp, tofExp, descentExp, penVel, penAt, vLimit, obliquity, effective, ricochetChance, blastKPa, sedov, gurney, spin, simulate };
 })();

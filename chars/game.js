@@ -1129,7 +1129,7 @@
     // Pointage en hauteur : le canon prend l'élévation qui amène l'obus sur le point visé (chute
     // comprise), à la vitesse du volant de pointage
     {
-      const sb = Ballistics.shell(T.id, t.shell === 'CAN' || t.shell === 'SMOKE' ? 'HE' : t.shell), pv = pivot(t), ta = t.angle + t.turret;
+      const sb = Ballistics.shell(T.id, t.shell), pv = pivot(t), ta = t.angle + t.turret;
       const ap = aimPoint(t, pv.x + Math.cos(ta) * T.gunEnd, pv.y + Math.sin(ta) * T.gunEnd);
       const want = clamp(Math.atan(aimSlope(sb, ap.D, T.S.gun.z, ap.z) * PX * RK), -8 * D2R, 20 * D2R);
       t.elev += clamp(want - t.elev, -0.15 * dt, 0.15 * dt);
@@ -1153,10 +1153,12 @@
   }
 
   // Pente initiale (dz par mètre balistique) pour qu'un obus parti de z0 passe à zt à la distance D (px) :
-  // ligne droite + surélévation qui compense la chute, 1/2 g x² / v² avec la vitesse moyenne sur le trajet
+  // ligne droite + surélévation qui compense la chute lue dans la table de tir de l'obus (traînée
+  // comprise) ; la mitraille suit la loi des billes d'acier (freinage exponentiel sur 250 m)
   function aimSlope(sb, Dpx, z0, zt) {
-    const X = Math.max(5, Dpx * RK), vm = Ballistics.velAt(sb, X * 0.5);
-    return (zt - z0) / X + 0.5 * G * X / (vm * vm);
+    const X = Math.max(5, Dpx * RK);
+    const drop = sb.can ? Ballistics.dropExp(MG_AMMO.CAN.v0, 1 / MG_AMMO.CAN.kd, X) : Ballistics.drop(sb, X);
+    return (zt - z0) / X + drop / X;
   }
   // Point que le tireur veut toucher : sa cible pour l'IA, le point visé à la souris ou à la lunette
   function aimPoint(t, mx, my) {
@@ -1450,8 +1452,10 @@
         const h = segAABB(s.x, s.y, dx, dy, o.x, o.y, o.x + o.w, o.y + o.h);
         if (h && (!best || h.t < best.t)) best = { t: h.t, o, nx: h.nx, ny: h.ny };
       }
-      // hauteur en fin de pas : l'obus suit sa trajectoire balistique (pente en m par mètre balistique)
-      const dX = s.sp * dt * RK, zNext = s.z + s.slope * dX;
+      // hauteur en fin de pas : l'obus suit sa trajectoire balistique (pente en m par mètre balistique) ;
+      // la pesanteur courbe la trajectoire de g / v² par mètre (v réelle, ralentie par la traînée et les ricochets)
+      const vr = s.v0 * s.sp / s.sp0, gk = G / (vr * vr);
+      const dX = s.sp * dt * RK, zNext = s.z + s.slope * dX - 0.5 * gk * dX * dX;
       if (best && s.z + (zNext - s.z) * best.t > obsH(best.o)) best = null; // passe au-dessus
       if (!best) {
         // un obstacle plus loin sur le pas peut encore être touché s'il est assez haut
@@ -1487,9 +1491,7 @@
       } else {
         s.x += dx; s.y += dy;
         s.dist += s.sp * dt;
-        // gravité : la pente diminue de g / v² par mètre (v réelle, ralentie par la traînée et les ricochets)
-        const vr = s.v0 * s.sp / s.sp0;
-        s.z = zNext; s.slope -= G / (vr * vr) * dX;
+        s.z = zNext; s.slope -= gk * dX;
         // la traînée ralentit l'obus : vitesse affichée proportionnelle à la vitesse réelle
         const k = s.base * Ballistics.velAt(Ballistics.shell(s.by.T.id, s.key), s.dist * RK) / s.v0 / s.sp;
         s.vx *= k; s.vy *= k; s.sp *= k;
@@ -2629,7 +2631,7 @@
       const cosI = Math.max(0.03, -dot3(pp.dd, pp.n)), angle = Math.acos(Math.min(1, cosI)) / D2R;
       const eff = Ballistics.effective(sb, pp.mm, angle).eff + pp.extra;
       const pen = penAt(player.T, key, dist) * pp.heatK * player.up.pen;
-      best.fall = Math.atan(G * dist * RK / Math.pow(Ballistics.velAt(sb, dist * RK * 0.5), 2)) / D2R;
+      best.fall = Math.atan(Ballistics.descent(sb, dist * RK)) / D2R;
       Object.assign(best, { plate: pp.plate, mm: pp.mm, angle, eff, pen, ric: key === 'HE' ? 0 : Ballistics.ricochetChance(sb, pp.mm, angle) });
     }
     return best;
@@ -4388,7 +4390,7 @@
         const pv = pivot(player);
         player.turret = angNorm(Math.atan2(e.y - pv.y, e.x - pv.x) - player.angle);
         player.aim3 = { x: e.x, y: e.y, z: e.T.S.ht - 0.3 };
-        { const sb = Ballistics.shell(player.T.id, player.shell === 'CAN' || player.shell === 'SMOKE' ? 'HE' : player.shell); player.elev = Math.atan(aimSlope(sb, Math.hypot(e.x - pv.x, e.y - pv.y), player.T.S.gun.z, e.T.S.ht - 0.3) * PX * RK); }
+        { const sb = Ballistics.shell(player.T.id, player.shell); player.elev = Math.atan(aimSlope(sb, Math.hypot(e.x - pv.x, e.y - pv.y), player.T.S.gun.z, e.T.S.ht - 0.3) * PX * RK); }
         player.disp = 0; player.reloadT = 0; fireShell(player);
         return true;
       },
