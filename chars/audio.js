@@ -111,6 +111,17 @@ const Sfx = (() => {
         tone(t, 0.15, 180, 90, 0.3 * a, 'triangle');
       });
     },
+    // rafale de mitrailleuse : un claquement par coup
+    mg(d) {
+      play(d, (t, a) => {
+        noise(t, 0.05, 2600, 0.8, 0.32 * a, 'lowpass', 500);
+        tone(t, 0.04, 160, 70, 0.25 * a, 'sine');
+      });
+    },
+    // balle qui frappe l'acier
+    ping(d) {
+      play(d, (t, a) => { tone(t, 0.09, 2100 + Math.random() * 600, 1600, 0.09 * a, 'triangle'); noise(t, 0.03, 5000, 3, 0.12 * a, 'bandpass'); });
+    },
     whiz() {
       play(null, (t, a) => noise(t, 0.4, 3500, 7, 0.45 * a, 'bandpass', 500));
     },

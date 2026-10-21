@@ -43,6 +43,45 @@ Le fichier `chars/front-dacier.html` contient tout le jeu en un seul fichier, à
   moitié, modules réparés, fumigène rendu ; les équipiers tués ne reviennent pas. Le record est gardé.
 - **Duel** : 1 contre 1 à chars identiques, en 3 manches gagnantes, contre une IA d'élite.
 
+## Balistique en 3D
+
+Les obus et les balles volent en vraie 3D, avec la pesanteur et la traînée de l'air.
+
+- **Visée en hauteur** : en vue extérieure, le rayon de la souris touche le premier objet en 3D (caisse,
+  tourelle, obstacle à sa hauteur, ou sol). On vise donc le haut ou le bas d'un char ; l'indicateur près
+  du réticule donne la plaque, le blindage effectif et le verdict.
+- **Chute** : la pente de la trajectoire diminue de g/v² par mètre. Le canon prend la surélévation qui
+  compense la chute jusqu'au point visé (débattement de −8° à +20°) ; la dispersion est la même en
+  hauteur et en largeur.
+- **Obstacles en hauteur** : un muret de 1,3 m cache la caisse mais pas la tourelle. On voit et on tire
+  par-dessus : c'est le « hull-down », caisse à couvert, tourelle seule exposée. Rochers à leur hauteur,
+  maisons et arbres plus hauts que tout tir.
+- **Ricochets** : sur une plaque inclinée, la direction 3D se réfléchit sur la normale, donc l'obus part
+  vers le haut. Un obus perforant qui touche le sol sous moins de 7° rebondit (ricochet de sol). Les
+  rayons X montrent l'angle de chute et la hauteur d'impact.
+- **Mitrailleuse coaxiale** (touche `F`, ou clic droit à la lunette) : type MG 34, 7,92 mm à 755 m/s,
+  environ 900 coups/min, une traçante sur cinq. Le canon chauffe : au-delà de 250 coups d'affilée, il
+  faut 7 s pour le changer. Sans effet sur un blindage de char, mais les traçantes qui frappent l'acier
+  repartent en chandelle. L'IA lâche des rafales courtes sur ses cibles.
+
+## Effets physiques
+
+Chaque particule a une position en 3D, des vitesses en m/s, la pesanteur, la traînée de l'air, le vent,
+un rebond au sol, et une poussée vers le haut pour les gaz chauds.
+
+- **Départ du coup** : boule de feu en bouche, jets latéraux du frein de bouche, fumée de poudre, anneau
+  de poussière soulevé par l'onde de souffle sous le canon.
+- **Obus explosif** : boule de feu brève, onde de choc rasante qui chasse la poussière, éclats
+  incandescents, mottes projetées en hauteur, colonne de fumée brune qui monte et dérive.
+- **Coup au sol** : gerbe de mottes projetées vers l'avant, colonne de poussière ; couleur du sol du
+  niveau (neige, sable, gravats).
+- **Coup sur blindage** : gerbe d'étincelles qui rebondissent au sol, poussière de peinture. Après une
+  perforation, de la fumée ressort des écoutilles ; une charge creuse laisse une boule de fumée noire.
+- **Char en feu** : flammes sur le compartiment moteur, colonne de fumée noire qui monte, s'étale et
+  dérive avec le vent, puis grisaille. Dans l'épave, les munitions détonent une à une.
+- **Roulage** : poussière des chenilles (moins dense sur la neige ou en forêt), gaz d'échappement à
+  l'accélération.
+
 ## Vue du tireur
 
 `Maj` (ou `V`) passe à la lunette du tireur, coaxiale au canon. La souris oriente la visée (curseur
@@ -52,7 +91,7 @@ canon, avec la dispersion et le rechargement. La molette change le grossissement
 - **Réticule** inspiré de la TZF allemande : triangle central, triangles tous les 4 millièmes pour la
   correction sur cible mobile, réglette des distances en hectomètres avec le curseur du télémètre. Les
   traits sont à l'échelle angulaire réelle, donc grossissent avec le zoom. Réticule éclairé la nuit.
-- **Visée en hauteur** : l'obus suit la ligne de visée. On choisit donc la plaque : haut ou bas de
+- **Visée en hauteur** : l'obus suit la ligne de visée (hausse réglée par le télémètre). On choisit donc la plaque : haut ou bas de
   caisse, masque, tourelle. Viser trop haut fait passer l'obus au-dessus d'un char bas, trop bas le
   fiche dans le sol.
 - **Indicateur** : char visé, plaque, épaisseur et inclinaison, blindage effectif, pénétration à cette

@@ -63,6 +63,7 @@
   // ===================== Données =====================
   const PX = 7;    // pixels de jeu par mètre (taille des chars)
   const RK = 0.5;  // mètres de balistique par pixel (distances de tir)
+  const G = 9.81;  // pesanteur (m/s²)
   const TYPES = {
     light: {
       id: 'light', name: 'Lynx', cls: 'Char léger', kmh: 60, speed: 150, rev: 70, accel: 230, turn: 2.3, tturn: 2.6,
@@ -184,6 +185,7 @@
 
   let state = 'menu'; // menu, intro, play, ending, result, pause
   let levelIdx = 0, waveIdx = 0, chosenType = 'medium';
+  let bullets = [];
   let tanks = [], shells = [], parts = [], texts = [], feed = [], smokes = [], logs = [];
   let obstacles = [], bushes = [];
   let player = null, specIdx = 0;
@@ -549,6 +551,7 @@
       dead: false, deadT: 0, isPlayer, name, r: (T.len + T.wid) / 4,
       mods, roles, swap: null, rep: {}, ammo: Object.assign({}, T.ammo), shell: 'APHE',
       reloadT: rnd(0.8, 1.6), disp: T.disp * 3, smoke: 2, trackT: 0, fireT: 0, fireBy: null,
+      mg: { ammo: 2700, heat: 0, jam: 0, cd: 0, n: 0, burst: 0, wait: rnd(1, 4) },
       revealT: 0, recoil: 0, flash: 0, trackAcc: 0, treadPhase: 0, hitFlash: 0, turretGone: false,
       in: { throttle: 0, turn: 0, aim: angle, fire: false },
       ai: (isPlayer && !AUTO) ? null : makeAI(skill),
@@ -579,7 +582,7 @@
   }
 
   function spawnWave() {
-    tanks = []; shells = []; smokes = []; texts = []; feed = []; parts = []; logs = [];
+    tanks = []; shells = []; bullets = []; smokes = []; texts = []; feed = []; parts = []; logs = [];
     spotted[0].clear(); spotted[1].clear();
     HitCam.stop();
     const lv = L();
@@ -645,11 +648,18 @@
     for (const b of bushes) if (Math.hypot(t.x - b.x, t.y - b.y) < b.r * 0.85) return true;
     return false;
   }
-  function losClear(x0, y0, x1, y1, vision) {
+  // Hauteur des obstacles en mètres (comme dans le décor 3D) : un muret de 1,3 m cache la caisse
+  // mais laisse voir et tirer par-dessus, depuis et vers une tourelle
+  function obsH(o) {
+    if (o.type === 'wall') return 1.3;
+    if (o.type === 'rock') return Math.min(o.w, o.h) / PX * 0.45;
+    return o.type === 'tree' ? 14 : 9;
+  }
+  function losClear(x0, y0, x1, y1, vision, blast) {
     const dx = x1 - x0, dy = y1 - y0;
     const minx = Math.min(x0, x1), maxx = Math.max(x0, x1), miny = Math.min(y0, y1), maxy = Math.max(y0, y1);
     for (const o of obstacles) {
-      if (o.dead) continue;
+      if (o.dead || (o.type === 'wall' && !blast)) continue;
       if (o.x > maxx || o.x + o.w < minx || o.y > maxy || o.y + o.h < miny) continue;
       const h = segAABB(x0, y0, dx, dy, o.x, o.y, o.x + o.w, o.y + o.h);
       if (h && h.t < 1) return false;
@@ -934,17 +944,35 @@
       const eng = modOf(t, 'engine');
       if (eng.hp > 0) modDamage(t, eng, 5 * dt, t.fireBy);
       if (Math.random() < 30 * dt) addFire(t.x + rnd(-10, 10), t.y + rnd(-8, 8));
+      burnFx(t, dt, 1);
       if (Math.random() < dt * 0.012) { if (t === player) addLog('Les munitions explosent dans l’incendie !', '#ff6a5a'); destroyTank(t, t.fireBy, true); return; }
       if (t.fireT <= 0 && t === player) addLog('Incendie éteint', '#bcd8ff');
       checkKnock(t, t.fireBy);
     }
   }
 
+  // Char en feu : flammes sur le compartiment moteur, colonne de fumée noire d'huile et de caoutchouc,
+  // qui monte (gaz chauds) puis s'étale et dérive avec le vent ; elle grisaille quand le feu baisse
+  function burnFx(t, dt, k) {
+    const T = t.T, c = Math.cos(t.angle), sn = Math.sin(t.angle), rx = t.x - c * T.len * 0.3, ry = t.y - sn * T.len * 0.3, z = T.S.ht + 0.2;
+    if (Math.random() < dt * 9 * k) {
+      const late = t.dead && t.deadT > 30, g = late ? 0.32 : 0.07;
+      P3({ x: rx + rnd(-4, 4), y: ry + rnd(-4, 4), z, vx: rnd(-0.3, 0.3), vy: rnd(-0.3, 0.3), vz: rnd(2, 4.5), drag: 0.35, g: -0.35, wind: 1.6, size: rnd(0.5, 0.9), grow: rnd(0.55, 0.95), life: rnd(5, 9), c: [g, g * 0.95, g * 0.9, late ? 0.35 : 0.62] });
+    }
+    if (k >= 0.6 && Math.random() < dt * 30 * k) P3({ x: rx + rnd(-6, 6), y: ry + rnd(-5, 5), z: z + rnd(-0.1, 0.3), vz: rnd(1.5, 3.5), g: -1.2, wind: 0.5, size: rnd(0.25, 0.55), grow: -0.5, glow: true, life: rnd(0.25, 0.55), c: [1, rnd(0.38, 0.6), 0.12, 1.7] });
+  }
   function updateTank(t, dt) {
     if (t.dead) {
       t.deadT += dt;
-      if (t.deadT < 30 && Math.random() < dt * (t.deadT < 8 ? 12 : 4)) addSmoke(t.x + rnd(-8, 8), t.y + rnd(-8, 8), rnd(8, 14), 'rgba(30,28,26,', 3.5);
       if (t.deadT < 7 && Math.random() < dt * 22) addFire(t.x + rnd(-10, 10), t.y + rnd(-8, 8));
+      burnFx(t, dt, t.deadT < 12 ? 1.6 : t.deadT < 45 ? 0.6 : 0.2);
+      // munitions qui détonent une à une dans l'épave
+      if (t.deadT < 10 && Math.random() < dt * 0.9) {
+        const z = t.T.S.ht + 0.4;
+        parts.push({ k: 'flash', x: t.x, y: t.y, life: 0.1, max: 0.1, size: 26, z });
+        Fx.armorHit(t.x + rnd(-6, 6), t.y + rnd(-6, 6), z, 'non', rnd(-1, 1), rnd(-1, 1));
+        Sfx.impact(listenerDist(t.x, t.y));
+      }
       return;
     }
     crewLogic(t, dt);
@@ -972,9 +1000,16 @@
     t.treadPhase += t.speed * dt;
     t.trackAcc += moved + Math.abs(tr) * 40 * dt;
     if (t.trackAcc > 9) { t.trackAcc = 0; stampTracks(t); }
-    if (moved > 0.6 && Math.random() < dt * Math.abs(t.speed) / 14) {
-      const c = Math.cos(t.angle), s = Math.sin(t.angle), side = Math.random() < 0.5 ? -1 : 1;
-      addDust(t.x - c * T.len * 0.5 - s * side * T.wid * 0.4, t.y - s * T.len * 0.5 + c * side * T.wid * 0.4);
+    if (moved > 0.6 && Math.random() < dt * Math.abs(t.speed) / 9) {
+      // poussière soulevée par les chenilles : dense par temps sec, rare sur la neige
+      const c = Math.cos(t.angle), s = Math.sin(t.angle), side = Math.random() < 0.5 ? -1 : 1, dc = Fx.dust();
+      const bk = Math.sign(t.speed) || 1, k = L().snow ? 0.5 : L().trees > 100 ? 0.7 : 1;
+      if (Math.random() < k) P3({ x: t.x - c * T.len * 0.5 * bk - s * side * T.wid * 0.4, y: t.y - s * T.len * 0.5 * bk + c * side * T.wid * 0.4, z: 0.25, vx: -c * bk * rnd(0.5, 2) - s * side * rnd(0, 1), vy: -s * bk * rnd(0.5, 2) + c * side * rnd(0, 1), vz: rnd(0.3, 1.1), drag: 1.4, wind: 1, size: rnd(0.4, 0.8), grow: rnd(0.8, 1.3), life: rnd(1.5, 3), c: [dc[0], dc[1], dc[2], 0.34] });
+    }
+    // gaz d'échappement : bouffées bleutées à l'accélération
+    if (Math.abs(thr) > 0 && Math.random() < dt * (Math.abs(target - t.speed) > 4 ? 10 : 2)) {
+      const c = Math.cos(t.angle), s = Math.sin(t.angle);
+      P3({ x: t.x - c * T.len * 0.48, y: t.y - s * T.len * 0.48, z: T.S.ht * 0.75, vx: -c * rnd(1, 2.5), vy: -s * rnd(1, 2.5), vz: rnd(0.3, 0.9), drag: 1.5, wind: 1, size: rnd(0.15, 0.3), grow: 0.7, life: rnd(1.2, 2.2), c: [0.33, 0.34, 0.37, 0.35] });
     }
 
     // Tourelle : vitesse de rotation limitée ; le chasseur n'a qu'un petit secteur de tir
@@ -997,8 +1032,25 @@
     t.hitFlash = Math.max(0, t.hitFlash - dt);
     t.revealT -= dt;
     if (inp.fire && t.reloadT <= 0 && state === 'play' && canFire(t)) fireShell(t);
+    updateMG(t, dt);
   }
 
+  // Pente initiale (dz par mètre balistique) pour qu'un obus parti de z0 passe à zt à la distance D (px) :
+  // ligne droite + surélévation qui compense la chute, 1/2 g x² / v² avec la vitesse moyenne sur le trajet
+  function aimSlope(sb, Dpx, z0, zt) {
+    const X = Math.max(5, Dpx * RK), vm = Ballistics.velAt(sb, X * 0.5);
+    return (zt - z0) / X + 0.5 * G * X / (vm * vm);
+  }
+  // Point que le tireur veut toucher : sa cible pour l'IA, le point visé à la souris ou à la lunette
+  function aimPoint(t, mx, my) {
+    if (t === player && !t.ai) {
+      if (sight.on) { const D = sight.probe && sight.probe.kind !== 'sky' ? sight.probe.dist : 700; return { D, z: sight.z0 + Math.tan(sight.gunPitch) * D / PX }; }
+      if (t.aim3) return { D: Math.hypot(t.aim3.x - mx, t.aim3.y - my), z: t.aim3.z };
+    }
+    const e = t.ai && t.ai.target;
+    if (e && !e.dead) return { D: Math.hypot(e.x - mx, e.y - my), z: e.T.S.ht - 0.25 };
+    return { D: 600, z: 1.4 };
+  }
   function fireShell(t) {
     const T = t.T, key = t.shell, sh = SHELLS[key];
     const ta = t.angle + t.turret;
@@ -1008,11 +1060,14 @@
     const sp = T.shell * sh.vel;
     t.ammo[key]--;
     const sb = Ballistics.shell(T.id, key);
+    // vertical : élévation du canon (débattement de −8° à +20°) et dispersion, isotrope avec l'horizontale
+    const z0 = T.S.gun.z, ap = aimPoint(t, mx, my), k3 = PX * RK;
+    let slope = aimSlope(sb, ap.D, z0, ap.z) + gauss() * t.disp / k3;
+    slope = clamp(slope, Math.tan(-8 * D2R) / k3, Math.tan(20 * D2R) / k3);
     shells.push({
-      id: ++shellId, x: mx, y: my, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, sp, team: t.team, owner: t, by: t,
-      key, base: sp, v0: sb.v0, dist: 0, zErr: gauss() * 0.32 * Math.sqrt(t.disp / T.disp), range: 1600, trail: [], ric: 0, whiz: false, warned: false,
+      id: ++shellId, x: mx, y: my, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, sp, sp0: sp, team: t.team, owner: t, by: t,
+      key, base: sp, v0: sb.v0, dist: 0, z: z0, slope, range: 2400, trail: [], ric: 0, whiz: false, warned: false,
     });
-    if (t === player && sight.on) { const sh0 = shells[shells.length - 1]; sh0.z0 = sight.z0; sh0.slope = Math.tan(sight.gunPitch); }
     t.reloadT = T.reload;
     t.disp += T.disp * 3;
     t.recoil = 1; t.flash = 0.09; t.revealT = 3;
@@ -1022,10 +1077,79 @@
       if (t === player) showMsg(`Plus d'obus ${sh.name.toLowerCase()} : ${SHELLS[t.shell].name.toLowerCase()} chargé`, '#e9d9a6', 1.6);
     }
     if (t === player) { waveStats.shots++; shake = Math.max(shake, 5); }
-    for (let i = 0; i < 6; i++) addSmoke(mx + Math.cos(ta) * rnd(0, 18), my + Math.sin(ta) * rnd(0, 18), rnd(5, 10), 'rgba(170,165,150,', 1.2, Math.cos(ta) * rnd(20, 60), Math.sin(ta) * rnd(20, 60));
-    parts.push({ k: 'flash', x: mx, y: my, life: 0.08, max: 0.08, size: 20 + T.caliber / 4 });
-    for (let i = 0; i < 4; i++) addDust(mx + rnd(-10, 10), my + rnd(-10, 10));
+    parts.push({ k: 'flash', x: mx, y: my, life: 0.08, max: 0.08, size: 20 + T.caliber / 4, z: T.S.gun.z });
+    Fx.muzzle(t, mx, my);
     Sfx.fire(listenerDist(mx, my), T.caliber >= 85);
+  }
+
+  // ===================== Mitrailleuses =====================
+  // Mitrailleuse coaxiale (type MG 34) : 7,92 mm, 755 m/s, environ 900 coups/min, une balle traçante
+  // sur cinq. Le canon chauffe en tir continu : au-delà de 250 coups d'affilée, il faut le changer.
+  // Sans effet sur un blindage de char (8 mm perforés à 100 m), mais la gerbe se voit et s'entend.
+  const MG_V = 755;
+  function updateMG(t, dt) {
+    const g = t.mg;
+    g.cd -= dt; g.heat = Math.max(0, g.heat - 6 * dt);
+    if (g.jam > 0) { g.jam -= dt; if (g.jam <= 0 && t === player) addLog('Canon de mitrailleuse changé', '#bcd8ff'); return; }
+    let want = t.in.mg;
+    if (t.ai) {
+      // l'IA lâche des rafales courtes sur une cible visible à moyenne portée
+      const e = t.ai.target;
+      if (e && !e.dead && t.ai.los && Math.hypot(e.x - t.x, e.y - t.y) < 900) {
+        if (g.burst > 0) { g.burst -= dt; want = true; } else if ((g.wait -= dt) <= 0) { g.burst = rnd(0.4, 1.3); g.wait = rnd(2, 6); }
+      }
+    }
+    if (!want || state !== 'play' || g.ammo <= 0 || !roleOk(t, 'gunner') || t.turretGone || g.cd > 0) return;
+    g.cd = 1 / 15 + rnd(-0.004, 0.004);
+    g.ammo--; g.heat++; g.n++;
+    if (g.heat > 250) { g.jam = 7; if (t === player) addLog('Mitrailleuse surchauffée : changement du canon', '#ffb070'); }
+    const T = t.T, ta = t.angle + t.turret, pv = pivot(t), side = -0.3 * PX;
+    const mx = pv.x + Math.cos(ta) * T.gunEnd * 0.45 - Math.sin(ta) * side, my = pv.y + Math.sin(ta) * T.gunEnd * 0.45 + Math.cos(ta) * side;
+    const a = ta + gauss() * (0.0035 + t.disp * 0.35), sp = MG_V * 0.92, z0 = T.S.gun.z - 0.05;
+    const ap = aimPoint(t, mx, my), X = Math.max(5, ap.D * RK), vm = MG_V * Math.exp(-X * 0.5 / 900);
+    const slope = (ap.z - z0) / X + 0.5 * G * X / (vm * vm) + gauss() * (0.0035 + t.disp * 0.35) / (PX * RK);
+    bullets.push({ x: mx, y: my, z: z0, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, sp, slope, dist: 0, tracer: g.n % 5 === 0, by: t, team: t.team });
+    t.revealT = Math.max(t.revealT, 1.5);
+    if (Math.random() < 0.5) parts.push({ k: 'flash', x: mx, y: my, life: 0.03, max: 0.03, size: 6, z: z0 });
+    Sfx.mg(listenerDist(mx, my));
+  }
+  function updateBullets(dt) {
+    for (let i = bullets.length - 1; i >= 0; i--) {
+      const b = bullets[i];
+      const dx = b.vx * dt, dy = b.vy * dt, dX = b.sp * dt * RK, zNext = b.z + b.slope * dX;
+      let best = null;
+      const minx = Math.min(b.x, b.x + dx) - 30, maxx = Math.max(b.x, b.x + dx) + 30, miny = Math.min(b.y, b.y + dy) - 30, maxy = Math.max(b.y, b.y + dy) + 30;
+      for (const o of obstacles) {
+        if (o.dead || o.x > maxx || o.x + o.w < minx || o.y > maxy || o.y + o.h < miny) continue;
+        const h = segAABB(b.x, b.y, dx, dy, o.x, o.y, o.x + o.w, o.y + o.h);
+        if (h && b.z + (zNext - b.z) * h.t <= obsH(o) && (!best || h.t < best.t)) best = { t: h.t, o };
+      }
+      for (const t of tanks) {
+        if (t === b.by || t.x > maxx || t.x < minx || t.y > maxy || t.y < miny) continue;
+        const c = tankCand(t, b.x, b.y, dx, dy, (b.z + zNext) / 2);
+        if (c && (!best || c.t < best.t)) best = { t: c.t, tank: t, z: c.z };
+      }
+      if (zNext <= 0) { const tg = b.z / Math.max(1e-6, b.z - zNext); if (!best || tg < best.t) best = { t: tg, ground: true }; }
+      if (!best) {
+        b.x += dx; b.y += dy; b.z = zNext; b.dist += b.sp * dt;
+        const vr = MG_V * Math.exp(-b.dist * RK / 900);
+        b.slope -= G / (vr * vr) * dX;
+        if (b.dist > 2400 || b.x < -50 || b.y < -50 || b.x > WW + 50 || b.y > WH + 50) bullets.splice(i, 1);
+        continue;
+      }
+      const hx = b.x + dx * best.t, hy = b.y + dy * best.t, hz = Math.max(0, b.z + (zNext - b.z) * best.t), ux = b.vx / b.sp, uy = b.vy / b.sp;
+      if (best.tank) {
+        Fx.armorHit(hx, hy, best.z, 'mg', ux, uy);
+        if (Math.random() < 0.25) Sfx.ping(listenerDist(hx, hy));
+      } else if (best.ground) Fx.bulletGround(hx, hy, ux, uy);
+      else Fx.chips(hx, hy, hz, best.o.type === 'tree');
+      // une traçante qui frappe l'acier ou le sol en rasant repart en chandelle, souvent vers le ciel
+      if (b.tracer && (best.tank || (best.ground && Math.random() < 0.55))) {
+        const a = Math.atan2(uy, ux) + rnd(-0.9, 0.9), v = rnd(120, 300), e = rnd(0.15, 0.9);
+        P3({ x: hx, y: hy, z: hz, vx: Math.cos(a) * Math.cos(e) * v, vy: Math.sin(a) * Math.cos(e) * v, vz: Math.sin(e) * v, g: G, glow: true, line: 0.03, size: 0.05, life: rnd(0.4, 1.2), c: [1, 0.5, 0.25, 2.2] });
+      }
+      bullets.splice(i, 1);
+    }
   }
 
   function deploySmoke(t) {
@@ -1050,43 +1174,55 @@
         const h = segAABB(s.x, s.y, dx, dy, o.x, o.y, o.x + o.w, o.y + o.h);
         if (h && (!best || h.t < best.t)) best = { t: h.t, o, nx: h.nx, ny: h.ny };
       }
-      // hauteur de la ligne de visée à cette distance (tir du joueur depuis la vue du tireur)
-      const zLine = s.slope != null ? s.z0 + s.slope * s.dist / PX : null;
+      // hauteur en fin de pas : l'obus suit sa trajectoire balistique (pente en m par mètre balistique)
+      const dX = s.sp * dt * RK, zNext = s.z + s.slope * dX;
+      if (best && s.z + (zNext - s.z) * best.t > obsH(best.o)) best = null; // passe au-dessus
+      if (!best) {
+        // un obstacle plus loin sur le pas peut encore être touché s'il est assez haut
+        for (const o of obstacles) {
+          if (o.dead || o.x > maxx || o.x + o.w < minx || o.y > maxy || o.y + o.h < miny || o === s.skipObs) continue;
+          const h = segAABB(s.x, s.y, dx, dy, o.x, o.y, o.x + o.w, o.y + o.h);
+          if (h && s.z + (zNext - s.z) * h.t <= obsH(o) && (!best || h.t < best.t)) best = { t: h.t, o, nx: h.nx, ny: h.ny };
+        }
+      }
       for (const t of tanks) {
         if (t === s.owner || t.x > maxx + 30 || t.x < minx - 30 || t.y > maxy + 30 || t.y < miny - 30) continue;
-        const cand = tankCand(t, s.x, s.y, dx, dy, (zLine != null ? zLine : t.T.S.ht - 0.2) + s.zErr);
+        const cand = tankCand(t, s.x, s.y, dx, dy, (s.z + zNext) / 2);
         if (cand && (!best || cand.t < best.t)) best = cand;
+      }
+      if (zNext <= 0) {
+        const tg = s.z / Math.max(1e-6, s.z - zNext);
+        if (!best || tg < best.t) best = { t: tg, ground: true };
       }
       if (player && !player.dead && s.by !== player && !s.whiz) {
         const rx = player.x - s.x, ry = player.y - s.y, l2 = dx * dx + dy * dy || 1;
         const k = clamp((rx * dx + ry * dy) / l2, 0, 1);
         if (Math.hypot(s.x + dx * k - player.x, s.y + dy * k - player.y) < 75) { s.whiz = true; Sfx.whiz(); }
       }
-      s.trail.push(s.x, s.y);
-      if (s.trail.length > 16) s.trail.splice(0, 2);
+      s.trail.push(s.x, s.y, s.z);
+      if (s.trail.length > 24) s.trail.splice(0, 3);
       let remove = false;
       if (best) {
         const hx = s.x + dx * best.t, hy = s.y + dy * best.t;
         s.dist += s.sp * dt * best.t;
-        s.x = hx; s.y = hy;
-        const res = best.tank ? hitTank(s, best.tank, best, hx, hy) : hitObstacle(s, best.o, best, hx, hy);
+        s.x = hx; s.y = hy; s.z = Math.max(0, s.z + (zNext - s.z) * best.t);
+        const res = best.ground ? hitGround(s, hx, hy) : best.tank ? hitTank(s, best.tank, best, hx, hy) : hitObstacle(s, best.o, best, hx, hy);
         if (res === 'stop') remove = true;
       } else {
         s.x += dx; s.y += dy;
         s.dist += s.sp * dt;
+        // gravité : la pente diminue de g / v² par mètre (v réelle, ralentie par la traînée et les ricochets)
+        const vr = s.v0 * s.sp / s.sp0;
+        s.z = zNext; s.slope -= G / (vr * vr) * dX;
         // la traînée ralentit l'obus : vitesse affichée proportionnelle à la vitesse réelle
         const k = s.base * Ballistics.velAt(Ballistics.shell(s.by.T.id, s.key), s.dist * RK) / s.v0 / s.sp;
         s.vx *= k; s.vy *= k; s.sp *= k;
         s.skipObs = null;
       }
       s.range -= s.sp * dt;
-      if (zLine != null && zLine < 0.05) s.range = 0;
       if (!remove && (s.range <= 0 || s.x < -50 || s.y < -50 || s.x > WW + 50 || s.y > WH + 50)) {
         remove = true;
-        if (s.range <= 0) {
-          if (s.key === 'HE') explode(s.x, s.y, s, null);
-          else { for (let k = 0; k < 5; k++) addDust(s.x + rnd(-6, 6), s.y + rnd(-6, 6)); stampCrater(s.x, s.y, 6); }
-        }
+        if (s.range <= 0) hitGround(s, s.x, s.y, true);
       }
       if (remove) {
         if (player && !player.dead && s.by !== player && s.warned && !s.hitPlayer) waveStats.dodged++;
@@ -1121,6 +1257,24 @@
     }
     if (cand) Object.assign(cand, { tank: t, c, sn, lx: lx + ldx * cand.t, ly: ly + ldy * cand.t, ldx, ldy });
     return cand;
+  }
+
+  // Obus qui touche le sol. Sous un angle de chute rasant, un obus perforant rebondit (« ricochet de
+  // sol », bien connu des artilleurs) ; sinon il s'enfonce en soulevant une gerbe de terre.
+  function hitGround(s, x, y, forced) {
+    const ux = s.vx / s.sp, uy = s.vy / s.sp, fall = Math.atan(-s.slope * PX * RK) / D2R;
+    if (!forced && s.key !== 'HE' && s.key !== 'HEAT' && fall < 7 && s.ric < 2 && Math.random() < 0.75 - fall * 0.07) {
+      s.slope = -s.slope * 0.35 + rnd(0.002, 0.008); s.z = 0.05; s.ric++;
+      s.vx *= 0.6; s.vy *= 0.6; s.sp *= 0.6; s.base *= 0.6;
+      Fx.groundHit(x, y, ux, uy, 0.4, true);
+      stampCrater(x, y, 4);
+      Sfx.ricochet(listenerDist(x, y));
+      return 'continue';
+    }
+    if (s.key === 'HE') explode(x, y, s, null);
+    else if (s.key === 'HEAT') { Fx.blast(x, y, 0.2, 0.45); stampCrater(x, y, 9); Sfx.explosion(listenerDist(x, y), false); }
+    else { Fx.groundHit(x, y, ux, uy, Math.sqrt(s.by.T.caliber / 75), false); stampCrater(x, y, 7); Sfx.impact(listenerDist(x, y)); }
+    return 'stop';
   }
 
   function visibleToPlayer(t) { return t.team === 0 || spotted[0].has(t) || t.dead; }
@@ -1196,7 +1350,7 @@
   function hitTank(s, t, h, hx, hy) {
     if (t === player) s.hitPlayer = true;
     if (t.dead) {
-      sparks(hx, hy, 6);
+      Fx.armorHit(hx, hy, h.z || 1, 'non', s.vx / s.sp, s.vy / s.sp);
       if (s.key === 'HE') explode(hx, hy, s, null);
       Sfx.clang(listenerDist(hx, hy));
       return 'stop';
@@ -1209,7 +1363,7 @@
 
     // Géométrie 3D de l'impact (repère du modèle : y vers la gauche)
     const ll = Math.hypot(h.ldx, h.ldy) || 1;
-    const d = norm3([h.ldx / ll, -h.ldy / ll, -0.02]);
+    const d = norm3([h.ldx / ll, -h.ldy / ll, s.slope * PX * RK]);
     const E = [h.lx / PX, -h.ly / PX, h.z];
     const tAng = -t.turret;
     const { face, plate, mm, slope, dd, extra, heatK, trackHit, n } = platePick(t, h, d, s.key);
@@ -1238,6 +1392,8 @@
       const f = (v, k = 0) => v.toFixed(k).replace('.', ',');
       ev.data.push({ t: `${sb.name} · ${f(sb.m, 2)} kg · ${sb.cal} mm`, c: '#e9d9a6' });
       ev.data.push({ t: `Vitesse d'impact ${Math.round(V)} m/s (bouche : ${sb.v0}) · énergie ${f(Ek / 1e6, 2)} MJ · ${Math.round(Ballistics.spin(sb, V))} tr/s`, c: '#d8d4c6' });
+      const fall = Math.atan(-s.slope * PX * RK) / D2R;
+      ev.data.push({ t: `Trajectoire : ${fall >= 0 ? 'chute' : 'montée'} de ${f(Math.abs(fall), 2)}° sous l'effet de la pesanteur · impact à ${f(h.z, 2)} m du sol${s.ric ? ' · après ricochet' : ''}`, c: '#d8d4c6' });
       ev.data.push({ t: `${plate} : ${mm} mm à ${slope}° · incidence ${Math.round(angle)}°${!sb.heat && !sb.he ? ` → normalisée ${Math.round(ef.angN)}°` : ''}`, c: '#d8d4c6' });
       ev.data.push({ t: `Blindage effectif ${Math.round(eff)} mm${extra ? ` (dont ${extra} mm ${trackHit ? 'de chenille' : 'de jupe'})` : ''} · pénétration ${Math.round(pen)} mm${heatK < 1 ? ' (jet perturbé par la jupe)' : ''}`, c: '#d8d4c6' });
     }
@@ -1257,8 +1413,11 @@
       s.vx = (s.vx - 2 * vd * nx) * 0.72; s.vy = (s.vy - 2 * vd * ny) * 0.72;
       s.sp = Math.hypot(s.vx, s.vy); s.base *= 0.72; s.ric++;
       s.x += nx * 2; s.y += ny * 2;
+      // une plaque inclinée renvoie l'obus vers le haut : réflexion de la direction 3D sur la normale
+      const dn3 = dot3(dd, n), rz = dd[2] - 2 * dn3 * n[2];
+      s.slope = rz / Math.sqrt(Math.max(0.05, 1 - rz * rz)) / (PX * RK); s.z = h.z;
+      Fx.armorHit(hx, hy, h.z, 'ric', s.vx / s.sp, s.vy / s.sp);
       s.owner = t; // l'obus dévié peut toucher n'importe qui d'autre
-      sparks(hx, hy, 10);
       Sfx.ricochet(listenerDist(hx, hy));
       if (show) floatText(hx, hy - 10, 'Ricochet', '#cfe3ff');
       if (by === player) waveStats.ric++;
@@ -1304,7 +1463,7 @@
         addLog(`Perforé : ${plate.toLowerCase()} (${Math.round(pen)} mm contre ${Math.round(eff)} mm)`, '#ff8a6a');
         for (const l of out.lines) addLog(l.t, l.c);
       }
-      sparks(hx, hy, 14);
+      Fx.armorHit(hx, hy, h.z, s.key === 'HEAT' ? 'heat' : 'pen', s.vx / s.sp, s.vy / s.sp);
       Sfx.penetrate(listenerDist(hx, hy));
       if (t === player) shake = Math.max(shake, 12);
     } else {
@@ -1314,7 +1473,7 @@
         addLog(`Non perforé : ${plate.toLowerCase()} (${Math.round(pen)} mm contre ${Math.round(eff)} mm)`, '#c8c8c8');
         if (out) for (const l of out.lines) addLog(l.t, l.c);
       }
-      sparks(hx, hy, 8);
+      Fx.armorHit(hx, hy, h.z, s.key === 'HEAT' ? 'heat' : 'non', s.vx / s.sp, s.vy / s.sp);
       Sfx.clang(listenerDist(hx, hy));
       if (t === player) shake = Math.max(shake, 6);
       checkKnock(t, by);
@@ -1461,8 +1620,8 @@
       return 'continue';
     }
     if (s.key === 'HE') { explode(hx, hy, s, null); return 'stop'; }
-    sparks(hx, hy, o.type === 'rock' ? 10 : 5);
-    for (let k = 0; k < 5; k++) addDust(hx + rnd(-8, 8), hy + rnd(-8, 8), o.type === 'rock' ? '#8a8780' : L().wall);
+    for (let k = 0; k < 5; k++) Fx.chips(hx, hy, Math.min(obsH(o), s.z || 1), o.type === 'tree');
+    Fx.groundHit(hx, hy, -s.vx / s.sp, -s.vy / s.sp, 0.5, true);
     if (o.hp !== Infinity) damageObstacle(o, s.by.T.obs * 0.5);
     Sfx.impact(listenerDist(hx, hy));
     return 'stop';
@@ -1474,7 +1633,7 @@
       if (t.dead || t === direct) continue;
       const d = Math.hypot(t.x - x, t.y - y);
       if (d > R + t.r) continue;
-      if (!losClear(x, y, t.x, t.y, false)) continue;
+      if (!losClear(x, y, t.x, t.y, false, true)) continue;
       heExternal(t, s, s.by, 'side', 0.5, 1 - d / (R + t.r));
     }
     for (const o of obstacles) {
@@ -1554,6 +1713,100 @@
     }
   }
 
+  // ===================== Effets 3D =====================
+  // Particule physique : position (px au sol, z en m), vitesses en m/s, pesanteur, traînée de l'air,
+  // rebond, croissance (fumée qui se dilate), poussée d'Archimède (g négatif pour les gaz chauds).
+  function P3(o) {
+    if (parts.length > 2600) return null;
+    const p = Object.assign({ k: 'p3', z: 0, vx: 0, vy: 0, vz: 0, g: 0, drag: 0, size: 0.2, grow: 0, bounce: -1, glow: false, line: 0, delay: 0, c: [1, 1, 1, 1], wind: 0 }, o);
+    p.vx *= PX; p.vy *= PX; p.max = p.life;
+    parts.push(p);
+    return p;
+  }
+  const hex3 = h => { const n = parseInt(h.slice(1), 16); return [(n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255]; };
+  const WIND = { x: 0.9, y: -0.4 }; // vent faible, en m/s
+  const Fx = {
+    soil() {
+      const lv = L();
+      if (lv.snow) return Math.random() < 0.6 ? [0.86, 0.88, 0.9] : [0.28, 0.24, 0.2];
+      const g = hex3(lv.ground[1]);
+      return lv.city ? [g[0] * 0.7, g[1] * 0.7, g[2] * 0.7] : [0.18 + g[0] * 0.25, 0.14 + g[1] * 0.18, 0.1 + g[2] * 0.12];
+    },
+    dust() { const d = hex3(L().dust); return [d[0] * 0.85, d[1] * 0.82, d[2] * 0.78]; },
+    // Départ du coup : boule de feu en bouche, jets latéraux du frein de bouche, fumée de poudre,
+    // et anneau de poussière soulevé par l'onde de souffle sous le canon
+    muzzle(t, mx, my) {
+      const T = t.T, ta = t.angle + t.turret, ux = Math.cos(ta), uy = Math.sin(ta), z = T.S.gun.z, k = T.caliber / 75;
+      const brake = !!T.S.gun.brake;
+      for (let i = 0; i < 4; i++) { const f = rnd(0, 1.6) * k; P3({ x: mx + ux * f * PX, y: my + uy * f * PX, z, vx: ux * rnd(5, 20), vy: uy * rnd(5, 20), size: rnd(0.5, 1.1) * k * (brake ? 0.7 : 1), grow: 6, glow: true, life: rnd(0.05, 0.09), c: [1, 0.72, 0.32, 2.6] }); }
+      if (brake) for (const sd of [-1, 1]) for (let i = 0; i < 3; i++) P3({ x: mx, y: my, z, vx: -uy * sd * rnd(15, 35) + ux * 4, vy: ux * sd * rnd(15, 35) + uy * 4, size: rnd(0.35, 0.6) * k, grow: 5, glow: true, life: rnd(0.04, 0.07), c: [1, 0.65, 0.28, 2.2] });
+      for (let i = 0; i < 16; i++) {
+        const side = brake && i % 3 === 0 ? (i % 2 ? 1 : -1) : 0, v = rnd(4, 24);
+        P3({ x: mx, y: my, z: z + rnd(-0.1, 0.2), vx: ux * v * (side ? 0.3 : 1) - uy * side * v, vy: uy * v * (side ? 0.3 : 1) + ux * side * v, vz: rnd(-0.3, 0.8), drag: 2.2, g: -0.12, wind: 1, size: rnd(0.3, 0.6) * k, grow: rnd(0.9, 1.6), life: rnd(2, 4.5), c: [0.62, 0.6, 0.57, 0.34] });
+      }
+      const gx = mx - ux * 1.5 * PX, gy = my - uy * 1.5 * PX, dc = Fx.dust(), dry = L().snow ? 0.5 : 1;
+      for (let i = 0; i < 22 * dry; i++) {
+        const a = Math.random() * TAU, v = rnd(6, 16) * k;
+        P3({ x: gx + Math.cos(a) * PX * 0.8, y: gy + Math.sin(a) * PX * 0.8, z: 0.15, vx: Math.cos(a) * v, vy: Math.sin(a) * v, vz: rnd(0.2, 1.2), drag: 3.2, wind: 1, size: rnd(0.3, 0.6), grow: 1.1, life: rnd(1.4, 2.6), c: [dc[0], dc[1], dc[2], 0.32] });
+      }
+    },
+    // Obus perforant qui fiche dans le sol : gerbe de mottes projetées vers l'avant, colonne de poussière
+    groundHit(x, y, ux, uy, k, graze) {
+      const sc = Fx.soil(), dc = Fx.dust(), n = Math.round((graze ? 8 : 18) * k);
+      for (let i = 0; i < n; i++) {
+        const f = rnd(2, 9) * k, sp = rnd(-3, 3);
+        P3({ x, y, z: 0.05, vx: ux * f - uy * sp, vy: uy * f + ux * sp, vz: rnd(3, graze ? 5 : 11) * k, g: G, drag: 0.3, bounce: 0.15, size: rnd(0.05, 0.16), life: rnd(1.2, 2), c: [sc[0] * rnd(0.8, 1.2), sc[1] * rnd(0.8, 1.2), sc[2] * rnd(0.8, 1.2), 1] });
+      }
+      for (let i = 0; i < (graze ? 4 : 10) * k; i++) P3({ x: x + rnd(-3, 3), y: y + rnd(-3, 3), z: rnd(0.2, 1), vx: ux * rnd(1, 4), vy: uy * rnd(1, 4), vz: rnd(0.8, 3) * k, drag: 1.2, wind: 1, size: rnd(0.3, 0.6) * k, grow: rnd(0.7, 1.3), life: rnd(1.8, 3.5), c: [dc[0], dc[1], dc[2], 0.5] });
+    },
+    // Explosion : boule de feu brève, onde de choc rasante qui chasse la poussière, éclats incandescents,
+    // mottes projetées en hauteur, puis colonne de fumée brune qui monte et dérive avec le vent
+    blast(x, y, z, k) {
+      const sc = Fx.soil(), dc = Fx.dust();
+      for (let i = 0; i < 7; i++) P3({ x: x + rnd(-1, 1) * PX * k, y: y + rnd(-1, 1) * PX * k, z: z + rnd(0, 1.2) * k, vz: rnd(1, 4), size: rnd(1.2, 2.6) * k, grow: 7 * k, glow: true, life: rnd(0.09, 0.18), c: [1, rnd(0.45, 0.7), 0.2, 2.4] });
+      for (let i = 0; i < 34 * Math.min(2, k + 0.3); i++) {
+        const a = i / 34 * TAU + rnd(-0.1, 0.1), v = rnd(22, 40) * Math.sqrt(k);
+        P3({ x, y, z: 0.2, vx: Math.cos(a) * v, vy: Math.sin(a) * v, vz: rnd(0, 1), drag: 5, wind: 1, size: rnd(0.4, 0.8) * k, grow: 1.6, life: rnd(1.2, 2.2), c: [dc[0], dc[1], dc[2], 0.38] });
+      }
+      for (let i = 0; i < 26 * k; i++) {
+        const a = Math.random() * TAU, v = rnd(2, 12) * Math.sqrt(k);
+        P3({ x, y, z: z + 0.1, vx: Math.cos(a) * v, vy: Math.sin(a) * v, vz: rnd(6, 20) * Math.sqrt(k), g: G, drag: 0.25, bounce: 0.1, size: rnd(0.06, 0.22), life: rnd(1.5, 2.6), c: [sc[0] * rnd(0.7, 1.1), sc[1] * rnd(0.7, 1.1), sc[2] * rnd(0.7, 1.1), 1] });
+      }
+      for (let i = 0; i < 22 * k; i++) {
+        const a = Math.random() * TAU, e = rnd(-0.1, 0.7), v = rnd(60, 160);
+        P3({ x, y, z: z + 0.3, vx: Math.cos(a) * Math.cos(e) * v, vy: Math.sin(a) * Math.cos(e) * v, vz: Math.sin(e) * v, g: G, drag: 1.5, glow: true, line: 0.012, size: 0.04, life: rnd(0.08, 0.22), c: [1, 0.8, 0.45, 2] });
+      }
+      for (let i = 0; i < 18 * k; i++) P3({ x: x + rnd(-1, 1) * PX * k, y: y + rnd(-1, 1) * PX * k, z: z + rnd(0.3, 2.5) * k, vx: rnd(-1.5, 1.5), vy: rnd(-1.5, 1.5), vz: rnd(1.5, 4.5) * Math.sqrt(k), drag: 0.7, g: -0.25, wind: 1, size: rnd(0.6, 1.2) * k, grow: rnd(1, 1.8) * k, life: rnd(3, 6.5), c: [0.13, 0.11, 0.09, 0.55] });
+    },
+    // Coup sur blindage. Gerbe d'étincelles (acier arraché porté au blanc) projetée dans le plan de la
+    // plaque, poussière de peinture et de calamine ; perforation : éclair et fumée qui ressort ensuite
+    // des écoutilles ; charge creuse : flash et boule de fumée noire de l'explosif.
+    armorHit(x, y, z, kind, ux, uy) {
+      const n = kind === 'pen' ? 34 : kind === 'ric' ? 22 : kind === 'mg' ? 4 : 26;
+      for (let i = 0; i < n; i++) {
+        const a = Math.atan2(-uy, -ux) + rnd(-1.6, 1.6), v = kind === 'mg' ? rnd(6, 18) : rnd(10, 45), e = rnd(-0.3, 1);
+        P3({ x, y, z, vx: Math.cos(a) * Math.cos(e) * v, vy: Math.sin(a) * Math.cos(e) * v, vz: Math.sin(e) * v, g: G, drag: 1.2, bounce: 0.35, glow: true, line: 0.02, size: 0.03, life: rnd(0.25, kind === 'mg' ? 0.4 : 1.1), c: [1, rnd(0.65, 0.9), rnd(0.3, 0.55), 2.2] });
+      }
+      if (kind === 'mg') { P3({ x, y, z, size: 0.12, glow: true, life: 0.04, c: [1, 0.9, 0.6, 2] }); return; }
+      P3({ x, y, z, size: kind === 'pen' ? 1.1 : 0.6, grow: 4, glow: true, life: 0.07, c: [1, 0.85, 0.6, 3] });
+      for (let i = 0; i < 6; i++) P3({ x, y, z, vx: -ux * rnd(1, 4) + rnd(-1, 1), vy: -uy * rnd(1, 4) + rnd(-1, 1), vz: rnd(0, 1.5), drag: 2, wind: 1, size: rnd(0.2, 0.4), grow: 0.8, life: rnd(0.8, 1.6), c: [0.5, 0.47, 0.42, 0.4] });
+      if (kind === 'heat') for (let i = 0; i < 9; i++) P3({ x: x - ux * PX * 0.6, y: y - uy * PX * 0.6, z, vx: -ux * rnd(1, 5) + rnd(-2, 2), vy: -uy * rnd(1, 5) + rnd(-2, 2), vz: rnd(0.5, 2), drag: 1.5, g: -0.2, wind: 1, size: rnd(0.4, 0.8), grow: 1.4, life: rnd(2, 3.5), c: [0.1, 0.09, 0.08, 0.6] });
+      if (kind === 'pen') for (let i = 0; i < 12; i++) P3({ x: x + rnd(-6, 6), y: y + rnd(-6, 6), z: z + 0.6, delay: rnd(0.25, 1.2), vz: rnd(1, 2.5), drag: 0.6, g: -0.3, wind: 1, size: rnd(0.25, 0.5), grow: 0.9, life: rnd(1.8, 3), c: [0.55, 0.53, 0.5, 0.45] });
+    },
+    // Balle de mitrailleuse au sol : petit jet de terre et de poussière
+    bulletGround(x, y, ux, uy) {
+      const sc = Fx.soil(), dc = Fx.dust();
+      for (let i = 0; i < 3; i++) P3({ x, y, z: 0.02, vx: ux * rnd(0.5, 2) + rnd(-1, 1), vy: uy * rnd(0.5, 2) + rnd(-1, 1), vz: rnd(1.5, 4), g: G, size: rnd(0.03, 0.06), life: rnd(0.4, 0.7), c: [sc[0], sc[1], sc[2], 1] });
+      P3({ x, y, z: 0.1, vz: rnd(0.6, 1.4), drag: 1.5, wind: 1, size: rnd(0.12, 0.22), grow: 0.5, life: rnd(0.6, 1.1), c: [dc[0], dc[1], dc[2], 0.5] });
+    },
+    // Éclats de bois (arbre) ou de pierre (mur, rocher, maison)
+    chips(x, y, z, wood) {
+      const c = wood ? [0.45, 0.32, 0.18] : [0.55, 0.52, 0.48];
+      for (let i = 0; i < 4; i++) P3({ x, y, z, vx: rnd(-3, 3), vy: rnd(-3, 3), vz: rnd(1, 4), g: G, bounce: 0.1, size: rnd(0.03, 0.08), life: rnd(0.5, 1), c: [c[0], c[1], c[2], 1] });
+      P3({ x, y, z, vz: 0.5, drag: 1.5, wind: 1, size: 0.18, grow: 0.6, life: 0.9, c: [c[0], c[1], c[2], 0.4] });
+    },
+  };
+
   // ===================== Effets =====================
   function listenerDist(x, y) { return Math.hypot(x - camX, y - camY) * 0.8; }
   function addSmoke(x, y, size, color, life, vx = 0, vy = 0) {
@@ -1574,18 +1827,10 @@
       parts.push({ k: 'spark', x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: rnd(0.15, 0.4), max: 0.4 });
     }
   }
-  function boom(x, y, k) {
+  function boom(x, y, k, z = 0.3) {
     parts.push({ k: 'flash', x, y, life: 0.25 * k, max: 0.25 * k, size: 70 * k });
-    for (let i = 0; i < 18 * k; i++) addFire(x + rnd(-14, 14) * k, y + rnd(-14, 14) * k);
-    for (let i = 0; i < 16 * k; i++) {
-      const a = Math.random() * TAU, v = rnd(10, 70) * k;
-      addSmoke(x, y, rnd(10, 22) * k, 'rgba(45,40,36,', rnd(1.5, 3.5), Math.cos(a) * v, Math.sin(a) * v);
-    }
-    for (let i = 0; i < 10 * k; i++) {
-      const a = Math.random() * TAU, v = rnd(60, 220);
-      parts.push({ k: 'debris', x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: rnd(0.4, 0.9), max: 0.9 });
-    }
-    sparks(x, y, 12 * k);
+    Fx.blast(x, y, z, k * 0.8);
+    for (let i = 0; i < 6 * k; i++) addFire(x + rnd(-10, 10) * k, y + rnd(-10, 10) * k);
     const d = player ? Math.hypot(player.x - x, player.y - y) : 9999;
     shake = Math.max(shake, clamp(22 * k * (1 - d / 900), 0, 22));
     Sfx.explosion(listenerDist(x, y), k > 1);
@@ -1626,6 +1871,22 @@
   function updateParts(dt) {
     for (let i = parts.length - 1; i >= 0; i--) {
       const p = parts[i];
+      if (p.k === 'p3') {
+        if (p.delay > 0) { p.delay -= dt; continue; }
+        p.life -= dt;
+        if (p.life <= 0) { parts.splice(i, 1); continue; }
+        const dr = Math.exp(-p.drag * dt);
+        p.vx *= dr; p.vy *= dr; p.vz *= dr;
+        if (p.wind) { const kw = Math.min(1, 0.5 * p.wind * dt); p.vx += (WIND.x * PX - p.vx) * kw; p.vy += (WIND.y * PX - p.vy) * kw; }
+        p.vz -= p.g * dt;
+        p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
+        if (p.z < 0) {
+          p.z = 0;
+          if (p.bounce >= 0) { p.vz = -p.vz * p.bounce; p.vx *= 0.45; p.vy *= 0.45; } else p.vz = 0;
+        }
+        p.size = Math.max(0.01, p.size + p.grow * dt);
+        continue;
+      }
       p.life -= dt;
       if (p.life <= 0) { parts.splice(i, 1); continue; }
       p.x += (p.vx || 0) * dt; p.y += (p.vy || 0) * dt;
@@ -1655,9 +1916,12 @@
     if (k.KeyS || k.ArrowDown) thr -= 1;
     if (k.KeyA || k.ArrowLeft) turn -= 1;
     if (k.KeyD || k.ArrowRight) turn += 1;
-    const m = screenToWorld(mouse.x, mouse.y), pv = pivot(player);
+    const pv = pivot(player);
+    const m = W3D && cam3.view && !sight.on ? (player.aim3 = aimRay3(mouse.x, mouse.y)) : screenToWorld(mouse.x, mouse.y);
+    if (!(W3D && cam3.view && !sight.on)) player.aim3 = { x: m.x, y: m.y, z: 1.5 };
     player.in.throttle = thr; player.in.turn = turn;
     player.in.aim = sight.on ? sight.yaw : Math.atan2(m.y - pv.y, m.x - pv.x);
+    player.in.mg = !!k.KeyF || (sight.on && mouse.right);
     player.in.fire = mouse.down || !!k.Space;
   }
 
@@ -1673,6 +1937,7 @@
     for (const t of tanks) updateTank(t, dt);
     tankCollisions();
     updateShells(dt);
+    updateBullets(dt);
     updateParts(dt);
     if (state === 'play' && mode === 'survie') {
       const e = tanks.some(t => t.team === 1 && !t.dead);
@@ -1790,6 +2055,48 @@
     if (t < 0) t = 2000;
     return { x: (e[0] + d[0] * t) * PX, y: -(e[1] + d[1] * t) * PX };
   }
+  // Rayon souris → premier objet touché en 3D : char (caisse puis tourelle), obstacle à sa hauteur,
+  // ou sol. Permet de viser haut ou bas : bas de caisse, masque, tourelle, ou le sol devant un char.
+  function slab(o, d, mn, mx) {
+    let t0 = 0, t1 = 1e9;
+    for (let i = 0; i < 3; i++) {
+      if (Math.abs(d[i]) < 1e-9) { if (o[i] < mn[i] || o[i] > mx[i]) return -1; continue; }
+      let a = (mn[i] - o[i]) / d[i], b = (mx[i] - o[i]) / d[i];
+      if (a > b) { const q = a; a = b; b = q; }
+      t0 = Math.max(t0, a); t1 = Math.min(t1, b);
+      if (t0 > t1) return -1;
+    }
+    return t0;
+  }
+  function aimRay3(sx, sy) {
+    const v = cam3.view, fy = Math.tan(cam3.fov / 2), fx = fy * W / H;
+    const nx = (sx / W) * 2 - 1, ny = 1 - (sy / H) * 2;
+    const r = [v[0], v[4], v[8]], u = [v[1], v[5], v[9]], f = [-v[2], -v[6], -v[10]];
+    const e = cam3.eye;
+    const dm = [f[0] + r[0] * nx * fx + u[0] * ny * fy, f[1] + r[1] * nx * fx + u[1] * ny * fy, f[2] + r[2] * nx * fx + u[2] * ny * fy];
+    const O = [e[0] * PX, -e[1] * PX, e[2]], D = [dm[0] * PX, -dm[1] * PX, dm[2]];
+    let best = dm[2] < 0 ? -e[2] / dm[2] : 400, hit = null;
+    for (const o of obstacles) {
+      if (o.dead) continue;
+      const t = slab(O, D, [o.x, o.y, 0], [o.x + o.w, o.y + o.h, obsH(o)]);
+      if (t >= 0 && t < best) { best = t; hit = null; }
+    }
+    for (const t of tanks) {
+      if (t === player || (!t.dead && !visibleToPlayer(t))) continue;
+      const c = Math.cos(t.angle), sn = Math.sin(t.angle), qx = O[0] - t.x, qy = O[1] - t.y;
+      const lo = [qx * c + qy * sn, -qx * sn + qy * c, O[2]], ld = [D[0] * c + D[1] * sn, -D[0] * sn + D[1] * c, D[2]];
+      const hl = t.T.len / 2, hw = t.T.wid / 2, Sd = t.T.S;
+      let tt = slab(lo, ld, [-hl, -hw, 0], [hl, hw, Sd.ht]);
+      if (t.T.tb && !t.turretGone) {
+        const tc = Math.cos(t.turret), ts = Math.sin(t.turret), px = lo[0] - t.T.pivX, py = lo[1] - t.T.pivY;
+        const to = [px * tc + py * ts, -px * ts + py * tc, lo[2]], td = [ld[0] * tc + ld[1] * ts, -ld[0] * ts + ld[1] * tc, ld[2]], B = t.T.tb;
+        const t2 = slab(to, td, [B.x0, B.y0, Sd.ht], [B.x1, B.y1, t.T.I.totalH]);
+        if (t2 >= 0 && (tt < 0 || t2 < tt)) tt = t2;
+      }
+      if (tt >= 0 && tt < best) { best = tt; hit = t; }
+    }
+    return { x: O[0] + D[0] * best, y: O[1] + D[1] * best, z: Math.max(0, O[2] + D[2] * best), tank: hit };
+  }
   function project3(x, y, z) {
     const q = G3.M4.apply(cam3.vp, to3(x, y, z));
     return { x: (q[0] * 0.5 + 0.5) * W, y: (1 - (q[1] * 0.5 + 0.5)) * H, behind: q[3] < 0 };
@@ -1835,20 +2142,20 @@
   }
   // Ce que vise la lunette : premier obstacle, char ou point du sol sur la ligne de visée,
   // et, sur un char, la plaque touchée et la perforation attendue
-  function sightProbe() {
-    const pv = pivot(player), a = sight.yaw, ux = Math.cos(a), uy = Math.sin(a), L0 = 1600;
-    const slope = Math.tan(sight.gunPitch), z0 = sight.z0;
+  // a : direction ; z0 : hauteur de départ (m) ; sv : montée de la ligne de visée en m par px
+  function sightProbe(a = sight.yaw, z0 = sight.z0, sv = Math.tan(sight.gunPitch) / PX) {
+    const pv = pivot(player), ux = Math.cos(a), uy = Math.sin(a), L0 = 1600;
     let best = { t: 1, kind: 'sky' };
-    if (slope < 0) { const tg = (z0 / -slope) * PX / L0; if (tg < 1) best = { t: tg, kind: 'ground' }; }
+    if (sv < 0) { const tg = (z0 / -sv) / L0; if (tg < 1) best = { t: tg, kind: 'ground' }; }
     for (const o of obstacles) {
       if (o.dead) continue;
       const h = segAABB(pv.x, pv.y, ux * L0, uy * L0, o.x, o.y, o.x + o.w, o.y + o.h);
-      if (h && h.t < best.t) best = { t: h.t, kind: 'obstacle', o };
+      if (h && h.t < best.t && z0 + sv * h.t * L0 <= obsH(o)) best = { t: h.t, kind: 'obstacle', o };
     }
     for (const t of tanks) {
       if (t === player || (!t.dead && !visibleToPlayer(t))) continue;
       const dd = Math.hypot(t.x - pv.x, t.y - pv.y);
-      const c = tankCand(t, pv.x, pv.y, ux * L0, uy * L0, z0 + slope * dd / PX);
+      const c = tankCand(t, pv.x, pv.y, ux * L0, uy * L0, z0 + sv * dd);
       if (c && c.t < best.t) best = { t: c.t, kind: 'tank', tank: t, h: c };
     }
     const dist = best.t * L0;
@@ -1860,6 +2167,7 @@
       const cosI = Math.max(0.03, -dot3(pp.dd, pp.n)), angle = Math.acos(Math.min(1, cosI)) / D2R;
       const eff = Ballistics.effective(sb, pp.mm, angle).eff + pp.extra;
       const pen = penAt(player.T, key, dist) * pp.heatK;
+      best.fall = Math.atan(G * dist * RK / Math.pow(Ballistics.velAt(sb, dist * RK * 0.5), 2)) / D2R;
       Object.assign(best, { plate: pp.plate, mm: pp.mm, angle, eff, pen, ric: key === 'HE' ? 0 : Ballistics.ricochetChance(sb, pp.mm, angle) });
     }
     return best;
@@ -1933,6 +2241,18 @@
       const a = p.life / p.max, age = 1 - a;
       const P = to3(p.x, p.y);
       switch (p.k) {
+        case 'p3': {
+          if (p.delay > 0) break;
+          if (p.glow) {
+            const g = { p: [P[0], P[1], p.z], s: p.size, c: [p.c[0], p.c[1], p.c[2], p.c[3] * a] };
+            if (p.line) g.a2 = [P[0] - p.vx / PX * p.line, P[1] + p.vy / PX * p.line, p.z - p.vz * p.line];
+            glow.push(g);
+          } else {
+            const fin = Math.min(1, (p.max - p.life) * 12) * Math.pow(a, 0.8);
+            soft.push({ p: [P[0], P[1], Math.max(p.z, p.size * 0.35)], s: p.size, c: [p.c[0], p.c[1], p.c[2], p.c[3] * fin], rot: p.x * 0.13 + p.y * 0.07 });
+          }
+          break;
+        }
         case 'smoke': {
           const dark = p.color.indexOf('30,28') > 0 || p.color.indexOf('45,40') > 0;
           const c = dark ? [0.09, 0.085, 0.08] : [0.55, 0.53, 0.5];
@@ -1946,8 +2266,9 @@
         case 'debris': soft.push({ p: [P[0], P[1], 0.3 + Math.sin(age * Math.PI) * 3], s: 0.18, c: [0.05, 0.05, 0.05, a] }); break;
         case 'leaf': soft.push({ p: [P[0], P[1], 2 + age * 1.5], s: 0.12, c: [0.2, 0.3, 0.1, a] }); break;
         case 'flash': {
-          glow.push({ p: [P[0], P[1], 1.8], s: p.size / PX * 1.6, c: [1, 0.75, 0.4, a * 2.2] });
-          lights.push({ p: [P[0], P[1], 2.2], r: p.size / PX * 7, c: [6 * a, 3.8 * a, 1.6 * a] });
+          const fz = p.z != null ? p.z : 1.8;
+          glow.push({ p: [P[0], P[1], fz], s: p.size / PX * 1.6, c: [1, 0.75, 0.4, a * 2.2] });
+          lights.push({ p: [P[0], P[1], fz + 0.4], r: p.size / PX * 7, c: [6 * a, 3.8 * a, 1.6 * a] });
           break;
         }
         case 'turret': {
@@ -1959,11 +2280,17 @@
       }
     }
     for (const s of shells) {
-      const head = to3(s.x, s.y, 1.9), tail = s.trail.length >= 2 ? to3(s.trail[0], s.trail[1], 1.9) : head;
+      // traceur au culot : il brûle derrière l'obus, la traînée suit la vraie trajectoire
+      const head = to3(s.x, s.y, s.z), tail = s.trail.length >= 3 ? to3(s.trail[0], s.trail[1], s.trail[2]) : head;
       const hot = s.key === 'HE' || s.key === 'HEAT';
       glow.push({ p: tail, a2: head, s: 0.09, c: hot ? [1, 0.45, 0.2, 1.6] : s.key === 'APCR' ? [0.7, 0.85, 1, 1.6] : [1, 0.85, 0.55, 1.6] });
       glow.push({ p: head, s: 0.55, c: [1, 0.8, 0.5, 1.2] });
       lights.push({ p: head, r: 7, c: [1.6, 1.1, 0.6] });
+    }
+    for (const b of bullets) {
+      if (!b.tracer) continue;
+      const head = to3(b.x, b.y, b.z), L2 = 0.035;
+      glow.push({ p: head, a2: [head[0] - b.vx / PX * L2, head[1] + b.vy / PX * L2, head[2] - b.slope * b.sp * RK * L2], s: 0.05, c: b.team === 0 ? [1, 0.55, 0.25, 2.4] : [1, 0.32, 0.2, 2.4] });
     }
     for (const sm of smokes) {
       const a = Math.min(1, sm.life / 2) * 0.8, P = to3(sm.x, sm.y), r = sm.r / PX;
@@ -2006,7 +2333,7 @@
       if (Math.abs(rx * -uy + ry * ux) > T.len * 0.6 + 16) continue;
       s.warned = true;
       const ix = s.x + ux * along, iy = s.y + uy * along, a = clamp(1.3 - tt, 0.25, 1);
-      const p0 = project3(s.x, s.y, 1.9), p1 = project3(ix, iy, 1.6);
+      const p0 = project3(s.x, s.y, s.z), p1 = project3(ix, iy, Math.max(0, s.z + s.slope * along * RK));
       if (p0.behind || p1.behind) continue;
       ctx.strokeStyle = `rgba(255,60,40,${a * 0.85})`; ctx.lineWidth = 2;
       ctx.setLineDash([8, 6]); ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke(); ctx.setLineDash([]);
@@ -2205,6 +2532,12 @@
       if (!inView(p.x, p.y)) continue;
       const a = p.life / p.max;
       switch (p.k) {
+        case 'p3': {
+          if (p.delay > 0) break;
+          const c = p.c, al = Math.min(1, c[3] * a * (p.glow ? 0.6 : 1));
+          ctx.fillStyle = `rgba(${c[0] * 255 | 0},${c[1] * 255 | 0},${c[2] * 255 | 0},${al.toFixed(3)})`;
+          ctx.beginPath(); ctx.arc(p.x, p.y - p.z * PX * 0.6, Math.max(1, p.size * PX * 0.6), 0, TAU); ctx.fill(); break;
+        }
         case 'smoke':
           ctx.fillStyle = p.color + (a * 0.45).toFixed(3) + ')';
           ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, TAU); ctx.fill(); break;
@@ -2241,6 +2574,8 @@
 
   function drawShells() {
     ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(255,150,70,0.9)'; ctx.lineWidth = 1.5;
+    for (const b of bullets) if (b.tracer) { ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x - b.vx * 0.03, b.y - b.vy * 0.03); ctx.stroke(); }
     for (const s of shells) {
       const tr = s.trail, hot = s.key === 'HE' || s.key === 'HEAT';
       if (tr.length >= 2) {
@@ -2311,6 +2646,17 @@
     ctx.drawImage(dark, 0, 0);
   }
 
+  function verdictOf(pr) {
+    const t = pr.tank;
+    if (t.dead) return { col: '#aaa', verdict: 'épave' };
+    if (t.team === 0) return { col: '#6ab8ff', verdict: 'ALLIÉ : NE PAS TIRER' };
+    if (player.shell === 'HE') return pr.pen >= pr.eff ? { col: '#7ad06a', verdict: 'perce' } : { col: '#ffb070', verdict: 'effet de souffle' };
+    if (pr.ric > 0.5) return { col: '#ffb070', verdict: 'ricochet probable' };
+    if (pr.pen >= pr.eff * 1.08) return { col: '#7ad06a', verdict: 'perce' };
+    if (pr.pen >= pr.eff * 0.92) return { col: '#ffe27a', verdict: 'incertain' };
+    return { col: '#ff6a50', verdict: 'ne perce pas' };
+  }
+
   // ===================== Lunette du tireur =====================
   const sightR = () => Math.min(W, H - 130) * 0.5;
   function drawSightMask() {
@@ -2379,15 +2725,7 @@
     ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillText(top, cx + 1, cy + R * 0.42 + 1);
     ctx.fillStyle = '#e9d9a6'; ctx.fillText(top, cx, cy + R * 0.42);
     if (pr && pr.kind === 'tank') {
-      const t = pr.tank, ally = t.team === 0;
-      let col, verdict;
-      if (t.dead) { col = '#aaa'; verdict = 'épave'; }
-      else if (ally) { col = '#6ab8ff'; verdict = 'ALLIÉ : NE PAS TIRER'; }
-      else if (player.shell === 'HE') { col = pr.pen >= pr.eff ? '#7ad06a' : '#ffb070'; verdict = pr.pen >= pr.eff ? 'perce' : 'effet de souffle'; }
-      else if (pr.ric > 0.5) { col = '#ffb070'; verdict = 'ricochet probable'; }
-      else if (pr.pen >= pr.eff * 1.08) { col = '#7ad06a'; verdict = 'perce'; }
-      else if (pr.pen >= pr.eff * 0.92) { col = '#ffe27a'; verdict = 'incertain'; }
-      else { col = '#ff6a50'; verdict = 'ne perce pas'; }
+      const t = pr.tank, ally = t.team === 0, { col, verdict } = verdictOf(pr);
       ctx.fillStyle = col; ctx.beginPath(); ctx.arc(cx, cy, 2.2, 0, TAU); ctx.fill();
       const l1 = `${t.T.name}${ally ? ' (allié)' : ''} · ${verdict}`;
       const l2 = t.dead ? '' : `${pr.plate} : ${pr.mm} mm à ${Math.round(pr.angle)}° → ${Math.round(pr.eff)} mm effectifs · pénétration ${Math.round(pr.pen)} mm`;
@@ -2413,7 +2751,7 @@
     ctx.textAlign = 'center'; ctx.font = '700 11px system-ui, sans-serif';
     for (const t of tanks) {
       if (t.dead || t.team === 0 || !spotted[0].has(t)) continue;
-      const d = Math.round(Math.hypot(t.x - f.x, t.y - f.y) / PX);
+      const d = Math.round(Math.hypot(t.x - f.x, t.y - f.y) * RK);
       const p = worldToScreen(t.x, t.y, t.T.I.totalH + 2.6);
       const inside = !p.behind && p.x > mx0 && p.y > my0 && p.x < W - mx0 && p.y < my1;
       ctx.fillStyle = '#ff4a3d'; ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 2;
@@ -2535,9 +2873,9 @@
     // réticule
     if (sight.on) drawSightReticle();
     else if (player && !player.dead && (state === 'play' || state === 'intro' || state === 'ending')) {
-      const m = screenToWorld(mouse.x, mouse.y), pv = pivot(player);
+      const m = player.aim3 && W3D ? player.aim3 : screenToWorld(mouse.x, mouse.y), pv = pivot(player);
       const d = Math.hypot(m.x - pv.x, m.y - pv.y), ta = player.angle + player.turret;
-      const gp = worldToScreen(pv.x + Math.cos(ta) * d, pv.y + Math.sin(ta) * d);
+      const gp = worldToScreen(pv.x + Math.cos(ta) * d, pv.y + Math.sin(ta) * d, m.z != null ? m.z : 1.6);
       const rr = Math.max(4, d * Math.tan(player.disp) * 2 * S);
       ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.arc(gp.x, gp.y, rr, 0, TAU); ctx.stroke();
@@ -2553,6 +2891,21 @@
       ctx.font = '600 11px system-ui, sans-serif'; ctx.textAlign = 'left';
       ctx.fillStyle = 'rgba(255,255,255,0.8)';
       ctx.fillText(`${Math.round(d * RK)} m · ${Math.round(penAt(player.T, player.shell, d))} mm`, mouse.x + 14, mouse.y + 18);
+      // char visé : plaque, blindage effectif et verdict, comme à la lunette
+      if (W3D && m.tank && !m.tank.dead) {
+        player.probeT = (player.probeT || 0) - 1 / 60;
+        if (player.probeT <= 0 || !player.probe) {
+          player.probeT = 0.1;
+          const z0 = player.T.S.gun.z;
+          player.probe = sightProbe(Math.atan2(m.y - pv.y, m.x - pv.x), z0, (m.z - z0) / Math.max(1, d));
+        }
+        const pr = player.probe;
+        if (pr && pr.kind === 'tank' && pr.tank === m.tank && pr.plate) {
+          const { col, verdict } = verdictOf(pr);
+          ctx.font = '700 11px system-ui, sans-serif'; ctx.fillStyle = col;
+          ctx.fillText(`${pr.plate} · ${Math.round(pr.eff)} mm eff. · ${verdict}`, mouse.x + 14, mouse.y + 32);
+        }
+      }
     } else if (state !== 'menu') {
       ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(mouse.x, mouse.y, 3, 0, TAU); ctx.fill();
     }
@@ -2635,6 +2988,10 @@
     ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(bx, by, pw, 90);
     ctx.textAlign = 'left'; ctx.font = '700 13px system-ui, sans-serif'; ctx.fillStyle = '#f0e6c8';
     ctx.fillText(`${T.name} · ${T.cls}`, bx + 10, by + 17);
+    const g = player.mg;
+    ctx.font = '600 11px system-ui, sans-serif'; ctx.fillStyle = g.jam > 0 ? '#ff9a5c' : '#c9c4b2';
+    ctx.fillText(g.jam > 0 ? `MG : changement du canon ${Math.ceil(g.jam)} s` : `MG (F) : ${g.ammo}`, bx + 200, by + 17);
+    if (!(g.jam > 0)) { ctx.fillStyle = '#2c3024'; ctx.fillRect(bx + 300, by + 9, 60, 6); ctx.fillStyle = g.heat > 180 ? '#ff6a3a' : '#c98a3a'; ctx.fillRect(bx + 300, by + 9, 60 * Math.min(1, g.heat / 250), 6); }
     // équipage
     let x = bx + 10;
     for (const role of T.S.crew) {
@@ -3044,7 +3401,8 @@
       if (player && player.dead) specIdx++;
     }
   });
-  addEventListener('mouseup', e => { if (e.button === 0) mouse.down = false; });
+  addEventListener('mouseup', e => { if (e.button === 0) mouse.down = false; if (e.button === 2) mouse.right = false; });
+  cv.addEventListener('mousedown', e => { if (e.button === 2) mouse.right = true; });
   cv.addEventListener('contextmenu', e => e.preventDefault());
   cv.addEventListener('wheel', e => {
     if (!W3D) return; e.preventDefault();
@@ -3076,9 +3434,12 @@
         player.shell = key || player.shell; player.ammo[player.shell] = 9;
         const pv = pivot(player);
         player.turret = angNorm(Math.atan2(e.y - pv.y, e.x - pv.x) - player.angle);
+        player.aim3 = { x: e.x, y: e.y, z: e.T.S.ht - 0.3 };
         player.disp = 0; player.reloadT = 0; fireShell(player);
         return true;
       },
+      kill(i, det) { const e = tanks.filter(t => t.team === 1 && !t.dead)[i || 0]; if (e) destroyTank(e, player, !!det); return !!e; },
+      get bullets() { return bullets; }, get parts() { return parts; },
     };
   }
   requestAnimationFrame(frame);
