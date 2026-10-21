@@ -1,13 +1,14 @@
 'use strict';
 // Balistique extérieure et terminale.
-// - vitesse le long de la trajectoire : traînée aérodynamique, v(x) = v0·exp(−ρ·Cd·A·x / 2m)
+// - vitesse le long de la trajectoire : traînée aérodynamique dv/dx = −ρ·Cd(Mach)·A·v / 2m, intégrée en
+//   table de tir pour chaque obus ; air et charge propulsive suivent la température du champ de bataille
 // - perforation : formule de de Marre, P ∝ v^1,43 · m^0,71 / d^1,07
 // - obliquité : tables d'essais de tir par type d'obus (coiffé, non coiffé, sous-calibré), selon T/d
 // - vitesse résiduelle : Lambert-Jonas, Vr = √(V² − Vlim²), puis quantité de mouvement du bouchon
 // - éclats : masses selon la loi de Mott, énergie ½mv², ricochets sur les parois
 // - charge explosive : surpression de Kinney-Graham, rayon de Sedov-Taylor, éclats à la vitesse de Gurney
 const Ballistics = (() => {
-  const RHO = 1.225, G = 9.81, STEEL = 7850, C_DM = 0.02436, TNT = 4.184e6, D2R = Math.PI / 180;
+  const G = 9.81, STEEL = 7850, C_DM = 0.02436, TNT = 4.184e6, D2R = Math.PI / 180;
   const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
   const rnd = (a, b) => a + Math.random() * (b - a);
   const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
@@ -107,15 +108,37 @@ const Ballistics = (() => {
 
   // ===================== Balistique extérieure et perforation =====================
   const area = s => Math.PI * Math.pow(s.cal / 1000, 2) / 4;
-  // coefficient de traînée (1/m) : dv/dx = −k·v
-  const kDrag = s => RHO * s.cd * area(s) / (2 * s.m);
+  // Atmosphère du champ de bataille : température (°C) et masse volumique de l'air (kg/m³) ;
+  // la changer invalide les tables de tir
+  const ATM = { T: 15, rho: 1.225 };
+  function setAtmosphere(T, rho) {
+    if (ATM.T === T && ATM.rho === rho) return;
+    ATM.T = T; ATM.rho = rho;
+    for (const g of Object.values(GUNS)) for (const s of Object.values(g.shells)) s.tab = null;
+  }
+  const sound = () => 20.05 * Math.sqrt(273.15 + ATM.T);
+  // vitesse initiale : la poudre brûle plus vite à chaud, environ +0,1 % par °C au-dessus de 15 °C
+  const muzzle = s => s.v0 * (1 + 0.001 * (ATM.T - 15));
+  // Cd selon le nombre de Mach, rapporté à sa valeur au-delà de Mach 2,5 : la traînée culmine
+  // juste au-dessus de la vitesse du son (onde de choc détachée) puis chute en subsonique
+  const MACH = [[0.9, 0.80], [1.0, 1.30], [1.2, 1.35], [1.5, 1.20], [2.0, 1.06], [2.5, 1.00]];
+  function cdMach(M) {
+    if (M <= MACH[0][0]) return MACH[0][1];
+    if (M >= 2.5) return 1;
+    let i = 0;
+    while (MACH[i + 1][0] < M) i++;
+    const a = MACH[i], b = MACH[i + 1];
+    return a[1] + (b[1] - a[1]) * (M - a[0]) / (b[0] - a[0]);
+  }
+  // coefficient de traînée (1/m) à la vitesse v : dv/dx = −k·v
+  const kDrag = (s, v) => ATM.rho * s.cd * cdMach(v / sound()) * area(s) / (2 * s.m);
   // Table de tir de chaque obus, intégrée une seule fois (pas de 1 m, relevé tous les 10 m) en tir
   // tendu : vitesse, durée de trajet, chute sous la ligne de départ et pente de descente
   const TAB_DX = 10, TAB_N = 400;
   function table(s) {
     if (s.tab) return s.tab;
     const v = new Float64Array(TAB_N + 1), t = new Float64Array(TAB_N + 1), z = new Float64Array(TAB_N + 1), q = new Float64Array(TAB_N + 1);
-    let V = s.v0, tt = 0, zz = 0, sl = 0;
+    let V = muzzle(s), tt = 0, zz = 0, sl = 0;
     v[0] = V;
     for (let i = 1; i <= TAB_N; i++) {
       for (let j = 0; j < TAB_DX; j++) {
@@ -130,7 +153,7 @@ const Ballistics = (() => {
   }
   const look = (a, x) => { const f = clamp(x / TAB_DX, 0, TAB_N), i = Math.min(TAB_N - 1, Math.floor(f)); return a[i] + (a[i + 1] - a[i]) * (f - i); };
   const XMAX = TAB_DX * TAB_N;
-  const velAt = (s, x) => x <= XMAX ? look(table(s).v, x) : table(s).v[TAB_N] * Math.exp(-kDrag(s, 0) * (x - XMAX));
+  const velAt = (s, x) => { const v = table(s).v; return x <= XMAX ? look(v, x) : v[TAB_N] * Math.exp(-kDrag(s, v[TAB_N]) * (x - XMAX)); };
   // durée de trajet (s), chute sous la ligne de départ (m) et pente de descente (m/m) à la distance x
   const tof = (s, x) => look(table(s).t, x);
   const drop = (s, x) => look(table(s).z, x);
@@ -217,7 +240,7 @@ const Ballistics = (() => {
     const p = 808 * (1 + Math.pow(Z / 4.5, 2)) / Math.sqrt((1 + Math.pow(Z / 0.048, 2)) * (1 + Math.pow(Z / 0.32, 2)) * (1 + Math.pow(Z / 1.35, 2)));
     return p * 101.3 * conf;
   }
-  const sedov = (E, t) => 1.033 * Math.pow(E * t * t / RHO, 0.2);
+  const sedov = (E, t) => 1.033 * Math.pow(E * t * t / ATM.rho, 0.2);
   const gurney = (C, M) => 2440 * Math.sqrt((C / M) / (1 + 0.5 * C / M));
   const mott = mu => { const l = -Math.log(Math.random() || 1e-9); return mu * l * l; };
   // Vitesse de rotation imprimée par les rayures (tours par seconde)
@@ -442,5 +465,5 @@ const Ballistics = (() => {
     return out;
   }
 
-  return { GUNS, shell, kDrag, velAt, tof, drop, descent, dropExp, tofExp, descentExp, penVel, penAt, vLimit, obliquity, effective, ricochetChance, blastKPa, sedov, gurney, spin, simulate };
+  return { GUNS, shell, ATM, setAtmosphere, muzzle, cdMach, kDrag, velAt, tof, drop, descent, dropExp, tofExp, descentExp, penVel, penAt, vLimit, obliquity, effective, ricochetChance, blastKPa, sedov, gurney, spin, simulate };
 })();

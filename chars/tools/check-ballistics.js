@@ -42,11 +42,12 @@ const r2 = v => Math.round(v * 100) / 100;
 // ---------- Balistique extérieure : tables de tir et calculateur de pointage ----------
 {
   const G = 9.81;
-  // trajectoire telle que la simule le jeu (updateShells) : pas fixe de 1/60 s, hauteur au trapèze
+  // trajectoire telle que la simule le jeu (updateShells) : pas fixe de 1/60 s, hauteur au trapèze,
+  // pesanteur évaluée à la vitesse de mi-pas
   function fly(s, slope0, z0, X, dt = 1 / 60) {
     let x = 0, z = z0, sl = slope0;
     for (let i = 0; i < 100000; i++) {
-      const v = B.velAt(s, x), gk = G / (v * v), dX = v * dt;
+      const v0 = B.velAt(s, x), dX = v0 * dt, v = v0 * Math.exp(-0.5 * B.kDrag(s, v0) * dX), gk = G / (v * v);
       if (x + dX >= X) { const d = X - x; return z + sl * d - 0.5 * gk * d * d; }
       z += sl * dX - 0.5 * gk * dX * dX; sl -= gk * dX; x += dX;
     }
@@ -64,9 +65,23 @@ const r2 = v => Math.round(v * 100) / 100;
   let smk = 0;
   for (const id of Object.keys(B.GUNS)) for (const X of [300, 500, 800]) { const s = B.shell(id, 'SMOKE'); smk = Math.max(smk, Math.abs(fly(s, aim(s, X, 2, 0), 2, X))); }
   check('smoke rounds land within ±0.3 m at 300-800 m', smk <= 0.3, r2(smk));
-  // table de tir contre les formules exactes du modèle exponentiel (Cd constant)
-  const s = B.shell('pz4', 'HEAT'), k = B.kDrag(s, s.v0);
-  check('table drop matches the exponential law', near(B.drop(s, 1000), B.dropExp(s.v0, k, 1000), 0.01) && near(B.tof(s, 1000), B.tofExp(s.v0, k, 1000), 1e-3) && near(B.descent(s, 1000), B.descentExp(s.v0, k, 1000), 1e-5), [r2(B.drop(s, 1000)), r2(B.dropExp(s.v0, k, 1000))]);
+  // table de tir contre les formules exactes du modèle exponentiel (Cd constant au-delà de Mach 2,5)
+  const s = B.shell('kingtiger', 'APHE'), k = B.kDrag(s, s.v0), X = 600;
+  check('table drop matches the exponential law above Mach 2.5', B.velAt(s, X) > 2.5 * 340 && near(B.drop(s, X), B.dropExp(s.v0, k, X), 0.005) && near(B.tof(s, X), B.tofExp(s.v0, k, X), 1e-4) && near(B.descent(s, X), B.descentExp(s.v0, k, X), 1e-5), [B.drop(s, X), B.dropExp(s.v0, k, X)]);
+}
+
+// ---------- Atmosphère, Mach, vent ----------
+{
+  const s = B.shell('medium', 'APHE'), h = B.shell('pz4', 'HEAT');
+  const drift = (sh, X, W) => W * (B.tof(sh, X) - X / B.muzzle(sh));
+  check('crosswind 5 m/s: KwK 42 APCBC drifts ≈ 0.35 m at 1000 m', near(drift(s, 1000, 5), 0.35, 0.05), r2(drift(s, 1000, 5)));
+  check('crosswind 5 m/s: L/48 HEAT drifts 1.3-1.8 m at 1000 m (Mach drag)', near(drift(h, 1000, 5), 1.55, 0.25), r2(drift(h, 1000, 5)));
+  check('Cd peaks just above Mach 1', B.cdMach(1.2) > B.cdMach(2) && B.cdMach(2) > B.cdMach(3) && B.cdMach(0.8) < B.cdMach(1.5));
+  const p15 = B.penAt('heavy', 'APHE', 500);
+  B.setAtmosphere(-10, 1.34);
+  const pCold = B.penAt('heavy', 'APHE', 500), v0Cold = B.velAt(s, 0);
+  B.setAtmosphere(15, 1.225);
+  check('Bastogne (−10 °C): −2.5 % muzzle velocity, ≈ −3.5 % penetration', near(v0Cold / s.v0, 0.975, 0.001) && near(pCold / p15, 0.965, 0.01), [r2(v0Cold / s.v0), r2(pCold / p15)]);
 }
 
 console.log(failed ? `CHECK FAILED (${failed})` : 'CHECK PASSED');

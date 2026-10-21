@@ -150,35 +150,35 @@
   const W_ = (a, b, c, d, e) => [a, b, c, d, e];
   const LEVELS = [
     {
-      name: 'Kursk Plain', crr: 0.06, soil: 'dry grass', gRic: 1, sub: 'Summer steppe, wide open spaces',
+      name: 'Kursk Plain', crr: 0.06, soil: 'dry grass', gRic: 1, atm: { T: 25, rho: 1.18, wind: 3 }, sub: 'Summer steppe, wide open spaces',
       ground: ['#7b8446', '#6c763b', '#8a9352'], road: '#8d7d58', dust: '#a59a6a', track: 'rgba(40,35,20,0.16)',
       trees: 45, treeCl: 6, bushes: 34, buildings: 6, walls: 9, rocks: 8,
       tree: ['#36521f', '#4a6a2b'], bush: '#4c6b2a', wall: '#a59a86', roof: ['#8a4f3a', '#73402f'],
       waves: [W_('light', 'light', 'medium', 'light', 'medium'), W_('pz4', 'light', 'medium', 'stug', 'light'), W_('pz4', 'medium', 'heavy', 'stug', 'medium')],
     },
     {
-      forest: true, name: 'Ardennes Forest', crr: 0.085, soil: 'muddy undergrowth', gRic: 0.5, sub: 'Dense undergrowth, close-quarters fighting',
+      forest: true, name: 'Ardennes Forest', crr: 0.085, soil: 'muddy undergrowth', gRic: 0.5, atm: { T: 8, rho: 1.25, wind: 1.5 }, sub: 'Dense undergrowth, close-quarters fighting',
       ground: ['#4c5c30', '#425228', '#58693a'], road: '#6d5d3f', dust: '#6b6a48', track: 'rgba(25,25,10,0.2)',
       trees: 150, treeCl: 14, bushes: 70, buildings: 3, walls: 4, rocks: 10,
       tree: ['#24401a', '#335726'], bush: '#3a5a22', wall: '#8f8a7a', roof: ['#5a4a3a', '#4a3c30'],
       waves: [W_('medium', 'light', 'medium', 'light', 'medium'), W_('pz4', 'medium', 'heavy', 'stug', 'destroyer'), W_('heavy', 'medium', 'medium', 'destroyer', 'light')],
     },
     {
-      name: 'Stalingrad Ruins', crr: 0.07, soil: 'rubble', gRic: 1, sub: 'Ruined streets, destructible buildings', city: true,
+      name: 'Stalingrad Ruins', crr: 0.07, soil: 'rubble', gRic: 1, atm: { T: -5, rho: 1.31, wind: 4 }, sub: 'Ruined streets, destructible buildings', city: true,
       ground: ['#6d665c', '#615a51', '#79726a'], road: '#55504a', dust: '#8a8378', track: 'rgba(20,18,15,0.18)',
       trees: 8, treeCl: 2, bushes: 10, buildings: 0, walls: 12, rocks: 4,
       tree: ['#3c4a2a', '#4a5a34'], bush: '#4a5530', wall: '#8f877b', roof: ['#7a7268', '#686057'],
       waves: [W_('medium', 'heavy', 'medium', 'light', 'medium'), W_('heavy', 'pz4', 'destroyer', 'medium', 'kingtiger'), W_('heavy', 'heavy', 'destroyer', 'medium', 'medium')],
     },
     {
-      desert: true, name: 'El Alamein Desert', crr: 0.08, soil: 'sand', gRic: 0.4, sub: 'Open terrain, long-range shooting',
+      desert: true, name: 'El Alamein Desert', crr: 0.08, soil: 'sand', gRic: 0.4, atm: { T: 35, rho: 1.15, wind: 5 }, sub: 'Open terrain, long-range shooting',
       ground: ['#cdb27a', '#c1a46b', '#d9c08c'], road: '#b39463', dust: '#dcc391', track: 'rgba(90,60,30,0.16)',
       trees: 0, treeCl: 1, bushes: 16, buildings: 5, walls: 5, rocks: 36,
       tree: ['#5a6a2a', '#6a7a3a'], bush: '#8c8a4a', wall: '#d8c7a0', roof: ['#e0d2ad', '#cdbd96'],
       waves: [W_('destroyer', 'medium', 'light', 'destroyer', 'medium'), W_('heavy', 'destroyer', 'stug', 'destroyer', 'pz4'), W_('heavy', 'heavy', 'destroyer', 'destroyer', 'medium')],
     },
     {
-      name: 'Bastogne Night', crr: 0.09, soil: 'snow', gRic: 0.5, sub: 'Snow and darkness, reduced vision', night: true,
+      name: 'Bastogne Night', crr: 0.09, soil: 'snow', gRic: 0.5, atm: { T: -10, rho: 1.34, wind: 2.5 }, sub: 'Snow and darkness, reduced vision', night: true,
       ground: ['#dfe4e8', '#cfd6dc', '#eaeef1'], road: '#b9b3a8', dust: '#ffffff', track: 'rgba(60,60,70,0.22)',
       trees: 95, treeCl: 10, bushes: 34, buildings: 8, walls: 6, rocks: 6,
       tree: ['#203828', '#2c4a36'], bush: '#3c5a46', wall: '#9a958c', roof: ['#eef3f6', '#d8e0e6'], snow: true,
@@ -1182,7 +1182,7 @@
     const pv = pivot(t);
     const mx = pv.x + Math.cos(ta) * T.gunEnd, my = pv.y + Math.sin(ta) * T.gunEnd;
     t.ammo[key]--;
-    const sb = Ballistics.shell(T.id, key), pxk = shellPxK(), sp = sb.v0 * pxk;
+    const sb = Ballistics.shell(T.id, key), v0 = Ballistics.muzzle(sb), pxk = shellPxK(), sp = v0 * pxk;
     // vertical : élévation du canon (débattement de −8° à +20°) et dispersion, isotrope avec l'horizontale
     const z0 = T.S.gun.z, k3 = PX * RK;
     let slope = Math.tan(t.elev) / k3 + gauss() * t.disp / k3;
@@ -1193,12 +1193,12 @@
     if (key === 'CAN') {
       // la boîte s'ouvre à la bouche : une gerbe de billes d'acier qui s'ouvre d'environ 3°
       for (let i = 0; i < sb.balls; i++) {
-        const a = ang + gauss() * 0.028, bsp = sb.v0 * 0.92 * (0.95 + Math.random() * 0.1);
+        const a = ang + gauss() * 0.028, bsp = v0 * 0.92 * (0.95 + Math.random() * 0.1);
         bullets.push({ x: mx, y: my, z: z0, vx: Math.cos(a) * bsp, vy: Math.sin(a) * bsp, sp: bsp, slope: slope + gauss() * 0.028 / k3, dist: 0, tracer: i % 9 === 0, by: t, team: t.team, type: 'CAN' });
       }
     } else shells.push({
-      id: ++shellId, x: mx, y: my, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, sp, pxk, V: sb.v0, team: t.team, owner: t, by: t,
-      key, sb, v0: sb.v0, dist: 0, z: z0, slope, trail: [], ric: 0, yaw: false, whiz: false, warned: false,
+      id: ++shellId, x: mx, y: my, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, sp, pxk, V: v0, team: t.team, owner: t, by: t,
+      key, sb, v0, dist: 0, z: z0, slope, trail: [], ric: 0, yaw: false, whiz: false, warned: false,
     });
     // les premiers obus viennent du râtelier de tourelle ; ensuite le chargeur va les chercher dans
     // les soutes de caisse, plus lentement
@@ -1457,9 +1457,11 @@
         if (h && (!best || h.t < best.t)) best = { t: h.t, o, nx: h.nx, ny: h.ny };
       }
       // hauteur en fin de pas : l'obus suit sa trajectoire balistique (pente en m par mètre balistique) ;
-      // la pesanteur courbe la trajectoire de g / v² par mètre (v réelle, ralentie par la traînée et les ricochets)
-      const vr = s.V / Math.hypot(1, s.slope), gk = G / (vr * vr);
-      const dX = s.sp * dt * RK, zNext = s.z + s.slope * dX - 0.5 * gk * dX * dX;
+      // la pesanteur courbe la trajectoire de g / v² par mètre (v réelle à mi-pas, ralentie par la traînée
+      // et les ricochets)
+      const dX = s.sp * dt * RK, kd = Ballistics.kDrag(s.sb, s.V) * dX * Math.hypot(1, s.slope);
+      const vr = s.V * Math.exp(-0.5 * kd) / Math.hypot(1, s.slope), gk = G / (vr * vr);
+      const zNext = s.z + s.slope * dX - 0.5 * gk * dX * dX;
       if (best && s.z + (zNext - s.z) * best.t > obsH(best.o)) best = null; // passe au-dessus
       if (!best) {
         // un obstacle plus loin sur le pas peut encore être touché s'il est assez haut
@@ -1495,8 +1497,13 @@
       } else {
         s.x += dx; s.y += dy;
         s.dist += s.sp * dt;
+        // dérive due au vent de travers, règle du retard de Didion : y = Wc · (t − X / v0) ; sur ce pas,
+        // Wc · (1 − v / v0) pendant la durée balistique dX / v (m, convertis à l'échelle des chars)
+        const ux = s.vx / s.sp, uy = s.vy / s.sp, wc = -uy * WIND.x + ux * WIND.y;
+        const lat = wc * Math.max(0, 1 - vr / s.v0) * dX / vr * PX;
+        s.x -= uy * lat; s.y += ux * lat;
         // la traînée freine l'obus le long du chemin parcouru : vitesse affichée proportionnelle à la vitesse réelle
-        s.V *= Math.exp(-Ballistics.kDrag(s.sb, s.V) * dX * Math.hypot(1, s.slope));
+        s.V *= Math.exp(-kd);
         s.z = zNext; s.slope -= gk * dX;
         shellAim(s, s.vx / s.sp, s.vy / s.sp);
         s.skipObs = null;
@@ -1819,7 +1826,7 @@
       for (let k = 0; k < 18; k++) ev.sparks.push({ d: norm3([nHull[0] + gauss() * 0.6, nHull[1] + gauss() * 0.6, nHull[2] + gauss() * 0.6 + 0.15]), v: rnd(150, 700), life: rnd(1.5e-3, 4e-3) });
       const f = (v, k = 0) => v.toFixed(k);
       ev.data.push({ t: `${sb.name} · ${f(sb.m, 2)} kg · ${sb.cal} mm`, c: '#e9d9a6' });
-      ev.data.push({ t: `Impact velocity ${Math.round(V)} m/s (muzzle: ${sb.v0}) · energy ${f(Ek / 1e6, 2)} MJ · ${Math.round(Ballistics.spin(sb, V))} rev/s`, c: '#d8d4c6' });
+      ev.data.push({ t: `Impact velocity ${Math.round(V)} m/s (muzzle: ${Math.round(s.v0)}) · energy ${f(Ek / 1e6, 2)} MJ · ${Math.round(Ballistics.spin(sb, V))} rev/s`, c: '#d8d4c6' });
       const fall = Math.atan(-s.slope) / D2R;
       ev.data.push({ t: `Trajectory: ${fall >= 0 ? 'dropping' : 'rising'} ${f(Math.abs(fall), 2)}° under gravity · impact ${f(h.z, 2)} m above ground${s.ric ? ' · after ricochet' : ''}`, c: '#d8d4c6' });
       if (yaw) ev.data.push({ t: 'Deformed and yawing after the ricochet: −50% penetration, +10° obliquity', c: '#ffcf7a' });
@@ -2167,7 +2174,7 @@
     return p;
   }
   const hex3 = h => { const n = parseInt(h.slice(1), 16); return [(n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255]; };
-  const WIND = { x: 0.9, y: -0.4 }; // vent faible, en m/s
+  const WIND = { x: 0.9, y: -0.4 }; // vent au sol en m/s, propre à chaque bataille (setAir)
   const Fx = {
     soil() {
       const lv = L();
@@ -3296,6 +3303,19 @@
     }
     ctx.font = '600 11px system-ui, sans-serif'; ctx.fillStyle = 'rgba(220,215,200,0.7)';
     ctx.fillText('Shift: outside view · wheel: magnification', cx, cy - R * 0.72);
+    // vent : flèche dans le repère du tireur (vers le haut = dans l'axe du tir) et composante de travers,
+    // qui fait dériver les obus lents de plusieurs décimètres à 1 km
+    const wf = Math.cos(ta) * WIND.x + Math.sin(ta) * WIND.y, wr = -Math.sin(ta) * WIND.x + Math.cos(ta) * WIND.y, ws = Math.hypot(wf, wr);
+    const wx = cx + R * 0.62, wy = cy - R * 0.5;
+    ctx.strokeStyle = 'rgba(220,215,200,0.75)'; ctx.fillStyle = 'rgba(220,215,200,0.75)'; ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.arc(wx, wy, 13, 0, TAU); ctx.stroke();
+    if (ws > 0.05) {
+      const ax = wr / ws, ay = -wf / ws;
+      ctx.beginPath(); ctx.moveTo(wx - ax * 10, wy - ay * 10); ctx.lineTo(wx + ax * 10, wy + ay * 10); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(wx + ax * 11, wy + ay * 11); ctx.lineTo(wx + ax * 4 - ay * 4, wy + ay * 4 + ax * 4); ctx.lineTo(wx + ax * 4 + ay * 4, wy + ay * 4 - ax * 4); ctx.closePath(); ctx.fill();
+    }
+    ctx.font = '600 10.5px system-ui, sans-serif';
+    ctx.fillText(ws < 0.3 ? 'Wind: calm' : `Wind ${ws.toFixed(1)} m/s · ${Math.abs(wr).toFixed(1)} from the ${wr > 0 ? 'left' : 'right'}`, wx, wy + 26);
   }
 
   // ennemis repérés : chevron au-dessus d'eux, ou flèche au bord de l'écran s'ils sont hors champ
@@ -4073,7 +4093,14 @@
   Meta.hooks.adStart = () => { Sfx.setMuted(true); stopMusic(); Meta.sdk.gameplayStop(); };
   Meta.hooks.adEnd = () => { Sfx.setMuted(false); if (state === 'menu') playMusic(); };
 
-  function startLevel() { genMap(); setup3D(); spawnWave(); }
+  // Air du champ de bataille : température, densité et vent (direction tirée à chaque bataille) ;
+  // le menu et son banc d'essai restent dans l'atmosphère type (15 °C, 1,225 kg/m³, sans vent)
+  function setAir(a) {
+    Ballistics.setAtmosphere(a ? a.T : 15, a ? a.rho : 1.225);
+    const w = a ? a.wind * rnd(0.7, 1.15) : 0, wa = rnd(0, TAU);
+    WIND.x = Math.cos(wa) * w; WIND.y = Math.sin(wa) * w;
+  }
+  function startLevel() { setAir(L().atm); genMap(); setup3D(); spawnWave(); }
   // ===================== Réparation (publicité récompensée ou kit) =====================
   let reviveT = 0, reviveUsed = false, reviveIt = null;
   const revivePending = () => reviveT > 0 || state === 'revive';
@@ -4231,7 +4258,7 @@
     freePointer();
     hide('pause'); hide('result'); hide('revive');
     state = 'menu'; campaignScore = 0;
-    HitCam.stop(); setSight(false);
+    HitCam.stop(); setSight(false); setAir(null);
     Meta.sdk.gameplayStop();
     buildMenu(); show('menu'); playMusic();
   }
