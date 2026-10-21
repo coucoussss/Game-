@@ -2380,8 +2380,9 @@
     const dt = Math.min(0.1, (now - last) / 1000);
     last = now;
     if (state === 'intro' || state === 'play' || state === 'ending') {
-      // ralenti pendant la caméra d'impact
-      const slow = HitCam.active() && HitCam.time() < HitCam.phys ? 0.1 : 1;
+      // ralenti pendant la caméra d'impact, sauf en jeu automatique (personne ne regarde, et les tests
+      // tournent en rendu logiciel où la caméra d'impact se dessine à une image par seconde)
+      const slow = HitCam.active() && HitCam.time() < HitCam.phys && !AUTO ? 0.1 : 1;
       acc += dt * timeScale * slow;
       let n = 0;
       while (acc >= STEP && n++ < 40) { step(STEP); acc -= STEP; }
