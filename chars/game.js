@@ -201,7 +201,7 @@ Meta.whenReady(() => {
   const dark = document.createElement('canvas');
   const dctx = dark.getContext('2d');
   let QDPR = 2, PCAP = 2600; // qualité graphique : résolution maximale et nombre de particules
-  let W = 0, H = 0, DPR = 1, S = 1;
+  let W = 0, H = 0, DPR = 1, S = 1, redraw = false;
   function resize() {
     DPR = Math.min(QDPR, window.devicePixelRatio || 1);
     W = innerWidth; H = innerHeight;
@@ -209,6 +209,7 @@ Meta.whenReady(() => {
     cv.style.width = W + 'px'; cv.style.height = H + 'px';
     dark.width = cv.width; dark.height = cv.height;
     S = clamp(Math.min(W / 1200, H / 740), 0.5, 1.6);
+    redraw = true; // canevas vidés : image figée à redessiner
   }
   addEventListener('resize', resize);
   resize();
@@ -2409,8 +2410,10 @@ Meta.whenReady(() => {
     if (state === 'menu' && bench.sim && !bench.sim.st.done) bench.sim.run(14);
     if (state === 'menu' && R3) { viewerT += dt; renderViewer(dt); }
     if (state === 'menu') renderBench();
-    if (groundCv) render(dt);
-    else { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#0d0f0c'; ctx.fillRect(0, 0, cv.width, cv.height); }
+    // le champ de bataille n'est dessiné qu'en jeu : en pause, réparation, résultats ou pendant la
+    // publicité de sortie, la dernière image reste affichée (redessinée une fois après un
+    // redimensionnement) ; dans le menu, rien n'est dessiné derrière la vitrine
+    if (groundCv && state !== 'menu' && (inBattle() || redraw)) { render(inBattle() ? dt : 0); redraw = false; }
     const v = player && !player.dead && inBattle() ? Math.abs(player.speed) / player.T.speed : -1;
     Sfx.engine(v);
     // chenilles et moteur de tourelle du char du joueur
@@ -3617,7 +3620,10 @@ Meta.whenReady(() => {
   }
 
   // ===================== Vitrine 3D du menu =====================
-  const viewer = { ang: 0.8, elev: 0.33, drag: null, xray: false, dist: 1 };
+  const viewer = { ang: 0.8, elev: 0.33, drag: null, xray: false, dist: 1, labels: false };
+  // La vitrine affiche directement le canevas WebGL de R3 (aucune recopie par image, donc aucune
+  // relecture du GPU) ; #viewer, transparent par-dessus, reçoit les gestes et les étiquettes.
+  if (R3) { R3.canvas.id = 'viewer3d'; document.getElementById('showcase').prepend(R3.canvas); }
   const groundMesh = R3 ? (() => { const g = new G3.Builder(); g.ground(16, 64); return R3.upload(g); })() : null;
   function drawTank3D(id, w, h, ang, elev, xray, turretAng, clear, sk, hero, armorLv) {
     const camo = sk ? sk.camo : TEAM[0].camo, pat = sk ? sk.pat : 0;
@@ -3649,43 +3655,42 @@ Meta.whenReady(() => {
     const vc = $('viewer');
     if (!vc || !vc.clientWidth) return;
     const vd = Math.min(DPR, 1.25), w = Math.round(vc.clientWidth * vd), h = Math.round(vc.clientHeight * vd);
-    if (vc.width !== w || vc.height !== h) { vc.width = w; vc.height = h; }
     if (!viewer.drag) viewer.ang += dt * 0.22;
     const ta = Math.sin(viewerT * 0.4) * 0.35;
     drawTank3D(chosenType, w, h, viewer.ang, viewer.elev, viewer.xray, ta, [0.05, 0.055, 0.045, 1], skinPreview ? Meta.SKINS.find(k => k.id === skinPreview) : Meta.skinOf(chosenType), true, Meta.partLv(chosenType, 'armor'));
     const c2 = vc.getContext('2d');
-    c2.drawImage(R3.canvas, 0, 0);
-    if (viewer.xray) {
-      // noms des modules, reliés à leur position
-      const I = TYPES[chosenType].I, tm = G3.M4.trs(I.pivotX, I.pivotY, 0, ta);
-      const seen = new Set(), labels = [];
-      c2.font = `600 ${Math.round(11 * DPR)}px system-ui, sans-serif`;
-      c2.textAlign = 'center';
-      for (const m of TankModels.makeModules(chosenType)) {
-        if (seen.has(m.name)) continue;
-        seen.add(m.name);
-        const top = [m.c[0], m.c[1], m.c[2] + m.s[2] / 2];
-        const q = R3.project(m.frame === 'turret' ? G3.M4.apply(tm, top) : top, w, h);
-        labels.push({ m, q, tw: c2.measureText(m.name).width + 10 * DPR });
-      }
-      // répartition sur plusieurs lignes pour éviter les chevauchements
-      labels.sort((a, b) => a.q.y - b.q.y);
-      const rows = [];
-      for (const L of labels) {
-        let r = 0;
-        while ((rows[r] || []).some(o => Math.abs(o.q.x - L.q.x) < (o.tw + L.tw) / 2 + 4 * DPR)) r++;
-        (rows[r] = rows[r] || []).push(L);
-        L.row = r;
-      }
-      for (const L of labels) {
-        const ly = (18 + L.row * 18) * DPR;
-        c2.strokeStyle = 'rgba(255,255,255,0.4)'; c2.lineWidth = DPR;
-        c2.beginPath(); c2.moveTo(L.q.x, L.q.y); c2.lineTo(L.q.x, ly + 4 * DPR); c2.stroke();
-        c2.fillStyle = 'rgba(0,0,0,0.65)'; c2.fillRect(L.q.x - L.tw / 2, ly - 12 * DPR, L.tw, 16 * DPR);
-        const k = L.m.kind;
-        c2.fillStyle = k === 'crew' ? '#9fe0a8' : k === 'ammo' ? '#f0d27a' : k === 'fuel' ? '#ffb45a' : '#cfd6e0';
-        c2.fillText(L.m.name, L.q.x, ly);
-      }
+    if (!viewer.xray) { if (viewer.labels) { c2.clearRect(0, 0, vc.width, vc.height); viewer.labels = false; } return; }
+    if (vc.width !== w || vc.height !== h) { vc.width = w; vc.height = h; }
+    c2.clearRect(0, 0, w, h); viewer.labels = true;
+    // noms des modules, reliés à leur position
+    const I = TYPES[chosenType].I, tm = G3.M4.trs(I.pivotX, I.pivotY, 0, ta);
+    const seen = new Set(), labels = [];
+    c2.font = `600 ${Math.round(11 * DPR)}px system-ui, sans-serif`;
+    c2.textAlign = 'center';
+    for (const m of TankModels.makeModules(chosenType)) {
+      if (seen.has(m.name)) continue;
+      seen.add(m.name);
+      const top = [m.c[0], m.c[1], m.c[2] + m.s[2] / 2];
+      const q = R3.project(m.frame === 'turret' ? G3.M4.apply(tm, top) : top, w, h);
+      labels.push({ m, q, tw: c2.measureText(m.name).width + 10 * DPR });
+    }
+    // répartition sur plusieurs lignes pour éviter les chevauchements
+    labels.sort((a, b) => a.q.y - b.q.y);
+    const rows = [];
+    for (const L of labels) {
+      let r = 0;
+      while ((rows[r] || []).some(o => Math.abs(o.q.x - L.q.x) < (o.tw + L.tw) / 2 + 4 * DPR)) r++;
+      (rows[r] = rows[r] || []).push(L);
+      L.row = r;
+    }
+    for (const L of labels) {
+      const ly = (18 + L.row * 18) * DPR;
+      c2.strokeStyle = 'rgba(255,255,255,0.4)'; c2.lineWidth = DPR;
+      c2.beginPath(); c2.moveTo(L.q.x, L.q.y); c2.lineTo(L.q.x, ly + 4 * DPR); c2.stroke();
+      c2.fillStyle = 'rgba(0,0,0,0.65)'; c2.fillRect(L.q.x - L.tw / 2, ly - 12 * DPR, L.tw, 16 * DPR);
+      const k = L.m.kind;
+      c2.fillStyle = k === 'crew' ? '#9fe0a8' : k === 'ammo' ? '#f0d27a' : k === 'fuel' ? '#ffb45a' : '#cfd6e0';
+      c2.fillText(L.m.name, L.q.x, ly);
     }
   }
 
@@ -4257,7 +4262,18 @@ Meta.whenReady(() => {
     state = 'menu'; campaignScore = 0;
     HitCam.stop(); setSight(false);
     Meta.sdk.gameplayStop();
+    freeBattle();
     buildMenu(); show('menu'); playMusic();
+  }
+  // Retour au menu : interface effacée, décor 3D et texture du sol libérés (des dizaines de Mo de
+  // tampons dans les Ardennes) ; la prochaine bataille les reconstruit (genMap, setup3D)
+  function freeBattle() {
+    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height);
+    if (W3D) {
+      for (const t of tanks) if (t.scar3) { W3D.free(t.scar3.hull); W3D.free(t.scar3.turret); t.scar3 = null; }
+      W3D.free(scene3); W3D.free(bush3); scene3 = bush3 = null;
+    }
+    groundCv = gctx = null; dirtyTiles.clear();
   }
   let pausedFrom = 'play';
   // Curseur verrouillé en 3D. Les deux appels renvoient une promesse qui peut être rejetée (par
