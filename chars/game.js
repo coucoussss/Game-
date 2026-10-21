@@ -1,5 +1,5 @@
 'use strict';
-// Front d'Acier : combat de chars 5 contre 5, vue de dessus.
+// Steel Front : combat de chars 5 contre 5, vue de dessus.
 (() => {
   // ===================== Outils =====================
   const TAU = Math.PI * 2, D2R = Math.PI / 180;
@@ -66,43 +66,43 @@
   const G = 9.81;  // pesanteur (m/s²)
   const TYPES = {
     light: {
-      id: 'light', hp: 180, ready: 10, mass: 12, name: 'Lynx', cls: 'Char léger', kmh: 60, speed: 150, rev: 70, accel: 230, turn: 2.3, tturn: 2.6,
+      id: 'light', hp: 180, ready: 10, mass: 12, name: 'Lynx', cls: 'Light tank', kmh: 60, speed: 150, rev: 70, accel: 230, turn: 2.3, tturn: 2.6,
       reload: 3.2, shell: 640, disp: 0.016, view: 760, range: 470,
       caliber: 50, obs: 60,
       ammo: { AP: 20, APHE: 30, APCR: 10, HEAT: 6, HE: 20, SMOKE: 4, CAN: 8 },
     },
     medium: {
-      id: 'medium', hp: 700, ready: 8, mass: 45, name: 'Panthère', cls: 'Char moyen', kmh: 46, speed: 112, rev: 52, accel: 170, turn: 1.6, tturn: 1.4,
+      id: 'medium', hp: 700, ready: 8, mass: 45, name: 'Panther', cls: 'Medium tank', kmh: 46, speed: 112, rev: 52, accel: 170, turn: 1.6, tturn: 1.4,
       reload: 5.5, shell: 720, disp: 0.011, view: 680, range: 420,
       caliber: 75, obs: 110,
       ammo: { AP: 15, APHE: 35, APCR: 10, HEAT: 5, HE: 15, SMOKE: 4, CAN: 5 },
     },
     heavy: {
-      id: 'heavy', hp: 700, ready: 6, mass: 57, name: 'Tigre', cls: 'Char lourd', kmh: 38, speed: 80, rev: 38, accel: 115, turn: 1.1, tturn: 1.0,
+      id: 'heavy', hp: 700, ready: 6, mass: 57, name: 'Tiger', cls: 'Heavy tank', kmh: 38, speed: 80, rev: 38, accel: 115, turn: 1.1, tturn: 1.0,
       reload: 7.0, shell: 680, disp: 0.010, view: 620, range: 330,
       caliber: 88, obs: 150,
       ammo: { AP: 12, APHE: 40, APCR: 8, HEAT: 10, HE: 22, SMOKE: 4, CAN: 4 },
     },
     pz4: {
-      id: 'pz4', hp: 300, ready: 8, mass: 25, name: 'Panzer IV', cls: 'Char moyen', kmh: 38, speed: 95, rev: 45, accel: 150, turn: 1.5, tturn: 1.0,
+      id: 'pz4', hp: 300, ready: 8, mass: 25, name: 'Panzer IV', cls: 'Medium tank', kmh: 38, speed: 95, rev: 45, accel: 150, turn: 1.5, tturn: 1.0,
       reload: 5.0, shell: 700, disp: 0.012, view: 680, range: 420,
       caliber: 75, obs: 100,
       ammo: { AP: 15, APHE: 40, APCR: 8, HEAT: 6, HE: 20, SMOKE: 4, CAN: 6 },
     },
     stug: {
-      id: 'stug', hp: 300, ready: 6, mass: 24, name: 'StuG', cls: "Canon d'assaut", kmh: 40, speed: 100, rev: 45, accel: 150, turn: 1.5, tturn: 0.9,
+      id: 'stug', hp: 300, ready: 6, mass: 24, name: 'StuG', cls: 'Assault gun', kmh: 40, speed: 100, rev: 45, accel: 150, turn: 1.5, tturn: 0.9,
       reload: 5.0, shell: 700, disp: 0.010, view: 650, range: 450, arc: 0.17,
       caliber: 75, obs: 100,
       ammo: { AP: 12, APHE: 30, APCR: 6, HEAT: 4, HE: 18, SMOKE: 4, CAN: 4 },
     },
     kingtiger: {
-      id: 'kingtiger', hp: 700, ready: 6, mass: 68, name: 'Tigre royal', cls: 'Char lourd', kmh: 35, speed: 70, rev: 33, accel: 95, turn: 0.9, tturn: 0.8,
+      id: 'kingtiger', hp: 700, ready: 6, mass: 68, name: 'King Tiger', cls: 'Heavy tank', kmh: 35, speed: 70, rev: 33, accel: 95, turn: 0.9, tturn: 0.8,
       reload: 8.0, shell: 800, disp: 0.008, view: 640, range: 520,
       caliber: 88, obs: 170,
       ammo: { AP: 10, APHE: 40, APCR: 8, HEAT: 4, HE: 20, SMOKE: 4, CAN: 4 },
     },
     destroyer: {
-      id: 'destroyer', hp: 700, ready: 6, mass: 46, name: 'Jagd', cls: 'Chasseur de chars', kmh: 46, speed: 95, rev: 45, accel: 145, turn: 1.4, tturn: 0.9,
+      id: 'destroyer', hp: 700, ready: 6, mass: 46, name: 'Jagd', cls: 'Tank destroyer', kmh: 46, speed: 95, rev: 45, accel: 145, turn: 1.4, tturn: 0.9,
       reload: 7.5, shell: 780, disp: 0.007, view: 720, range: 600, arc: 0.21,
       caliber: 88, obs: 160,
       ammo: { AP: 12, APHE: 25, APCR: 10, HEAT: 5, HE: 5, SMOKE: 3, CAN: 2 },
@@ -125,13 +125,13 @@
   }
 
   const SHELLS = {
-    AP: { key: 'AP', n: 1, name: 'Perforant', full: 'Perforant (AP)', pen: 1.0, vel: 1.0, drop: 0.15, ric: 70 },
-    APHE: { key: 'APHE', n: 2, name: 'Perf. explosif', full: 'Perforant explosif (APHE)', pen: 0.92, vel: 0.98, drop: 0.15, ric: 70, fuse: 1.2, sens: 15 },
-    APCR: { key: 'APCR', n: 3, name: 'Sous-calibré', full: 'Sous-calibré (APCR)', pen: 1.32, vel: 1.25, drop: 0.45, ric: 62 },
-    HEAT: { key: 'HEAT', n: 4, name: 'Charge creuse', full: 'Charge creuse (HEAT)', vel: 0.72, drop: 0, ric: 80 },
-    HE: { key: 'HE', n: 5, name: 'Explosif', full: 'Explosif (HE)', vel: 0.82, drop: 0, ric: 90 },
-    SMOKE: { key: 'SMOKE', n: 6, tag: 'FUM', name: 'Fumigène', full: 'Obus fumigène (Nebelgranate) : rideau de fumée au point d’impact', vel: 0.72, drop: 0, ric: 90 },
-    CAN: { key: 'CAN', n: 7, tag: 'MIT', name: 'Mitraille', full: 'Boîte à mitraille (Kartätsche) : gerbe de billes d’acier à courte portée', vel: 0.62, drop: 0, ric: 90 },
+    AP: { key: 'AP', n: 1, name: 'Armor-piercing', full: 'Armor-piercing (AP)', pen: 1.0, vel: 1.0, drop: 0.15, ric: 70 },
+    APHE: { key: 'APHE', n: 2, name: 'AP high-explosive', full: 'Armor-piercing high-explosive (APHE)', pen: 0.92, vel: 0.98, drop: 0.15, ric: 70, fuse: 1.2, sens: 15 },
+    APCR: { key: 'APCR', n: 3, name: 'Sub-caliber', full: 'Sub-caliber (APCR)', pen: 1.32, vel: 1.25, drop: 0.45, ric: 62 },
+    HEAT: { key: 'HEAT', n: 4, name: 'Shaped charge', full: 'Shaped charge (HEAT)', vel: 0.72, drop: 0, ric: 80 },
+    HE: { key: 'HE', n: 5, name: 'High-explosive', full: 'High-explosive (HE)', vel: 0.82, drop: 0, ric: 90 },
+    SMOKE: { key: 'SMOKE', n: 6, tag: 'SMK', name: 'Smoke', full: 'Smoke shell (Nebelgranate): smoke screen at the point of impact', vel: 0.72, drop: 0, ric: 90 },
+    CAN: { key: 'CAN', n: 7, tag: 'CAN', name: 'Canister', full: 'Canister (Kartätsche): a spray of steel balls at short range', vel: 0.62, drop: 0, ric: 90 },
   };
   const SHELL_KEYS = ['AP', 'APHE', 'APCR', 'HEAT', 'HE', 'SMOKE', 'CAN'];
   // Pénétration à une distance donnée (pixels de jeu), selon la balistique réelle
@@ -139,42 +139,42 @@
 
 
   const TEAM = [
-    { accent: '#4aa3ff', label: 'Allié', camo: [[0.33, 0.36, 0.22], [0.20, 0.25, 0.15], [0.36, 0.27, 0.17]], hull: '#56663a', top: '#66794a', dark: '#3d4a28' },
-    { accent: '#ff4a3d', label: 'Ennemi', camo: [[0.62, 0.55, 0.36], [0.40, 0.22, 0.15], [0.25, 0.30, 0.18]], hull: '#8a7d55', top: '#9a8d62', dark: '#5a4f35' },
+    { accent: '#4aa3ff', label: 'Ally', camo: [[0.33, 0.36, 0.22], [0.20, 0.25, 0.15], [0.36, 0.27, 0.17]], hull: '#56663a', top: '#66794a', dark: '#3d4a28' },
+    { accent: '#ff4a3d', label: 'Enemy', camo: [[0.62, 0.55, 0.36], [0.40, 0.22, 0.15], [0.25, 0.30, 0.18]], hull: '#8a7d55', top: '#9a8d62', dark: '#5a4f35' },
   ];
 
   const W_ = (a, b, c, d, e) => [a, b, c, d, e];
   const LEVELS = [
     {
-      name: 'Plaine de Koursk', crr: 0.06, soil: 'herbe sèche', sub: 'Steppe d’été, grands espaces',
+      name: 'Kursk Plain', crr: 0.06, soil: 'dry grass', sub: 'Summer steppe, wide open spaces',
       ground: ['#7b8446', '#6c763b', '#8a9352'], road: '#8d7d58', dust: '#a59a6a', track: 'rgba(40,35,20,0.16)',
       trees: 45, treeCl: 6, bushes: 34, buildings: 6, walls: 9, rocks: 8,
       tree: ['#36521f', '#4a6a2b'], bush: '#4c6b2a', wall: '#a59a86', roof: ['#8a4f3a', '#73402f'],
       waves: [W_('light', 'light', 'medium', 'light', 'medium'), W_('pz4', 'light', 'medium', 'stug', 'light'), W_('pz4', 'medium', 'heavy', 'stug', 'medium')],
     },
     {
-      name: 'Forêt des Ardennes', crr: 0.085, soil: 'sous-bois boueux', sub: 'Sous-bois denses, combats rapprochés',
+      forest: true, name: 'Ardennes Forest', crr: 0.085, soil: 'muddy undergrowth', sub: 'Dense undergrowth, close-quarters fighting',
       ground: ['#4c5c30', '#425228', '#58693a'], road: '#6d5d3f', dust: '#6b6a48', track: 'rgba(25,25,10,0.2)',
       trees: 150, treeCl: 14, bushes: 70, buildings: 3, walls: 4, rocks: 10,
       tree: ['#24401a', '#335726'], bush: '#3a5a22', wall: '#8f8a7a', roof: ['#5a4a3a', '#4a3c30'],
       waves: [W_('medium', 'light', 'medium', 'light', 'medium'), W_('pz4', 'medium', 'heavy', 'stug', 'destroyer'), W_('heavy', 'medium', 'medium', 'destroyer', 'light')],
     },
     {
-      name: 'Ruines de Stalingrad', crr: 0.07, soil: 'gravats', sub: 'Rues en ruines, bâtiments destructibles', city: true,
+      name: 'Stalingrad Ruins', crr: 0.07, soil: 'rubble', sub: 'Ruined streets, destructible buildings', city: true,
       ground: ['#6d665c', '#615a51', '#79726a'], road: '#55504a', dust: '#8a8378', track: 'rgba(20,18,15,0.18)',
       trees: 8, treeCl: 2, bushes: 10, buildings: 0, walls: 12, rocks: 4,
       tree: ['#3c4a2a', '#4a5a34'], bush: '#4a5530', wall: '#8f877b', roof: ['#7a7268', '#686057'],
       waves: [W_('medium', 'heavy', 'medium', 'light', 'medium'), W_('heavy', 'pz4', 'destroyer', 'medium', 'kingtiger'), W_('heavy', 'heavy', 'destroyer', 'medium', 'medium')],
     },
     {
-      name: "Désert d'El Alamein", crr: 0.08, soil: 'sable', sub: 'Terrain ouvert, tirs à longue portée',
+      desert: true, name: 'El Alamein Desert', crr: 0.08, soil: 'sand', sub: 'Open terrain, long-range shooting',
       ground: ['#cdb27a', '#c1a46b', '#d9c08c'], road: '#b39463', dust: '#dcc391', track: 'rgba(90,60,30,0.16)',
       trees: 0, treeCl: 1, bushes: 16, buildings: 5, walls: 5, rocks: 36,
       tree: ['#5a6a2a', '#6a7a3a'], bush: '#8c8a4a', wall: '#d8c7a0', roof: ['#e0d2ad', '#cdbd96'],
       waves: [W_('destroyer', 'medium', 'light', 'destroyer', 'medium'), W_('heavy', 'destroyer', 'stug', 'destroyer', 'pz4'), W_('heavy', 'heavy', 'destroyer', 'destroyer', 'medium')],
     },
     {
-      name: 'Nuit de Bastogne', crr: 0.09, soil: 'neige', sub: 'Neige et obscurité, vision réduite', night: true,
+      name: 'Bastogne Night', crr: 0.09, soil: 'snow', sub: 'Snow and darkness, reduced vision', night: true,
       ground: ['#dfe4e8', '#cfd6dc', '#eaeef1'], road: '#b9b3a8', dust: '#ffffff', track: 'rgba(60,60,70,0.22)',
       trees: 95, treeCl: 10, bushes: 34, buildings: 8, walls: 6, rocks: 6,
       tree: ['#203828', '#2c4a36'], bush: '#3c5a46', wall: '#9a958c', roof: ['#eef3f6', '#d8e0e6'], snow: true,
@@ -221,9 +221,9 @@
   let tankId = 0, shellId = 0, hitcamOn = true;
   // modes de jeu : campagne 5 contre 5, survie seul contre des vagues, duel en 3 manches
   const MODES = {
-    campagne: { name: 'Campagne', sub: '5 contre 5 · 3 vagues par champ de bataille' },
-    survie: { name: 'Survie', sub: 'Seul contre des vagues de plus en plus dures' },
-    duel: { name: 'Duel', sub: '1 contre 1, chars identiques, en 3 manches' },
+    campagne: { name: 'Campaign', sub: '5 vs 5 · 3 waves per battlefield' },
+    survie: { name: 'Survival', sub: 'Alone against ever harder waves' },
+    duel: { name: 'Duel', sub: '1 vs 1, identical tanks, best of 3' },
   };
   let mode = 'campagne', survWave = 0, nextWaveT = 0, duelScore = [0, 0], enemyN = 0;
   let survBest = 0;
@@ -286,7 +286,7 @@
         SPR[id] = sp;
       }
       HitCam.init(R3, MESH, MODMESH);
-    } catch (e) { console.warn('Rendu 3D désactivé', e); R3 = null; }
+    } catch (e) { console.warn('3D rendering disabled', e); R3 = null; }
   }
 
   // ===================== Carte =====================
@@ -422,7 +422,7 @@
         gctx.beginPath(); gctx.ellipse(R() * WW, R() * WH, 40 + R() * 90, 15 + R() * 30, R() * TAU, 0, TAU); gctx.fill();
       }
     }
-    if (lv.name.startsWith('Désert')) {
+    if (lv.desert) {
       gctx.strokeStyle = 'rgba(150,110,60,0.15)'; gctx.lineWidth = 3;
       for (let i = 0; i < 160; i++) {
         const x = R() * WW, y = R() * WH;
@@ -625,22 +625,22 @@
     let n = 1;
     enemyN = 0;
     if (mode !== 'campagne') {
-      player = makeTank(chosenType, 0, 200, WH / 2, 0, true, 'Vous', aSkill);
+      player = makeTank(chosenType, 0, 200, WH / 2, 0, true, 'You', aSkill);
       tanks.push(player);
       if (mode === 'duel') {
-        const t = makeTank(chosenType, 1, WW - 200, WH / 2 + rnd(-300, 300), Math.PI, false, 'Ennemi 1', 0.85);
+        const t = makeTank(chosenType, 1, WW - 200, WH / 2 + rnd(-300, 300), Math.PI, false, 'Enemy 1', 0.85);
         t.ai.laneY = clamp(t.y + rnd(-200, 200), 150, WH - 150);
         tanks.push(t); enemyN = 1;
       } else { survWave = 1; nextWaveT = 0; survivalEnemies(survWave); }
     } else for (let i = 0; i < 5; i++) {
       const isP = i === 2;
-      const t = makeTank(aT[i], 0, 200 + (i % 2) * 60, WH / 2 + slots[i], 0, isP, isP ? 'Vous' : 'Allié ' + (n++), aSkill);
+      const t = makeTank(aT[i], 0, 200 + (i % 2) * 60, WH / 2 + slots[i], 0, isP, isP ? 'You' : 'Ally ' + (n++), aSkill);
       if (t.ai) t.ai.laneY = clamp(t.y + rnd(-150, 150), 150, WH - 150);
       tanks.push(t);
       if (isP) player = t;
     }
     if (mode === 'campagne') for (let i = 0; i < 5; i++) {
-      const t = makeTank(enemyTypes[i], 1, WW - 200 - (i % 2) * 60, WH / 2 + slots[i], Math.PI, false, 'Ennemi ' + (i + 1), eSkill);
+      const t = makeTank(enemyTypes[i], 1, WW - 200 - (i % 2) * 60, WH / 2 + slots[i], Math.PI, false, 'Enemy ' + (i + 1), eSkill);
       t.ai.laneY = clamp(t.y + rnd(-200, 200), 150, WH - 150);
       tanks.push(t);
     }
@@ -660,7 +660,7 @@
     const right = !player || player.x < WW / 2, x0 = right ? WW - 200 : 200;
     for (let i = 0; i < count; i++) {
       const type = pool[clamp(Math.floor(Math.random() * (1.5 + n * 0.8)), 0, pool.length - 1)];
-      const t = makeTank(type, 1, x0 + (right ? -1 : 1) * (i % 2) * 60, WH / 2 + (i - (count - 1) / 2) * 150 + rnd(-40, 40), right ? Math.PI : 0, false, 'Ennemi ' + (++enemyN), skill);
+      const t = makeTank(type, 1, x0 + (right ? -1 : 1) * (i % 2) * 60, WH / 2 + (i - (count - 1) / 2) * 150 + rnd(-40, 40), right ? Math.PI : 0, false, 'Enemy ' + (++enemyN), skill);
       t.ai.laneY = clamp(t.y + rnd(-200, 200), 150, WH - 150);
       tanks.push(t);
     }
@@ -956,7 +956,7 @@
             Fx.armorHit((a.x + b.x) / 2, (a.y + b.y) / 2, 0.8, 'non', nx, ny);
             // au-delà de 4 m/s, le plus léger peut perdre une chenille
             const lt = ma < mb ? a : b;
-            if (vrel > 4 && !lt.dead && Math.random() < 0.5) { lt.trackT = Math.max(lt.trackT, 8); lt.trackSide = Math.random() < 0.5 ? 1 : -1; if (lt === player) addLog('Choc : chenille déchaussée', '#ffb070'); }
+            if (vrel > 4 && !lt.dead && Math.random() < 0.5) { lt.trackT = Math.max(lt.trackT, 8); lt.trackSide = Math.random() < 0.5 ? 1 : -1; if (lt === player) addLog('Collision: track thrown', '#ffb070'); }
           }
         }
       }
@@ -976,7 +976,7 @@
         const s = t.swap; t.swap = null;
         if (roleOk(t, s.from) && !roleOk(t, s.role)) {
           t.roles[s.role] = t.roles[s.from]; t.roles[s.from] = -1;
-          if (t === player) addLog(`${TankModels.NAMES[s.from]} prend le poste de ${TankModels.NAMES[s.role].toLowerCase()}`, '#bcd8ff');
+          if (t === player) addLog(`${TankModels.NAMES[s.from]} takes over as ${TankModels.NAMES[s.role].toLowerCase()}`, '#bcd8ff');
         }
       }
     }
@@ -988,7 +988,7 @@
       t.rep[kind] -= dt * (crewAlive(t) >= 3 ? 1 : 0.6);
       if (t.rep[kind] <= 0) {
         m.hp = m.max0 * 0.5; delete t.rep[kind];
-        if (t === player) addLog(`${m.name} réparé`, '#a6f08a');
+        if (t === player) addLog(`${m.name} repaired`, '#a6f08a');
       }
     }
     if (t.fireT > 0) {
@@ -999,8 +999,8 @@
       if (eng.hp > 0) modDamage(t, eng, 5 * dt, t.fireBy);
       if (Math.random() < 30 * dt) addFire(t.x + rnd(-10, 10), t.y + rnd(-8, 8));
       burnFx(t, dt, 1);
-      if (Math.random() < dt * 0.012) { if (t === player) addLog('Les munitions explosent dans l’incendie !', '#ff6a5a'); destroyTank(t, t.fireBy, true); return; }
-      if (t.fireT <= 0 && t === player) addLog('Incendie éteint', '#bcd8ff');
+      if (Math.random() < dt * 0.012) { if (t === player) addLog('The ammunition cooks off in the fire!', '#ff6a5a'); destroyTank(t, t.fireBy, true); return; }
+      if (t.fireT <= 0 && t === player) addLog('Fire extinguished', '#bcd8ff');
       checkKnock(t, t.fireBy);
     }
   }
@@ -1063,7 +1063,7 @@
     const broken = t.trackT > 0 && roleOk(t, 'driver') && modOk(t, 'engine') && modOk(t, 'trans');
     if (broken) target = clamp(inp.throttle, -1, 1) * T.speed * 0.15; // chenille cassée : seule l'autre tire
     // optiques : l'équipage remplace la visière ou l'épiscope brisé ; le chef rentre sous le feu
-    for (const k in t.optic) if (t.optic[k] > 0 && (t.optic[k] -= dt) <= 0 && t === player) addLog(`${OPTIC_NAMES[k]} remplacé${OPTIC_AGR[k]}`, '#a6f08a');
+    for (const k in t.optic) if (t.optic[k] > 0 && (t.optic[k] -= dt) <= 0 && t === player) addLog(`${OPTIC_NAMES[k]} replaced`, '#a6f08a');
     t.underFire -= dt;
     if (t.underFire > 0) { t.calm = 0; if (t.ai) t.hatch = false; }
     else if ((t.calm += dt) > 12 && t.ai && roleOk(t, 'commander')) t.hatch = true;
@@ -1204,7 +1204,7 @@
     t.speed -= 14 * Math.sign(Math.cos(t.turret)) * (T.caliber / 75);
     if (t.ammo[key] <= 0) {
       t.shell = nextShell(t);
-      if (t === player) showMsg(`Plus d'obus ${sh.name.toLowerCase()} : ${SHELLS[t.shell].name.toLowerCase()} chargé`, '#e9d9a6', 1.6);
+      if (t === player) showMsg(`Out of ${sh.name.toLowerCase()} rounds: ${SHELLS[t.shell].name.toLowerCase()} loaded`, '#e9d9a6', 1.6);
     }
     if (t === player) { waveStats.shots++; shake = Math.max(shake, 5); }
     parts.push({ k: 'flash', x: mx, y: my, life: 0.08, max: 0.08, size: 20 + T.caliber / 4, z: T.S.gun.z });
@@ -1213,14 +1213,14 @@
   }
 
   // ===================== Mitrailleuses =====================
-  const OPTIC_NAMES = { driver: 'Visière du pilote', gunner: 'Viseur du tireur', cmd: 'Épiscopes de la coupole' };
+  const OPTIC_NAMES = { driver: 'Driver’s visor', gunner: 'Gunner’s sight', cmd: 'Cupola periscopes' };
   const OPTIC_AGR = { driver: 'e', gunner: '', cmd: 's' }; // accords : brisée, brisé, brisés
   // Balles perforantes de 7,92 mm : S.m.K. (noyau d'acier) et S.m.K.H. (noyau de carbure de tungstène,
   // rare). Perforation à incidence nulle, décroissante avec la distance.
   const MG_AMMO = {
-    SmK: { name: 'S.m.K.', full: "S.m.K. · noyau d'acier", m: 11.5, v0: 785, p100: 11 },
-    SmKH: { name: 'S.m.K.H.', full: 'S.m.K.H. · noyau de carbure de tungstène', m: 11.5, v0: 810, p100: 15 },
-    CAN: { name: 'Bille', full: 'bille d’acier de mitraille (Kartätsche)', m: 24, v0: 450, p100: 3, kd: 250 },
+    SmK: { name: 'S.m.K.', full: 'S.m.K. · steel core', m: 11.5, v0: 785, p100: 11 },
+    SmKH: { name: 'S.m.K.H.', full: 'S.m.K.H. · tungsten carbide core', m: 11.5, v0: 810, p100: 15 },
+    CAN: { name: 'Ball', full: 'canister steel ball (Kartätsche)', m: 24, v0: 450, p100: 3, kd: 250 },
   };
   const mgPen = (type, xm) => MG_AMMO[type].p100 * Math.exp(-(xm - 100) / (MG_AMMO[type].kd || 600));
   const mgVel = (type, xm) => MG_AMMO[type].v0 * Math.exp(-xm / (MG_AMMO[type].kd || 900));
@@ -1241,7 +1241,7 @@
   function updateMG(t, dt) {
     const g = t.mg;
     g.cd -= dt; g.heat = Math.max(0, g.heat - 6 * dt);
-    if (g.jam > 0) { g.jam -= dt; if (g.jam <= 0 && t === player) addLog('Canon de mitrailleuse changé', '#bcd8ff'); return; }
+    if (g.jam > 0) { g.jam -= dt; if (g.jam <= 0 && t === player) addLog('Machine-gun barrel changed', '#bcd8ff'); return; }
     let want = t.in.mg;
     if (t.ai) {
       // l'IA lâche des rafales courtes sur une cible visible à moyenne portée
@@ -1253,14 +1253,14 @@
     if (!want || state !== 'play' || g.ammo <= 0 || !roleOk(t, 'gunner') || t.turretGone || g.cd > 0) return;
     g.cd = 1 / 15 + rnd(-0.004, 0.004);
     g.ammo--; g.heat++; g.n++;
-    if (g.heat > 250) { g.jam = 7; if (t === player) addLog('Mitrailleuse surchauffée : changement du canon', '#ffb070'); }
+    if (g.heat > 250) { g.jam = 7; if (t === player) addLog('Machine gun overheated: changing barrel', '#ffb070'); }
     const T = t.T, ta = t.angle + t.turret, pv = pivot(t), side = -0.3 * PX;
     const mx = pv.x + Math.cos(ta) * T.gunEnd * 0.45 - Math.sin(ta) * side, my = pv.y + Math.sin(ta) * T.gunEnd * 0.45 + Math.cos(ta) * side;
     const a = ta + gauss() * (0.0035 + t.disp * 0.35), sp = MG_V * 0.92, z0 = T.S.gun.z - 0.05;
     const ap = aimPoint(t, mx, my), X = Math.max(5, ap.D * RK), vm = MG_V * Math.exp(-X * 0.5 / 900);
     const slope = (ap.z - z0) / X + 0.5 * G * X / (vm * vm) + gauss() * (0.0035 + t.disp * 0.35) / (PX * RK);
     let type = 'SmK';
-    if (g.type === 'SmKH' && g.ammoH > 0) { type = 'SmKH'; g.ammoH--; if (g.ammoH === 0 && t === player) { g.type = 'SmK'; addLog('Plus de S.m.K.H. : retour aux S.m.K.', '#e9d9a6'); } }
+    if (g.type === 'SmKH' && g.ammoH > 0) { type = 'SmKH'; g.ammoH--; if (g.ammoH === 0 && t === player) { g.type = 'SmK'; addLog('Out of S.m.K.H.: back to S.m.K.', '#e9d9a6'); } }
     bullets.push({ x: mx, y: my, z: z0, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, sp, slope, dist: 0, tracer: g.n % 5 === 0, by: t, team: t.team, type });
     t.revealT = Math.max(t.revealT, 1.5);
     if (Math.random() < 0.5) parts.push({ k: 'flash', x: mx, y: my, life: 0.03, max: 0.03, size: 6, z: z0 });
@@ -1333,10 +1333,10 @@
       // le chef de char est touché à la tête ou au buste
       const m = t.mods[t.roles.commander], dmg = rnd(60, 130);
       modDamage(t, m, dmg, by); t.hatch = false; mod = m.i; kind = 'cmd'; outcome = 'pen';
-      lines.push({ t: m.hp <= 0 ? 'Chef de char tué à découvert' : 'Chef de char blessé : il rentre dans la tourelle', c: '#ff8a6a' });
+      lines.push({ t: m.hp <= 0 ? 'Exposed commander killed' : 'Commander wounded: he ducks into the turret', c: '#ff8a6a' });
       if (by === player && m.hp <= 0 && t.team !== by.team && Meta.track('cmd')) missionToast();
-      if (show) floatText(hx, hy - 10, m.hp <= 0 ? 'Chef de char tué' : 'Chef de char blessé', '#ffb070');
-      if (t === player) addLog(m.hp <= 0 ? 'Votre chef de char a été tué à découvert' : 'Votre chef de char est blessé', '#ff6a5a');
+      if (show) floatText(hx, hy - 10, m.hp <= 0 ? 'Commander killed' : 'Commander wounded', '#ffb070');
+      if (t === player) addLog(m.hp <= 0 ? 'Your commander was killed while exposed' : 'Your commander is wounded', '#ff6a5a');
       Fx.armorHit(hx, hy, best.z, 'mg', ux, uy);
       checkKnock(t, by);
     } else {
@@ -1344,7 +1344,7 @@
       const cosI = Math.max(0.03, -dot3(pp.dd, pp.n)), angle = Math.acos(Math.min(1, cosI)) / D2R;
       const scf = scarFrame(t, h, E), scw = scarWeak(t, scf.frame, scf.p, pp.plate);
       mm = Math.round((scw.hole ? pp.mm * 0.1 : pp.mm * (1 - scw.w)) * t.up.armor); plate = pp.plate; eff = mm / cosI + pp.extra;
-      if (mm < pp.mm) lines.push({ t: `Plaque déjà endommagée : ${mm} mm utiles au lieu de ${pp.mm} mm`, c: '#ffcf7a' });
+      if (mm < pp.mm) lines.push({ t: `Plate already damaged: ${mm} mm effective instead of ${pp.mm} mm`, c: '#ffcf7a' });
       // points faibles, dans le repère du modèle
       const tq = h.part === 'turret' ? rotZ([E[0] - t.T.I.pivotX, E[1] - t.T.I.pivotY, E[2]], -tAng) : null;
       const drv = t.mods[t.roles.driver];
@@ -1354,9 +1354,9 @@
       if (kind && kind !== 'cmd') {
         const key = kind === 'cmdo' ? 'cmd' : kind;
         t.optic[key] = 15;
-        lines.push({ t: `${OPTIC_NAMES[key]} brisé${OPTIC_AGR[key]} : ${key === 'driver' ? 'le pilote conduit à l\'aveugle (−30 % de vitesse)' : key === 'gunner' ? 'visée de secours, dispersion × 2,5' : 'vue réduite tourelle fermée'}`, c: '#ffcf7a' });
-        if (show) floatText(hx, hy - 10, `${OPTIC_NAMES[key]} brisé${OPTIC_AGR[key]}`, '#ffcf7a');
-        if (t === player) addLog(`${OPTIC_NAMES[key]} brisé${OPTIC_AGR[key]} par une balle : remplacement 15 s`, '#ffb070');
+        lines.push({ t: `${OPTIC_NAMES[key]} shattered: ${key === 'driver' ? 'the driver is driving blind (−30% speed)' : key === 'gunner' ? 'backup sight, dispersion × 2.5' : 'reduced vision when buttoned up'}`, c: '#ffcf7a' });
+        if (show) floatText(hx, hy - 10, `${OPTIC_NAMES[key]} shattered`, '#ffcf7a');
+        if (t === player) addLog(`${OPTIC_NAMES[key]} shattered by a bullet: replacing (15 s)`, '#ffb070');
         Fx.armorHit(hx, hy, best.z, 'mg', ux, uy);
         // éclats de verre
         for (let i = 0; i < 6; i++) P3({ x: hx, y: hy, z: best.z, vx: -ux * rnd(1, 4) + rnd(-2, 2), vy: -uy * rnd(1, 4) + rnd(-2, 2), vz: rnd(0.5, 3), g: G, glow: true, size: 0.025, life: rnd(0.3, 0.7), c: [0.75, 0.9, 1, 1.4] });
@@ -1371,15 +1371,15 @@
           const tt = slab(o, dl, m.min, m.max);
           if (tt >= 0 && tt < 3 && tt < tb) { tb = tt; mod = m.i; }
         }
-        lines.push({ t: `PERFORÉ : ${Math.round(pen)} mm contre ${Math.round(eff)} mm`, c: '#a6f08a' });
+        lines.push({ t: `PENETRATED: ${Math.round(pen)} mm vs ${Math.round(eff)} mm`, c: '#a6f08a' });
         if (mod != null) {
           const m = t.mods[mod];
           modDamage(t, m, m.kind === 'crew' ? rnd(35, 80) : rnd(4, 10), by);
-          lines.push({ t: `${m.name} touché${m.kind === 'crew' ? (m.hp <= 0 ? ' : tué' : ' : blessé') : ''}`, c: '#ff8a6a' });
+          lines.push({ t: `${m.name} hit${m.kind === 'crew' ? (m.hp <= 0 ? ': killed' : ': wounded') : ''}`, c: '#ff8a6a' });
           checkKnock(t, by);
-        } else lines.push({ t: 'La balle traverse sans rien toucher', c: '#c8c8c8' });
-        if (show) floatText(hx, hy - 10, 'Balle perforante !', '#ffe27a');
-        if (t === player) addLog(`Balle perforante : ${plate.toLowerCase()} (${mm} mm)`, '#ff8a6a');
+        } else lines.push({ t: 'The bullet passes through without hitting anything', c: '#c8c8c8' });
+        if (show) floatText(hx, hy - 10, 'Armor-piercing bullet!', '#ffe27a');
+        if (t === player) addLog(`Bullet penetration: ${plate.toLowerCase()} (${mm} mm)`, '#ff8a6a');
         Fx.armorHit(hx, hy, best.z, 'mg', ux, uy);
       } else {
         Fx.armorHit(hx, hy, best.z, 'mg', ux, uy);
@@ -1392,10 +1392,10 @@
     // caméra d'impact aux rayons X pour les balles du joueur qui font quelque chose
     if (by === player && hitcamOn && R3 && !HitCam.active() && gameTime - (mgCamT || -99) > 5) {
       mgCamT = gameTime;
-      const f = (v, k = 0) => v.toFixed(k).replace('.', ',');
+      const f = (v, k = 0) => v.toFixed(k);
       const ev = {
         typeId: t.T.id, turretAng: tAng, dir: d, entry: E, n: [-d[0], -d[1], -d[2]], cosI: 1, V, cal: b.type === 'CAN' ? 18 : 7.92,
-        shellKey: 'MG', shellLen: 4.2, spin: V / (0.24 * 1), target: `${t.T.name} ${t.team === 0 ? '(allié)' : '(ennemi)'} · ${Math.round(xm)} m`,
+        shellKey: 'MG', shellLen: 4.2, spin: V / (0.24 * 1), target: `${t.T.name} ${t.team === 0 ? '(ally)' : '(enemy)'} · ${Math.round(xm)} m`,
         friendly: t.team === by.team, mods: t.mods.map(m => ({ kind: m.kind, frame: m.frame, c: m.c, s: m.s })),
         before: t.mods.map(m => m.hp / m.max0), after: t.mods.map(m => Math.max(0, m.hp) / m.max0), touch: [], sim: null, sparks: [], chunks: [],
         results: lines.map(l => ({ t: l.t, c: l.c, time: 0 })), data: [], detT: null, ricDir: null, outcome, metal: null, scars: scarsForXray(t),
@@ -1409,11 +1409,11 @@
         ev.touch[mod] = tHit;
         ev.sim = { tEnd: tHit + 1.2e-3, core: [{ t: 0, p: E, v: V }, { t: tHit, p: mc, v: V * 0.6 }], coreStop: true, frags: [], exit: null, blast: null, jet: null, fuel: null };
       } else if (outcome === 'nopen') for (let k = 0; k < 7; k++) ev.chunks.push({ d: norm3([-d[0] * 0.3 + gauss() * 0.6, -d[1] * 0.3 + gauss() * 0.6, gauss() * 0.4 + 0.3]), v: rnd(60, 250), r: 0.004 });
-      ev.data.push({ t: b.type === 'CAN' ? `Bille d'acier de 18 mm (Kartätsche) · ${f(Am.m, 0)} g · bouche ${Am.v0} m/s` : `Balle 7,92 mm ${Am.full} · ${f(Am.m, 1)} g · bouche ${Am.v0} m/s`, c: '#e9d9a6' });
-      ev.data.push({ t: `Vitesse d'impact ${Math.round(V)} m/s · énergie ${f(0.5 * Am.m / 1000 * V * V / 1000, 2)} kJ · perforation ${f(pen, 1)} mm à ${Math.round(xm)} m`, c: '#d8d4c6' });
-      if (best.exposed) ev.data.push({ t: 'Point visé : chef de char debout dans la coupole, tête et buste hors du blindage', c: '#d8d4c6' });
-      else if (kind === 'pen') ev.data.push({ t: `${plate} : ${mm} mm · ${Math.round(eff)} mm effectifs`, c: '#d8d4c6' });
-      else ev.data.push({ t: `${plate} : ${mm} mm, mais la balle frappe un point faible (optique)`, c: '#d8d4c6' });
+      ev.data.push({ t: b.type === 'CAN' ? `18 mm steel ball (Kartätsche) · ${f(Am.m, 0)} g · muzzle ${Am.v0} m/s` : `7.92 mm bullet ${Am.full} · ${f(Am.m, 1)} g · muzzle ${Am.v0} m/s`, c: '#e9d9a6' });
+      ev.data.push({ t: `Impact velocity ${Math.round(V)} m/s · energy ${f(0.5 * Am.m / 1000 * V * V / 1000, 2)} kJ · penetration ${f(pen, 1)} mm at ${Math.round(xm)} m`, c: '#d8d4c6' });
+      if (best.exposed) ev.data.push({ t: 'Target: commander standing in the cupola, head and torso above the armor', c: '#d8d4c6' });
+      else if (kind === 'pen') ev.data.push({ t: `${plate}: ${mm} mm · ${Math.round(eff)} mm effective`, c: '#d8d4c6' });
+      else ev.data.push({ t: `${plate}: ${mm} mm, but the bullet strikes a weak spot (optics)`, c: '#d8d4c6' });
       startHitCam(ev);
     }
     return 'stop';
@@ -1581,7 +1581,7 @@
   function metalFor(sb, mm, angle, pen, eff, perforate) {
     if (typeof MetalSim === 'undefined') return null;
     try { const m = MetalSim.create(pdConfig(sb, mm, angle, pen, eff, perforate)); m.info = { mm, angle: Math.round(angle), sb, perforate }; return m; }
-    catch (e) { console.warn('Simulation du métal impossible', e); return null; }
+    catch (e) { console.warn('Metal simulation unavailable', e); return null; }
   }
 
   // Normale extérieure d'une plaque (repère de la caisse ou de la tourelle)
@@ -1722,13 +1722,13 @@
       if (face === 'front') {
         low = h.z < Sd.zn;
         [mm, slope] = low ? A.hull.low : A.hull.up;
-        plate = low ? 'Caisse avant (bas)' : 'Caisse avant (haut)';
-      } else if (face === 'rear') { [mm, slope] = A.hull.rear; plate = 'Arrière de caisse'; }
+        plate = low ? 'Lower front hull' : 'Upper front hull';
+      } else if (face === 'rear') { [mm, slope] = A.hull.rear; plate = 'Rear hull'; }
       else {
-        [mm, slope] = A.hull.side; plate = 'Flanc de caisse';
+        [mm, slope] = A.hull.side; plate = 'Side hull';
         if (h.z < Sd.tt) {
-          if (Sd.skirts && h.z > Sd.tt - 0.5) { plate = 'Jupe + flanc'; if (key === 'HEAT') heatK = 0.5; else extra = 5; }
-          else { plate = 'Chenille + flanc'; extra = 20; trackHit = true; }
+          if (Sd.skirts && h.z > Sd.tt - 0.5) { plate = 'Skirt + side'; if (key === 'HEAT') heatK = 0.5; else extra = 5; }
+          else { plate = 'Track + side'; extra = 20; trackHit = true; }
         }
       }
     } else {
@@ -1736,10 +1736,10 @@
       const ty = -h.ty / PX;
       if (face === 'front') {
         const M = Sd.turret.mantlet, mw = M.w || 0.3, mh = M.h || M.r;
-        if (Math.abs(ty) < mw + 0.05 && Math.abs(h.z - Sd.gun.z) < mh + 0.05) { mm = A.turret.mantlet[0]; slope = Math.round(rnd(0, 30)); plate = 'Masque de canon'; }
-        else { [mm, slope] = A.turret.front; plate = 'Tourelle avant'; }
-      } else if (face === 'rear') { [mm, slope] = A.turret.rear; plate = 'Arrière de tourelle'; }
-      else { [mm, slope] = A.turret.side; plate = 'Flanc de tourelle'; }
+        if (Math.abs(ty) < mw + 0.05 && Math.abs(h.z - Sd.gun.z) < mh + 0.05) { mm = A.turret.mantlet[0]; slope = Math.round(rnd(0, 30)); plate = 'Gun mantlet'; }
+        else { [mm, slope] = A.turret.front; plate = 'Front turret'; }
+      } else if (face === 'rear') { [mm, slope] = A.turret.rear; plate = 'Rear turret'; }
+      else { [mm, slope] = A.turret.side; plate = 'Side turret'; }
     }
     return { face, sideSign, plate, mm, slope, dd, low, extra, heatK, trackHit, n: plateNormal(face, slope, sideSign, low) };
   }
@@ -1784,27 +1784,27 @@
     const ev = by === player && hitcamOn && R3 ? {
       typeId: T.id, turretAng: tAng, dir: d, entry: E, n: nHull, cosI: Math.max(0.05, -dot3(d, nHull)), V, cal: sb.cal,
       shellKey: s.key, shellLen: sb.len, spin: Ballistics.spin(sb, V),
-      target: `${T.name} ${t.team === 0 ? '(allié)' : '(ennemi)'} · ${Math.round(xm)} m`,
+      target: `${T.name} ${t.team === 0 ? '(ally)' : '(enemy)'} · ${Math.round(xm)} m`,
       friendly: t.team === by.team, mods: t.mods.map(m => ({ kind: m.kind, frame: m.frame, c: m.c, s: m.s })),
       before: t.mods.map(m => m.hp / m.max0), after: null, touch: [], sim: null, sparks: [], chunks: [],
       results: [], data: [], detT: null, ricDir: null, outcome: null, scars: scarsForXray(t),
     } : null;
     if (ev) {
       for (let k = 0; k < 18; k++) ev.sparks.push({ d: norm3([nHull[0] + gauss() * 0.6, nHull[1] + gauss() * 0.6, nHull[2] + gauss() * 0.6 + 0.15]), v: rnd(150, 700), life: rnd(1.5e-3, 4e-3) });
-      const f = (v, k = 0) => v.toFixed(k).replace('.', ',');
+      const f = (v, k = 0) => v.toFixed(k);
       ev.data.push({ t: `${sb.name} · ${f(sb.m, 2)} kg · ${sb.cal} mm`, c: '#e9d9a6' });
-      ev.data.push({ t: `Vitesse d'impact ${Math.round(V)} m/s (bouche : ${sb.v0}) · énergie ${f(Ek / 1e6, 2)} MJ · ${Math.round(Ballistics.spin(sb, V))} tr/s`, c: '#d8d4c6' });
+      ev.data.push({ t: `Impact velocity ${Math.round(V)} m/s (muzzle: ${sb.v0}) · energy ${f(Ek / 1e6, 2)} MJ · ${Math.round(Ballistics.spin(sb, V))} rev/s`, c: '#d8d4c6' });
       const fall = Math.atan(-s.slope * PX * RK) / D2R;
-      ev.data.push({ t: `Trajectoire : ${fall >= 0 ? 'chute' : 'montée'} de ${f(Math.abs(fall), 2)}° sous l'effet de la pesanteur · impact à ${f(h.z, 2)} m du sol${s.ric ? ' · après ricochet' : ''}`, c: '#d8d4c6' });
-      ev.data.push({ t: `${plate} : ${mm} mm à ${slope}° · incidence ${Math.round(angle)}°${!sb.heat && !sb.he ? ` → normalisée ${Math.round(ef.angN)}°` : ''}`, c: '#d8d4c6' });
-      if (mm < mm0) ev.data.push({ t: scw.hole ? `Dans le trou d'une perforation précédente : il ne reste que ${mm} mm des ${mm0} mm` : `Plaque déjà marquée par un impact à ${Math.round(scw.near * 100)} cm : ${mm} mm utiles au lieu de ${mm0} mm (acier écroui, fissuré)`, c: '#ffcf7a' });
-      ev.data.push({ t: `Blindage effectif ${Math.round(eff)} mm${extra ? ` (dont ${extra} mm ${trackHit ? 'de chenille' : 'de jupe'})` : ''} · pénétration ${Math.round(pen)} mm${heatK < 1 ? ' (jet perturbé par la jupe)' : ''}`, c: '#d8d4c6' });
+      ev.data.push({ t: `Trajectory: ${fall >= 0 ? 'dropping' : 'rising'} ${f(Math.abs(fall), 2)}° under gravity · impact ${f(h.z, 2)} m above ground${s.ric ? ' · after ricochet' : ''}`, c: '#d8d4c6' });
+      ev.data.push({ t: `${plate}: ${mm} mm at ${slope}° · incidence ${Math.round(angle)}°${!sb.heat && !sb.he ? ` → normalized ${Math.round(ef.angN)}°` : ''}`, c: '#d8d4c6' });
+      if (mm < mm0) ev.data.push({ t: scw.hole ? `Into the hole of an earlier penetration: only ${mm} of ${mm0} mm left` : `Plate already scarred by a hit ${Math.round(scw.near * 100)} cm away: ${mm} mm effective instead of ${mm0} mm (work-hardened, cracked steel)`, c: '#ffcf7a' });
+      ev.data.push({ t: `Effective armor ${Math.round(eff)} mm${extra ? ` (incl. ${extra} mm of ${trackHit ? 'track' : 'skirt'})` : ''} · penetration ${Math.round(pen)} mm${heatK < 1 ? ' (jet disrupted by the skirt)' : ''}`, c: '#d8d4c6' });
     }
     t.hitFlash = 0.15;
     if (trackHit && pen >= 20) {
       t.trackT = Math.max(t.trackT, 8); t.trackSide = h.ny > 0 ? -1 : 1;
-      if (show) floatText(hx, hy + 8, 'Chenille cassée', '#ffb070');
-      if (t === player) addLog('Chenille cassée : réparation 8 s', '#ffb070');
+      if (show) floatText(hx, hy + 8, 'Track broken', '#ffb070');
+      if (t === player) addLog('Track broken: repairing (8 s)', '#ffb070');
     }
 
     // Ricochet : probabilité croissante avec l'incidence, nulle en cas de surcalibrage
@@ -1825,14 +1825,14 @@
       Sfx.ricochet(listenerDist(hx, hy));
       if (show) floatText(hx, hy - 10, 'Ricochet', '#cfe3ff');
       if (by === player) waveStats.ric++;
-      if (t === player) { addLog(`Ricochet sur ${plate.toLowerCase()}`, '#cfe3ff'); if (Meta.track('ricself')) missionToast(); }
+      if (t === player) { addLog(`Ricochet off ${plate.toLowerCase()}`, '#cfe3ff'); if (Meta.track('ricself')) missionToast(); }
       if (ev) {
         const dn = dot3(d, nHull);
         ev.ricDir = norm3([d[0] - 2 * dn * nHull[0], d[1] - 2 * dn * nHull[1], d[2] - 2 * dn * nHull[2] + 0.1]);
         ev.outcome = 'ricochet'; ev.after = ev.before.slice();
         ev.metal = metalFor(sb, mm, angle, pen, eff, false);
-        ev.data.push({ t: `RICOCHET : incidence ${Math.round(angle)}° > angle critique (probabilité ${Math.round(ricP * 100)} %)`, c: '#9fd0ff' });
-        ev.results.push({ t: 'Aucun dégât', c: '#9fd0ff', time: 0 });
+        ev.data.push({ t: `RICOCHET: incidence ${Math.round(angle)}° > critical angle (probability ${Math.round(ricP * 100)}%)`, c: '#9fd0ff' });
+        ev.results.push({ t: 'No damage', c: '#9fd0ff', time: 0 });
         startHitCam(ev);
       }
       return 'continue';
@@ -1862,11 +1862,11 @@
       if (by === player) { waveStats.pens++; if (Meta.track('pen')) missionToast(); }
       if (show) {
         const col = t === player ? '#ff5a4a' : t.team === 0 ? '#ffaa44' : '#ffe27a';
-        floatText(hx, hy - 12, out.knocked ? 'DÉTRUIT' : out.crewKilled ? `Perforé · ${out.crewKilled} tué${out.crewKilled > 1 ? 's' : ''}` : 'Perforé', col, 1.15);
-        if (out.fire) floatText(hx, hy + 6, 'Incendie !', '#ffb070');
+        floatText(hx, hy - 12, out.knocked ? 'DESTROYED' : out.crewKilled ? `Penetrated · ${out.crewKilled} killed` : 'Penetrated', col, 1.15);
+        if (out.fire) floatText(hx, hy + 6, 'Fire!', '#ffb070');
       }
       if (t === player) {
-        addLog(`Perforé : ${plate.toLowerCase()} (${Math.round(pen)} mm contre ${Math.round(eff)} mm)`, '#ff8a6a');
+        addLog(`Penetrated: ${plate.toLowerCase()} (${Math.round(pen)} mm vs ${Math.round(eff)} mm)`, '#ff8a6a');
         for (const l of out.lines) addLog(l.t, l.c);
       }
       Fx.armorHit(hx, hy, h.z, s.key === 'HEAT' ? 'heat' : 'pen', s.vx / s.sp, s.vy / s.sp);
@@ -1874,9 +1874,9 @@
       if (t === player) shake = Math.max(shake, 12);
     } else {
       if (s.key === 'HE') heExternal(t, s, by, face, h.z, 1);
-      if (show) floatText(hx, hy - 12, out && out.crewHurt ? 'Écaillage !' : 'Non perforé', '#c8c8c8');
+      if (show) floatText(hx, hy - 12, out && out.crewHurt ? 'Spalling!' : 'No penetration', '#c8c8c8');
       if (t === player) {
-        addLog(`Non perforé : ${plate.toLowerCase()} (${Math.round(pen)} mm contre ${Math.round(eff)} mm)`, '#c8c8c8');
+        addLog(`Not penetrated: ${plate.toLowerCase()} (${Math.round(pen)} mm vs ${Math.round(eff)} mm)`, '#c8c8c8');
         if (out) for (const l of out.lines) addLog(l.t, l.c);
       }
       Fx.armorHit(hx, hy, h.z, s.key === 'HEAT' ? 'heat' : 'non', s.vx / s.sp, s.vy / s.sp);
@@ -1885,19 +1885,19 @@
       checkKnock(t, by);
     }
     if (ev) {
-      const f = (v, k = 0) => v.toFixed(k).replace('.', ',');
+      const f = (v, k = 0) => v.toFixed(k);
       if (penetrated) {
-        if (sim.jet) ev.data.push({ t: `PERFORÉ · jet de cuivre à 6 500 m/s, ${f((sim.jet.b[0] - sim.jet.a[0]) ** 2 + (sim.jet.b[1] - sim.jet.a[1]) ** 2 > 0 ? Math.hypot(sim.jet.b[0] - sim.jet.a[0], sim.jet.b[1] - sim.jet.a[1], sim.jet.b[2] - sim.jet.a[2]) : 0, 2)} m de jet résiduel`, c: '#a6f08a' });
-        else if (sb.he) ev.data.push({ t: `PERFORÉ · détonation de ${Math.round(sb.filler * 1000)} g d'explosif derrière la plaque`, c: '#a6f08a' });
-        else ev.data.push({ t: `PERFORÉ · vitesse limite ${Math.round(sim.Vbl)} m/s → résiduelle ${Math.round(sim.Vr)} m/s${sim.plug ? ` · bouchon de ${f(sim.plug.m, 2)} kg arraché` : ''}`, c: '#a6f08a' });
+        if (sim.jet) ev.data.push({ t: `PENETRATED · copper jet at 6,500 m/s, ${f((sim.jet.b[0] - sim.jet.a[0]) ** 2 + (sim.jet.b[1] - sim.jet.a[1]) ** 2 > 0 ? Math.hypot(sim.jet.b[0] - sim.jet.a[0], sim.jet.b[1] - sim.jet.a[1], sim.jet.b[2] - sim.jet.a[2]) : 0, 2)} m of residual jet`, c: '#a6f08a' });
+        else if (sb.he) ev.data.push({ t: `PENETRATED · ${Math.round(sb.filler * 1000)} g of explosive detonates behind the plate`, c: '#a6f08a' });
+        else ev.data.push({ t: `PENETRATED · ballistic limit ${Math.round(sim.Vbl)} m/s → residual ${Math.round(sim.Vr)} m/s${sim.plug ? ` · ${f(sim.plug.m, 2)} kg plug punched out` : ''}`, c: '#a6f08a' });
         if (sim.blast) {
           const kpa = Ballistics.blastKPa(sim.blast.W, 0.5, 2);
-          ev.data.push({ t: `Charge : ${Math.round(sim.blast.W / 1.3 * 1000)} g à +${f(sim.blast.t * 1000, 2)} ms · ${f(sim.blast.W * 1000, 0)} g éq. TNT · souffle ${f(kpa / 1000, 1)} MPa à 0,5 m`, c: '#ffcf7a' });
+          ev.data.push({ t: `Charge: ${Math.round(sim.blast.W / 1.3 * 1000)} g at +${f(sim.blast.t * 1000, 2)} ms · ${f(sim.blast.W * 1000, 0)} g TNT eq. · blast ${f(kpa / 1000, 1)} MPa at 0.5 m`, c: '#ffcf7a' });
         }
         const nf = sim.frags.length, mt = sim.frags.reduce((a, q) => a + q.m, 0);
-        ev.data.push({ t: `${nf} éclats · ${f(mt, 2)} kg${sim.coreStop ? ` · noyau : ${sim.coreStop === 'sorti' ? 'ressort de l’autre côté' : 'arrêté (' + sim.coreStop + ')'}` : ''}`, c: '#ffcf7a' });
+        ev.data.push({ t: `${nf} fragments · ${f(mt, 2)} kg${sim.coreStop ? ` · core: ${sim.coreStop === 'sorti' ? 'exits the far side' : 'stopped (' + sim.coreStop + ')'}` : ''}`, c: '#ffcf7a' });
       } else {
-        ev.data.push({ t: `NON PERFORÉ : ${Math.round(pen)} mm < ${Math.round(eff)} mm${sim ? ' · écaillage de la face interne' : ''}`, c: '#ff8a6a' });
+        ev.data.push({ t: `NOT PENETRATED: ${Math.round(pen)} mm < ${Math.round(eff)} mm${sim ? ' · spalling off the inner face' : ''}`, c: '#ff8a6a' });
       }
       for (const nt of sim ? sim.notes : []) ev.data.push({ t: nt, c: '#bcd8ff' });
       if (sb.he) {
@@ -1909,7 +1909,7 @@
           const dd2 = dot3(u, nHull) < 0 ? norm3([u[0] - 2 * dot3(u, nHull) * nHull[0], u[1] - 2 * dot3(u, nHull) * nHull[1], u[2] - 2 * dot3(u, nHull) * nHull[2]]) : u;
           ev.chunks.push({ d: dd2, v: gv * rnd(0.6, 1.2), r: 0.012 });
         }
-        ev.data.push({ t: `Détonation extérieure : ${Math.round(sb.filler * 1000)} g · éclats à ${Math.round(gv)} m/s · souffle ${(Ballistics.blastKPa(We, 1, 1) / 1000).toFixed(1).replace('.', ',')} MPa à 1 m`, c: '#ffcf7a' });
+        ev.data.push({ t: `External detonation: ${Math.round(sb.filler * 1000)} g · fragments at ${Math.round(gv)} m/s · blast ${(Ballistics.blastKPa(We, 1, 1) / 1000).toFixed(1)} MPa at 1 m`, c: '#ffcf7a' });
       }
       if (sim) ev.sim = sim;
       else {
@@ -1918,12 +1918,12 @@
         t.mods.forEach((m, i) => {
           if (ev.after[i] >= ev.before[i]) return;
           ev.touch[i] = 0.3e-3;
-          ev.results.push({ t: `${m.name} : ${ev.after[i] <= 0 ? (m.kind === 'crew' ? 'neutralisé' : 'détruit') : (m.kind === 'crew' ? 'blessé (onde de choc)' : 'endommagé')}`, c: ev.after[i] <= 0 ? '#ff6a5a' : '#ffb070', time: 0.3e-3 });
+          ev.results.push({ t: `${m.name}: ${ev.after[i] <= 0 ? (m.kind === 'crew' ? 'knocked out' : 'destroyed') : (m.kind === 'crew' ? 'wounded (shock wave)' : 'damaged')}`, c: ev.after[i] <= 0 ? '#ff6a5a' : '#ffb070', time: 0.3e-3 });
         });
-        if (trackHit && pen >= 20 || t.trackT > 7.9) ev.results.push({ t: 'Chenille cassée', c: '#ffb070', time: 0.1e-3 });
-        if (!ev.results.length) ev.results.push({ t: 'Aucun dégât interne', c: '#c8c8c8', time: 0.2e-3 });
+        if (trackHit && pen >= 20 || t.trackT > 7.9) ev.results.push({ t: 'Track broken', c: '#ffb070', time: 0.1e-3 });
+        if (!ev.results.length) ev.results.push({ t: 'No internal damage', c: '#c8c8c8', time: 0.2e-3 });
       }
-      if (t.dead && !ev.results.some(r => /DÉTRUIT/.test(r.t))) ev.results.push({ t: 'CHAR DÉTRUIT', c: '#ff4a2a', time: ev.tEnd || 0 });
+      if (t.dead && !ev.results.some(r => /DESTROYED/.test(r.t))) ev.results.push({ t: 'TANK DESTROYED', c: '#ff4a2a', time: ev.tEnd || 0 });
       ev.outcome = penetrated ? 'pen' : 'nopen';
       ev.metal = metalFor(sb, mm, angle, pen, eff, penetrated);
       startHitCam(ev);
@@ -1943,31 +1943,31 @@
       const b = before.get(m);
       if (m.hp === b || m.kind !== 'crew') continue;
       crewHurt = true;
-      if (m.hp <= 0) { crewKilled++; lines.push({ t: `${m.name} : neutralisé`, c: '#ff6a5a', time: timeOf(m) }); }
-      else lines.push({ t: `${m.name} : blessé`, c: '#ffb070', time: timeOf(m) });
+      if (m.hp <= 0) { crewKilled++; lines.push({ t: `${m.name}: knocked out`, c: '#ff6a5a', time: timeOf(m) }); }
+      else lines.push({ t: `${m.name}: wounded`, c: '#ffb070', time: timeOf(m) });
     }
     for (const m of t.mods) {
       const b = before.get(m);
       if (m.hp === b || m.kind === 'crew') continue;
       if (m.hp <= 0) {
-        lines.push({ t: `${m.name} : détruit`, c: '#ff6a5a', time: timeOf(m) });
+        lines.push({ t: `${m.name}: destroyed`, c: '#ff6a5a', time: timeOf(m) });
         if (m.kind === 'fuel' && Math.random() < 0.3) fire = true;
         if (m.kind === 'engine' && Math.random() < 0.2) fire = true;
-      } else lines.push({ t: `${m.name} : endommagé`, c: '#ffb070', time: timeOf(m) });
+      } else lines.push({ t: `${m.name}: damaged`, c: '#ffb070', time: timeOf(m) });
     }
     // charges propulsives enflammées : explosion des munitions (plus probable si les soutes sont pleines)
     if (sim.ignite.length) {
       const ig = sim.ignite.reduce((a, b) => (a.t < b.t ? a : b));
       if (Math.random() < 0.45 + 0.4 * ammoFrac(t)) { detonate = true; detT = ig.t + rnd(1.5e-3, 4e-3); }
-      else { fire = true; lines.push({ t: 'Charges propulsives enflammées', c: '#ff9a3a', time: ig.t }); }
+      else { fire = true; lines.push({ t: 'Propellant charges ignited', c: '#ff9a3a', time: ig.t }); }
     }
-    if (sim.fuel != null) { fire = true; lines.push({ t: 'Carburant enflammé', c: '#ff9a3a', time: sim.fuel }); }
-    if (!lines.length) lines.push({ t: 'Aucun module touché', c: '#c8c8c8', time: 0 });
+    if (sim.fuel != null) { fire = true; lines.push({ t: 'Fuel ignited', c: '#ff9a3a', time: sim.fuel }); }
+    if (!lines.length) lines.push({ t: 'No module hit', c: '#c8c8c8', time: 0 });
     if (!detonate && fire && !(t.fireT > 0)) { t.fireT = 8; t.fireBy = by; lines.push({ t: 'Incendie', c: '#ff9a3a', time: sim.tEnd * 0.8 }); }
     else if (detonate) fire = false;
-    if (detonate) { sim.tEnd = Math.max(sim.tEnd, detT + 6e-3); lines.push({ t: 'SOUTE À MUNITIONS : DÉTONATION', c: '#ff4a2a', time: detT }); }
+    if (detonate) { sim.tEnd = Math.max(sim.tEnd, detT + 6e-3); lines.push({ t: 'AMMO RACK: DETONATION', c: '#ff4a2a', time: detT }); }
     const knocked = detonate || crewAlive(t) < 2;
-    if (knocked) lines.push({ t: 'CHAR DÉTRUIT', c: '#ff4a2a', time: detonate ? detT : sim.tEnd * 0.9 });
+    if (knocked) lines.push({ t: 'TANK DESTROYED', c: '#ff4a2a', time: detonate ? detT : sim.tEnd * 0.9 });
     lines.sort((a, b) => a.time - b.time);
     if (ev) {
       ev.after = t.mods.map(m => Math.max(0, m.hp) / m.max0);
@@ -1990,11 +1990,11 @@
       if (by.team === t.team) {
         if (by === player) {
           waveStats.ffCrew++;
-          if (gameTime - ffMsgT > 1.2) { ffMsgT = gameTime; showMsg('⚠ TIR ALLIÉ : un équipier allié tué !', '#ffaa44'); Sfx.alarm(); }
+          if (gameTime - ffMsgT > 1.2) { ffMsgT = gameTime; showMsg('⚠ FRIENDLY FIRE: an allied crewman killed!', '#ffaa44'); Sfx.alarm(); }
         }
       } else if (by === player) { waveStats.crew++; if (Meta.track('crew')) missionToast(); }
     } else if (by === player && by.team !== t.team) waveStats.mods++;
-    if (!silent && t === player) addLog(`${m.name} ${m.kind === 'crew' ? 'neutralisé' : 'détruit'}`, '#ff6a5a');
+    if (!silent && t === player) addLog(`${m.name} ${m.kind === 'crew' ? 'knocked out' : 'destroyed'}`, '#ff6a5a');
   }
   function checkKnock(t, by) { if (!t.dead && crewAlive(t) < 2) destroyTank(t, by, false); }
 
@@ -2003,8 +2003,8 @@
     const Sd = t.T.S;
     if ((face === 'side' || z < Sd.tt) && Math.random() < 0.6 * k) {
       t.trackT = Math.max(t.trackT, 8); t.trackSide = Math.random() < 0.5 ? 1 : -1;
-      if (visibleToPlayer(t)) floatText(t.x, t.y + 10, 'Chenille cassée', '#ffb070');
-      if (t === player) addLog('Chenille cassée par une explosion', '#ffb070');
+      if (visibleToPlayer(t)) floatText(t.x, t.y + 10, 'Track broken', '#ffb070');
+      if (t === player) addLog('Track broken by an explosion', '#ffb070');
     }
     // onde de choc : les toits minces laissent passer des éclats
     const over = Ballistics.penAt(by.T.id, 'HE', 0) * 1.6 * k;
@@ -2013,7 +2013,7 @@
       if (crew.length) {
         const m = crew[Math.floor(Math.random() * crew.length)];
         modDamage(t, m, rnd(35, 75) * k, by);
-        if (t === player) addLog(`Onde de choc : ${m.name.toLowerCase()} ${m.hp <= 0 ? 'neutralisé' : 'blessé'}`, '#ffb070');
+        if (t === player) addLog(`Shock wave: ${m.name.toLowerCase()} ${m.hp <= 0 ? 'knocked out' : 'wounded'}`, '#ffb070');
       }
     }
     checkKnock(t, by);
@@ -2112,14 +2112,14 @@
     feed.unshift({ a: by ? by.name : '—', at: by ? by.team : -1, v: t.name, vt: t.team, ff, det: detonation, life: 7 });
     if (feed.length > 6) feed.pop();
     if (by === player) {
-      if (ff) { waveStats.tk++; showMsg('Allié détruit par vos tirs !', '#ff7a4a'); }
-      else if (by !== t) { waveStats.kills++; floatText(t.x, t.y - 26, '+✪ 150', '#e9c46a', 1.3); if (Meta.track('kill')) missionToast(); showMsg(detonation ? 'Char ennemi détruit : munitions détonées !' : 'Char ennemi détruit', '#ffe27a'); }
+      if (ff) { waveStats.tk++; showMsg('Ally destroyed by your fire!', '#ff7a4a'); }
+      else if (by !== t) { waveStats.kills++; floatText(t.x, t.y - 26, '+✪ 150', '#e9c46a', 1.3); if (Meta.track('kill')) missionToast(); showMsg(detonation ? 'Enemy tank destroyed: ammo detonated!' : 'Enemy tank destroyed', '#ffe27a'); }
     }
     if (by === player && t.team !== player.team && detonation && Meta.track('det')) missionToast();
     if (t === player) {
       if (!reviveUsed && mode !== 'duel' && state === 'play') reviveT = 1.8;
-      addLog(detonation ? 'Vos munitions ont explosé.' : "Votre équipage est hors de combat.", '#ff6a5a');
-      showMsg('Votre char est détruit. Vous observez un allié (clic pour changer)', '#ff7a5c', 4);
+      addLog(detonation ? 'Your ammunition exploded.' : 'Your crew is out of action.', '#ff6a5a');
+      showMsg('Your tank is destroyed. Spectating an ally (click to switch)', '#ff7a5c', 4);
     }
   }
 
@@ -2269,7 +2269,7 @@
     gctx.fillStyle = g;
     gctx.beginPath(); gctx.arc(x, y, r, 0, TAU); gctx.fill();
   }
-  function missionToast() { toast('🎖 Mission accomplie ! Récupère ta prime dans « Missions »'); Sfx.reload(); }
+  function missionToast() { toast('🎖 Mission complete! Claim your reward in “Missions”'); Sfx.reload(); }
   function floatText(x, y, text, color, scale = 1) { texts.push({ x, y, text, color, life: 1.4, max: 1.4, scale }); }
   function showMsg(text, color, life = 2) { msg = { text, color, life, max: life }; }
   function addLog(text, color) { logs.unshift({ text, color, life: 6 }); if (logs.length > 6) logs.pop(); }
@@ -2341,7 +2341,7 @@
     if (reviveT > 0 && (reviveT -= dt) <= 0) { reviveT = 0; openRevive(); }
     if (player && player.invulnT > 0) player.invulnT -= dt;
     if (state === 'play') waveTime += dt;
-    if (state === 'intro') { introT -= dt; if (introT <= 0) { state = 'play'; showMsg('EN AVANT !', '#ffe27a', 1.2); } }
+    if (state === 'intro') { introT -= dt; if (introT <= 0) { state = 'play'; showMsg('ADVANCE!', '#ffe27a', 1.2); } }
     if (player && !player.dead && !player.ai) playerInput();
     spotTimer -= dt;
     if (spotTimer <= 0) { spotTimer = 0.2; updateSpotting(); }
@@ -2354,21 +2354,21 @@
     updateParts(dt);
     if (state === 'play' && mode === 'survie') {
       const e = tanks.some(t => t.team === 1 && !t.dead);
-      if (player.dead && !revivePending()) { state = 'ending'; endT = 3.5; waveResult = 'lose'; showMsg('CHAR DÉTRUIT', '#ff7a5c', 3); }
+      if (player.dead && !revivePending()) { state = 'ending'; endT = 3.5; waveResult = 'lose'; showMsg('TANK DESTROYED', '#ff7a5c', 3); }
       else if (!e) {
         if (nextWaveT <= 0) {
           nextWaveT = 8; resupply(player);
-          showMsg(`VAGUE ${survWave} REPOUSSÉE · ravitaillement`, '#b8e07a', 3);
-          addLog('Ravitaillement : munitions complétées, modules réparés', '#b8e07a');
+          showMsg(`WAVE ${survWave} REPELLED · resupply`, '#b8e07a', 3);
+          addLog('Resupply: ammunition topped up, modules repaired', '#b8e07a');
         } else if ((nextWaveT -= dt) <= 0) {
           survWave++;
           const k = survivalEnemies(survWave);
-          showMsg(`VAGUE ${survWave} · ${k} char${k > 1 ? 's' : ''} ennemi${k > 1 ? 's' : ''}`, '#ffb070', 2.5);
+          showMsg(`WAVE ${survWave} · ${k} enemy tank${k > 1 ? 's' : ''}`, '#ffb070', 2.5);
         }
       }
     } else if (state === 'play') {
       const a = tanks.some(t => t.team === 0 && !t.dead) || revivePending(), e = tanks.some(t => t.team === 1 && !t.dead);
-      if (!a || !e) { state = 'ending'; endT = 3.5; waveResult = a ? 'win' : 'lose'; showMsg(a ? 'VAGUE REMPORTÉE' : 'VAGUE PERDUE', a ? '#b8e07a' : '#ff7a5c', 3); }
+      if (!a || !e) { state = 'ending'; endT = 3.5; waveResult = a ? 'win' : 'lose'; showMsg(a ? 'WAVE WON' : 'WAVE LOST', a ? '#b8e07a' : '#ff7a5c', 3); }
     } else if (state === 'ending') {
       endT -= dt;
       if (endT <= 0 && !HitCam.active()) showResult();
@@ -2436,9 +2436,9 @@
   let W3D = null, MESH3 = {}, bush3 = null, scene3 = null, scene3Dirty = false, scene3T = 0;
   // modes de caméra (touche C) : hauteur, recul et part du regard portée vers la visée
   const CAM_MODES = [
-    { name: 'Caméra de poursuite', pitch: 0.52, dist: 46, ahead: 0.18, look: 0.3 },
-    { name: 'Caméra tactique', pitch: 1.15, dist: 90, ahead: 0, look: 0.25 },
-    { name: 'Caméra rapprochée', pitch: 0.48, dist: 24, ahead: 0.14, look: 0.3 },
+    { name: 'Chase camera', pitch: 0.52, dist: 46, ahead: 0.18, look: 0.3 },
+    { name: 'Tactical camera', pitch: 1.15, dist: 90, ahead: 0, look: 0.25 },
+    { name: 'Close camera', pitch: 0.48, dist: 24, ahead: 0.14, look: 0.3 },
   ];
   const cam3 = { mode: 0, lx: 0, ly: 0, yaw: 0, pitch: 0.52, dist: 46, off: 0, eye: [0, 0, 40], target: [0, 0, 0], view: null, vp: null, init: false, drag: null };
   const dirtyTiles = new Set();
@@ -2460,7 +2460,7 @@
         CMDR3 = W3D.upload(g);
       }
     }
-  } catch (e) { console.warn('Rendu 3D indisponible, passage en 2D', e); W3D = null; }
+  } catch (e) { console.warn('3D rendering unavailable, switching to 2D', e); W3D = null; }
   if (!W3D) { const c3 = document.getElementById('game3d'); if (c3) c3.style.display = 'none'; }
   const to3 = (x, y, z = 0) => [x / PX, -y / PX, z];
   function markDirty(x, y, r) {
@@ -2555,7 +2555,7 @@
     if (on) {
       sight.yaw = sight.aimYaw = player.angle + player.turret; sight.pitch = sight.aimPitch = -0.004; sight.cx = sight.cy = 0; sight.probe = null;
       try { cv.requestPointerLock && cv.requestPointerLock(); } catch (e) { /* verrouillage refusé */ }
-      showMsg(`Vue du tireur · ×${MAGS[sight.mag]}`, '#bcd8ff', 1);
+      showMsg(`Gunner sight · ×${MAGS[sight.mag]}`, '#bcd8ff', 1);
     }
   }
   // Lunette du tireur, coaxiale au canon, à gauche du masque. Sans stabilisateur (aucun char de
@@ -3150,13 +3150,13 @@
 
   function verdictOf(pr) {
     const t = pr.tank;
-    if (t.dead) return { col: '#aaa', verdict: 'épave' };
-    if (t.team === 0) return { col: '#6ab8ff', verdict: 'ALLIÉ : NE PAS TIRER' };
-    if (player.shell === 'HE') return pr.pen >= pr.eff ? { col: '#7ad06a', verdict: 'perce' } : { col: '#ffb070', verdict: 'effet de souffle' };
-    if (pr.ric > 0.5) return { col: '#ffb070', verdict: 'ricochet probable' };
-    if (pr.pen >= pr.eff * 1.08) return { col: '#7ad06a', verdict: 'perce' };
-    if (pr.pen >= pr.eff * 0.92) return { col: '#ffe27a', verdict: 'incertain' };
-    return { col: '#ff6a50', verdict: 'ne perce pas' };
+    if (t.dead) return { col: '#aaa', verdict: 'wreck' };
+    if (t.team === 0) return { col: '#6ab8ff', verdict: 'ALLY: HOLD FIRE' };
+    if (player.shell === 'HE') return pr.pen >= pr.eff ? { col: '#7ad06a', verdict: 'penetrates' } : { col: '#ffb070', verdict: 'blast effect' };
+    if (pr.ric > 0.5) return { col: '#ffb070', verdict: 'likely ricochet' };
+    if (pr.pen >= pr.eff * 1.08) return { col: '#7ad06a', verdict: 'penetrates' };
+    if (pr.pen >= pr.eff * 0.92) return { col: '#ffe27a', verdict: 'uncertain' };
+    return { col: '#ff6a50', verdict: 'no penetration' };
   }
 
   // ===================== Lunette du tireur =====================
@@ -3250,8 +3250,8 @@
     ctx.fillStyle = '#e9d9a6'; ctx.fillText(top, cx, cy + R * 0.42);
     if (pr && pr.kind === 'tank') {
       const t = pr.tank, ally = t.team === 0, { col, verdict } = verdictOf(pr);
-      const l1 = `${t.T.name}${ally ? ' (allié)' : ''} · ${verdict}`;
-      const l2 = t.dead ? '' : `${pr.plate} : ${pr.mm} mm à ${Math.round(pr.angle)}° → ${Math.round(pr.eff)} mm effectifs · pénétration ${Math.round(pr.pen)} mm`;
+      const l1 = `${t.T.name}${ally ? ' (ally)' : ''} · ${verdict}`;
+      const l2 = t.dead ? '' : `${pr.plate}: ${pr.mm} mm at ${Math.round(pr.angle)}° → ${Math.round(pr.eff)} mm effective · penetration ${Math.round(pr.pen)} mm`;
       ctx.font = '700 14px system-ui, sans-serif';
       ctx.fillStyle = 'rgba(0,0,0,0.65)'; ctx.fillText(l1, cx + 1, cy + R * 0.55 + 1);
       ctx.fillStyle = col; ctx.fillText(l1, cx, cy + R * 0.55);
@@ -3262,7 +3262,7 @@
       }
     }
     ctx.font = '600 11px system-ui, sans-serif'; ctx.fillStyle = 'rgba(220,215,200,0.7)';
-    ctx.fillText('Maj : vue extérieure · molette : grossissement', cx, cy - R * 0.72);
+    ctx.fillText('Shift: outside view · wheel: magnification', cx, cy - R * 0.72);
   }
 
   // ennemis repérés : chevron au-dessus d'eux, ou flèche au bord de l'écran s'ils sont hors champ
@@ -3314,7 +3314,7 @@
       if (t !== player) {
         ctx.font = '600 10px system-ui, sans-serif';
         ctx.fillStyle = t.team === 0 ? '#a8d0ff' : '#ffb0a8';
-        ctx.fillText(t.T.name + (t.team === 0 ? ' · ' + t.name.replace('Allié ', 'A') : ''), p.x, p.y - 4);
+        ctx.fillText(t.T.name + (t.team === 0 ? ' · ' + t.name.replace('Ally ', 'A') : ''), p.x, p.y - 4);
       }
     }
     for (const tx of texts) {
@@ -3342,16 +3342,16 @@
     }
   }
 
-  const CREW_ABBR = { driver: 'Pi', radio: 'Ra', gunner: 'Ti', commander: 'Ch', loader: 'Cg' };
+  const CREW_ABBR = { driver: 'Dr', radio: 'Rd', gunner: 'Gn', commander: 'Cm', loader: 'Ld' };
   function drawHUD() {
     const lv = L();
     ctx.textAlign = 'center';
     ctx.font = '600 14px system-ui, sans-serif';
     ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(W / 2 - 190, 8, 380, 46);
     ctx.fillStyle = '#e9d9a6';
-    ctx.fillText(mode === 'survie' ? `Survie · ${lv.name} · Vague ${survWave}${nextWaveT > 0 ? ` · prochaine dans ${Math.ceil(nextWaveT)} s` : ''}`
-      : mode === 'duel' ? `Duel · ${lv.name} · Manche ${duelScore[0] + duelScore[1] + 1} · ${duelScore[0]} – ${duelScore[1]}`
-      : `Niveau ${levelIdx + 1} · ${lv.name} · Vague ${waveIdx + 1}/${WAVES}`, W / 2, 26);
+    ctx.fillText(mode === 'survie' ? `Survival · ${lv.name} · Wave ${survWave}${nextWaveT > 0 ? ` · next in ${Math.ceil(nextWaveT)} s` : ''}`
+      : mode === 'duel' ? `Duel · ${lv.name} · Round ${duelScore[0] + duelScore[1] + 1} · ${duelScore[0]} – ${duelScore[1]}`
+      : `Sector ${levelIdx + 1} · ${lv.name} · Wave ${waveIdx + 1}/${WAVES}`, W / 2, 26);
     for (let team = 0; team < 2; team++) {
       const list = tanks.filter(t => t.team === team);
       list.forEach((t, i) => {
@@ -3369,7 +3369,7 @@
     feed.forEach((f, i) => {
       const y = 24 + i * 20;
       ctx.globalAlpha = Math.min(1, f.life);
-      const mid = f.ff ? ' ✖ TIR ALLIÉ ✖ ' : f.det ? ' 💥 ' : ' ⟶ ';
+      const mid = f.ff ? ' ✖ FRIENDLY FIRE ✖ ' : f.det ? ' 💥 ' : ' ⟶ ';
       const wA = ctx.measureText(f.a).width, wM = ctx.measureText(mid).width, wV = ctx.measureText(f.v).width;
       ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(10, y - 13, wA + wM + wV + 16, 18);
       ctx.fillStyle = f.at === 0 ? '#8cc4ff' : f.at === 1 ? '#ff8c80' : '#aaa'; ctx.fillText(f.a, 18, y);
@@ -3452,9 +3452,9 @@
       ctx.fillStyle = '#e9d9a6'; ctx.font = '800 34px system-ui, sans-serif';
       ctx.fillText(`${lv.name.toUpperCase()}`, W / 2, H / 2 - 45);
       ctx.font = '600 16px system-ui, sans-serif'; ctx.fillStyle = '#bdb7a2';
-      ctx.fillText(mode === 'survie' ? `${lv.sub} · Survie · seul contre tous`
-        : mode === 'duel' ? `${lv.sub} · Duel · manche ${duelScore[0] + duelScore[1] + 1}`
-        : `${lv.sub} · Vague ${waveIdx + 1}/${WAVES} · 5 contre 5`, W / 2, H / 2 - 18);
+      ctx.fillText(mode === 'survie' ? `${lv.sub} · Survival · alone against all`
+        : mode === 'duel' ? `${lv.sub} · Duel · round ${duelScore[0] + duelScore[1] + 1}`
+        : `${lv.sub} · Wave ${waveIdx + 1}/${WAVES} · 5 vs 5`, W / 2, H / 2 - 18);
       ctx.font = '800 48px system-ui, sans-serif'; ctx.fillStyle = '#fff';
       ctx.fillText(String(Math.max(1, Math.ceil(introT))), W / 2, H / 2 + 38);
     }
@@ -3482,26 +3482,26 @@
     MetalSim.draw(c, sim, fi, X, Y + tH, w, h - tH - fH);
     c.strokeStyle = '#d9a441'; c.lineWidth = 2; c.strokeRect(X - 1, Y - 1, w + 2, h + 2);
     c.fillStyle = 'rgba(0,0,0,0.6)'; c.fillRect(X, Y, w, tH); c.fillRect(X, Y + h - fH, w, fH);
-    const inf = sim.info, f = (v, k = 0) => v.toFixed(k).replace('.', ',');
+    const inf = sim.info, f = (v, k = 0) => v.toFixed(k);
     c.textAlign = 'left';
     c.font = `700 ${12 * fs}px system-ui, sans-serif`; c.fillStyle = '#f0d27a';
-    c.fillText(`COUPE DE LA PLAQUE · simulation péridynamique`, X + 8, Y + 13 * fs);
+    c.fillText(`PLATE CROSS-SECTION · peridynamic simulation`, X + 8, Y + 13 * fs);
     c.font = `600 ${10 * fs}px system-ui, sans-serif`; c.fillStyle = '#cfc8b0';
-    c.fillText(`${inf.mm} mm d'acier à ${inf.angle}° · ${sim.N.toLocaleString('fr-FR')} particules · ${sim.bonds.toLocaleString('fr-FR')} liaisons · pas ${f(sim.dt * 1e9, 0)} ns`, X + 8, Y + 26 * fs);
+    c.fillText(`${inf.mm} mm of steel at ${inf.angle}° · ${sim.N.toLocaleString('en-US')} particles · ${sim.bonds.toLocaleString('en-US')} bonds · step ${f(sim.dt * 1e9, 0)} ns`, X + 8, Y + 26 * fs);
     c.font = `700 ${11 * fs}px system-ui, sans-serif`;
     const st = sim.st;
     if (!st.done) {
       c.fillStyle = '#8cc8ff';
-      c.fillText(`${waiting ? 'Calcul en cours' : 'Calcul'} : ${Math.min(99, Math.round(st.t / sim.tMax * 100))} % · ${st.step.toLocaleString('fr-FR')} pas · ${st.broken.toLocaleString('fr-FR')} liaisons rompues`, X + 8, Y + h - fH + 14 * fs);
+      c.fillText(`${waiting ? 'Computing' : 'Computed'}: ${Math.min(99, Math.round(st.t / sim.tMax * 100))}% · ${st.step.toLocaleString('en-US')} steps · ${st.broken.toLocaleString('en-US')} broken bonds`, X + 8, Y + h - fH + 14 * fs);
     } else {
-      const res = inf.sb.heat ? (st.perforated ? 'jet traversant' : 'jet arrêté') : inf.sb.he ? (st.ejected > 3 ? 'plaque déchirée' : 'plaque bombée') : (st.perforated ? 'perforée' : 'non perforée');
+      const res = inf.sb.heat ? (st.perforated ? 'jet traversant' : 'jet stopped') : inf.sb.he ? (st.ejected > 3 ? 'plate torn' : 'plate bulged') : (st.perforated ? 'penetrated' : 'not penetrated');
       c.fillStyle = st.perforated || (inf.sb.he && st.ejected > 3) ? '#a6f08a' : '#ff9a7a';
-      c.fillText(`Plaque ${res} · ${st.broken.toLocaleString('fr-FR')} liaisons rompues · T max ${Math.round(st.maxTemp)} K`, X + 8, Y + h - fH + 14 * fs);
+      c.fillText(`Plate ${res} · ${st.broken.toLocaleString('en-US')} broken bonds · T max ${Math.round(st.maxTemp)} K`, X + 8, Y + h - fH + 14 * fs);
       c.font = `600 ${10 * fs}px system-ui, sans-serif`; c.fillStyle = '#cfc8b0';
-      c.fillText(`${st.fragments} fragment${st.fragments > 1 ? 's' : ''} arraché${st.fragments > 1 ? 's' : ''} (${f(st.ejectedKg, 2)} kg) · bombement ${f(st.bulge * 1000, 0)} mm · obus ${Math.round(st.projDamage * 100)} % rompu`, X + 8, Y + h - fH + 27 * fs);
+      c.fillText(`${st.fragments} fragment${st.fragments > 1 ? 's' : ''} torn off (${f(st.ejectedKg, 2)} kg) · bulge ${f(st.bulge * 1000, 0)} mm · projectile ${Math.round(st.projDamage * 100)}% broken`, X + 8, Y + h - fH + 27 * fs);
     }
     c.textAlign = 'right'; c.font = `600 ${10 * fs}px system-ui, sans-serif`; c.fillStyle = '#9fc4e6';
-    if (big || !st.done || p < 1) c.fillText(`ralenti ×${Math.round(3 / sim.tMax).toLocaleString('fr-FR')}`, X + w - 8, Y + 13 * fs);
+    if (big || !st.done || p < 1) c.fillText(`slow-motion ×${Math.round(3 / sim.tMax).toLocaleString('en-US')}`, X + w - 8, Y + 13 * fs);
     c.restore();
   }
 
@@ -3513,11 +3513,11 @@
     ctx.fillText(`${T.name} · ${T.cls}`, bx + 10, by + 17);
     const g = player.mg;
     ctx.font = '600 11px system-ui, sans-serif'; ctx.fillStyle = g.jam > 0 ? '#ff9a5c' : '#c9c4b2';
-    ctx.fillText(g.jam > 0 ? `MG : changement du canon ${Math.ceil(g.jam)} s` : `MG (F/G) ${MG_AMMO[g.type].name} : ${g.type === 'SmKH' ? g.ammoH : g.ammo}`, bx + 175, by + 17);
+    ctx.fillText(g.jam > 0 ? `MG: barrel change ${Math.ceil(g.jam)} s` : `MG (F/G) ${MG_AMMO[g.type].name} : ${g.type === 'SmKH' ? g.ammoH : g.ammo}`, bx + 175, by + 17);
     ctx.fillStyle = player.ready > 0 ? '#c9c4b2' : '#ffb070';
-    ctx.fillText(`Râtelier ${player.ready}/${T.ready + player.up.ready}`, bx + 468, by + 64);
+    ctx.fillText(`Ready rack ${player.ready}/${T.ready + player.up.ready}`, bx + 468, by + 64);
     ctx.fillStyle = player.hatch ? '#ffcf7a' : '#8f8a77';
-    ctx.fillText(player.hatch ? 'Chef sorti (U)' : 'Fermé (U)', bx + 468, by + 79);
+    ctx.fillText(player.hatch ? 'Commander out (U)' : 'Buttoned up (U)', bx + 468, by + 79);
     if (!(g.jam > 0)) { ctx.fillStyle = '#2c3024'; ctx.fillRect(bx + 335, by + 9, 50, 6); ctx.fillStyle = g.heat > 180 ? '#ff6a3a' : '#c98a3a'; ctx.fillRect(bx + 335, by + 9, 50 * Math.min(1, g.heat / 250), 6); }
     // équipage
     let x = bx + 10;
@@ -3534,7 +3534,7 @@
     }
     if (player.swap) { ctx.textAlign = 'left'; ctx.fillStyle = '#8cc8ff'; ctx.font = '600 10px system-ui, sans-serif'; ctx.fillText(`remplacement ${player.swap.t.toFixed(0)} s`, x + 2, by + 38); }
     // modules
-    const MODS = [['engine', 'Moteur'], ['trans', 'Transm.'], ['breech', 'Culasse'], ['fuel', 'Carbur.'], ['ammo', 'Munit.']];
+    const MODS = [['engine', 'Engine'], ['trans', 'Transm.'], ['breech', 'Breech'], ['fuel', 'Fuel'], ['ammo', 'Ammo']];
     x = bx + 200;
     ctx.textAlign = 'center'; ctx.font = '600 10px system-ui, sans-serif';
     const chip = (label, state, sub) => {
@@ -3552,9 +3552,9 @@
     // chenilles et feu
     ctx.textAlign = 'left'; ctx.font = '700 11px system-ui, sans-serif';
     const st = [];
-    if (player.trackT > 0) st.push(['Chenille ' + Math.ceil(player.trackT) + ' s', '#ffb070']);
-    if (player.fireT > 0) st.push(['EN FEU', '#ff6a3a']);
-    if (!player.dead && player.revealT <= 0 && inBush(player)) st.push(['Camouflé', '#a6f08a']);
+    if (player.trackT > 0) st.push(['Track ' + Math.ceil(player.trackT) + ' s', '#ffb070']);
+    if (player.fireT > 0) st.push(['ON FIRE', '#ff6a3a']);
+    if (!player.dead && player.revealT <= 0 && inBush(player)) st.push(['Concealed', '#a6f08a']);
     let sx2 = bx + 230;
     for (const [s, c] of st) { ctx.fillStyle = c; ctx.fillText(s, sx2, by + 15); sx2 += ctx.measureText(s).width + 12; }
     // obus
@@ -3567,7 +3567,7 @@
       ctx.fillStyle = n ? (sel ? '#ffe27a' : '#ddd') : '#666'; ctx.font = '700 10px system-ui, sans-serif';
       ctx.fillText(`[${sh.n}] ${sh.tag || k}`, x + 4, by + 65);
       ctx.font = '600 9.5px system-ui, sans-serif'; ctx.fillStyle = n ? '#aaa' : '#555';
-      ctx.fillText(sh.tag ? `${n} coups` : `${n} · ${Math.round(penAt(player.T, k, 200))}`, x + 4, by + 77);
+      ctx.fillText(sh.tag ? `${n} rds` : `${n} · ${Math.round(penAt(player.T, k, 200))}`, x + 4, by + 77);
       x += 64;
     }
     // rechargement
@@ -3679,21 +3679,21 @@
   function specsHTML(T) {
     const Sd = T.S, A = Sd.armor;
     const eff = a => Math.round(a[0] / Math.cos(a[1] * D2R));
-    const row = (l, a) => `<tr><td>${l}</td><td>${a[0]} mm à ${a[1]}°</td><td>≈ ${eff(a)} mm</td></tr>`;
+    const row = (l, a) => `<tr><td>${l}</td><td>${a[0]} mm at ${a[1]}°</td><td>≈ ${eff(a)} mm</td></tr>`;
     let h = `<div class="specTitle">${T.name} <small>${T.cls}</small></div><div class="specSub">${Sd.inspired} · ${Sd.real}</div>`;
-    h += `<div class="specLine">Canon ${Sd.gun.name} · obus perforant ${String(Ballistics.shell(T.id, 'APHE').m).replace('.', ',')} kg à ${Ballistics.shell(T.id, 'APHE').v0} m/s · rechargement ${T.reload.toFixed(1)} s · ${T.kmh} km/h</div>`;
-    h += `<div class="specLine">Équipage : ${Sd.crew.map(r => TankModels.NAMES[r]).join(', ')}</div>`;
-    h += '<table class="spec"><tr><th>Blindage</th><th>Épaisseur</th><th>Effectif</th></tr>';
-    h += row('Caisse avant (haut)', A.hull.up) + row('Caisse avant (bas)', A.hull.low) + row('Flancs de caisse', A.hull.side) + row('Arrière de caisse', A.hull.rear);
-    if (A.turret) h += row('Tourelle avant', A.turret.front) + row('Masque de canon', A.turret.mantlet) + row('Flancs de tourelle', A.turret.side) + row('Arrière de tourelle', A.turret.rear);
-    h += `<tr><td>Toit</td><td>${A.hull.roof} mm</td><td></td></tr></table>`;
-    h += '<table class="spec"><tr><th>Obus</th><th>100 m</th><th>500 m</th><th>Coups</th></tr>';
+    h += `<div class="specLine">Gun ${Sd.gun.name} · AP shell ${String(Ballistics.shell(T.id, 'APHE').m)} kg at ${Ballistics.shell(T.id, 'APHE').v0} m/s · reload ${T.reload.toFixed(1)} s · ${T.kmh} km/h</div>`;
+    h += `<div class="specLine">Crew: ${Sd.crew.map(r => TankModels.NAMES[r]).join(', ')}</div>`;
+    h += '<table class="spec"><tr><th>Armor</th><th>Thickness</th><th>Effective</th></tr>';
+    h += row('Upper front hull', A.hull.up) + row('Lower front hull', A.hull.low) + row('Hull sides', A.hull.side) + row('Rear hull', A.hull.rear);
+    if (A.turret) h += row('Front turret', A.turret.front) + row('Gun mantlet', A.turret.mantlet) + row('Turret sides', A.turret.side) + row('Rear turret', A.turret.rear);
+    h += `<tr><td>Roof</td><td>${A.hull.roof} mm</td><td></td></tr></table>`;
+    h += '<table class="spec"><tr><th>Shell</th><th>100 m</th><th>500 m</th><th>Rounds</th></tr>';
     for (const k of SHELL_KEYS) h += SHELLS[k].tag ? `<tr><td>${Ballistics.shell(T.id, k).name}</td><td>—</td><td>—</td><td>${T.ammo[k]}</td></tr>` : `<tr><td>${Ballistics.shell(T.id, k).name}</td><td>${Math.round(penAt(T, k, 100 / RK))} mm</td><td>${Math.round(penAt(T, k, 500 / RK))} mm</td><td>${T.ammo[k]}</td></tr>`;
     return h + '</table>';
   }
   // ===================== Menu =====================
   const lin2hex = c => '#' + c.map(v => Math.round(Math.pow(Math.max(0, Math.min(1, v)), 1 / 2.2) * 255).toString(16).padStart(2, '0')).join('');
-  const fmt = n => Math.round(n).toLocaleString('fr-FR');
+  const fmt = n => Math.round(n).toLocaleString('en-US');
   const thumbCache = {};
   function toast(text) {
     const d = document.createElement('div');
@@ -3723,7 +3723,7 @@
     $('dotMissions').classList.toggle('on', P.missions.some(m => { const d = Meta.MISSIONS.find(k => k.id === m.id); return d && m.prog >= d.goal && !m.claimed; }));
     const owned = P.tanks.includes(chosenType), T = TYPES[chosenType];
     $('sumTank').textContent = T.name;
-    $('sumInfo').textContent = owned ? `${MODES[mode].name} · ${L().name}` : `Char verrouillé : achète-le au garage`;
+    $('sumInfo').textContent = owned ? `${MODES[mode].name} · ${L().name}` : `Locked tank: buy it in the Garage`;
     $('startBtn').disabled = !owned;
   }
   const MODE_EM = { campagne: '🎖', survie: '☠', duel: '⚔' };
@@ -3732,9 +3732,12 @@
     const tc = $('tankCards'); tc.innerHTML = '';
     for (const T of Object.values(TYPES)) {
       const d = document.createElement('div'), own = P.tanks.includes(T.id), inf = Meta.TANKS[T.id];
-      d.className = 'card tcard' + (T.id === chosenType ? ' sel' : '') + (own ? '' : ' locked');
-      const tag = own ? '<span class="tag own">✓</span>' : P.level < inf.lvl ? `<span class="tag lock">🔒 Niv. ${inf.lvl}</span>` : `<span class="tag">✪ ${fmt(inf.price)}</span>`;
-      d.innerHTML = `${tag}<img class="thumb" alt="" src="${tankThumb(T.id)}"><b>${T.name}</b><small>${T.cls}${T.arc ? ' · sans tourelle' : ''}</small>`;
+      const rar = TANK_RAR[T.id] || 'common';
+      d.className = `card tcard rar-${rar}` + (T.id === chosenType ? ' sel' : '') + (own ? '' : ' locked');
+      const lock = own ? '<span class="tag own">✓ Owned</span>' : P.level < inf.lvl
+        ? `<div class="lockov"><span class="lk">🔒</span><span>Requires level ${inf.lvl}</span><b>✪ ${fmt(inf.price)}</b></div>`
+        : `<div class="lockov"><span class="lk">🔓</span><span>Ready to unlock</span><b>✪ ${fmt(inf.price)}</b></div>`;
+      d.innerHTML = `${lock}<img class="thumb" alt="" src="${tankThumb(T.id)}"><b>${T.name}</b><small>${T.cls}${T.arc ? ' · turretless' : ''}</small><span class="rib">${Meta.RARITY[rar]}</span>`;
       d.onclick = () => { chosenType = T.id; skinPreview = null; buildMenu(); };
       tc.appendChild(d);
     }
@@ -3742,10 +3745,13 @@
     const tb = $('tankBuy'); tb.innerHTML = '';
     if (!P.tanks.includes(chosenType)) {
       const inf = Meta.TANKS[chosenType], b = document.createElement('button');
-      b.className = 'btn';
-      b.textContent = P.level < inf.lvl ? `Grade requis : ${Meta.rankName(inf.lvl)} (niv. ${inf.lvl})` : `Acheter · ✪ ${fmt(inf.price)}`;
+      b.className = 'btn buy';
+      b.textContent = P.level < inf.lvl ? `🔒 Rank required: ${Meta.rankName(inf.lvl)} (lvl ${inf.lvl})` : `Unlock ${TYPES[chosenType].name} · ✪ ${fmt(inf.price)}`;
       b.disabled = !Meta.canBuyTank(chosenType);
-      b.onclick = () => { if (Meta.buyTank(chosenType)) { toast(`${TYPES[chosenType].name} rejoint ton escadron !`); Sfx.reload(); buildMenu(); } };
+      b.onclick = () => {
+        const id = chosenType;
+        if (Meta.buyTank(id)) { buildMenu(); celebrate({ kind: 'New tank unlocked', name: TYPES[id].name, rar: TANK_RAR[id], flav: `${TYPES[id].cls} joins your squadron.`, img: tankThumb(id) }); }
+      };
       tb.appendChild(b);
     }
     buildParts();
@@ -3754,9 +3760,10 @@
     const cur = Meta.skinOf(chosenType), feat = Meta.featured();
     for (const sk of Meta.SKINS) {
       const d = document.createElement('div'), own = P.skins.includes(sk.id);
-      d.className = 'skin' + (sk.id === cur.id ? ' sel' : '') + (sk.id === skinPreview ? ' prev' : '');
+      d.className = `skin rar-${sk.rar}` + (sk.id === cur.id ? ' sel' : '') + (sk.id === skinPreview ? ' prev' : '');
       const price = Meta.skinPrice(sk), left = sk.ads ? Meta.adsLeft('skin:' + sk.id, sk.ads) : 0;
-      d.innerHTML = `${sk.id === feat && !own ? '<span class="promo">−50 % AUJOURD’HUI</span>' : ''}<div class="sw"></div><b>${sk.name}</b><span class="r r-${sk.rar}">${sk.rar}${own ? ' · ✓ possédé' : ''}</span>`;
+      const status = sk.id === cur.id ? 'Equipped' : own ? '✓ Owned' : sk.id === skinPreview ? 'Previewing' : '';
+      d.innerHTML = `${sk.id === feat && !own ? '<span class="deal">DEAL −50%</span>' : ''}<div class="sw"></div><span class="rib">${Meta.RARITY[sk.rar]}</span><b>${sk.name}</b><span class="fl">${sk.flav}</span>${status ? `<span class="st">${status}</span>` : ''}`;
       d.querySelector('.sw').appendChild(skinSwatch(sk));
       d.onclick = () => {
         if (own) { Meta.selectSkin(chosenType, sk.id); skinPreview = null; }
@@ -3766,23 +3773,23 @@
       if (!own) {
         const act = document.createElement('div'); act.className = 'act';
         if (!sk.adOnly) {
-          const b = document.createElement('button'); b.className = 'btn';
+          const b = document.createElement('button'); b.className = 'btn buy';
           b.innerHTML = price < sk.price ? `<span class="strike">${fmt(sk.price)}</span>✪ ${fmt(price)}` : `✪ ${fmt(price)}`;
           b.disabled = P.credits < price;
-          b.onclick = e => { e.stopPropagation(); if (Meta.buySkin(sk.id)) { Meta.selectSkin(chosenType, sk.id); skinPreview = null; toast(`Camouflage « ${sk.name} » acheté`); buildMenu(); } };
+          b.onclick = e => { e.stopPropagation(); if (Meta.buySkin(sk.id)) { Meta.selectSkin(chosenType, sk.id); skinPreview = null; buildMenu(); celebrateSkin(sk); } };
           act.appendChild(b);
         }
         if (sk.ads) {
           const b = document.createElement('button'); b.className = 'btn ad';
-          b.textContent = `${sk.ads - left}/${sk.ads}`;
-          b.title = `Débloquer en regardant ${sk.ads} publicité${sk.ads > 1 ? 's' : ''}`;
+          b.innerHTML = `${sk.adOnly ? 'Ad only' : 'Watch ad'}${adPips(sk.ads - left, sk.ads)}`;
+          b.title = `Unlock by watching ${sk.ads} ad${sk.ads > 1 ? 's' : ''}`;
           b.onclick = e => {
             e.stopPropagation();
             Meta.rewarded(() => {
-              if (Meta.skinAd(sk.id)) { Meta.selectSkin(chosenType, sk.id); skinPreview = null; toast(`Camouflage « ${sk.name} » débloqué !`); Meta.sdk.happytime(); }
-              else toast(`Encore ${Meta.adsLeft('skin:' + sk.id, sk.ads)} publicité(s) pour « ${sk.name} »`);
+              if (Meta.skinAd(sk.id)) { Meta.selectSkin(chosenType, sk.id); skinPreview = null; buildMenu(); celebrateSkin(sk); return; }
+              else toast(`${Meta.adsLeft('skin:' + sk.id, sk.ads)} more ad(s) for “${sk.name}”`);
               buildMenu();
-            }, () => toast('Publicité indisponible pour le moment'));
+            }, () => toast('Ad unavailable right now'));
           };
           act.appendChild(b);
         }
@@ -3790,14 +3797,14 @@
       }
       sc.appendChild(d);
     }
-    $('skinHint').textContent = skinPreview ? `Aperçu : « ${Meta.SKINS.find(k => k.id === skinPreview).name} ». Clique à nouveau pour revenir au tien.` : 'Clique sur un camouflage pour l’essayer sur la vitrine.';
+    $('skinHint').textContent = skinPreview ? `Previewing “${Meta.SKINS.find(k => k.id === skinPreview).name}”. Click again to go back to yours.` : 'Click a camo to try it on the showcase.';
     $('specs').innerHTML = specsHTML(TYPES[chosenType]) + partsLine(chosenType);
     $('showcase').classList.toggle('no3d', !R3);
     const mc = $('modeCards'); mc.innerHTML = '';
     for (const [id, M] of Object.entries(MODES)) {
       const d = document.createElement('div');
       d.className = 'card mode' + (id === mode ? ' sel' : '');
-      d.innerHTML = `<div class="em">${MODE_EM[id]}</div><div><b>${M.name}</b><small>${M.sub}${id === 'survie' && survBest ? ` · record : ${survBest} vagues` : ''}</small></div>`;
+      d.innerHTML = `<div class="em">${MODE_EM[id]}</div><div><b>${M.name}</b><small>${M.sub}${id === 'survie' && survBest ? ` · best: wave ${survBest}` : ''}</small></div>`;
       d.onclick = () => { mode = id; buildMenu(); };
       mc.appendChild(d);
     }
@@ -3806,7 +3813,7 @@
       const d = document.createElement('div');
       const locked = mode === 'campagne' && i > unlocked;
       d.className = 'card' + (i === levelIdx ? ' sel' : '') + (locked ? ' locked' : '');
-      d.innerHTML = `<b>${i + 1}. ${lv.name}</b><small>${locked ? '🔒 Conquiers le secteur précédent' : lv.sub}</small>`;
+      d.innerHTML = `<b>${i + 1}. ${lv.name}</b><small>${locked ? '🔒 Conquer the previous sector' : lv.sub}</small>`;
       d.onclick = () => { if (!locked) { levelIdx = i; buildMenu(); } };
       lc.appendChild(d);
     });
@@ -3816,10 +3823,52 @@
     $('spinAd').disabled = wheelSpin;
     updateTopbar();
   }
+  // Rareté affichée des chars (selon leur rang dans l'arbre) et des niveaux de pièces
+  const TANK_RAR = { light: 'common', pz4: 'common', stug: 'rare', medium: 'rare', destroyer: 'epic', heavy: 'epic', kingtiger: 'legendary' };
+  const PART_RAR = ['rare', 'epic', 'legendary'];
+  const RAR_N = { common: 1, rare: 1, epic: 2, legendary: 3 };
+  const adPips = (n, need) => need > 3 ? `<span class="adp n">${n}/${need}</span>` : `<span class="adp">${Array.from({ length: need }, (_, i) => `<i class="${i < n ? 'on' : ''}"></i>`).join('')}</span>`;
+  // Célébration plein écran d'un déblocage : rayons, confettis, aperçu, fanfare
+  function celebrate(o) {
+    const el = $('unlock'), rc = `var(--c-${o.rar})`;
+    el.style.setProperty('--rc', rc);
+    $('uKind').textContent = o.kind;
+    $('uName').textContent = o.name;
+    $('uRar').textContent = Meta.RARITY[o.rar];
+    $('uRar').className = 'rib rar-' + o.rar;
+    $('uFlav').textContent = o.flav || '';
+    const im = $('uImg'); im.className = 'ui' + (o.icon ? ' icon' : ''); im.innerHTML = '';
+    if (o.icon) im.textContent = o.icon; else if (o.img) { const i = document.createElement('img'); i.src = o.img; i.alt = ''; im.appendChild(i); }
+    el.querySelectorAll('.confetti').forEach(c => c.remove());
+    const cols = ['#ffc23d', '#fff4c4', '#4fb0ff', '#b57bff', '#8fd46a', '#ff6a50'], n = Meta.P.opts.quality === 'basse' ? 30 : 70;
+    for (let i = 0; i < n; i++) {
+      const c = document.createElement('i'); c.className = 'confetti';
+      c.style.cssText = `left:${Math.random() * 100}%;background:${cols[i % cols.length]};animation-duration:${2.2 + Math.random() * 2.4}s;animation-delay:${Math.random() * 0.8}s;--dx:${(Math.random() - 0.5) * 300}px;--rot:${(Math.random() - 0.5) * 1440}deg`;
+      el.appendChild(c);
+    }
+    el.classList.add('on');
+    Sfx.init(); Sfx.unlock(RAR_N[o.rar] || 1); Meta.sdk.happytime();
+  }
+  // camouflage débloqué : aperçu du char du garage avec ce camouflage
+  function celebrateSkin(sk, kind) {
+    let img = '';
+    if (R3) {
+      drawTank3D(chosenType, 480, 260, 0.75, 0.3, false, 0.25, [0.07, 0.08, 0.07, 1], sk);
+      const c = document.createElement('canvas'); c.width = 480; c.height = 260;
+      c.getContext('2d').drawImage(R3.canvas, 0, 0); img = c.toDataURL('image/jpeg', 0.85);
+    } else img = swatchURL(sk);
+    celebrate({ kind: kind || 'New camo unlocked', name: sk.name, rar: sk.rar, flav: sk.flav, img });
+  }
+  $('uOk').onclick = () => $('unlock').classList.remove('on');
+  $('unlock').onclick = e => { if (e.target === e.currentTarget) $('unlock').classList.remove('on'); };
   // Échantillon de camouflage dessiné en 2D selon son motif
   let skinPreview = null;
   const swatchCache = {};
   function skinSwatch(sk) {
+    const im = document.createElement('img'); im.src = swatchURL(sk); im.style.cssText = 'width:100%;height:100%;display:block;object-fit:cover';
+    return im;
+  }
+  function swatchURL(sk) {
     if (!swatchCache[sk.id]) {
       const c = document.createElement('canvas'); c.width = 160; c.height = 70;
       const g = c.getContext('2d'), col = sk.camo.map(lin2hex), R = mulberry32(sk.id.length * 977 + sk.id.charCodeAt(0));
@@ -3833,8 +3882,7 @@
       g.fillStyle = sh; g.fillRect(0, 0, 160, 70);
       swatchCache[sk.id] = c.toDataURL();
     }
-    const im = document.createElement('img'); im.src = swatchCache[sk.id]; im.style.cssText = 'width:100%;height:100%;display:block;object-fit:cover';
-    return im;
+    return swatchCache[sk.id];
   }
   // Pièces du char choisi : niveau, achat en crédits ou en publicités (niveau + 1 publicités)
   function buildParts() {
@@ -3842,30 +3890,31 @@
     const own = P.tanks.includes(chosenType);
     for (const pd of Meta.PARTS) {
       const lv = Meta.partLv(chosenType, pd.id), d = document.createElement('div');
-      d.className = 'part';
-      d.innerHTML = `<div class="pi">${pd.ic}</div><div class="pt"><b>${pd.name}</b><small>${pd.desc}</small><div class="pips">${[0, 1, 2].map(i => `<i class="${i < lv ? 'on' : ''}"></i>`).join('')}</div></div><div class="pb"></div>`;
+      d.className = 'part l' + lv;
+      d.innerHTML = `<div class="pi">${pd.ic}</div><div class="pt"><b>${pd.name}<span class="mk">${Meta.MK[lv]}</span></b><small>${pd.desc}</small><div class="pips">${[0, 1, 2].map(i => `<i class="${i < lv ? 'on' : i === lv ? 'nx' : ''}"></i>`).join('')}</div></div><div class="pb"></div>`;
       const pb = d.querySelector('.pb');
-      if (lv >= 3) { const b = document.createElement('button'); b.className = 'btn alt'; b.textContent = 'Niveau max.'; b.disabled = true; pb.appendChild(b); }
+      if (lv >= 3) pb.innerHTML = '<span class="maxed">★ MAX</span>';
       else {
-        const b = document.createElement('button'); b.className = 'btn';
-        b.textContent = `✪ ${fmt(pd.cost[lv])}`;
+        const installed = () => { buildMenu(); celebrate({ kind: 'Upgrade installed', name: `${pd.name} ${Meta.MK[lv + 1]}`, rar: PART_RAR[lv], flav: pd.desc, icon: pd.ic }); };
+        const b = document.createElement('button'); b.className = 'btn buy';
+        b.textContent = `${Meta.MK[lv + 1]} · ✪ ${fmt(pd.cost[lv])}`;
         b.disabled = !own || P.credits < pd.cost[lv];
-        b.onclick = () => { if (Meta.buyPart(chosenType, pd.id)) { toast(`${pd.name} : niveau ${lv + 1} installé`); Sfx.reload(); buildMenu(); } };
+        b.onclick = () => { if (Meta.buyPart(chosenType, pd.id)) installed(); };
         const a = document.createElement('button'); a.className = 'btn ad';
         const need = lv + 1, left = Meta.adsLeft(`part:${chosenType}:${pd.id}`, need);
-        a.textContent = `${need - left}/${need}`;
-        a.title = `Installer en regardant ${need} publicité${need > 1 ? 's' : ''}`;
+        a.innerHTML = `Watch ad${adPips(need - left, need)}`;
+        a.title = `Install by watching ${need} ad${need > 1 ? 's' : ''}`;
         a.disabled = !own;
         a.onclick = () => Meta.rewarded(() => {
-          if (Meta.partAd(chosenType, pd.id)) { toast(`${pd.name} : niveau ${lv + 1} installé !`); Sfx.reload(); }
-          else toast(`${pd.name} : encore ${Meta.adsLeft(`part:${chosenType}:${pd.id}`, need)} publicité(s)`);
+          if (Meta.partAd(chosenType, pd.id)) { installed(); return; }
+          toast(`${pd.name}: ${Meta.adsLeft(`part:${chosenType}:${pd.id}`, need)} more ad(s)`);
           buildMenu();
-        }, () => toast('Publicité indisponible pour le moment'));
+        }, () => toast('Ad unavailable right now'));
         pb.appendChild(b); pb.appendChild(a);
       }
       pl.appendChild(d);
     }
-    if (!own) { const n = document.createElement('div'); n.className = 'psub'; n.textContent = 'Achète ce char pour le préparer.'; pl.prepend(n); }
+    if (!own) { const n = document.createElement('div'); n.className = 'psub'; n.textContent = 'Buy this tank to upgrade it.'; pl.prepend(n); }
   }
   function buildMissions() {
     const P = Meta.P, ml = $('missionList'); ml.innerHTML = '';
@@ -3877,9 +3926,9 @@
       d.innerHTML = `<div class="mi"><b>${def.t}</b><div class="stat"><span>${Math.min(m.prog, def.goal)} / ${def.goal}</span><div class="bar"><i style="width:${Math.min(100, m.prog / def.goal * 100)}%"></i></div></div></div><span class="mrw">✪ ${fmt(def.reward)}</span>`;
       const b = document.createElement('button');
       b.className = 'btn small' + (done && !m.claimed ? '' : ' alt');
-      b.textContent = m.claimed ? 'Reçu' : done ? 'Recevoir' : 'En cours';
+      b.textContent = m.claimed ? 'Claimed' : done ? 'Claim' : 'In progress';
       b.disabled = !done || m.claimed;
-      b.onclick = () => { const c = Meta.claim(m.id); if (c) { toast(`Mission accomplie : +✪ ${fmt(c)}`); Sfx.reload(); buildMenu(); } };
+      b.onclick = () => { const c = Meta.claim(m.id); if (c) { toast(`Mission complete: +✪ ${fmt(c)}`); Sfx.reload(); buildMenu(); } };
       d.appendChild(b);
       ml.appendChild(d);
     }
@@ -3887,15 +3936,15 @@
     Meta.STREAK.forEach((c, i) => {
       const d = document.createElement('div');
       d.className = 'day' + (i < P.streak - 1 ? ' done' : i === P.streak - 1 ? ' today' : '');
-      d.innerHTML = `Jour ${i + 1}<b>✪ ${fmt(c)}</b>`;
+      d.innerHTML = `Day ${i + 1}<b>✪ ${fmt(c)}</b>`;
       st.appendChild(d);
     });
-    $('career').innerHTML = `<div>Batailles : <b>${P.stats.battles}</b> · victoires : <b>${P.stats.wins}</b> · chars détruits : <b>${P.stats.kills}</b></div><div>Grade : <b>${Meta.rankName()}</b> (niveau ${P.level}) · primes × 2 en réserve : <b>${P.x2}</b></div>`;
+    $('career').innerHTML = `<div>Battles: <b>${P.stats.battles}</b> · victories: <b>${P.stats.wins}</b> · tanks destroyed: <b>${P.stats.kills}</b></div><div>Rank: <b>${Meta.rankName()}</b> (level ${P.level}) · ×2 boosters in reserve: <b>${P.x2}</b></div>`;
   }
   function partsLine(id) {
-    const m = Meta.mods(id), pc = v => (v >= 1 ? '+' : '−') + Math.round(Math.abs(v - 1) * 100) + ' %';
+    const m = Meta.mods(id), pc = v => (v >= 1 ? '+' : '−') + Math.round(Math.abs(v - 1) * 100) + '%';
     if (!Meta.PARTS.some(p => Meta.partLv(id, p.id))) return '';
-    return `<div class="specLine" style="margin-top:8px;color:var(--gold)">Préparation : puissance ${pc(m.hp)} · perforation ${pc(m.pen)} · blindage ${pc(m.armor)} · adhérence ${pc(m.grip)} · vue ${pc(m.optic)} · rechargement ${pc(m.reload)}${m.ready ? ` · râtelier +${m.ready}` : ''}</div>`;
+    return `<div class="specLine" style="margin-top:8px;color:var(--gold)">Upgrades: power ${pc(m.hp)} · penetration ${pc(m.pen)} · armor ${pc(m.armor)} · grip ${pc(m.grip)} · vision ${pc(m.optic)} · reload ${pc(m.reload)}${m.ready ? ` · ready rack +${m.ready}` : ''}</div>`;
   }
   // ----- roue -----
   let wheelRot = 0, wheelSpin = false;
@@ -3941,10 +3990,12 @@
       if (k < 1) requestAnimationFrame(anim);
       else {
         wheelSpin = false;
-        const txt = Meta.applyPrize(idx, free);
-        $('wheelPrize').textContent = `Gagné : ${txt} !`;
-        toast(`🎁 ${txt}`); Sfx.reload();
+        const had = Meta.P.skins.slice(), txt = Meta.applyPrize(idx, free);
+        $('wheelPrize').textContent = `You won: ${txt}!`;
         buildMenu();
+        const won = Meta.SKINS.find(k => !had.includes(k.id) && Meta.P.skins.includes(k.id));
+        if (won) celebrateSkin(won, 'Wheel prize');
+        else { toast(`🎁 ${txt}`); Sfx.reload(); }
       }
     };
     requestAnimationFrame(anim);
@@ -3956,7 +4007,7 @@
     Sfx.init(); playMusic();
   });
   $('spinFree').onclick = () => { if (Meta.canSpinFree()) spinWheel(true); };
-  $('spinAd').onclick = () => Meta.rewarded(() => spinWheel(false), () => toast('Publicité indisponible pour le moment'));
+  $('spinAd').onclick = () => Meta.rewarded(() => spinWheel(false), () => toast('Ad unavailable right now'));
   const music = $('menuMusic');
   function playMusic() {
     if (!music) return;
@@ -3979,7 +4030,7 @@
   $('oHitcam').onchange = e => { Meta.P.opts.hitcam = e.target.checked; Meta.save(); applyOptions(); };
   $('oFull').onclick = () => { try { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen(); } catch (e) { /* refusé */ } };
   $('oReset').onclick = () => {
-    if (!confirm('Effacer toute la progression (crédits, chars, camouflages) ?')) return;
+    if (!confirm('Erase all progress (credits, tanks, camos)?')) return;
     try { localStorage.removeItem('frontdacier.profil'); } catch (e) { /* */ }
     location.reload();
   };
@@ -3996,7 +4047,7 @@
     state = 'revive'; freePointer(); setSight(false);
     Meta.sdk.gameplayStop();
     show('revive');
-    $('revKit').textContent = `Kit de réparation (${Meta.P.kits})`;
+    $('revKit').textContent = `Repair kit (${Meta.P.kits})`;
     $('revKit').disabled = Meta.P.kits <= 0;
     let n = 8, t0 = performance.now();
     $('revN').textContent = n;
@@ -4025,11 +4076,11 @@
     t.smoke = Math.max(t.smoke, 2); t.invulnT = 3; t.reloadT = 0;
     if (t.ammo[t.shell] <= 0) t.shell = nextShell(t);
     for (let i = 0; i < 20; i++) P3({ x: t.x + rnd(-12, 12), y: t.y + rnd(-12, 12), z: rnd(0.2, 2), vz: rnd(0.5, 2), size: 0.08, glow: true, life: rnd(0.4, 0.9), c: [0.6, 0.85, 1, 2] });
-    showMsg('CHAR REMIS EN ÉTAT !', '#8fd46a', 2.2);
-    addLog('Réparation de campagne : équipage et modules remis en état', '#8fd46a');
+    showMsg('TANK REPAIRED!', '#8fd46a', 2.2);
+    addLog('Field repair: crew and modules restored', '#8fd46a');
     Sfx.reload();
   }
-  $('revAd').onclick = () => Meta.rewarded(() => closeRevive(true), () => toast('Publicité indisponible pour le moment'));
+  $('revAd').onclick = () => Meta.rewarded(() => closeRevive(true), () => toast('Ad unavailable right now'));
   $('revKit').onclick = () => { if (Meta.P.kits > 0) { Meta.P.kits--; Meta.save(); closeRevive(true); } };
   $('revNo').onclick = () => closeRevive(false);
 
@@ -4045,30 +4096,30 @@
     const lastWave = waveIdx >= WAVES - 1;
     const lastLevel = levelIdx >= LEVELS.length - 1;
     $('resTitle').className = win ? 'win' : 'lose';
-    $('resTitle').textContent = !win ? 'VAGUE PERDUE' : lastWave ? (lastLevel ? 'VICTOIRE TOTALE' : 'SECTEUR CONQUIS') : 'VAGUE REMPORTÉE';
-    $('resSub').textContent = `${L().name} · vague ${waveIdx + 1}/${WAVES}` + (win ? '' : ' · ton équipe a été anéantie');
+    $('resTitle').textContent = !win ? 'WAVE LOST' : lastWave ? (lastLevel ? 'TOTAL VICTORY' : 'SECTOR CONQUERED') : 'WAVE WON';
+    $('resSub').textContent = `${L().name} · wave ${waveIdx + 1}/${WAVES}` + (win ? '' : ' · your team was wiped out');
     const acc = ws.shots ? Math.round(ws.hits / ws.shots * 100) : 0;
     $('resTable').innerHTML =
-      `<tr><td>Chars ennemis détruits</td><td>${ws.kills}</td></tr>` +
-      `<tr><td>Perforations</td><td>${ws.pens}</td></tr>` +
-      `<tr><td>Équipiers ennemis neutralisés</td><td>${ws.crew}</td></tr>` +
-      `<tr><td>Modules ennemis détruits</td><td>${ws.mods}</td></tr>` +
-      `<tr><td>Précision</td><td>${acc} % (${ws.hits}/${ws.shots})</td></tr>` +
+      `<tr><td>Enemy tanks destroyed</td><td>${ws.kills}</td></tr>` +
+      `<tr><td>Penetrations</td><td>${ws.pens}</td></tr>` +
+      `<tr><td>Enemy crew knocked out</td><td>${ws.crew}</td></tr>` +
+      `<tr><td>Enemy modules destroyed</td><td>${ws.mods}</td></tr>` +
+      `<tr><td>Accuracy</td><td>${acc}% (${ws.hits}/${ws.shots})</td></tr>` +
       `<tr><td>Ricochets</td><td>${ws.ric}</td></tr>` +
-      `<tr><td>Obus esquivés</td><td>${ws.dodged}</td></tr>` +
-      `<tr><td>Équipiers alliés tués par vos tirs</td><td class="${ws.ffCrew ? 'bad' : ''}">${ws.ffCrew}</td></tr>` +
-      `<tr><td>Alliés détruits par vos tirs</td><td class="${ws.tk ? 'bad' : ''}">${ws.tk}</td></tr>` +
-      `<tr><td>Points de la vague</td><td>${win ? pts : 0}</td></tr>` +
-      `<tr><td>Score de campagne</td><td>${campaignScore}</td></tr>`;
+      `<tr><td>Shells dodged</td><td>${ws.dodged}</td></tr>` +
+      `<tr><td>Allied crew killed by your fire</td><td class="${ws.ffCrew ? 'bad' : ''}">${ws.ffCrew}</td></tr>` +
+      `<tr><td>Allies destroyed by your fire</td><td class="${ws.tk ? 'bad' : ''}">${ws.tk}</td></tr>` +
+      `<tr><td>Wave score</td><td>${win ? pts : 0}</td></tr>` +
+      `<tr><td>Campaign score</td><td>${campaignScore}</td></tr>`;
     const btns = resultButtons({ win, kills: ws.kills, pens: ws.pens, crew: ws.crew });
     const add = btns.add;
-    if (!win) add('Réessayer la vague', () => spawnWave());
-    else if (!lastWave) add('Vague suivante', () => { waveIdx++; spawnWave(); });
+    if (!win) add('Retry wave', () => spawnWave());
+    else if (!lastWave) add('Next wave', () => { waveIdx++; spawnWave(); });
     else {
       if (levelIdx + 1 > unlocked && !lastLevel) { unlocked = levelIdx + 1; saveUnlocked(); }
-      if (!lastLevel) add('Niveau suivant', () => { levelIdx++; waveIdx = 0; startLevel(); });
+      if (!lastLevel) add('Next sector', () => { levelIdx++; waveIdx = 0; startLevel(); });
     }
-    add('Menu principal', toMenu, true);
+    add('Main menu', toMenu, true);
     show('result');
   }
 
@@ -4088,10 +4139,10 @@
     };
     count();
     $('lvUp').classList.toggle('on', g.up > 0);
-    if (g.up > 0) $('lvUp').textContent = `PROMOTION : ${Meta.rankName().toUpperCase()} · +✪ ${fmt(500 * g.up)}`;
+    if (g.up > 0) $('lvUp').textContent = `PROMOTED: ${Meta.rankName().toUpperCase()} · +✪ ${fmt(500 * g.up)}`;
     const dbl = document.createElement('button');
-    dbl.className = 'btn ad'; dbl.textContent = `Doubler les gains (+✪ ${fmt(g.credits)})`;
-    dbl.onclick = () => Meta.rewarded(() => { Meta.P.credits += g.credits; Meta.save(); dbl.disabled = true; dbl.textContent = 'Gains doublés !'; $('rwCred').textContent = '+' + fmt(g.credits * 2); toast(`+✪ ${fmt(g.credits)}`); }, () => toast('Publicité indisponible pour le moment'));
+    dbl.className = 'btn ad'; dbl.textContent = `Double rewards (+✪ ${fmt(g.credits)})`;
+    dbl.onclick = () => Meta.rewarded(() => { Meta.P.credits += g.credits; Meta.save(); dbl.disabled = true; dbl.textContent = 'Rewards doubled!'; $('rwCred').textContent = '+' + fmt(g.credits * 2); toast(`+✪ ${fmt(g.credits)}`); }, () => toast('Ad unavailable right now'));
     btns.appendChild(dbl);
     return {
       add(label, fn, alt) {
@@ -4104,13 +4155,13 @@
   }
   function statRows(ws) {
     const acc = ws.shots ? Math.round(ws.hits / ws.shots * 100) : 0;
-    return `<tr><td>Chars ennemis détruits</td><td>${ws.kills}</td></tr>` +
-      `<tr><td>Perforations</td><td>${ws.pens}</td></tr>` +
-      `<tr><td>Équipiers ennemis neutralisés</td><td>${ws.crew}</td></tr>` +
-      `<tr><td>Modules ennemis détruits</td><td>${ws.mods}</td></tr>` +
-      `<tr><td>Précision</td><td>${acc} % (${ws.hits}/${ws.shots})</td></tr>` +
+    return `<tr><td>Enemy tanks destroyed</td><td>${ws.kills}</td></tr>` +
+      `<tr><td>Penetrations</td><td>${ws.pens}</td></tr>` +
+      `<tr><td>Enemy crew knocked out</td><td>${ws.crew}</td></tr>` +
+      `<tr><td>Enemy modules destroyed</td><td>${ws.mods}</td></tr>` +
+      `<tr><td>Accuracy</td><td>${acc}% (${ws.hits}/${ws.shots})</td></tr>` +
       `<tr><td>Ricochets</td><td>${ws.ric}</td></tr>` +
-      `<tr><td>Obus esquivés</td><td>${ws.dodged}</td></tr>`;
+      `<tr><td>Shells dodged</td><td>${ws.dodged}</td></tr>`;
   }
   function showModeResult() {
     state = 'result';
@@ -4121,21 +4172,21 @@
       const held = survWave - 1, rec = held > survBest;
       if (rec) { survBest = held; try { localStorage.setItem('frontdacier.survie', String(held)); } catch (e) { /* stockage indisponible */ } }
       $('resTitle').className = held > 0 ? 'win' : 'lose';
-      $('resTitle').textContent = rec && held > 0 ? 'NOUVEAU RECORD' : 'FIN DE LA SURVIE';
-      $('resSub').textContent = `${L().name} · ${held} vague${held > 1 ? 's' : ''} repoussée${held > 1 ? 's' : ''} · record : ${survBest}`;
-      $('resTable').innerHTML = `<tr><td>Vague atteinte</td><td>${survWave}</td></tr>` + statRows(ws);
-      add('Recommencer', () => startLevel());
+      $('resTitle').textContent = rec && held > 0 ? 'NEW RECORD' : 'SURVIVAL OVER';
+      $('resSub').textContent = `${L().name} · ${held} wave${held > 1 ? 's' : ''} repelled · best: ${survBest}`;
+      $('resTable').innerHTML = `<tr><td>Wave reached</td><td>${survWave}</td></tr>` + statRows(ws);
+      add('Play again', () => startLevel());
     } else {
       duelScore[win ? 0 : 1]++;
       const over = duelScore[0] >= 2 || duelScore[1] >= 2;
       $('resTitle').className = win ? 'win' : 'lose';
-      $('resTitle').textContent = over ? (duelScore[0] >= 2 ? 'DUEL GAGNÉ' : 'DUEL PERDU') : (win ? 'MANCHE GAGNÉE' : 'MANCHE PERDUE');
-      $('resSub').textContent = `${L().name} · ${TYPES[chosenType].name} contre ${TYPES[chosenType].name} · score ${duelScore[0]} – ${duelScore[1]}`;
+      $('resTitle').textContent = over ? (duelScore[0] >= 2 ? 'DUEL WON' : 'DUEL LOST') : (win ? 'ROUND WON' : 'ROUND LOST');
+      $('resSub').textContent = `${L().name} · ${TYPES[chosenType].name} vs ${TYPES[chosenType].name} · score ${duelScore[0]} – ${duelScore[1]}`;
       $('resTable').innerHTML = statRows(ws);
-      if (over) add('Nouveau duel', () => { duelScore = [0, 0]; startLevel(); });
-      else add('Manche suivante', () => spawnWave());
+      if (over) add('New duel', () => { duelScore = [0, 0]; startLevel(); });
+      else add('Next round', () => spawnWave());
     }
-    add('Menu principal', toMenu, true);
+    add('Main menu', toMenu, true);
     show('result');
   }
 
@@ -4191,18 +4242,18 @@
     if (!bench.sim) {
       x.fillStyle = '#07090c'; x.fillRect(0, 0, cw, ch);
       x.fillStyle = '#8f8a77'; x.font = '600 14px system-ui, sans-serif'; x.textAlign = 'center';
-      x.fillText('Choisis un canon, un obus et une plaque, puis tire.', cw / 2, ch / 2);
+      x.fillText('Pick a gun, a shell and a plate, then fire.', cw / 2, ch / 2);
       return;
     }
     // lecture en boucle sur 4 s, une fois le calcul terminé
     const el = (performance.now() - bench.t0) / 1000, sim = bench.sim;
     const p = sim.st.done ? ((el % 5) / 4) : Math.min(1, sim.frames.length / Math.max(1, sim.expected));
     drawMetalPanel(x, sim, 0, 0, cw, ch, Math.min(1, p), 1, true);
-    const P = bench.pred, f = (v, k = 0) => v.toFixed(k).replace('.', ',');
+    const P = bench.pred, f = (v, k = 0) => v.toFixed(k);
     $('benchInfo').innerHTML =
-      `<b>${P.sb.name}</b> · ${f(P.sb.m, 2)} kg · vitesse à ${P.x} m : <b>${Math.round(P.V)} m/s</b> (bouche ${P.sb.v0}) · énergie ${f(0.5 * P.sb.m * P.V * P.V / 1e6, 2)} MJ<br>` +
-      `Plaque ${P.T} mm à ${P.ang}°${!P.sb.heat && !P.sb.he ? ` (normalisée ${Math.round(P.angN)}°)` : ''} → blindage effectif <b>${Math.round(P.eff)} mm</b> · pénétration <b>${Math.round(P.pen)} mm</b> · risque de ricochet ${Math.round(P.ric * 100)} %<br>` +
-      `Prédiction balistique : <b>${P.perforate ? 'perforation' : P.ric >= 0.5 ? 'ricochet' : 'non perforé'}</b> · la simulation du métal est calée sur la même vitesse limite`;
+      `<b>${P.sb.name}</b> · ${f(P.sb.m, 2)} kg · velocity at ${P.x} m: <b>${Math.round(P.V)} m/s</b> (muzzle ${P.sb.v0}) · energy ${f(0.5 * P.sb.m * P.V * P.V / 1e6, 2)} MJ<br>` +
+      `Plate ${P.T} mm at ${P.ang}°${!P.sb.heat && !P.sb.he ? ` (normalized ${Math.round(P.angN)}°)` : ''} → effective armor <b>${Math.round(P.eff)} mm</b> · penetration <b>${Math.round(P.pen)} mm</b> · ricochet risk ${Math.round(P.ric * 100)}%<br>` +
+      `Ballistic prediction: <b>${P.perforate ? 'penetration' : P.ric >= 0.5 ? 'ricochet' : 'no penetration'}</b> · the metal simulation is calibrated to the same ballistic limit`;
   }
 
   $('startBtn').onclick = () => {
@@ -4230,7 +4281,7 @@
     if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.code)) e.preventDefault();
     if (e.code === 'Escape' || e.code === 'KeyP') togglePause();
     if (e.code === 'KeyM') Sfx.toggle();
-    if (e.code === 'KeyH' && state !== 'menu') { hitcamOn = !hitcamOn; if (!hitcamOn) HitCam.stop(); showMsg(hitcamOn ? "Caméra d'impact activée" : "Caméra d'impact désactivée", '#bcd8ff', 1.4); }
+    if (e.code === 'KeyH' && state !== 'menu') { hitcamOn = !hitcamOn; if (!hitcamOn) HitCam.stop(); showMsg(hitcamOn ? 'Impact camera on' : 'Impact camera off', '#bcd8ff', 1.4); }
     if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyV') && state !== 'menu') setSight(!sight.on);
     if (e.code === 'KeyC' && W3D && state !== 'menu') {
       setSight(false);
@@ -4242,7 +4293,7 @@
     const dm = e.code.match(/^(?:Digit|Numpad)([1-7])$/);
     if (dm) {
       const key = SHELL_KEYS[Number(dm[1]) - 1];
-      if (player.ammo[key] <= 0) showMsg(`Plus d'obus ${SHELLS[key].name.toLowerCase()}`, '#ff9a7a', 1.2);
+      if (player.ammo[key] <= 0) showMsg(`Out of ${SHELLS[key].name.toLowerCase()} rounds`, '#ff9a7a', 1.2);
       else if (key !== player.shell) {
         player.shell = key;
         player.reloadT = player.reloadMax = player.T.reload; // changer d'obus impose de recharger
@@ -4252,12 +4303,12 @@
     if (e.code === 'KeyE' && state === 'play') deploySmoke(player);
     if (e.code === 'KeyG') {
       const g = player.mg;
-      if (g.type === 'SmK' && g.ammoH <= 0) showMsg('Plus de bandes S.m.K.H.', '#ff9a7a', 1.2);
-      else { g.type = g.type === 'SmK' ? 'SmKH' : 'SmK'; showMsg(`Mitrailleuse : ${MG_AMMO[g.type].full}`, '#e9d9a6', 1.4); }
+      if (g.type === 'SmK' && g.ammoH <= 0) showMsg('No S.m.K.H. belts left', '#ff9a7a', 1.2);
+      else { g.type = g.type === 'SmK' ? 'SmKH' : 'SmK'; showMsg(`Machine gun: ${MG_AMMO[g.type].full}`, '#e9d9a6', 1.4); }
     }
     if (e.code === 'KeyU' && roleOk(player, 'commander')) {
       player.hatch = !player.hatch;
-      showMsg(player.hatch ? 'Chef de char sorti : meilleure vue, mais exposé aux balles' : 'Tourelle fermée', '#bcd8ff', 1.6);
+      showMsg(player.hatch ? 'Commander out: better vision, but exposed to bullets' : 'Buttoned up', '#bcd8ff', 1.6);
     }
   });
   addEventListener('keyup', e => { keys[e.code] = false; });
@@ -4321,7 +4372,7 @@
     hide('loading');
     if (state === 'menu') show('menu');
     Meta.sdk.loadingStop();
-    if (bonus) setTimeout(() => toast(`Prime de présence · jour ${Meta.P.streak} : +✪ ${fmt(bonus)}`), 600);
+    if (bonus) setTimeout(() => toast(`Daily login · day ${Meta.P.streak}: +✪ ${fmt(bonus)}`), 600);
   });
   addEventListener('pointerdown', () => { if (state === 'menu') playMusic(); }, { once: false });
   if (Q.has('debug')) {

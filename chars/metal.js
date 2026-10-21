@@ -8,10 +8,10 @@
 // - contact par pénalité entre particules non liées, couche absorbante sur les bords de la plaque
 const MetalSim = (() => {
   const MAT = {
-    rha: { name: 'acier de blindage', rho: 7850, E: 207e9, sy: 1.0e9, sc: 0.1, cp: 460 },
-    steel: { name: 'acier trempé', rho: 7850, E: 210e9, sy: 1.6e9, sc: 0.07, cp: 460 },
+    rha: { name: 'armor steel', rho: 7850, E: 207e9, sy: 1.0e9, sc: 0.1, cp: 460 },
+    steel: { name: 'hardened steel', rho: 7850, E: 210e9, sy: 1.6e9, sc: 0.07, cp: 460 },
     cap: { name: 'coiffe', rho: 7850, E: 205e9, sy: 0.9e9, sc: 0.12, cp: 460 },
-    wc: { name: 'carbure de tungstène', rho: 14500, E: 600e9, sy: 3.5e9, sc: 0.014, cp: 200 },
+    wc: { name: 'tungsten carbide', rho: 14500, E: 600e9, sy: 3.5e9, sc: 0.014, cp: 200 },
     cu: { name: 'cuivre', rho: 8900, E: 120e9, sy: 0.3e9, sc: 1.2, cp: 385 },
   };
   const MATS = Object.keys(MAT);
@@ -363,13 +363,13 @@ const MetalSim = (() => {
     grd.addColorStop(0, 'rgb(46,52,62)'); grd.addColorStop(0.25, 'rgb(40,80,150)'); grd.addColorStop(0.5, 'rgb(40,170,210)'); grd.addColorStop(0.75, 'rgb(230,220,80)'); grd.addColorStop(1, 'rgb(240,80,40)');
     ctx.fillStyle = grd; ctx.fillRect(gx, gy, 80, 6);
     ctx.font = '600 9px system-ui, sans-serif'; ctx.fillStyle = '#c8d2dc'; ctx.textAlign = 'left';
-    ctx.fillText('contrainte → limite élastique', gx - 4, gy + 17);
+    ctx.fillText('stress → yield strength', gx - 4, gy + 17);
     const grd2 = ctx.createLinearGradient(gx, 0, gx + 80, 0);
     grd2.addColorStop(0, 'rgb(240,120,40)'); grd2.addColorStop(1, 'rgb(255,250,220)');
     ctx.fillStyle = grd2; ctx.fillRect(gx, gy + 22, 80, 6);
-    ctx.fillStyle = '#c8d2dc'; ctx.fillText('échauffement 400 → 1 700 K', gx - 4, gy + 39);
+    ctx.fillStyle = '#c8d2dc'; ctx.fillText('heating 400 → 1,700 K', gx - 4, gy + 39);
     ctx.fillStyle = 'rgb(90,30,25)'; ctx.fillRect(gx, gy + 44, 10, 6);
-    ctx.fillStyle = '#c8d2dc'; ctx.fillText('matière rompue', gx + 14, gy + 50);
+    ctx.fillStyle = '#c8d2dc'; ctx.fillText('failed material', gx + 14, gy + 50);
     ctx.restore();
   }
   return { create, draw, MAT };

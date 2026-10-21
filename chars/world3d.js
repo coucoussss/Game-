@@ -461,7 +461,7 @@ void main(){
     const rr = (a, c) => a + R() * (c - a);
     const hex = h => G3.hex(h);
     const M = v => v / px, Yv = v => -v / px;
-    const snow = !!lv.snow, city = !!lv.city, desert = lv.name.startsWith('Désert'), forest = lv.name.startsWith('Forêt');
+    const snow = !!lv.snow, city = !!lv.city, desert = !!lv.desert, forest = !!lv.forest;
     const conifer = forest || snow;
     const wallCol = hex(lv.wall), roofCol = hex(lv.roof[0]);
     // sol (débordant de la carte, la texture s'étire sur les bords)
@@ -637,7 +637,7 @@ void main(){
     let s = (seed >>> 0) || 1;
     const R = () => (s = (s * 16807) % 2147483647) / 2147483647;
     const rr = (a, c) => a + R() * (c - a);
-    const snow = !!lv.snow, desert = lv.name.startsWith('Désert'), forest = lv.name.startsWith('Forêt'), city = !!lv.city;
+    const snow = !!lv.snow, desert = !!lv.desert, forest = !!lv.forest, city = !!lv.city;
     const leafBase = desert ? [0.42, 0.42, 0.27] : forest ? [0.18, 0.31, 0.1] : snow ? [0.13, 0.25, 0.15] : city ? [0.27, 0.33, 0.16] : [0.25, 0.4, 0.13];
     const leafTop = desert ? [0.56, 0.53, 0.34] : forest ? [0.3, 0.44, 0.13] : snow ? [0.2, 0.33, 0.19] : [0.46, 0.56, 0.2];
     const dead = desert ? [0.5, 0.42, 0.26] : [0.42, 0.36, 0.17];

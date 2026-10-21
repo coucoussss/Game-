@@ -18,7 +18,7 @@ const Meta = (() => {
         env = SDK.environment || 'crazygames';
         if (env === 'disabled') SDK = null;
       }
-    } catch (e) { console.warn('SDK CrazyGames indisponible', e); SDK = null; env = 'none'; }
+    } catch (e) { console.warn('CrazyGames SDK unavailable', e); SDK = null; env = 'none'; }
   }
   const call = (fn) => { try { if (SDK) fn(SDK); } catch (e) { console.warn(e); } };
   const sdk = {
@@ -72,8 +72,8 @@ const Meta = (() => {
   }
 
   // ===================== Contenu =====================
-  const RANKS = ['Soldat', 'Caporal', 'Caporal-chef', 'Sergent', 'Sergent-chef', 'Adjudant', 'Aspirant', 'Sous-lieutenant',
-    'Lieutenant', 'Capitaine', 'Commandant', 'Lieutenant-colonel', 'Colonel', 'Général de brigade', 'Général de division', 'Maréchal'];
+  const RANKS = ['Private', 'Corporal', 'Lance Sergeant', 'Sergeant', 'Staff Sergeant', 'Warrant Officer', 'Officer Cadet', 'Second Lieutenant',
+    'Lieutenant', 'Captain', 'Major', 'Lieutenant Colonel', 'Colonel', 'Brigadier General', 'Major General', 'Field Marshal'];
   const xpFor = lv => Math.round(300 * Math.pow(lv, 1.45)); // XP pour passer du niveau lv à lv + 1
   // Chars : prix en crédits et grade requis
   const TANKS = {
@@ -81,51 +81,54 @@ const Meta = (() => {
     medium: { price: 6000, lvl: 4 }, destroyer: { price: 8000, lvl: 5 }, heavy: { price: 11000, lvl: 7 }, kingtiger: { price: 18000, lvl: 10 },
   };
   // Camouflages : trois tons (couleur linéaire) et un motif (0 taches, 1 uni, 2 bandes,
-  // 3 embuscade, 4 lavis d'hiver). Prix en crédits ou en publicités (ads : nombre à regarder).
+  // 3 embuscade, 4 lavis d'hiver). Prix en crédits ou en publicités (ads : nombre à regarder) ;
+  // flav : phrase d'ambiance affichée sur la carte.
   const SKINS = [
-    { id: 'std', name: 'Standard 1944', rar: 'commun', price: 0, pat: 0, camo: [[0.33, 0.36, 0.22], [0.20, 0.25, 0.15], [0.36, 0.27, 0.17]] },
-    { id: 'gris', name: 'Gris Panzer 1940', rar: 'commun', price: 800, ads: 1, pat: 1, camo: [[0.15, 0.16, 0.16], [0.13, 0.14, 0.14], [0.19, 0.2, 0.2]] },
-    { id: 'jaune', name: 'Dunkelgelb d’usine', rar: 'commun', price: 900, ads: 1, pat: 1, camo: [[0.55, 0.46, 0.27], [0.5, 0.42, 0.25], [0.45, 0.38, 0.22]] },
-    { id: 'dak', name: 'Afrikakorps', rar: 'rare', price: 1800, ads: 2, pat: 0, camo: [[0.55, 0.45, 0.28], [0.5, 0.41, 0.25], [0.42, 0.36, 0.24]] },
-    { id: 'koursk', name: 'Koursk 1943', rar: 'rare', price: 2200, ads: 2, pat: 2, camo: [[0.52, 0.45, 0.27], [0.24, 0.27, 0.14], [0.36, 0.22, 0.13]] },
-    { id: 'hinter', name: 'Hinterhalt (embuscade)', rar: 'rare', price: 2600, ads: 2, pat: 3, camo: [[0.52, 0.45, 0.27], [0.18, 0.24, 0.12], [0.35, 0.2, 0.13]] },
-    { id: 'hiver', name: 'Lavis d’hiver', rar: 'rare', price: 2600, ads: 2, pat: 4, camo: [[0.8, 0.82, 0.82], [0.3, 0.33, 0.22], [0.36, 0.27, 0.17]] },
-    { id: 'tigre', name: 'Rayures du tigre', rar: 'épique', price: 4200, ads: 3, pat: 2, camo: [[0.58, 0.48, 0.26], [0.1, 0.1, 0.08], [0.4, 0.22, 0.12]] },
-    { id: 'disrupt', name: 'Disruptif tricolore', rar: 'épique', price: 4500, ads: 3, pat: 0, camo: [[0.6, 0.52, 0.32], [0.12, 0.18, 0.1], [0.42, 0.22, 0.13]] },
-    { id: 'nuit', name: 'Opération nocturne', rar: 'épique', price: 0, ads: 3, adOnly: true, pat: 3, camo: [[0.08, 0.09, 0.1], [0.05, 0.06, 0.07], [0.14, 0.15, 0.13]] },
-    { id: 'foret', name: 'Ardennes enneigées', rar: 'épique', price: 5200, ads: 4, pat: 4, camo: [[0.86, 0.88, 0.88], [0.18, 0.24, 0.12], [0.33, 0.22, 0.14]] },
-    { id: 'rouille', name: 'Épave restaurée', rar: 'légendaire', price: 9000, ads: 5, pat: 0, camo: [[0.36, 0.17, 0.08], [0.2, 0.1, 0.05], [0.48, 0.3, 0.14]] },
-    { id: 'or', name: 'Or du maréchal', rar: 'légendaire', price: 25000, pat: 1, camo: [[0.75, 0.55, 0.16], [0.6, 0.42, 0.1], [0.85, 0.68, 0.25]] },
-    { id: 'parade', name: 'Grande parade', rar: 'légendaire', price: 0, ads: 6, adOnly: true, pat: 2, camo: [[0.1, 0.1, 0.1], [0.55, 0.06, 0.05], [0.8, 0.78, 0.74]] },
+    { id: 'std', name: 'Standard Issue ’44', flav: 'Three-tone factory scheme. Honest steel.', rar: 'common', price: 0, pat: 0, camo: [[0.33, 0.36, 0.22], [0.20, 0.25, 0.15], [0.36, 0.27, 0.17]] },
+    { id: 'gris', name: 'Panzer Grey ’40', flav: 'The colour of the Blitzkrieg.', rar: 'common', price: 800, ads: 1, pat: 1, camo: [[0.15, 0.16, 0.16], [0.13, 0.14, 0.14], [0.19, 0.2, 0.2]] },
+    { id: 'jaune', name: 'Factory Dunkelgelb', flav: 'Fresh off the Henschel line.', rar: 'common', price: 900, ads: 1, pat: 1, camo: [[0.55, 0.46, 0.27], [0.5, 0.42, 0.25], [0.45, 0.38, 0.22]] },
+    { id: 'dak', name: 'Afrika Korps', flav: 'Sun-bleached sand, Tobruk 1942.', rar: 'rare', price: 1800, ads: 2, pat: 0, camo: [[0.55, 0.45, 0.28], [0.5, 0.41, 0.25], [0.42, 0.36, 0.24]] },
+    { id: 'koursk', name: 'Kursk Summer', flav: 'Striped for the largest tank battle ever fought.', rar: 'rare', price: 2200, ads: 2, pat: 2, camo: [[0.52, 0.45, 0.27], [0.24, 0.27, 0.14], [0.36, 0.22, 0.13]] },
+    { id: 'hinter', name: 'Hinterhalt Ambush', flav: 'Light-dapple dots. Vanish under the canopy.', rar: 'rare', price: 2600, ads: 2, pat: 3, camo: [[0.52, 0.45, 0.27], [0.18, 0.24, 0.12], [0.35, 0.2, 0.13]] },
+    { id: 'hiver', name: 'Winter Wash', flav: 'Lime whitewash brushed on in the field.', rar: 'rare', price: 2600, ads: 2, pat: 4, camo: [[0.8, 0.82, 0.82], [0.3, 0.33, 0.22], [0.36, 0.27, 0.17]] },
+    { id: 'tigre', name: 'Tiger Stripe', flav: 'Black slashes over yellow. Pure menace.', rar: 'epic', price: 4200, ads: 3, pat: 2, camo: [[0.58, 0.48, 0.26], [0.1, 0.1, 0.08], [0.4, 0.22, 0.12]] },
+    { id: 'disrupt', name: 'Tri-Tone Disruptor', flav: 'Breaks your outline at any range.', rar: 'epic', price: 4500, ads: 3, pat: 0, camo: [[0.6, 0.52, 0.32], [0.12, 0.18, 0.1], [0.42, 0.22, 0.13]] },
+    { id: 'nuit', name: 'Night Operation', flav: 'For crews who hunt after dark.', rar: 'epic', price: 0, ads: 3, adOnly: true, pat: 3, camo: [[0.08, 0.09, 0.1], [0.05, 0.06, 0.07], [0.14, 0.15, 0.13]] },
+    { id: 'foret', name: 'Snowbound Ardennes', flav: 'Winter 1944. The last offensive.', rar: 'epic', price: 5200, ads: 4, pat: 4, camo: [[0.86, 0.88, 0.88], [0.18, 0.24, 0.12], [0.33, 0.22, 0.14]] },
+    { id: 'rouille', name: 'Rust Revenant', flav: 'Pulled from the river, back for revenge.', rar: 'legendary', price: 9000, ads: 5, pat: 0, camo: [[0.36, 0.17, 0.08], [0.2, 0.1, 0.05], [0.48, 0.3, 0.14]] },
+    { id: 'or', name: 'Field Marshal Gold', flav: 'Solid gold plating. Fear is the point.', rar: 'legendary', price: 25000, pat: 1, camo: [[0.75, 0.55, 0.16], [0.6, 0.42, 0.1], [0.85, 0.68, 0.25]] },
+    { id: 'parade', name: 'Grand Parade', flav: 'Black, crimson and bone. Made to be seen.', rar: 'legendary', price: 0, ads: 6, adOnly: true, pat: 2, camo: [[0.1, 0.1, 0.1], [0.55, 0.06, 0.05], [0.8, 0.78, 0.74]] },
   ];
-  // Pièces : trois niveaux par char. Effet par niveau ; coût en crédits, ou niveau + 1 publicités.
+  // Pièces : trois niveaux par char (Mk I à III). Effet par niveau ; coût en crédits, ou niveau + 1 publicités.
   const PARTS = [
-    { id: 'engine', name: 'Moteur', ic: '⚙', desc: 'Préparation, carburateurs, régulateur : +8 % de puissance par niveau', k: 0.08, cost: [1200, 2800, 5500] },
-    { id: 'gun', name: 'Munitions', ic: '◎', desc: 'Obus de série choisie, poudre neuve : +4 % de perforation par niveau', k: 0.04, cost: [1500, 3200, 6500] },
-    { id: 'armor', name: 'Blindage additionnel', ic: '▣', desc: 'Maillons de chenille et plaques soudées : +6 % d’épaisseur par niveau', k: 0.06, cost: [1400, 3000, 6000] },
-    { id: 'tracks', name: 'Chenilles', ic: '≋', desc: 'Crampons et barres de torsion neuves : +6 % d’adhérence en virage', k: 0.06, cost: [900, 2000, 4200] },
-    { id: 'optics', name: 'Optiques', ic: '◉', desc: 'Lunette traitée, épiscopes neufs : +6 % de vue, −6 % de dispersion', k: 0.06, cost: [1100, 2500, 5000] },
-    { id: 'loader', name: 'Chargeur entraîné', ic: '↻', desc: 'Exercices de chargement, râtelier réaménagé : −5 % de rechargement, +1 obus au râtelier', k: 0.05, cost: [1300, 2900, 5800] },
+    { id: 'engine', name: 'Maybach Tuning Kit', short: 'Engine', ic: '⚙', desc: 'Ported heads, twin carbs, governor removed: +8% horsepower per level', k: 0.08, cost: [1200, 2800, 5500] },
+    { id: 'gun', name: 'Select-Lot Ammunition', short: 'Gun', ic: '◎', desc: 'Hand-picked shell lots, fresh propellant: +4% penetration per level', k: 0.04, cost: [1500, 3200, 6500] },
+    { id: 'armor', name: 'Field Armor Kit', short: 'Armor', ic: '▣', desc: 'Spare track links and welded plates: +6% armor thickness per level', k: 0.06, cost: [1400, 3000, 6000] },
+    { id: 'tracks', name: 'Grip Tracks', short: 'Tracks', ic: '≋', desc: 'Ice cleats and new torsion bars: +6% cornering grip per level', k: 0.06, cost: [900, 2000, 4200] },
+    { id: 'optics', name: 'Zeiss Optics', short: 'Optics', ic: '◉', desc: 'Coated gunsight, new periscopes: +6% view range, −6% dispersion per level', k: 0.06, cost: [1100, 2500, 5000] },
+    { id: 'loader', name: 'Veteran Loader', short: 'Loader', ic: '↻', desc: 'Loading drills, rearranged ready rack: −5% reload time, +1 ready round per level', k: 0.05, cost: [1300, 2900, 5800] },
   ];
   // Roue quotidienne : poids relatifs
   const WHEEL = [
     { t: '250 ✪', c: 250, w: 22, col: '#3b4a2c' }, { t: '500 ✪', c: 500, w: 18, col: '#5a4a24' },
-    { t: 'Kit de réparation', kit: 1, w: 12, col: '#2c3e4a' }, { t: '1 000 ✪', c: 1000, w: 12, col: '#4a2c2c' },
-    { t: 'Gains × 2', x2: 2, w: 12, col: '#3a2c4a' }, { t: '2 500 ✪', c: 2500, w: 7, col: '#2c4a3e' },
-    { t: 'Camouflage', skin: true, w: 6, col: '#4a3a1c' }, { t: '10 000 ✪', c: 10000, w: 1.5, col: '#6a5210' },
+    { t: 'Repair Kit', kit: 1, w: 12, col: '#2c3e4a' }, { t: '1,000 ✪', c: 1000, w: 12, col: '#4a2c2c' },
+    { t: '2× Rewards', x2: 2, w: 12, col: '#3a2c4a' }, { t: '2,500 ✪', c: 2500, w: 7, col: '#2c4a3e' },
+    { t: 'Camo Skin', skin: true, w: 6, col: '#4a3a1c' }, { t: '10,000 ✪', c: 10000, w: 1.5, col: '#6a5210' },
   ];
   // Missions du jour (trois tirées au sort chaque jour)
   const MISSIONS = [
-    { id: 'kill5', t: 'Détruire 5 chars ennemis', ev: 'kill', goal: 5, reward: 600 },
-    { id: 'kill12', t: 'Détruire 12 chars ennemis', ev: 'kill', goal: 12, reward: 1500 },
-    { id: 'pen15', t: 'Réussir 15 perforations', ev: 'pen', goal: 15, reward: 700 },
-    { id: 'crew20', t: 'Neutraliser 20 équipiers', ev: 'crew', goal: 20, reward: 800 },
-    { id: 'cmd2', t: 'Abattre 2 chefs de char à découvert', ev: 'cmd', goal: 2, reward: 900 },
-    { id: 'win3', t: 'Gagner 3 batailles', ev: 'win', goal: 3, reward: 1000 },
-    { id: 'wave5', t: 'Atteindre la vague 5 en survie', ev: 'wave', goal: 5, reward: 1200, max: true },
-    { id: 'ric5', t: 'Encaisser 5 ricochets sans être détruit', ev: 'ricself', goal: 5, reward: 500 },
-    { id: 'det2', t: 'Faire détoner 2 soutes à munitions', ev: 'det', goal: 2, reward: 1100 },
+    { id: 'kill5', t: 'Destroy 5 enemy tanks', ev: 'kill', goal: 5, reward: 600 },
+    { id: 'kill12', t: 'Destroy 12 enemy tanks', ev: 'kill', goal: 12, reward: 1500 },
+    { id: 'pen15', t: 'Score 15 penetrating hits', ev: 'pen', goal: 15, reward: 700 },
+    { id: 'crew20', t: 'Knock out 20 crew members', ev: 'crew', goal: 20, reward: 800 },
+    { id: 'cmd2', t: 'Snipe 2 exposed tank commanders', ev: 'cmd', goal: 2, reward: 900 },
+    { id: 'win3', t: 'Win 3 battles', ev: 'win', goal: 3, reward: 1000 },
+    { id: 'wave5', t: 'Reach wave 5 in Survival', ev: 'wave', goal: 5, reward: 1200, max: true },
+    { id: 'ric5', t: 'Bounce 5 shots off your armor', ev: 'ricself', goal: 5, reward: 500 },
+    { id: 'det2', t: 'Detonate 2 ammo racks', ev: 'det', goal: 2, reward: 1100 },
   ];
+  const RARITY = { common: 'Common', rare: 'Rare', epic: 'Epic', legendary: 'Legendary' };
+  const MK = ['Stock', 'Mk I', 'Mk II', 'Mk III'];
   const STREAK = [200, 300, 450, 600, 800, 1000, 2000]; // récompenses de connexion, jours 1 à 7
 
   // ===================== Profil =====================
@@ -264,9 +267,9 @@ const Meta = (() => {
     if (p.kit) P.kits += p.kit;
     if (p.x2) P.x2 += p.x2;
     if (p.skin) {
-      const left = SKINS.filter(s => !P.skins.includes(s.id) && s.rar !== 'légendaire');
-      if (left.length) { const s = left[Math.floor(Math.random() * left.length)]; P.skins.push(s.id); txt = `Camouflage « ${s.name} »`; }
-      else { P.credits += 3000; txt = '3 000 ✪ (tous les camouflages possédés)'; }
+      const left = SKINS.filter(s => !P.skins.includes(s.id) && s.rar !== 'legendary');
+      if (left.length) { const s = left[Math.floor(Math.random() * left.length)]; P.skins.push(s.id); txt = `Camo: ${s.name}`; }
+      else { P.credits += 3000; txt = '3,000 ✪ (all camos owned)'; }
     }
     if (p.c >= 2500 || p.skin) sdk.happytime();
     save();
@@ -288,7 +291,7 @@ const Meta = (() => {
   }
 
   return {
-    sdk, midgame, rewarded, hooks, RANKS, TANKS, SKINS, PARTS, WHEEL, MISSIONS, STREAK, xpFor, rankName,
+    sdk, midgame, rewarded, hooks, RANKS, RARITY, MK, TANKS, SKINS, PARTS, WHEEL, MISSIONS, STREAK, xpFor, rankName,
     get P() { return P; }, save, addXP, buyTank, canBuyTank, buySkin, grantSkin, selectSkin, skinOf,
     featured, skinPrice, skinAd, adsLeft, partLv, buyPart, partAd, mods,
     dailyRoll, track, claim, canSpinFree, spinResult, applyPrize, battleEnd,

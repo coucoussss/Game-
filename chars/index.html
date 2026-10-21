@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>Front d'Acier</title>
+<title>Steel Front – WWII Tank Battles</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -81,7 +81,7 @@
   .card:hover { transform: translateY(-2px); border-color: rgba(233, 196, 106, 0.4); }
   .card.sel { border-color: var(--gold); background: linear-gradient(160deg, rgba(233, 196, 106, 0.14), var(--glass) 60%); box-shadow: 0 0 0 1px rgba(233, 196, 106, 0.3), 0 10px 30px rgba(0, 0, 0, 0.4); }
   .card.locked { cursor: pointer; }
-  .card.locked .thumb { filter: grayscale(1) brightness(0.55); }
+  .card.locked .thumb { filter: grayscale(0.8) brightness(0.8); }
   .card b { display: block; font-family: var(--head); font-size: 17px; font-weight: 600; letter-spacing: 0.04em; color: #f6eed6; }
   .card small { color: var(--mute); font-size: 12px; line-height: 1.35; display: block; margin-top: 2px; }
   .card .tag { z-index: 2; position: absolute; top: 8px; right: 8px; font-family: var(--head); font-size: 11px; letter-spacing: 0.08em; padding: 3px 8px; border-radius: 999px; background: rgba(0, 0, 0, 0.55); border: 1px solid var(--line); color: var(--gold); }
@@ -147,7 +147,6 @@
   .part .pb .btn { padding: 6px 10px; font-size: 11px; min-width: 104px; }
   .skin { position: relative; }
   .skin .r { font-family: var(--head); letter-spacing: 0.1em; text-transform: uppercase; font-size: 10px; }
-  .r-commun { color: #b9b4a2; } .r-rare { color: #7fc2ff; } .r-épique { color: #c49bff; } .r-légendaire { color: var(--gold); }
   .help { display: grid; grid-template-columns: 1fr; gap: 6px; font-size: 13px; color: #c9c4b2; }
   .help kbd { background: #2b2f23; border: 1px solid #4a503b; border-bottom-width: 2px; border-radius: 4px; padding: 1px 6px; font-family: var(--body); font-size: 12px; color: #efe3bf; }
   .opt { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 14px; border-radius: 12px; background: var(--glass); border: 1px solid var(--line2); margin-bottom: 8px; }
@@ -202,6 +201,97 @@
   .toast { padding: 12px 22px; border-radius: 12px; background: var(--glass2); border: 1px solid var(--gold); font-family: var(--head); font-size: 17px; letter-spacing: 0.05em; box-shadow: var(--sh); animation: toast 3.2s ease forwards; }
   @keyframes toast { 0% { opacity: 0; transform: translateY(-14px); } 10%, 85% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(-8px); } }
 
+
+  /* ---------- boutique : rareté, cadres animés, offres, publicités ---------- */
+  :root { --c-common: #c9c2aa; --c-rare: #4fb0ff; --c-epic: #b57bff; --c-legendary: #ffc23d; }
+  @property --a { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+  .rar-common { --rc: var(--c-common); } .rar-rare { --rc: var(--c-rare); } .rar-epic { --rc: var(--c-epic); } .rar-legendary { --rc: var(--c-legendary); }
+  .rib { display: inline-flex; align-items: center; gap: 5px; font-family: var(--head); font-size: 9.5px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; padding: 3px 8px 3px 7px; border-radius: 4px; color: #0b0c08; background: linear-gradient(180deg, color-mix(in srgb, var(--rc) 70%, #fff), var(--rc)); box-shadow: 0 0 12px color-mix(in srgb, var(--rc) 55%, transparent); }
+  .rib::before { content: '◆'; font-size: 8px; }
+  .rar-legendary .rib::before { content: '★'; }
+  .skins { grid-template-columns: repeat(auto-fill, minmax(146px, 1fr)); gap: 10px; }
+  .skin { --rc: var(--c-common); position: relative; overflow: hidden; isolation: isolate; padding: 0 0 10px; text-align: left; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--rc) 40%, transparent);
+    background: radial-gradient(120% 70% at 50% 0%, color-mix(in srgb, var(--rc) 22%, transparent), transparent 70%), linear-gradient(180deg, #161812, #0b0c09);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 10px 24px rgba(0, 0, 0, 0.5); transition: transform .18s, box-shadow .18s, border-color .18s; }
+  .skin:hover { transform: translateY(-3px) scale(1.015); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 14px 30px rgba(0, 0, 0, 0.55), 0 0 24px color-mix(in srgb, var(--rc) 35%, transparent); }
+  .skin .sw { height: 78px; margin: 0; border-radius: 0; position: relative; overflow: hidden; }
+  .skin .sw::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0, 0, 0, 0) 60%, #11130e 100%), linear-gradient(90deg, transparent, color-mix(in srgb, var(--rc) 25%, transparent), transparent); mix-blend-mode: normal; }
+  .skin .rib { position: absolute; left: 8px; top: 62px; z-index: 3; }
+  .skin b { padding: 12px 10px 0; font-family: var(--head); font-size: 14px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: #fbf3da; line-height: 1.1; }
+  .skin .fl { display: block; padding: 3px 10px 0; font-size: 10.5px; font-style: italic; line-height: 1.35; color: var(--mute); min-height: 29px; }
+  .skin .st { display: block; padding: 6px 10px 0; font-family: var(--head); font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--green); }
+  .skin.sel { border-color: var(--green); box-shadow: 0 0 0 1px rgba(143, 212, 106, 0.5), 0 0 26px rgba(143, 212, 106, 0.25), 0 10px 24px rgba(0, 0, 0, 0.5); }
+  .skin.sel .st::before { content: '● '; }
+  .skin.prev { border-color: var(--blue); box-shadow: 0 0 0 1px rgba(127, 194, 255, 0.6), 0 0 26px rgba(127, 194, 255, 0.3); }
+  .skin .act { display: flex; flex-direction: column; gap: 5px; margin: 8px 8px 0; }
+  .skin .act .btn { padding: 7px 6px; font-size: 11px; letter-spacing: 0.08em; border-radius: 8px; }
+  /* reflet qui balaie les cartes épiques et légendaires */
+  .skin.rar-epic::after, .skin.rar-legendary::after, .tcard.rar-epic::after, .tcard.rar-legendary::after { content: ''; position: absolute; inset: -40% -60%; z-index: 4; pointer-events: none; background: linear-gradient(105deg, transparent 42%, rgba(255, 255, 255, 0.16) 48%, rgba(255, 255, 255, 0.04) 52%, transparent 58%); transform: translateX(-60%); animation: sheen 3.6s ease-in-out infinite; }
+  .skin.rar-legendary::after, .tcard.rar-legendary::after { background: linear-gradient(105deg, transparent 40%, rgba(255, 236, 170, 0.3) 48%, rgba(255, 255, 255, 0.08) 52%, transparent 60%); animation-duration: 2.8s; }
+  @keyframes sheen { 0%, 35% { transform: translateX(-60%); } 75%, 100% { transform: translateX(60%); } }
+  /* cadre doré tournant des légendaires */
+  .skin.rar-legendary::before, .tcard.rar-legendary::before { content: ''; position: absolute; inset: 0; z-index: 5; pointer-events: none; padding: 2px; border-radius: inherit;
+    background: conic-gradient(from var(--a), #ffc23d, #fff4c4, #b87414, #ffdf7a, #7a4a08, #ffc23d);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; animation: spinb 4s linear infinite; }
+  .rar-epic.skin, .rar-epic.tcard { border-color: color-mix(in srgb, var(--c-epic) 65%, transparent); }
+  @keyframes spinb { to { --a: 360deg; } }
+  /* offre du jour */
+  .deal { position: absolute; z-index: 6; top: 12px; right: -30px; width: 120px; text-align: center; transform: rotate(35deg); font-family: var(--head); font-size: 10px; font-weight: 700; letter-spacing: 0.12em; padding: 3px 0; color: #fff; background: linear-gradient(180deg, #ff5a3c, #c41f10); box-shadow: 0 2px 10px rgba(255, 60, 30, 0.6); animation: dealp 1.4s ease-in-out infinite; }
+  @keyframes dealp { 50% { filter: brightness(1.35); } }
+  .strike { text-decoration: line-through; text-decoration-color: var(--red); color: var(--dim); margin-right: 5px; font-size: 0.9em; }
+  /* boutons d'achat : crédits et publicités */
+  .btn.buy { border: 0; color: #2a1d05; background: linear-gradient(180deg, #ffe7a6, #e9c46a 50%, #b8913a); box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.25), 0 4px 14px rgba(233, 180, 80, 0.25); }
+  .btn.buy:disabled { background: #2e2c24; color: #7d7764; box-shadow: none; }
+  .btn.ad { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 0; color: #fff; background: linear-gradient(180deg, #3d8bff, #6a3dff); box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.28), 0 4px 16px rgba(90, 80, 255, 0.35); overflow: hidden; }
+  .btn.ad::before { content: '▶'; display: grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; font-size: 7px; padding-left: 1px; background: rgba(255, 255, 255, 0.95); color: #4a3dff; vertical-align: 0; flex: none; }
+  .btn.ad::after { content: ''; position: absolute; inset: 0; background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, 0.35) 50%, transparent 65%); transform: translateX(-100%); animation: adsh 2.6s ease-in-out infinite; }
+  @keyframes adsh { 0%, 50% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+  .btn.ad:disabled::after { animation: none; }
+  .btn.ad { white-space: nowrap; }
+  .adp { display: inline-flex; gap: 3px; margin-left: 2px; }
+  .adp.n { font-size: 10px; padding: 1px 6px; border-radius: 999px; background: rgba(255, 255, 255, 0.2); letter-spacing: 0.04em; }
+  .adp i { width: 7px; height: 7px; border-radius: 50%; background: rgba(255, 255, 255, 0.25); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4); }
+  .adp i.on { background: #fff; box-shadow: 0 0 6px #fff; }
+  /* chars : cadre de rareté, verrou */
+  .tcard { --rc: var(--c-common); overflow: hidden; isolation: isolate; border-color: color-mix(in srgb, var(--rc) 35%, transparent); background: radial-gradient(120% 60% at 50% 0%, color-mix(in srgb, var(--rc) 18%, transparent), transparent 70%), var(--glass); }
+  .tcard .rib { margin-top: 5px; }
+  .tcard .lockov { position: absolute; z-index: 3; left: 8px; right: 8px; top: 8px; aspect-ratio: 480 / 260; border-radius: 10px; display: grid; place-content: center; justify-items: center; gap: 4px; background: radial-gradient(circle, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.15) 75%); text-shadow: 0 1px 6px #000; font-family: var(--head); letter-spacing: 0.1em; text-transform: uppercase; }
+  .tcard .lockov .lk { font-size: 22px; filter: drop-shadow(0 2px 6px #000); }
+  .tcard .lockov span { font-size: 11px; color: var(--amber); }
+  .tcard .lockov b { font-size: 15px; color: var(--gold); }
+  .card.tcard.sel { border-color: var(--rc); box-shadow: 0 0 0 1px color-mix(in srgb, var(--rc) 60%, transparent), 0 0 30px color-mix(in srgb, var(--rc) 30%, transparent); }
+  #tankBuy .btn { font-size: 17px; padding: 14px 28px; }
+  /* pièces */
+  .part { --rc: var(--gold); position: relative; overflow: hidden; gap: 14px; padding: 12px 14px; border-radius: 14px; background: linear-gradient(100deg, rgba(233, 196, 106, 0.08), transparent 40%), var(--glass); border: 1px solid var(--line2); }
+  .part.l1 { --rc: var(--c-rare); } .part.l2 { --rc: var(--c-epic); } .part.l3 { --rc: var(--c-legendary); border-color: rgba(255, 194, 61, 0.45); }
+  .part .pi { width: 48px; height: 48px; font-size: 24px; border-radius: 12px; color: var(--rc); background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--rc) 30%, transparent), rgba(0, 0, 0, 0.3)); border: 1px solid color-mix(in srgb, var(--rc) 50%, transparent); box-shadow: 0 0 18px color-mix(in srgb, var(--rc) 25%, transparent); text-shadow: 0 0 10px var(--rc); }
+  .part .pt b { font-size: 15.5px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .part .mk { margin-left: 8px; font-family: var(--head); font-size: 10px; letter-spacing: 0.14em; padding: 2px 7px; border-radius: 4px; color: #0b0c08; background: var(--rc); vertical-align: 2px; }
+  .part.l0 .mk { background: rgba(255, 255, 255, 0.14); color: var(--mute); }
+  .pips { gap: 5px; margin-top: 8px; }
+  .pips i { position: relative; width: 38px; height: 7px; border-radius: 2px; transform: skewX(-18deg); }
+  .pips i.on { background: linear-gradient(90deg, color-mix(in srgb, var(--rc) 60%, #000), var(--rc)); box-shadow: 0 0 10px color-mix(in srgb, var(--rc) 60%, transparent); }
+  .pips i.nx { background: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.22) 0 4px, rgba(255, 255, 255, 0.06) 4px 8px); }
+  .part .pb .btn { padding: 8px 10px; font-size: 11px; min-width: 122px; border-radius: 8px; }
+  .part .maxed { font-family: var(--head); font-size: 13px; letter-spacing: 0.2em; color: var(--c-legendary); text-shadow: 0 0 12px rgba(255, 194, 61, 0.7); padding: 0 8px; }
+  /* célébration de déblocage */
+  #unlock { z-index: 55; align-items: center; justify-content: center; background: radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--rc) 30%, rgba(5, 6, 4, 0.7)), rgba(3, 4, 2, 0.94) 65%); overflow: hidden; }
+  #unlock .rays { position: absolute; left: 50%; top: 44%; width: 1600px; height: 1600px; margin: -800px 0 0 -800px; background: repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--rc) 22%, transparent) 0 6deg, transparent 6deg 18deg); -webkit-mask: radial-gradient(circle, #000 10%, transparent 55%); mask: radial-gradient(circle, #000 10%, transparent 55%); animation: rays 18s linear infinite; }
+  @keyframes rays { to { transform: rotate(360deg); } }
+  #unlock .ub { position: relative; text-align: center; padding: 0 20px; animation: ubin .6s cubic-bezier(.2, 1.5, .4, 1); }
+  @keyframes ubin { from { transform: scale(0.6); opacity: 0; } to { transform: none; opacity: 1; } }
+  #unlock .uk { font-family: var(--head); font-size: 14px; letter-spacing: 0.5em; text-transform: uppercase; color: var(--rc); text-shadow: 0 0 18px var(--rc); }
+  #unlock .ui { position: relative; width: min(380px, 80vw); aspect-ratio: 480 / 260; margin: 18px auto; border-radius: 18px; overflow: hidden; border: 2px solid var(--rc); box-shadow: 0 0 60px color-mix(in srgb, var(--rc) 55%, transparent), 0 20px 50px rgba(0, 0, 0, 0.6); animation: ufl 2.4s ease-in-out infinite; }
+  #unlock .ui img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  #unlock .ui.icon { display: grid; place-items: center; font-size: 110px; color: var(--rc); text-shadow: 0 0 40px var(--rc); background: radial-gradient(circle, color-mix(in srgb, var(--rc) 25%, #0c0d0a), #070806); }
+  @keyframes ufl { 50% { transform: translateY(-6px) rotate(-0.6deg); } }
+  #unlock .un { font-family: var(--head); font-size: clamp(30px, 6vw, 54px); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; line-height: 1; background: linear-gradient(180deg, #fff, color-mix(in srgb, var(--rc) 70%, #fff) 55%, var(--rc)); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 3px 0 rgba(0, 0, 0, 0.5)); }
+  #unlock .rib { margin-top: 12px; font-size: 11px; padding: 4px 12px; }
+  #unlock .uf { color: var(--mute); font-style: italic; margin-top: 10px; font-size: 14px; }
+  #unlock .btn { margin-top: 22px; font-size: 18px; padding: 14px 44px; }
+  .confetti { position: absolute; top: -20px; width: 8px; height: 14px; border-radius: 2px; animation: conf linear forwards; }
+  @keyframes conf { to { transform: translate3d(var(--dx), 110vh, 0) rotate(var(--rot)); } }
+
   @media (max-width: 900px) {
     .tabs { order: 3; width: 100%; margin-left: 0; overflow-x: auto; flex-wrap: nowrap; }
     .topbar { flex-wrap: wrap; padding: 10px 14px; }
@@ -216,127 +306,127 @@
 <canvas id="game"></canvas>
 
 <div id="loading" class="screen on">
-  <div class="logo"><span class="l1">Front d'Acier</span><span class="l2">Bataille de chars · 1943 – 1945</span></div>
+  <div class="logo"><span class="l1">Steel Front</span><span class="l2">Tank Warfare · 1943 – 1945</span></div>
   <div class="loadbar"><i></i></div>
-  <div class="loadtip">Préparation des chars, de la balistique et du champ de bataille…</div>
+  <div class="loadtip">Fuelling tanks, loading shells, surveying the battlefield…</div>
 </div>
 
 <div id="menu" class="screen">
   <div id="showcase"><canvas id="viewer"></canvas></div>
   <div class="topbar">
-    <div class="logo"><span class="l1">Front d'Acier</span><span class="l2"></span></div>
+    <div class="logo"><span class="l1">Steel Front</span><span class="l2"></span></div>
     <nav class="tabs" id="tabs">
-      <button class="tab on" data-tab="play">Jouer</button>
+      <button class="tab on" data-tab="play">Battle</button>
       <button class="tab" data-tab="garage">Garage</button>
-      <button class="tab" data-tab="wheel">Roue<span class="dot" id="dotWheel"></span></button>
+      <button class="tab" data-tab="wheel">Wheel<span class="dot" id="dotWheel"></span></button>
       <button class="tab" data-tab="missions">Missions<span class="dot" id="dotMissions"></span></button>
-      <button class="tab" data-tab="atelier">Atelier</button>
+      <button class="tab" data-tab="atelier">Workshop</button>
       <button class="tab" data-tab="options">Options</button>
     </nav>
     <div class="spacer"></div>
-    <div class="rank" title="Grade et expérience"><div class="lv" id="rkLv"><span>1</span></div><div><b id="rkName">Soldat</b><small id="rkXp">0 / 300 XP</small></div></div>
-    <div class="pill" title="Kits de réparation"><span class="ic kit">✚</span><span id="kitsN">0</span></div>
-    <div class="pill" title="Crédits"><span class="ic">✪</span><span id="credN">0</span></div>
+    <div class="rank" title="Rank and experience"><div class="lv" id="rkLv"><span>1</span></div><div><b id="rkName">Private</b><small id="rkXp">0 / 300 XP</small></div></div>
+    <div class="pill" title="Repair kits"><span class="ic kit">✚</span><span id="kitsN">0</span></div>
+    <div class="pill" title="Credits"><span class="ic">✪</span><span id="credN">0</span></div>
   </div>
-  <div class="vbar"><button id="xrayBtn" class="btn small alt">☢ Rayons X</button><span>Glisse pour tourner autour du char</span></div>
+  <div class="vbar"><button id="xrayBtn" class="btn small alt">☢ X-Ray</button><span>Drag to orbit the tank</span></div>
   <div class="content">
     <div class="side">
       <section class="panel on" id="tab-play">
-        <div class="ptitle">Au combat</div>
-        <div class="psub">Choisis un mode, un champ de bataille, puis lance l'assaut.</div>
-        <h2>Mode de jeu</h2>
+        <div class="ptitle">To Battle</div>
+        <div class="psub">Pick a mode and a battlefield, then roll out.</div>
+        <h2>Game mode</h2>
         <div id="modeCards" class="cards"></div>
-        <h2>Champ de bataille</h2>
+        <h2>Battlefield</h2>
         <div id="levelCards" class="cards"></div>
       </section>
       <section class="panel" id="tab-garage">
         <div class="ptitle">Garage</div>
-        <div class="psub">Sept chars d'après les plans d'époque. Achète-les avec tes crédits et habille-les.</div>
+        <div class="psub">Seven tanks built from period blueprints. Unlock them, upgrade them, dress them to kill.</div>
         <div id="tankCards" class="cards"></div>
         <div id="tankBuy" class="btns" style="justify-content:flex-start"></div>
-        <h2>Pièces et préparation</h2>
+        <h2>Upgrades</h2>
         <div id="partList"></div>
-        <h2>Camouflages</h2>
-        <div class="psub" id="skinHint" style="margin:-4px 0 10px">Clique sur un camouflage pour l'essayer sur la vitrine.</div>
+        <h2>Camo Collection</h2>
+        <div class="psub" id="skinHint" style="margin:-4px 0 10px">Click a camo to try it on the showcase.</div>
         <div id="skinCards" class="skins"></div>
         <div id="specs"></div>
       </section>
       <section class="panel" id="tab-wheel">
-        <div class="ptitle">Roue du quartier-maître</div>
-        <div class="psub">Un tirage gratuit par jour. Crédits, kits de réparation, gains doublés, camouflages.</div>
+        <div class="ptitle">Quartermaster's Wheel</div>
+        <div class="psub">One free spin every day. Credits, repair kits, double rewards and camos.</div>
         <div class="wheelWrap"><canvas id="wheel" width="840" height="840"></canvas><div class="pin"></div></div>
         <div id="wheelPrize"></div>
-        <div class="btns"><button class="btn" id="spinFree">Tirage gratuit</button><button class="btn ad" id="spinAd">Tirage bonus</button></div>
+        <div class="btns"><button class="btn" id="spinFree">Free spin</button><button class="btn ad" id="spinAd">Bonus spin</button></div>
       </section>
       <section class="panel" id="tab-missions">
-        <div class="ptitle">Ordres du jour</div>
-        <div class="psub">Trois missions nouvelles chaque jour. Reviens chaque jour pour la prime de présence.</div>
+        <div class="ptitle">Daily Orders</div>
+        <div class="psub">Three new missions every day. Come back daily to grow your login bonus.</div>
         <h2>Missions</h2>
         <div id="missionList"></div>
-        <h2>Prime de présence</h2>
+        <h2>Login streak</h2>
         <div class="streak" id="streak"></div>
-        <h2>États de service</h2>
+        <h2>Service record</h2>
         <div id="career" class="help"></div>
       </section>
       <section class="panel" id="tab-atelier">
-        <div class="ptitle">Atelier</div>
-        <div class="psub">Banc d'essai du blindage, commandes et principes de la simulation.</div>
-        <h2>Banc d'essai : déformation du blindage</h2>
+        <div class="ptitle">Workshop</div>
+        <div class="psub">Armor test range, controls and how the simulation works.</div>
+        <h2>Test range: armor deformation</h2>
         <div id="benchWrap">
           <div class="benchCtl">
-            <label>Canon <select id="bGun"></select></label>
-            <label>Obus <select id="bShell"></select></label>
-            <label>Blindage <input id="bT" type="range" min="10" max="200" step="5" value="80"> <span id="bTv"></span></label>
-            <label>Inclinaison <input id="bA" type="range" min="0" max="75" step="1" value="30"> <span id="bAv"></span></label>
-            <label>Distance <input id="bD" type="range" min="50" max="1500" step="50" value="300"> <span id="bDv"></span></label>
-            <button id="bFire" class="btn small">💥 Tirer</button>
+            <label>Gun <select id="bGun"></select></label>
+            <label>Shell <select id="bShell"></select></label>
+            <label>Armor <input id="bT" type="range" min="10" max="200" step="5" value="80"> <span id="bTv"></span></label>
+            <label>Slope <input id="bA" type="range" min="0" max="75" step="1" value="30"> <span id="bAv"></span></label>
+            <label>Range <input id="bD" type="range" min="50" max="1500" step="50" value="300"> <span id="bDv"></span></label>
+            <button id="bFire" class="btn small">💥 Fire</button>
           </div>
           <canvas id="bench"></canvas>
           <div id="benchInfo"></div>
         </div>
-        <h2>Commandes</h2>
+        <h2>Controls</h2>
         <div class="help">
-          <div><kbd>Z</kbd><kbd>S</kbd> / <kbd>W</kbd><kbd>S</kbd> / <kbd>↑</kbd><kbd>↓</kbd> avancer, reculer · <kbd>Q</kbd><kbd>D</kbd> / <kbd>A</kbd><kbd>D</kbd> pivoter</div>
-          <div>Souris : viser en 3D, haut ou bas du char · clic : verrouiller le curseur</div>
-          <div>Clic gauche / <kbd>Espace</kbd> : tirer · <kbd>F</kbd> mitrailleuse · <kbd>G</kbd> type de balle</div>
-          <div><kbd>1</kbd>–<kbd>7</kbd> obus : AP, APHE, APCR, HEAT, HE, fumigène, mitraille</div>
-          <div><kbd>Maj</kbd> / <kbd>V</kbd> lunette du tireur · molette : grossissement ou zoom</div>
-          <div><kbd>U</kbd> sortir le chef de char · <kbd>E</kbd> fumigène · <kbd>C</kbd> caméra</div>
-          <div><kbd>H</kbd> caméra d'impact aux rayons X · <kbd>M</kbd> son · <kbd>Échap</kbd> / <kbd>P</kbd> pause</div>
+          <div><kbd>W</kbd><kbd>S</kbd> / <kbd>Z</kbd><kbd>S</kbd> / <kbd>↑</kbd><kbd>↓</kbd> forward, reverse · <kbd>A</kbd><kbd>D</kbd> / <kbd>Q</kbd><kbd>D</kbd> turn</div>
+          <div>Mouse: aim in 3D, high or low on the target · click: lock the cursor</div>
+          <div>Left click / <kbd>Space</kbd>: fire · <kbd>F</kbd> machine gun · <kbd>G</kbd> bullet type</div>
+          <div><kbd>1</kbd>–<kbd>7</kbd> shells: AP, APHE, APCR, HEAT, HE, smoke, canister</div>
+          <div><kbd>Shift</kbd> / <kbd>V</kbd> gunner's sight · wheel: magnification or zoom</div>
+          <div><kbd>U</kbd> commander out of hatch · <kbd>E</kbd> smoke launcher · <kbd>C</kbd> camera</div>
+          <div><kbd>H</kbd> X-ray impact camera · <kbd>M</kbd> sound · <kbd>Esc</kbd> / <kbd>P</kbd> pause</div>
         </div>
-        <h2>Réalisme</h2>
+        <h2>Realism</h2>
         <div class="help">
-          <div>Plaques inclinées : blindage effectif = épaisseur / cos(angle). Trop rasant : ricochet.</div>
-          <div>Balistique 3D : chute, traînée, perforation selon la vitesse d'impact.</div>
-          <div>Pas de points de vie : équipage, moteur, munitions, culasse, réservoirs.</div>
-          <div>Le blindage garde la trace des impacts et s'affaiblit autour.</div>
-          <div>Les tirs alliés blessent. Les buissons camouflent, mais tirer te révèle.</div>
+          <div>Sloped plates: effective armor = thickness / cos(angle). Too shallow: ricochet.</div>
+          <div>3D ballistics: drop, drag, penetration from impact velocity.</div>
+          <div>No hit points: crew, engine, ammo, breech and fuel tanks.</div>
+          <div>Armor keeps every scar and weakens around each impact.</div>
+          <div>Friendly fire hurts. Bushes hide you, but firing gives you away.</div>
         </div>
       </section>
       <section class="panel" id="tab-options">
         <div class="ptitle">Options</div>
-        <div class="psub">Son, image et confort de jeu.</div>
-        <div class="opt"><span>Effets sonores</span><input type="range" id="oSfx" min="0" max="1" step="0.05"></div>
-        <div class="opt"><span>Musique</span><input type="range" id="oMusic" min="0" max="1" step="0.05"></div>
-        <div class="opt"><span>Qualité graphique</span><select id="oQuality"><option value="haute">Haute</option><option value="moyenne">Moyenne</option><option value="basse">Basse</option></select></div>
-        <div class="opt"><span>Caméra d'impact aux rayons X</span><input type="checkbox" id="oHitcam"></div>
-        <div class="opt"><span>Plein écran</span><button class="btn small alt" id="oFull">Basculer</button></div>
-        <div class="btns" style="justify-content:flex-start"><button class="btn alt small" id="oReset">Effacer la progression</button></div>
+        <div class="psub">Sound, graphics and comfort.</div>
+        <div class="opt"><span>Sound effects</span><input type="range" id="oSfx" min="0" max="1" step="0.05"></div>
+        <div class="opt"><span>Music</span><input type="range" id="oMusic" min="0" max="1" step="0.05"></div>
+        <div class="opt"><span>Graphics quality</span><select id="oQuality"><option value="haute">High</option><option value="moyenne">Medium</option><option value="basse">Low</option></select></div>
+        <div class="opt"><span>X-ray impact camera</span><input type="checkbox" id="oHitcam"></div>
+        <div class="opt"><span>Fullscreen</span><button class="btn small alt" id="oFull">Toggle</button></div>
+        <div class="btns" style="justify-content:flex-start"><button class="btn alt small" id="oReset">Erase progress</button></div>
       </section>
     </div>
   </div>
   <div class="cta">
     <div class="sum"><b id="sumTank">Panzer IV</b><span id="sumInfo"></span></div>
-    <button id="startBtn">⚔ En avant</button>
+    <button id="startBtn">⚔ Deploy</button>
   </div>
 </div>
 
 <div id="result" class="screen center">
   <div class="box">
-    <h1 id="resTitle">VAGUE REMPORTÉE</h1>
+    <h1 id="resTitle">WAVE WON</h1>
     <div class="sub" id="resSub"></div>
     <table id="resTable"></table>
-    <div class="rewards"><div class="rw"><small>Crédits</small><b id="rwCred">0</b></div><div class="rw xp"><small>Expérience</small><b id="rwXp">0</b></div></div>
+    <div class="rewards"><div class="rw"><small>Credits</small><b id="rwCred">0</b></div><div class="rw xp"><small>Experience</small><b id="rwXp">0</b></div></div>
     <div class="lvup" id="lvUp"></div>
     <div class="btns" id="resBtns"></div>
   </div>
@@ -346,26 +436,27 @@
   <div class="box">
     <h1>PAUSE</h1>
     <div class="btns">
-      <button class="btn" id="resumeBtn">Reprendre</button>
-      <button class="btn alt" id="quitBtn">Quitter la bataille</button>
+      <button class="btn" id="resumeBtn">Resume</button>
+      <button class="btn alt" id="quitBtn">Leave battle</button>
     </div>
   </div>
 </div>
 
 <div id="revive" class="screen center">
   <div class="box">
-    <h1 style="color:var(--red)">CHAR DÉTRUIT</h1>
-    <div class="sub">Ton équipage peut être sauvé : remets le char en état et reprends le combat.</div>
+    <h1 style="color:var(--red)">TANK KNOCKED OUT</h1>
+    <div class="sub">Your crew survived. Patch her up and get back in the fight.</div>
     <div class="ring" id="revRing"><span id="revN">8</span></div>
     <div class="btns">
-      <button class="btn ad" id="revAd">Réparer (publicité)</button>
-      <button class="btn" id="revKit">Kit de réparation</button>
-      <button class="btn alt" id="revNo">Non merci</button>
+      <button class="btn ad" id="revAd">Repair (ad)</button>
+      <button class="btn" id="revKit">Repair kit</button>
+      <button class="btn alt" id="revNo">No thanks</button>
     </div>
   </div>
 </div>
 
-<div id="adSim" class="screen"><span>PUBLICITÉ</span><b>3</b></div>
+<div id="adSim" class="screen"><span>ADVERTISEMENT</span><b>3</b></div>
+<div id="unlock" class="screen"><div class="rays"></div><div class="ub"><div class="uk" id="uKind"></div><div class="ui" id="uImg"></div><div class="un" id="uName"></div><span class="rib" id="uRar"></span><div class="uf" id="uFlav"></div><div><button class="btn buy" id="uOk">Awesome!</button></div></div></div>
 <div id="toasts"></div>
 <audio id="menuMusic" src="music/menu.mp3" loop preload="none"></audio>
 

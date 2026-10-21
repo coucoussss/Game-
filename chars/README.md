@@ -1,4 +1,7 @@
-# 🪖 Front d'Acier
+# 🪖 Steel Front
+
+*Tank Warfare · 1943 – 1945* (anciennement *Front d'Acier*). L'interface du jeu est en anglais ;
+la documentation et le code restent commentés en français.
 
 Combat de chars d'assaut en 3D, en équipes de 5 contre 5 face à des IA. Le jeu tourne
 entièrement dans le navigateur (HTML5 Canvas et WebGL), sans aucune dépendance. Les chars sont
@@ -9,7 +12,7 @@ modélisés en 3D par le code et les sons sont synthétisés en temps réel (Web
 ## Lancer le jeu
 
 Ouvrir `chars/index.html` dans un navigateur récent, au clavier et à la souris.
-Le fichier `chars/front-dacier.html` contient tout le jeu en un seul fichier, à ouvrir directement.
+Le fichier `chars/steel-front.html` contient tout le jeu en un seul fichier, à ouvrir directement.
 
 ## Commandes
 
@@ -226,7 +229,7 @@ canon, avec la dispersion et le rechargement. La molette change le grossissement
 ## Publication sur CrazyGames
 
 Le jeu est prêt pour CrazyGames : téléverser le contenu du dossier `chars/` (ou l'archive
-`chars/dist/front-dacier-crazygames.zip`) comme jeu HTML5, `index.html` à la racine.
+`chars/dist/steel-front-crazygames.zip`) comme jeu HTML5, `index.html` à la racine.
 
 - **SDK CrazyGames v3** (`meta.js`) : `loadingStart` / `loadingStop` autour du chargement,
   `gameplayStart` / `gameplayStop` en début et fin de bataille, en pause et pendant les publicités,
@@ -235,28 +238,34 @@ Le jeu est prêt pour CrazyGames : téléverser le contenu du dossier `chars/` (
 - **Publicités** : une publicité de mi-partie au plus toutes les 3 minutes, seulement entre deux
   batailles (jamais pendant le jeu ni avant la première partie). Publicités récompensées, toujours
   optionnelles : réparer son char détruit, doubler les gains d'une bataille, tirage bonus de la roue,
-  camouflage « Opération nocturne ». Le son est coupé pendant les publicités. Hors de CrazyGames
+  camouflages *Night Operation* et *Grand Parade*, pièces. Le son est coupé pendant les publicités. Hors de CrazyGames
   (fichier local, page intégrée), elles sont simulées par un écran de 3 s.
 - **Progression** :
-  - crédits et expérience à chaque bataille ; 16 grades, de Soldat à Maréchal, avec 500 crédits par
+  - crédits et expérience à chaque bataille ; 16 grades, de *Private* à *Field Marshal*, avec 500 crédits par
     promotion ;
   - chars à acheter, avec un grade minimal (le Lynx et le Panzer IV sont offerts) ;
-  - 8 camouflages, du commun au légendaire ;
   - roue quotidienne : crédits, kits de réparation, gains × 2, camouflages ;
   - 3 missions du jour ;
   - prime de présence sur 7 jours ;
   - kits de réparation.
-- **Pièces** (garage, par char, trois niveaux) : moteur (+8 % de puissance), munitions (+4 % de
-  perforation), blindage additionnel (+6 % d'épaisseur ; maillons de chenille visibles sur le glacis,
-  puis sur les flancs, puis sur la tourelle), chenilles (+6 % d'adhérence), optiques (+6 % de vue,
-  −6 % de dispersion), chargeur entraîné (−5 % de rechargement, +1 obus au râtelier). Chaque niveau
+- **Pièces** (garage, par char, trois niveaux *Mk I* à *Mk III*) : *Maybach Tuning Kit* (+8 % de puissance),
+  *Select-Lot Ammunition* (+4 % de perforation), *Field Armor Kit* (+6 % d'épaisseur ; maillons de chenille
+  visibles sur le glacis, puis sur les flancs, puis sur la tourelle), *Grip Tracks* (+6 % d'adhérence),
+  *Zeiss Optics* (+6 % de vue, −6 % de dispersion), *Veteran Loader* (−5 % de rechargement, +1 obus au
+  râtelier). Chaque niveau
   s'achète en crédits ou s'installe en regardant niveau + 1 publicités.
 - **Camouflages** : 14 camouflages et 5 motifs dessinés par le shader (taches, uni, bandes ondulées,
   embuscade à pois, lavis d'hiver usé). On les essaie sur la vitrine avant de les acheter en
   crédits ou de les débloquer par une série de publicités (1 à 6 selon la rareté). Deux sont réservés
   aux publicités. Un camouflage du jour est à −50 %.
-- **Menu** : vitrine 3D plein écran du char choisi, avec son camouflage, et onglets Jouer, Garage,
-  Roue, Missions, Atelier (banc d'essai, commandes) et Options (volumes, qualité graphique, caméra
+- **Boutique** : chaque contenu a une rareté (*Common*, *Rare*, *Epic*, *Legendary*) qui colore sa carte.
+  Les cartes épiques et légendaires ont un reflet qui les balaie, et les légendaires un cadre doré tournant.
+  L'offre du jour porte un bandeau *DEAL −50%*. Les chars verrouillés affichent leur prix et le niveau
+  requis. Les boutons publicité montrent la progression par pastilles. Chaque déblocage (char,
+  camouflage, pièce, lot de la roue) ouvre un écran de célébration : rayons, confettis, aperçu en 3D,
+  fanfare synthétisée et `happytime`.
+- **Menu** : vitrine 3D plein écran du char choisi, avec son camouflage, et onglets Battle, Garage,
+  Wheel, Missions, Workshop (banc d'essai, commandes) et Options (volumes, qualité graphique, caméra
   d'impact, plein écran, remise à zéro).
 - **Musique** : `music/menu.mp3`, voir `music/README.md`.
 

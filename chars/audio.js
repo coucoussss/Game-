@@ -151,6 +151,17 @@ const Sfx = (() => {
     reload() {
       play(null, (t, a) => { tone(t, 0.08, 900, 700, 0.12 * a, 'square'); tone(t + 0.09, 0.12, 400, 300, 0.15 * a, 'square'); });
     },
+    // fanfare de déblocage : arpège de cuivres et scintillement ; rare = 1 à 3 (plus riche)
+    unlock(rare = 1) {
+      play(null, (t, a) => {
+        const notes = [392, 494, 587, 784, 988].slice(0, 3 + Math.min(2, rare));
+        notes.forEach((f, i) => { tone(t + i * 0.09, 0.5, f, f * 0.995, 0.07 * a, 'sawtooth'); tone(t + i * 0.09, 0.6, f * 2, f * 2, 0.03 * a, 'triangle'); });
+        const e = t + notes.length * 0.09;
+        tone(e, 1.1, notes[notes.length - 1], notes[notes.length - 1], 0.08 * a, 'triangle');
+        for (let i = 0; i < 6 * rare; i++) tone(e + Math.random() * 0.8, 0.12, 2400 + Math.random() * 2400, 2000, 0.025 * a, 'sine');
+        noise(e, 0.9, 6000, 1, 0.06 * a, 'highpass');
+      });
+    },
     alarm() {
       play(null, (t, a) => { tone(t, 0.12, 880, 870, 0.12 * a, 'square'); tone(t + 0.15, 0.12, 660, 650, 0.12 * a, 'square'); });
     },

@@ -18,7 +18,7 @@ const HitCam = (() => {
   const norm = a => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
   const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
   const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
-  const fmt = (v, d = 0) => v.toFixed(d).replace('.', ',');
+  const fmt = (v, d = 0) => v.toFixed(d);
 
   // Teinte d'état appliquée au modèle détaillé (r = intégrité, de 0 à 1)
   function modTint(kind, r) {
@@ -344,7 +344,7 @@ const HitCam = (() => {
     const hh = 18 + show * 12.5;
     ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(X, Y, w, hh);
     ctx.font = '700 12.5px system-ui, sans-serif'; ctx.fillStyle = ev.friendly ? '#ffaa44' : '#8cc8ff';
-    ctx.fillText((ev.friendly ? 'TIR ALLIÉ · ' : '') + "CAMÉRA D'IMPACT · " + ev.target, X + 9, Y + 15);
+    ctx.fillText((ev.friendly ? 'FRIENDLY FIRE · ' : '') + 'IMPACT CAMERA · ' + ev.target, X + 9, Y + 15);
     ctx.font = '600 10.5px system-ui, sans-serif';
     for (let i = 0; i < show; i++) { ctx.fillStyle = lines[i].c; ctx.fillText(lines[i].t, X + 9, Y + 28 + i * 12.5); }
     // horloge physique
@@ -354,7 +354,7 @@ const HitCam = (() => {
     ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(X + w - 190, Y + h - 40, 190, 40);
     ctx.fillStyle = '#e9f4ff'; ctx.fillText(tTxt, X + w - 10, Y + h - 22);
     ctx.font = '600 11px system-ui, sans-serif'; ctx.fillStyle = '#9fc4e6';
-    ctx.fillText(ct < T_APP + T_IN ? `ralenti ×${Math.round(slow).toLocaleString('fr-FR')}` : 'arrêt sur image', X + w - 10, Y + h - 8);
+    ctx.fillText(ct < T_APP + T_IN ? `slow-motion ×${Math.round(slow).toLocaleString('en-US')}` : 'freeze frame', X + w - 10, Y + h - 8);
     // bilan des modules, au fil des impacts
     if (tp >= 0 && ev.results.length) {
       const items = ev.results.filter(r => r.time == null || tp >= r.time);

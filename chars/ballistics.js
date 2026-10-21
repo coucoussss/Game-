@@ -33,71 +33,71 @@ const Ballistics = (() => {
       },
     },
     medium: {
-      gun: '7,5 cm KwK 42 L/70', cal: 75, twist: 25,
+      gun: '7.5 cm KwK 42 L/70', cal: 75, twist: 25,
       shells: {
-        AP: { name: '7,5 cm PzGr. (AP)', m: 6.8, v0: 935, cd: 0.33, k: 1.0, norm: 2, ric: [64, 74], len: 4.0 },
-        APHE: { name: '7,5 cm PzGr. 39/42 (APCBC-HE)', m: 6.8, v0: 925, cd: 0.30, k: 0.95, norm: 5, ric: [68, 78], filler: 0.018, fuse: 1.3e-3, sens: 15, len: 4.4 },
-        APCR: { name: '7,5 cm PzGr. 40/42 (APCR)', m: 4.75, v0: 1120, cd: 0.45, k: 1.3, norm: -3, ric: [58, 68], core: 0.35, len: 3.4 },
-        HEAT: { name: '7,5 cm Gr. 38 HL/C (HEAT)', m: 4.4, v0: 450, cd: 0.35, pen: 100, ric: [80, 86], len: 4.2 },
-        HE: { name: '7,5 cm Sprgr. 42 (HE)', m: 5.74, v0: 700, cd: 0.33, filler: 0.65, ric: [85, 89], len: 4.6 },
+        AP: { name: '7.5 cm PzGr. (AP)', m: 6.8, v0: 935, cd: 0.33, k: 1.0, norm: 2, ric: [64, 74], len: 4.0 },
+        APHE: { name: '7.5 cm PzGr. 39/42 (APCBC-HE)', m: 6.8, v0: 925, cd: 0.30, k: 0.95, norm: 5, ric: [68, 78], filler: 0.018, fuse: 1.3e-3, sens: 15, len: 4.4 },
+        APCR: { name: '7.5 cm PzGr. 40/42 (APCR)', m: 4.75, v0: 1120, cd: 0.45, k: 1.3, norm: -3, ric: [58, 68], core: 0.35, len: 3.4 },
+        HEAT: { name: '7.5 cm Gr. 38 HL/C (HEAT)', m: 4.4, v0: 450, cd: 0.35, pen: 100, ric: [80, 86], len: 4.2 },
+        HE: { name: '7.5 cm Sprgr. 42 (HE)', m: 5.74, v0: 700, cd: 0.33, filler: 0.65, ric: [85, 89], len: 4.6 },
       },
     },
     heavy: {
-      gun: '8,8 cm KwK 36 L/56', cal: 88, twist: 30,
+      gun: '8.8 cm KwK 36 L/56', cal: 88, twist: 30,
       shells: {
-        AP: { name: '8,8 cm PzGr. (AP)', m: 10.2, v0: 773, cd: 0.33, k: 1.0, norm: 2, ric: [64, 74], len: 4.0 },
-        APHE: { name: '8,8 cm PzGr. 39 (APCBC-HE)', m: 10.2, v0: 773, cd: 0.30, k: 0.95, norm: 5, ric: [68, 78], filler: 0.059, fuse: 1.3e-3, sens: 15, len: 4.4 },
-        APCR: { name: '8,8 cm PzGr. 40 (APCR)', m: 7.3, v0: 930, cd: 0.45, k: 1.3, norm: -3, ric: [58, 68], core: 0.35, len: 3.4 },
-        HEAT: { name: '8,8 cm Gr. 39 HL (HEAT)', m: 7.65, v0: 600, cd: 0.35, pen: 110, ric: [80, 86], len: 4.2 },
-        HE: { name: '8,8 cm Sprgr. (HE)', m: 9.0, v0: 820, cd: 0.33, filler: 0.9, ric: [85, 89], len: 4.6 },
+        AP: { name: '8.8 cm PzGr. (AP)', m: 10.2, v0: 773, cd: 0.33, k: 1.0, norm: 2, ric: [64, 74], len: 4.0 },
+        APHE: { name: '8.8 cm PzGr. 39 (APCBC-HE)', m: 10.2, v0: 773, cd: 0.30, k: 0.95, norm: 5, ric: [68, 78], filler: 0.059, fuse: 1.3e-3, sens: 15, len: 4.4 },
+        APCR: { name: '8.8 cm PzGr. 40 (APCR)', m: 7.3, v0: 930, cd: 0.45, k: 1.3, norm: -3, ric: [58, 68], core: 0.35, len: 3.4 },
+        HEAT: { name: '8.8 cm Gr. 39 HL (HEAT)', m: 7.65, v0: 600, cd: 0.35, pen: 110, ric: [80, 86], len: 4.2 },
+        HE: { name: '8.8 cm Sprgr. (HE)', m: 9.0, v0: 820, cd: 0.33, filler: 0.9, ric: [85, 89], len: 4.6 },
       },
     },
     pz4: {
-      gun: '7,5 cm KwK 40 L/48', cal: 75, twist: 25,
+      gun: '7.5 cm KwK 40 L/48', cal: 75, twist: 25,
       shells: {
-        AP: { name: '7,5 cm PzGr. (AP)', m: 6.8, v0: 790, cd: 0.33, k: 1.0, norm: 2, ric: [64, 74], len: 4.0 },
-        APHE: { name: '7,5 cm PzGr. 39 (APCBC-HE)', m: 6.8, v0: 790, cd: 0.30, k: 0.95, norm: 5, ric: [68, 78], filler: 0.018, fuse: 1.3e-3, sens: 15, len: 4.4 },
-        APCR: { name: '7,5 cm PzGr. 40 (APCR)', m: 4.1, v0: 990, cd: 0.45, k: 1.3, norm: -3, ric: [58, 68], core: 0.35, len: 3.4 },
-        HEAT: { name: '7,5 cm Gr. 38 HL/C (HEAT)', m: 4.4, v0: 450, cd: 0.35, pen: 100, ric: [80, 86], len: 4.2 },
-        HE: { name: '7,5 cm Sprgr. 34 (HE)', m: 5.74, v0: 550, cd: 0.33, filler: 0.68, ric: [85, 89], len: 4.6 },
+        AP: { name: '7.5 cm PzGr. (AP)', m: 6.8, v0: 790, cd: 0.33, k: 1.0, norm: 2, ric: [64, 74], len: 4.0 },
+        APHE: { name: '7.5 cm PzGr. 39 (APCBC-HE)', m: 6.8, v0: 790, cd: 0.30, k: 0.95, norm: 5, ric: [68, 78], filler: 0.018, fuse: 1.3e-3, sens: 15, len: 4.4 },
+        APCR: { name: '7.5 cm PzGr. 40 (APCR)', m: 4.1, v0: 990, cd: 0.45, k: 1.3, norm: -3, ric: [58, 68], core: 0.35, len: 3.4 },
+        HEAT: { name: '7.5 cm Gr. 38 HL/C (HEAT)', m: 4.4, v0: 450, cd: 0.35, pen: 100, ric: [80, 86], len: 4.2 },
+        HE: { name: '7.5 cm Sprgr. 34 (HE)', m: 5.74, v0: 550, cd: 0.33, filler: 0.68, ric: [85, 89], len: 4.6 },
       },
     },
     stug: {
-      gun: '7,5 cm StuK 40 L/48', cal: 75, twist: 25,
+      gun: '7.5 cm StuK 40 L/48', cal: 75, twist: 25,
       shells: {
-        AP: { name: '7,5 cm PzGr. (AP)', m: 6.8, v0: 790, cd: 0.33, k: 1.0, norm: 2, ric: [64, 74], len: 4.0 },
-        APHE: { name: '7,5 cm PzGr. 39 (APCBC-HE)', m: 6.8, v0: 790, cd: 0.30, k: 0.95, norm: 5, ric: [68, 78], filler: 0.018, fuse: 1.3e-3, sens: 15, len: 4.4 },
-        APCR: { name: '7,5 cm PzGr. 40 (APCR)', m: 4.1, v0: 990, cd: 0.45, k: 1.3, norm: -3, ric: [58, 68], core: 0.35, len: 3.4 },
-        HEAT: { name: '7,5 cm Gr. 38 HL/C (HEAT)', m: 4.4, v0: 450, cd: 0.35, pen: 100, ric: [80, 86], len: 4.2 },
-        HE: { name: '7,5 cm Sprgr. 34 (HE)', m: 5.74, v0: 550, cd: 0.33, filler: 0.68, ric: [85, 89], len: 4.6 },
+        AP: { name: '7.5 cm PzGr. (AP)', m: 6.8, v0: 790, cd: 0.33, k: 1.0, norm: 2, ric: [64, 74], len: 4.0 },
+        APHE: { name: '7.5 cm PzGr. 39 (APCBC-HE)', m: 6.8, v0: 790, cd: 0.30, k: 0.95, norm: 5, ric: [68, 78], filler: 0.018, fuse: 1.3e-3, sens: 15, len: 4.4 },
+        APCR: { name: '7.5 cm PzGr. 40 (APCR)', m: 4.1, v0: 990, cd: 0.45, k: 1.3, norm: -3, ric: [58, 68], core: 0.35, len: 3.4 },
+        HEAT: { name: '7.5 cm Gr. 38 HL/C (HEAT)', m: 4.4, v0: 450, cd: 0.35, pen: 100, ric: [80, 86], len: 4.2 },
+        HE: { name: '7.5 cm Sprgr. 34 (HE)', m: 5.74, v0: 550, cd: 0.33, filler: 0.68, ric: [85, 89], len: 4.6 },
       },
     },
     kingtiger: {
-      gun: '8,8 cm KwK 43 L/71', cal: 88, twist: 30,
+      gun: '8.8 cm KwK 43 L/71', cal: 88, twist: 30,
       shells: {
-        AP: { name: '8,8 cm PzGr. (AP)', m: 10.16, v0: 1000, cd: 0.33, k: 1.0, norm: 2, ric: [64, 74], len: 4.0 },
-        APHE: { name: '8,8 cm PzGr. 39/43 (APCBC-HE)', m: 10.16, v0: 1000, cd: 0.30, k: 0.95, norm: 5, ric: [68, 78], filler: 0.05, fuse: 1.3e-3, sens: 15, len: 4.4 },
-        APCR: { name: '8,8 cm PzGr. 40/43 (APCR)', m: 7.3, v0: 1130, cd: 0.45, k: 1.3, norm: -3, ric: [58, 68], core: 0.35, len: 3.4 },
-        HEAT: { name: '8,8 cm Gr. 39/43 HL (HEAT)', m: 7.65, v0: 600, cd: 0.35, pen: 110, ric: [80, 86], len: 4.2 },
-        HE: { name: '8,8 cm Sprgr. 43 (HE)', m: 9.4, v0: 750, cd: 0.33, filler: 1.0, ric: [85, 89], len: 4.6 },
+        AP: { name: '8.8 cm PzGr. (AP)', m: 10.16, v0: 1000, cd: 0.33, k: 1.0, norm: 2, ric: [64, 74], len: 4.0 },
+        APHE: { name: '8.8 cm PzGr. 39/43 (APCBC-HE)', m: 10.16, v0: 1000, cd: 0.30, k: 0.95, norm: 5, ric: [68, 78], filler: 0.05, fuse: 1.3e-3, sens: 15, len: 4.4 },
+        APCR: { name: '8.8 cm PzGr. 40/43 (APCR)', m: 7.3, v0: 1130, cd: 0.45, k: 1.3, norm: -3, ric: [58, 68], core: 0.35, len: 3.4 },
+        HEAT: { name: '8.8 cm Gr. 39/43 HL (HEAT)', m: 7.65, v0: 600, cd: 0.35, pen: 110, ric: [80, 86], len: 4.2 },
+        HE: { name: '8.8 cm Sprgr. 43 (HE)', m: 9.4, v0: 750, cd: 0.33, filler: 1.0, ric: [85, 89], len: 4.6 },
       },
     },
     destroyer: {
-      gun: '8,8 cm PaK 43 L/71', cal: 88, twist: 30,
+      gun: '8.8 cm PaK 43 L/71', cal: 88, twist: 30,
       shells: {
-        AP: { name: '8,8 cm PzGr. (AP)', m: 10.16, v0: 1000, cd: 0.33, k: 1.0, norm: 2, ric: [64, 74], len: 4.0 },
-        APHE: { name: '8,8 cm PzGr. 39/43 (APCBC-HE)', m: 10.16, v0: 1000, cd: 0.30, k: 0.95, norm: 5, ric: [68, 78], filler: 0.05, fuse: 1.3e-3, sens: 15, len: 4.4 },
-        APCR: { name: '8,8 cm PzGr. 40/43 (APCR)', m: 7.3, v0: 1130, cd: 0.45, k: 1.3, norm: -3, ric: [58, 68], core: 0.35, len: 3.4 },
-        HEAT: { name: '8,8 cm Gr. 39/43 HL (HEAT)', m: 7.65, v0: 600, cd: 0.35, pen: 110, ric: [80, 86], len: 4.2 },
-        HE: { name: '8,8 cm Sprgr. 43 (HE)', m: 9.4, v0: 750, cd: 0.33, filler: 1.0, ric: [85, 89], len: 4.6 },
+        AP: { name: '8.8 cm PzGr. (AP)', m: 10.16, v0: 1000, cd: 0.33, k: 1.0, norm: 2, ric: [64, 74], len: 4.0 },
+        APHE: { name: '8.8 cm PzGr. 39/43 (APCBC-HE)', m: 10.16, v0: 1000, cd: 0.30, k: 0.95, norm: 5, ric: [68, 78], filler: 0.05, fuse: 1.3e-3, sens: 15, len: 4.4 },
+        APCR: { name: '8.8 cm PzGr. 40/43 (APCR)', m: 7.3, v0: 1130, cd: 0.45, k: 1.3, norm: -3, ric: [58, 68], core: 0.35, len: 3.4 },
+        HEAT: { name: '8.8 cm Gr. 39/43 HL (HEAT)', m: 7.65, v0: 600, cd: 0.35, pen: 110, ric: [80, 86], len: 4.2 },
+        HE: { name: '8.8 cm Sprgr. 43 (HE)', m: 9.4, v0: 750, cd: 0.33, filler: 1.0, ric: [85, 89], len: 4.6 },
       },
     },
   };
   // Munitions spéciales communes : obus fumigène (Nebelgranate) et boîte à mitraille (Kartätsche)
   for (const g of Object.values(GUNS)) {
-    const c = g.cal === 50 ? '5 cm' : g.cal === 75 ? '7,5 cm' : '8,8 cm', k = Math.pow(g.cal / 75, 3);
-    g.shells.SMOKE = { name: `${c} Nb.Gr. (fumigène)`, m: +(6.2 * k).toFixed(2), v0: 540, cd: 0.33, filler: 0.05 * k, ric: [85, 89], len: 4.6 };
-    g.shells.CAN = { name: `${c} Kart. (mitraille)`, m: +(6.0 * k).toFixed(2), v0: 450, cd: 0.45, ric: [85, 89], len: 2.6, balls: Math.round(110 * k), ballM: 0.024 };
+    const c = g.cal === 50 ? '5 cm' : g.cal === 75 ? '7.5 cm' : '8.8 cm', k = Math.pow(g.cal / 75, 3);
+    g.shells.SMOKE = { name: `${c} Nb.Gr. (smoke)`, m: +(6.2 * k).toFixed(2), v0: 540, cd: 0.33, filler: 0.05 * k, ric: [85, 89], len: 4.6 };
+    g.shells.CAN = { name: `${c} Kart. (canister)`, m: +(6.0 * k).toFixed(2), v0: 450, cd: 0.45, ric: [85, 89], len: 2.6, balls: Math.round(110 * k), ballM: 0.024 };
   }
   for (const g of Object.values(GUNS)) for (const [key, s] of Object.entries(g.shells)) {
     s.key = key; s.cal = g.cal; s.twist = g.twist;
@@ -259,11 +259,11 @@ const Ballistics = (() => {
       // écaillage de la face arrière sans perforation (onde de choc dans le blindage)
       const n = Math.round(rnd(3, 8));
       spray(add(E0, mul(ctx.d, 0.02)), norm(sub(ctx.d, mul(ctx.n, 0.3))), n, 45, 60, 220, 0.003, false, 0);
-      out.notes.push('Écaillage de la face interne');
+      out.notes.push('Spalling off the inner face');
     } else if (ctx.mode === 'heout') {
       const n = Math.round(4 + T / 12);
       spray(add(E0, mul(ctx.d, 0.02)), ctx.d, n, 55, 90, 320, 0.004, false, 0.05e-3);
-      out.notes.push('Écaillage par onde de choc (Hopkinson)');
+      out.notes.push('Shock-wave spalling (Hopkinson)');
     } else if (s.heat) {
       // Jet de charge creuse : environ 6 500 m/s, longueur résiduelle selon l'excès de perforation
       const ex = clamp((s.pen - ctx.eff) / s.pen, 0, 1);
@@ -349,12 +349,12 @@ const Ballistics = (() => {
           out.coreStop = 'sorti';
           break;
         }
-        if (ang > 58) { dir = norm(reflect(dir, w.w.n)); Vc *= 0.5; out.notes.push('Ricochet du noyau sur la paroi'); continue; }
+        if (ang > 58) { dir = norm(reflect(dir, w.w.n)); Vc *= 0.5; out.notes.push('Core ricochets off the wall'); continue; }
         Vc = 0; out.coreStop = 'paroi'; break;
       }
       // la fusée fonctionne aussi à l'arrêt brutal de l'obus
       if (fuseT != null && !exploded && out.coreStop !== 'sorti') boom(p, Math.min(fuseT, t + 0.2e-3), dir, Vc);
-      if (s.filler && T < s.sens) out.notes.push(`Fusée non armée (blindage < ${s.sens} mm)`);
+      if (s.filler && T < s.sens) out.notes.push(`Fuze not armed (armor < ${s.sens} mm)`);
     }
     let tEnd = 0;
     for (const f of out.frags) tEnd = Math.max(tEnd, f.pts[f.pts.length - 1].t);

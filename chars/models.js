@@ -7,7 +7,7 @@ const TankModels = (() => {
 
   const SPECS = {
     light: {
-      inspired: 'Inspiré du Pz.Kpfw. II Luchs', real: '4,6 × 2,5 × 2,1 m · 12 t · 4 hommes',
+      inspired: 'Based on the Pz.Kpfw. II Luchs', real: '4.6 × 2.5 × 2.1 m · 12 t · 4 crew',
       L: 4.6, W: 2.5, tw: 0.38, gc: 0.42, tt: 0.86, ht: 1.45, zn: 0.95, xn: 2.25,
       sUp: 22, sLow: 45, sRear: 12, sideSlope: 0, rearX: -2.2,
       wheels: { n: 5, r: 0.37, x0: 1.45, x1: -1.55, inter: true }, rollers: [], rollerR: 0,
@@ -39,7 +39,7 @@ const TankModels = (() => {
       ],
     },
     medium: {
-      inspired: 'Inspiré du Pz.Kpfw. V Panther', real: '6,9 × 3,4 × 2,9 m · 45 t · 5 hommes',
+      inspired: 'Based on the Pz.Kpfw. V Panther', real: '6.9 × 3.4 × 2.9 m · 45 t · 5 crew',
       L: 6.9, W: 3.42, tw: 0.66, gc: 0.56, tt: 1.12, ht: 1.95, zn: 1.08, xn: 3.38,
       sUp: 55, sLow: 55, sRear: 30, sideSlope: 40, rearX: -3.3,
       wheels: { n: 8, r: 0.43, x0: 2.45, x1: -2.35, inter: true }, rollers: [], rollerR: 0,
@@ -49,7 +49,7 @@ const TankModels = (() => {
         poly: [[1.05, 0.55], [0.8, 0.95], [-1.05, 1.0], [-1.3, 0.7], [-1.3, -0.7], [-1.05, -1.0], [0.8, -0.95], [1.05, -0.55]],
         mantlet: { type: 'cyl', r: 0.3, w: 0.36 }, cupola: [-0.55, 0.42, 0.33, 0.24, 7], rearHatch: true, ports: true, pilze: true,
       },
-      gun: { z: 2.37, fx: 1.2, len: 5.25, r: 0.045, sleeve: [0.085, 0.9], brake: { r: 0.085, len: 0.36 }, name: '7,5 cm KwK 42 L/70' },
+      gun: { z: 2.37, fx: 1.2, len: 5.25, r: 0.045, sleeve: [0.085, 0.9], brake: { r: 0.085, len: 0.36 }, name: '7.5 cm KwK 42 L/70' },
       exhaust: [[-3.22, 0.42], [-3.22, -0.42]], skirts: true, mg: true, zim: true, fans: true, rearBins: true, dampers: true,
       armor: {
         hull: { up: [80, 55], low: [60, 55], side: [40, 40], rear: [40, 30], roof: 16 },
@@ -72,7 +72,7 @@ const TankModels = (() => {
       ],
     },
     heavy: {
-      inspired: 'Inspiré du Pz.Kpfw. VI Tiger I', real: '6,3 × 3,6 × 3,0 m · 57 t · 5 hommes',
+      inspired: 'Based on the Pz.Kpfw. VI Tiger I', real: '6.3 × 3.6 × 3.0 m · 57 t · 5 crew',
       L: 6.32, W: 3.56, tw: 0.72, gc: 0.47, tt: 1.08, ht: 1.86, zn: 1.2, xn: 3.12,
       sUp: 10, sLow: 45, sRear: 9, sideSlope: 0, rearX: -3.08,
       wheels: { n: 8, r: 0.4, x0: 2.2, x1: -2.25, inter: true }, rollers: [], rollerR: 0,
@@ -81,7 +81,7 @@ const TankModels = (() => {
         x: -0.15, h: 0.82, ts: 0.97, poly: null,
         mantlet: { type: 'box', d: 0.3, w: 0.72, h: 0.33 }, cupola: [-0.45, 0.55, 0.34, 0.28, 7], smoke: true, spare: true, bin: true, ports: true,
       },
-      gun: { z: 2.26, fx: 1.25, len: 4.9, r: 0.055, sleeve: [0.095, 0.6], brake: { r: 0.13, len: 0.42 }, name: '8,8 cm KwK 36 L/56' },
+      gun: { z: 2.26, fx: 1.25, len: 4.9, r: 0.055, sleeve: [0.095, 0.6], brake: { r: 0.13, len: 0.42 }, name: '8.8 cm KwK 36 L/56' },
       exhaust: [[-3.0, 0.55], [-3.0, -0.55]], tallExhaust: true, mg: true, zim: true, smines: true, grilles: true,
       armor: {
         hull: { up: [100, 10], low: [100, 45], side: [80, 0], rear: [80, 9], roof: 25 },
@@ -105,13 +105,13 @@ const TankModels = (() => {
       ],
     },
     destroyer: {
-      inspired: 'Inspiré du Jagdpanther', real: '6,9 × 3,4 × 2,7 m · 46 t · 5 hommes',
+      inspired: 'Based on the Jagdpanther', real: '6.9 × 3.4 × 2.7 m · 46 t · 5 crew',
       L: 6.9, W: 3.42, tw: 0.66, gc: 0.56, tt: 1.12, ht: 2.32, zn: 1.08, xn: 3.38,
       sUp: 55, sLow: 55, sRear: 35, sideSlope: 30, rearX: -3.3,
       wheels: { n: 8, r: 0.43, x0: 2.45, x1: -2.35, inter: true }, rollers: [], rollerR: 0,
       spr: { x: 3.0, z: 0.68, r: 0.36 }, idl: { x: -3.0, z: 0.62, r: 0.32 },
       turret: null, mount: { x: 2.27, y: -0.1 },
-      gun: { z: 1.86, fx: 0.35, len: 6.3, r: 0.055, sleeve: null, brake: { r: 0.12, len: 0.45 }, name: '8,8 cm PaK 43 L/71' },
+      gun: { z: 1.86, fx: 0.35, len: 6.3, r: 0.055, sleeve: null, brake: { r: 0.12, len: 0.45 }, name: '8.8 cm PaK 43 L/71' },
       exhaust: [[-3.22, 0.42], [-3.22, -0.42]], skirts: true, zim: true, fans: true, dampers: true, rearBins: true,
       armor: {
         hull: { up: [80, 55], low: [60, 55], side: [50, 30], rear: [40, 35], roof: 25 },
@@ -134,7 +134,7 @@ const TankModels = (() => {
       ],
     },
     pz4: {
-      inspired: 'Inspiré du Pz.Kpfw. IV Ausf. H', real: '5,9 × 2,9 × 2,7 m · 25 t · 5 hommes',
+      inspired: 'Based on the Pz.Kpfw. IV Ausf. H', real: '5.9 × 2.9 × 2.7 m · 25 t · 5 crew',
       L: 5.89, W: 2.88, tw: 0.4, gc: 0.4, tt: 0.9, ht: 1.65, zn: 1.0, xn: 2.92,
       sUp: 10, sLow: 14, sRear: 10, sideSlope: 0, rearX: -2.9,
       wheels: { n: 8, r: 0.235, x0: 1.95, x1: -2.05, inter: false, xs: [1.95, 1.45, 0.9, 0.4, -0.25, -0.75, -1.3, -1.8], bogies: true }, rollers: [1.4, 0.45, -0.45, -1.35], rollerR: 0.11,
@@ -144,7 +144,7 @@ const TankModels = (() => {
         poly: [[0.95, 0.55], [0.75, 0.85], [-0.95, 0.92], [-1.1, 0.65], [-1.1, -0.65], [-0.95, -0.92], [0.75, -0.85], [0.95, -0.55]],
         mantlet: { type: 'box', d: 0.2, w: 0.32, h: 0.22 }, cupola: [-0.75, 0.0, 0.3, 0.25, 5], bin: true, tskirt: true, sideDoors: true,
       },
-      gun: { z: 2.1, fx: 0.98, len: 3.6, r: 0.045, sleeve: [0.075, 0.55], brake: { r: 0.09, len: 0.32 }, name: '7,5 cm KwK 40 L/48' },
+      gun: { z: 2.1, fx: 0.98, len: 3.6, r: 0.045, sleeve: [0.075, 0.55], brake: { r: 0.09, len: 0.32 }, name: '7.5 cm KwK 40 L/48' },
       exhaust: [[-2.88, 0.45]], skirts: { off: 0.2, z0: 0.38, z1: 1.18 }, mg: true, zim: true, muffler: true, links: 'front',
       armor: {
         hull: { up: [80, 10], low: [80, 12], side: [30, 0], rear: [20, 10], roof: 12 },
@@ -167,7 +167,7 @@ const TankModels = (() => {
       ],
     },
     kingtiger: {
-      inspired: 'Inspiré du Pz.Kpfw. VI Ausf. B Tiger II', real: '7,4 × 3,8 × 3,1 m · 68 t · 5 hommes',
+      inspired: 'Based on the Pz.Kpfw. VI Ausf. B Tiger II', real: '7.4 × 3.8 × 3.1 m · 68 t · 5 crew',
       L: 7.38, W: 3.755, tw: 0.8, gc: 0.5, tt: 1.2, ht: 2.05, zn: 1.2, xn: 3.65,
       sUp: 50, sLow: 50, sRear: 30, sideSlope: 25, rearX: -3.6,
       wheels: { n: 9, r: 0.4, x0: 2.65, x1: -2.65, inter: true }, rollers: [], rollerR: 0,
@@ -177,7 +177,7 @@ const TankModels = (() => {
         poly: [[1.1, 0.55], [0.95, 0.95], [-1.7, 1.05], [-1.85, 0.8], [-1.85, -0.8], [-1.7, -1.05], [0.95, -0.95], [1.1, -0.55]],
         mantlet: { type: 'bell', r: 0.36, len: 0.5 }, cupola: [-0.75, 0.5, 0.34, 0.25, 7], spare: true, rearHatch: true, ports: true, pilze: true,
       },
-      gun: { z: 2.55, fx: 1.25, len: 6.3, r: 0.055, sleeve: [0.1, 0.8], brake: { r: 0.12, len: 0.45 }, name: '8,8 cm KwK 43 L/71' },
+      gun: { z: 2.55, fx: 1.25, len: 6.3, r: 0.055, sleeve: [0.1, 0.8], brake: { r: 0.12, len: 0.45 }, name: '8.8 cm KwK 43 L/71' },
       exhaust: [[-3.5, 0.4], [-3.5, -0.4]], tallExhaust: true, mg: true, zim: true, fans: true, dampers: true,
       armor: {
         hull: { up: [150, 50], low: [100, 50], side: [80, 25], rear: [80, 30], roof: 40 },
@@ -201,13 +201,13 @@ const TankModels = (() => {
       ],
     },
     stug: {
-      inspired: 'Inspiré du Sturmgeschütz III Ausf. G', real: '5,4 × 3,0 × 2,2 m · 24 t · 4 hommes',
+      inspired: 'Based on the Sturmgeschütz III Ausf. G', real: '5.4 × 3.0 × 2.2 m · 24 t · 4 crew',
       L: 5.38, W: 2.95, tw: 0.38, gc: 0.4, tt: 0.9, ht: 1.95, zn: 0.95, xn: 2.65,
       sUp: 10, sLow: 21, sRear: 10, sideSlope: 11, rearX: -2.65,
       wheels: { n: 6, r: 0.26, x0: 1.7, x1: -1.8, inter: false }, rollers: [1.2, 0, -1.2], rollerR: 0.1,
       spr: { x: 2.25, z: 0.58, r: 0.28 }, idl: { x: -2.35, z: 0.55, r: 0.25 },
       turret: null, mount: { x: 1.25, y: -0.12 },
-      gun: { z: 1.62, fx: 0.35, len: 3.6, r: 0.045, sleeve: null, brake: { r: 0.09, len: 0.32 }, name: '7,5 cm StuK 40 L/48' },
+      gun: { z: 1.62, fx: 0.35, len: 3.6, r: 0.045, sleeve: null, brake: { r: 0.09, len: 0.32 }, name: '7.5 cm StuK 40 L/48' },
       exhaust: [[-2.6, 0.45]], skirts: { off: 0.2, z0: 0.38, z1: 1.15 }, zim: true, muffler: true, hullCupola: [0.0, 0.55, 0.28, 0.18, 7], mgShield: true, links: 'front',
       armor: {
         hull: { up: [80, 10], low: [80, 21], side: [30, 11], rear: [30, 10], roof: 17 },
@@ -238,8 +238,8 @@ const TankModels = (() => {
   })();
 
   const NAMES = {
-    driver: 'Pilote', radio: 'Radio-mitrailleur', gunner: 'Tireur', commander: 'Chef de char', loader: 'Chargeur',
-    engine: 'Moteur', trans: 'Transmission', fuel: 'Réservoir', ammo: 'Soute à munitions', breech: 'Culasse',
+    driver: 'Driver', radio: 'Radio operator', gunner: 'Gunner', commander: 'Commander', loader: 'Loader',
+    engine: 'Engine', trans: 'Transmission', fuel: 'Fuel tank', ammo: 'Ammo rack', breech: 'Breech',
   };
   const HP = { crew: 100, engine: 140, trans: 120, fuel: 90, ammo: 70, breech: 160 };
 
@@ -296,7 +296,7 @@ const TankModels = (() => {
     const rearAt = z => S.rearX + (ht - z) * tanR;
     const hwIn = W / 2 - tw - 0.03;
     const hwAt = z => W / 2 - Math.max(0, z - tt) * tanS;
-    // Zimmerit (pâte antimagnétique striée, 1943-1944) : matériau 1,25, relief dans le shader
+    // Zimmerit (pâte antimagnétique striée, 1943-1944) : matériau 1.25, relief dans le shader
     const ZM = S.zim ? 1.25 : 1;
 
     // Caisse inférieure entre les chenilles
