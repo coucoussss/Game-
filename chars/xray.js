@@ -356,5 +356,5 @@ const HitCam = (() => {
     ctx.restore();
   }
 
-  return { init, play, active, time, stop, update, draw, seek, release, DUR, T_HIT, phys: T_APP + T_IN };
+  return { init, play, active, time, stop, update, draw, seek, release, ev: () => cur ? cur.ev : null, DUR, T_HIT, T_IN, phys: T_APP + T_IN };
 })();

@@ -1071,6 +1071,34 @@
 
   function visibleToPlayer(t) { return t.team === 0 || spotted[0].has(t) || t.dead; }
 
+  // ===================== Simulation du métal (metal.js) =====================
+  // Calage : vitesse limite propre à la simulation, Vlim = A · (T/d)^b / cos(θ)^c (mesurée par dichotomie),
+  // pour que la simulation tranche comme la balistique empirique (même rapport V / Vlim).
+  const PD_FIT = { APHE: [844.4, 1.231, 0.942], APCR: [734.8, 1.251, 0.971] };
+  const HE_P0 = [[0.01, 22.7e9], [0.02, 27.4e9], [0.04, 49.7e9]];
+  function heP0lim(T) {
+    const a = T <= HE_P0[1][0] ? 0 : 1, p0 = HE_P0[a], p1 = HE_P0[a + 1];
+    const b = Math.log(p1[1] / p0[1]) / Math.log(p1[0] / p0[0]);
+    return p0[1] * Math.pow(T / p0[0], b);
+  }
+  function pdConfig(sb, mmT, angDeg, pen, eff, perforate) {
+    const d = sb.cal / 1000, T = mmT / 1000, th = Math.min(72, angDeg) * D2R, r = pen / eff;
+    const marg = k => perforate ? Math.max(k, 1.2) : Math.min(k, 0.83);
+    const cfg = { d, T, theta: th, kind: sb.key };
+    if (sb.heat) cfg.jetLen = 0.554 * (T / Math.cos(th)) * marg(r);
+    else if (sb.he) cfg.P0 = heP0lim(T) * Math.pow(marg(r), 2);
+    else {
+      const f = PD_FIT[sb.key === 'APCR' ? 'APCR' : 'APHE'];
+      cfg.V = Math.min(3800, f[0] * Math.pow(T / d, f[1]) / Math.pow(Math.cos(th), f[2]) * marg(Math.pow(r, 0.7)));
+    }
+    return cfg;
+  }
+  function metalFor(sb, mm, angle, pen, eff, perforate) {
+    if (typeof MetalSim === 'undefined') return null;
+    try { const m = MetalSim.create(pdConfig(sb, mm, angle, pen, eff, perforate)); m.info = { mm, angle: Math.round(angle), sb, perforate }; return m; }
+    catch (e) { console.warn('Simulation du métal impossible', e); return null; }
+  }
+
   // Normale extérieure d'une plaque (repère de la caisse ou de la tourelle)
   function plateNormal(face, slopeDeg, sideSign, low) {
     const s = slopeDeg * D2R, c = Math.cos(s), n = Math.sin(s);
@@ -1179,6 +1207,7 @@
         const dn = dot3(d, nHull);
         ev.ricDir = norm3([d[0] - 2 * dn * nHull[0], d[1] - 2 * dn * nHull[1], d[2] - 2 * dn * nHull[2] + 0.1]);
         ev.outcome = 'ricochet'; ev.after = ev.before.slice();
+        ev.metal = metalFor(sb, mm, angle, pen, eff, false);
         ev.data.push({ t: `RICOCHET : incidence ${Math.round(angle)}° > angle critique (probabilité ${Math.round(ricP * 100)} %)`, c: '#9fd0ff' });
         ev.results.push({ t: 'Aucun dégât', c: '#9fd0ff', time: 0 });
         startHitCam(ev);
@@ -1271,6 +1300,7 @@
       }
       if (t.dead && !ev.results.some(r => /DÉTRUIT/.test(r.t))) ev.results.push({ t: 'CHAR DÉTRUIT', c: '#ff4a2a', time: ev.tEnd || 0 });
       ev.outcome = penetrated ? 'pen' : 'nopen';
+      ev.metal = metalFor(sb, mm, angle, pen, eff, penetrated);
       startHitCam(ev);
     }
     if (s.key === 'HE') explode(hx, hy, s, t);
@@ -1599,8 +1629,12 @@
       while (acc >= STEP && n++ < 40) { step(STEP); acc -= STEP; }
       if (n >= 40) acc = 0;
       HitCam.update(dt);
+      const hev = HitCam.ev();
+      if (hev && hev.metal && !hev.metal.st.done) hev.metal.run(9);
     }
+    if (state === 'menu' && bench.sim && !bench.sim.st.done) bench.sim.run(14);
     if (state === 'menu' && R3) { viewerT += dt; renderViewer(dt); }
+    if (state === 'menu') renderBench();
     if (groundCv) render(dt);
     else { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#0d0f0c'; ctx.fillRect(0, 0, cv.width, cv.height); }
     const v = player && !player.dead && state !== 'menu' && state !== 'result' && state !== 'pause' ? Math.abs(player.speed) / player.T.speed : -1;
@@ -2025,8 +2059,15 @@
 
     // caméra d'impact (à droite, sous la mini-carte)
     if (HitCam.active()) {
-      const cw = Math.min(660, W * 0.47), ch = Math.round(cw * 0.66);
-      HitCam.draw(ctx, W - cw - 14, Math.min(mm.bottom + 14, H - ch - 90), cw, ch, DPR);
+      const hev = HitCam.ev();
+      const cw = Math.min(hev && hev.metal ? 600 : 660, W * (hev && hev.metal ? 0.4 : 0.47)), ch = Math.round(cw * 0.66);
+      const cx = W - cw - 14, cy = Math.min(mm.bottom + 14, H - ch - 90);
+      HitCam.draw(ctx, cx, cy, cw, ch, DPR);
+      if (hev && hev.metal) {
+        let iw = Math.min(cw * 0.85, cx - 24), ih = ch, ix = cx - iw - 10, iy = cy;
+        if (iw < 260) { iw = cw * 0.55; ih = ch * 0.6; ix = cx + cw - iw; iy = cy + ch - ih; }
+        drawMetalPanel(ctx, hev.metal, ix, iy, iw, ih, clamp((HitCam.time() - HitCam.T_HIT) / HitCam.T_IN, 0, 1), Math.min(1, HitCam.time() / 0.15, (HitCam.DUR - HitCam.time()) / 0.4));
+      }
     }
 
     ctx.textAlign = 'center';
@@ -2047,6 +2088,43 @@
       ctx.fillStyle = msg.color; ctx.fillText(msg.text, W / 2, 90);
       ctx.globalAlpha = 1;
     }
+  }
+
+  // Coupe de la plaque simulée : lecture des images enregistrées, progression du calcul, bilan
+  function drawMetalPanel(c, sim, X, Y, w, h, p, alpha = 1, big = false) {
+    const fs = big ? 1.15 : 1;
+    c.save();
+    c.globalAlpha = alpha;
+    c.fillStyle = '#000'; c.fillRect(X - 3, Y - 3, w + 6, h + 6);
+    const tH = Math.round(32 * fs), fH = Math.round(34 * fs);
+    const total = sim.st.done ? sim.frames.length : Math.max(sim.frames.length, sim.expected);
+    let fi = Math.round(p * (total - 1));
+    const waiting = !sim.st.done && fi > sim.frames.length - 1;
+    fi = Math.min(fi, sim.frames.length - 1);
+    MetalSim.draw(c, sim, fi, X, Y + tH, w, h - tH - fH);
+    c.strokeStyle = '#d9a441'; c.lineWidth = 2; c.strokeRect(X - 1, Y - 1, w + 2, h + 2);
+    c.fillStyle = 'rgba(0,0,0,0.6)'; c.fillRect(X, Y, w, tH); c.fillRect(X, Y + h - fH, w, fH);
+    const inf = sim.info, f = (v, k = 0) => v.toFixed(k).replace('.', ',');
+    c.textAlign = 'left';
+    c.font = `700 ${12 * fs}px system-ui, sans-serif`; c.fillStyle = '#f0d27a';
+    c.fillText(`COUPE DE LA PLAQUE · simulation péridynamique`, X + 8, Y + 13 * fs);
+    c.font = `600 ${10 * fs}px system-ui, sans-serif`; c.fillStyle = '#cfc8b0';
+    c.fillText(`${inf.mm} mm d'acier à ${inf.angle}° · ${sim.N.toLocaleString('fr-FR')} particules · ${sim.bonds.toLocaleString('fr-FR')} liaisons · pas ${f(sim.dt * 1e9, 0)} ns`, X + 8, Y + 26 * fs);
+    c.font = `700 ${11 * fs}px system-ui, sans-serif`;
+    const st = sim.st;
+    if (!st.done) {
+      c.fillStyle = '#8cc8ff';
+      c.fillText(`${waiting ? 'Calcul en cours' : 'Calcul'} : ${Math.min(99, Math.round(st.t / sim.tMax * 100))} % · ${st.step.toLocaleString('fr-FR')} pas · ${st.broken.toLocaleString('fr-FR')} liaisons rompues`, X + 8, Y + h - fH + 14 * fs);
+    } else {
+      const res = inf.sb.heat ? (st.perforated ? 'jet traversant' : 'jet arrêté') : inf.sb.he ? (st.ejected > 3 ? 'plaque déchirée' : 'plaque bombée') : (st.perforated ? 'perforée' : 'non perforée');
+      c.fillStyle = st.perforated || (inf.sb.he && st.ejected > 3) ? '#a6f08a' : '#ff9a7a';
+      c.fillText(`Plaque ${res} · ${st.broken.toLocaleString('fr-FR')} liaisons rompues · T max ${Math.round(st.maxTemp)} K`, X + 8, Y + h - fH + 14 * fs);
+      c.font = `600 ${10 * fs}px system-ui, sans-serif`; c.fillStyle = '#cfc8b0';
+      c.fillText(`${st.fragments} fragment${st.fragments > 1 ? 's' : ''} arraché${st.fragments > 1 ? 's' : ''} (${f(st.ejectedKg, 2)} kg) · bombement ${f(st.bulge * 1000, 0)} mm · obus ${Math.round(st.projDamage * 100)} % rompu`, X + 8, Y + h - fH + 27 * fs);
+    }
+    c.textAlign = 'right'; c.font = `600 ${10 * fs}px system-ui, sans-serif`; c.fillStyle = '#9fc4e6';
+    if (big || !st.done || p < 1) c.fillText(`ralenti ×${Math.round(3 / sim.tMax).toLocaleString('fr-FR')}`, X + w - 8, Y + 13 * fs);
+    c.restore();
   }
 
   // Panneau du char : équipage, modules, obus
@@ -2296,6 +2374,54 @@
     else if (state === 'play' || state === 'intro' || state === 'ending') { pausedFrom = state; state = 'pause'; show('pause'); }
   }
 
+  // Banc d'essai : un tir sur une plaque, prédiction empirique et simulation du métal
+  const bench = { sim: null, t0: 0, pred: null };
+  function initBench() {
+    const g = $('bGun'), sS = $('bShell');
+    g.innerHTML = Object.values(TYPES).map(T => `<option value="${T.id}">${Ballistics.GUNS[T.id].gun} (${T.name})</option>`).join('');
+    const fillShells = () => { sS.innerHTML = SHELL_KEYS.map(k => `<option value="${k}">${Ballistics.shell(g.value, k).name}</option>`).join(''); sS.value = 'APHE'; };
+    fillShells();
+    g.onchange = () => { fillShells(); labels(); };
+    const labels = () => { $('bTv').textContent = $('bT').value + ' mm'; $('bAv').textContent = $('bA').value + '°'; $('bDv').textContent = $('bD').value + ' m'; };
+    for (const id of ['bT', 'bA', 'bD']) $(id).oninput = labels;
+    labels();
+    $('bFire').onclick = benchFire;
+  }
+  function benchFire() {
+    const id = $('bGun').value, key = $('bShell').value, T = Number($('bT').value), ang = Number($('bA').value), x = Number($('bD').value);
+    const sb = Ballistics.shell(id, key), V = Ballistics.velAt(sb, x), pen = Ballistics.penVel(sb, V);
+    const ef = Ballistics.effective(sb, T, ang), ric = sb.he ? 0 : Ballistics.ricochetChance(sb, T, ang);
+    const perforate = pen >= ef.eff && ric < 0.5;
+    bench.sim = metalFor(sb, T, ang, pen, ef.eff, perforate);
+    bench.t0 = performance.now();
+    bench.pred = { sb, V, pen, eff: ef.eff, angN: ef.angN, ric, perforate, T, ang, x };
+    Sfx.init(); Sfx.fire(200, sb.cal > 80);
+  }
+  function renderBench() {
+    const c = $('bench');
+    if (!c || !c.clientWidth) return;
+    const w = Math.round(c.clientWidth * DPR), h = Math.round(c.clientHeight * DPR);
+    if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+    const x = c.getContext('2d');
+    x.setTransform(DPR, 0, 0, DPR, 0, 0);
+    const cw = c.clientWidth, ch = c.clientHeight;
+    if (!bench.sim) {
+      x.fillStyle = '#07090c'; x.fillRect(0, 0, cw, ch);
+      x.fillStyle = '#8f8a77'; x.font = '600 14px system-ui, sans-serif'; x.textAlign = 'center';
+      x.fillText('Choisis un canon, un obus et une plaque, puis tire.', cw / 2, ch / 2);
+      return;
+    }
+    // lecture en boucle sur 4 s, une fois le calcul terminé
+    const el = (performance.now() - bench.t0) / 1000, sim = bench.sim;
+    const p = sim.st.done ? ((el % 5) / 4) : Math.min(1, sim.frames.length / Math.max(1, sim.expected));
+    drawMetalPanel(x, sim, 0, 0, cw, ch, Math.min(1, p), 1, true);
+    const P = bench.pred, f = (v, k = 0) => v.toFixed(k).replace('.', ',');
+    $('benchInfo').innerHTML =
+      `<b>${P.sb.name}</b> · ${f(P.sb.m, 2)} kg · vitesse à ${P.x} m : <b>${Math.round(P.V)} m/s</b> (bouche ${P.sb.v0}) · énergie ${f(0.5 * P.sb.m * P.V * P.V / 1e6, 2)} MJ<br>` +
+      `Plaque ${P.T} mm à ${P.ang}°${!P.sb.heat && !P.sb.he ? ` (normalisée ${Math.round(P.angN)}°)` : ''} → blindage effectif <b>${Math.round(P.eff)} mm</b> · pénétration <b>${Math.round(P.pen)} mm</b> · risque de ricochet ${Math.round(P.ric * 100)} %<br>` +
+      `Prédiction balistique : <b>${P.perforate ? 'perforation' : P.ric >= 0.5 ? 'ricochet' : 'non perforé'}</b> · la simulation du métal est calée sur la même vitesse limite`;
+  }
+
   $('startBtn').onclick = () => { Sfx.init(); hide('menu'); waveIdx = 0; campaignScore = 0; startLevel(); };
   $('resumeBtn').onclick = togglePause;
   $('quitBtn').onclick = toMenu;
@@ -2347,6 +2473,7 @@
   if (Q.has('level')) levelIdx = clamp(Number(Q.get('level')) - 1, 0, LEVELS.length - 1);
   if (Q.has('type') && TYPES[Q.get('type')]) chosenType = Q.get('type');
   buildMenu();
+  initBench();
   if (Q.has('level') || AUTO) {
     waveIdx = clamp(Number(Q.get('wave') || 1) - 1, 0, WAVES - 1);
     hide('menu'); startLevel();
@@ -2354,7 +2481,7 @@
   if (Q.has('debug')) {
     window.__fa = {
       get tanks() { return tanks; }, get state() { return state; }, get stats() { return waveStats; }, get shells() { return shells; },
-      get time() { return gameTime; }, get player() { return player; }, hitcam: HitCam, TYPES, SHELLS,
+      get time() { return gameTime; }, get player() { return player; }, hitcam: HitCam, TYPES, SHELLS, bench, benchFire,
       // test : tir forcé du joueur sur la cible la plus proche
       fireAt(i, key) {
         const e = tanks.filter(t => t.team === 1 && !t.dead)[i || 0];

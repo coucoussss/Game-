@@ -43,6 +43,14 @@
   .vbar { position: absolute; left: 8px; bottom: 8px; display: flex; gap: 10px; align-items: center; font-size: 12px; color: #9a957f; }
   button.small { font-size: 12px; padding: 6px 12px; }
   button.small.on { background: #1d3d5a; border-color: #5fb4ff; color: #cfe8ff; }
+  #benchWrap { background: #121410; border: 2px solid #33382a; border-radius: 6px; padding: 10px; }
+  .benchCtl { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; font-size: 12px; color: #c9c4b2; margin-bottom: 8px; }
+  .benchCtl select, .benchCtl input { vertical-align: middle; }
+  .benchCtl select { background: #23261d; color: #efe3bf; border: 1px solid #4a503b; border-radius: 3px; padding: 3px; font: inherit; }
+  .benchCtl span { display: inline-block; min-width: 46px; color: #f0e2b0; font-weight: 600; }
+  #bench { display: block; width: 100%; height: 400px; border-radius: 4px; background: #07090c; }
+  #benchInfo { font-size: 12px; color: #c9c4b2; margin-top: 6px; line-height: 1.55; }
+  #benchInfo b { color: #f0e2b0; }
   #specs { background: #1b1e17; border: 2px solid #33382a; border-radius: 6px; padding: 10px 12px; font-size: 12px; color: #c9c4b2; overflow: auto; max-height: 344px; }
   .specTitle { font-size: 20px; font-weight: 700; color: #f0e6c8; }
   .specTitle small { font-size: 13px; color: #9a957f; font-weight: 600; }
@@ -75,6 +83,19 @@
       <div id="specs"></div>
     </div>
     <div id="tankCards" class="cards"></div>
+    <h2>Banc d'essai : déformation du blindage</h2>
+    <div id="benchWrap">
+      <div class="benchCtl">
+        <label>Canon <select id="bGun"></select></label>
+        <label>Obus <select id="bShell"></select></label>
+        <label>Blindage <input id="bT" type="range" min="10" max="200" step="5" value="80"> <span id="bTv"></span></label>
+        <label>Inclinaison <input id="bA" type="range" min="0" max="75" step="1" value="30"> <span id="bAv"></span></label>
+        <label>Distance <input id="bD" type="range" min="50" max="1500" step="50" value="300"> <span id="bDv"></span></label>
+        <button id="bFire" class="small">💥 Tirer</button>
+      </div>
+      <canvas id="bench"></canvas>
+      <div id="benchInfo"></div>
+    </div>
     <h2>Champ de bataille</h2>
     <div id="levelCards" class="cards"></div>
     <div class="btns"><button id="startBtn">⚔ En avant</button></div>
@@ -125,6 +146,7 @@
 <script src="gl3d.js"></script>
 <script src="models.js"></script>
 <script src="ballistics.js"></script>
+<script src="metal.js"></script>
 <script src="xray.js"></script>
 <script src="game.js"></script>
 </body>

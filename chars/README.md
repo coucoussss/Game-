@@ -93,6 +93,52 @@ Les lois et les modèles utilisés :
 
 Le réticule affiche la distance et la pénétration de l'obus chargé à cette distance.
 
+## Simulation de la déformation du métal
+
+En plus de la balistique empirique, chaque impact du joueur est simulé numériquement dans
+`metal.js`, par **péridynamique** (modèle à liaisons, méthode utilisée en recherche pour les impacts et
+la fragmentation). La simulation est faite en coupe 2D dans le plan de l'impact.
+
+- **Le modèle** : la plaque et l'obus sont formés de 300 à 2 300 particules, liées à leurs voisines.
+  - Chaque liaison est élastique, puis parfaitement plastique au-delà de la limite élastique.
+  - Elle se rompt au-delà d'un allongement critique.
+  - Le travail plastique échauffe la matière (cisaillement adiabatique).
+  - Les morceaux séparés interagissent par contact.
+- **Les matériaux** :
+
+  | Matériau | Rôle | Module d'Young | Limite élastique |
+  |---|---|---|---|
+  | Acier de blindage (RHA) | Plaque | 207 GPa | 1 GPa |
+  | Acier trempé, coiffe plus tendre | Obus perforants | | |
+  | Carbure de tungstène, dense et fragile | Noyau APCR | 600 GPa | |
+  | Cuivre | Jet de charge creuse, étiré de 6 500 à 2 500 m/s | | |
+
+  L'obus explosif applique une impulsion de pression de détonation sur la face avant.
+- **Le reste du char** est représenté par un appui élastique, qui empêche la plaque de fléchir comme une
+  feuille et qui lâche dès que la matière est arrachée.
+- **Ce qui émerge sans être scripté** : cratère, bouchon cisaillé, pétales, bombement et écaillage de la
+  face arrière, fissures, obus qui s'écrase, se brise ou ricoche, échauffement jusqu'à plus de 1 000 K.
+- **Calcul** : plusieurs milliers de pas de 200 à 350 ns, répartis sur les images pendant la caméra
+  d'impact, sans figer le jeu. La coupe s'affiche à côté de la vue aux rayons X, colorée selon la
+  contrainte, la température et l'endommagement. Le bilan donne les liaisons rompues, la température
+  maximale, les fragments arrachés (masse), le bombement et la part de l'obus détruite.
+- **Calage** : la vitesse limite propre à la simulation a été mesurée par dichotomie (27 configurations
+  d'épaisseur, de calibre et d'angle), puis ajustée par une loi V_lim = A · (T/d)^b / cos(θ)^c. Chaque
+  impact est simulé avec le même rapport « vitesse / vitesse limite » que la balistique empirique, avec
+  une marge de sécurité. Sur 20 tirs tirés au hasard, la simulation et la balistique empirique concordent
+  20 fois.
+
+**Banc d'essai** (dans le menu) : choisis le canon, l'obus, l'épaisseur (10 à 200 mm), l'inclinaison
+(0 à 75°) et la distance (50 à 1 500 m), puis tire. Tu obtiens la prédiction balistique (vitesse,
+énergie, blindage effectif, pénétration, risque de ricochet) et la simulation du métal en grand,
+rejouée en boucle.
+
+![Banc d'essai](captures/12-banc-aphe-panther.png)
+
+**Limites** : c'est une coupe 2D et non un calcul 3D. La résolution est volontairement grossière (une
+particule fait quelques millimètres) pour tenir en une à deux secondes de calcul dans le navigateur. Les
+masses des fragments sont rapportées à une tranche épaisse d'un calibre.
+
 ## Modèle de dégâts
 
 - **Pas de points de vie.** Chaque char a des modules internes : équipage (pilote, radio, tireur, chef,
@@ -128,7 +174,7 @@ Le panneau donne les valeurs physiques : vitesse d'impact, énergie, plaque et a
 pénétration, vitesse limite et résiduelle, masse de la charge, surpression, nombre et masse des éclats.
 Le bilan s'affiche au fil des impacts. La touche H désactive la caméra.
 
-![Caméra d'impact](captures/7-impact-detonation-aphe.png)
+![Caméra d'impact](captures/15-impact-avec-coupe-du-metal.png)
 
 ## Autres éléments de réalisme
 
