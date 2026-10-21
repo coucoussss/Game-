@@ -16,6 +16,15 @@ void main(){
     w.x += sin(uTime * 1.3 + w.x * 0.15 + w.y * 0.11) * 0.035 * h;
     w.y += cos(uTime * 1.1 + w.y * 0.13 + w.x * 0.07) * 0.025 * h;
   }
+  if (aMat > 13.5) {
+    // feuilles : balancement de la plante et frémissement de chaque feuille
+    float h = max(0.0, w.z - 0.15);
+    float g = sin(uTime * 1.6 + w.x * 0.4 + w.y * 0.3);
+    float fl = sin(uTime * 7.0 + aPos.x * 23.0 + aPos.y * 17.0 + aPos.z * 11.0);
+    w.x += g * 0.04 * h + fl * 0.012;
+    w.y += g * 0.025 * h + fl * 0.01;
+    w.z += fl * 0.008;
+  }
   vW = w.xyz; vO = aPos; vN = mat3(uModel) * aNor; vC = aCol; vM = aMat; vL = uLVP * w;
   gl_Position = uVP * w;
 }`;
@@ -113,6 +122,13 @@ void main(){
     base *= 0.85 + 0.25 * fbm(vW * 0.8);
     base *= 1.0 - 0.25 * smoothstep(0.5, 0.0, vW.z);
   } else if (vM < 13.5) { ks = 0.8; shin = 120.0; }
+  else {
+    // feuille : éclairée des deux faces, translucide, cireuse, parfois enneigée sur le dessus
+    if (dot(N, V) < 0.0) N = -N;
+    base *= 0.82 + 0.36 * n3(vW * 9.0);
+    base = mix(base, vec3(0.93, 0.95, 0.98), uSnow * smoothstep(0.3, 0.85, N.z) * 0.9);
+    trans = 0.55; ks = 0.18; shin = 28.0;
+  }
   if (uTint.w > 0.0) { base = mix(base, uTint.rgb, uTint.w); paint = 0.0; }
   float grime = fbm(P * 5.0);
   if (vM < 1.5 || (vM > 2.5 && vM < 3.5)) base *= 0.82 + 0.32 * grime;
@@ -152,6 +168,7 @@ varying float vD;
 void main(){
   vec4 w = uModel * vec4(aPos, 1.0);
   if (aMat > 7.5 && aMat < 8.5) { float h = max(0.0, w.z - 0.8); w.x += sin(uTime * 1.3 + w.x * 0.15 + w.y * 0.11) * 0.035 * h; }
+  if (aMat > 13.5) { float h = max(0.0, w.z - 0.15); w.x += sin(uTime * 1.6 + w.x * 0.4 + w.y * 0.3) * 0.04 * h; }
   vec4 p = uLVP * w;
   vD = p.z / p.w * 0.5 + 0.5;
   gl_Position = p;
@@ -549,12 +566,6 @@ void main(){
       } else building(o);
     }
     s = (seed >>> 0) + 977 || 1;
-    // buissons
-    const bushC = hex(lv.bush);
-    for (const bu of bushes) {
-      const x = M(bu.x), y = Yv(bu.y), r = M(bu.r);
-      for (let k = 0; k < 7; k++) { const kc = rr(0.7, 1.1), rs = r * rr(0.28, 0.45); b.sphere([x + rr(-0.55, 0.55) * r, y + rr(-0.55, 0.55) * r, rs * 0.7], rs, rs, rs * 0.8, 6, [bushC[0] * kc, bushC[1] * kc, bushC[2] * kc], 8); }
-    }
     // touffes d'herbe : trois brins fins, un peu plus sombres que le sol
     if (!city && !snow) {
       const gc = desert ? [0.5, 0.44, 0.27] : forest ? [0.2, 0.28, 0.1] : [0.32, 0.38, 0.15];
@@ -582,5 +593,73 @@ void main(){
     return b;
   }
 
-  return { create, buildScene };
+  // ===================== Buissons =====================
+  // Chaque zone de buisson est remplie de plants de taille réelle ; chaque plant a des branches,
+  // un cœur dense et quelques centaines de feuilles orientées vers l'extérieur.
+  function buildBushes(lv, bushes, px, seed) {
+    const b = new Builder();
+    let s = (seed >>> 0) || 1;
+    const R = () => (s = (s * 16807) % 2147483647) / 2147483647;
+    const rr = (a, c) => a + R() * (c - a);
+    const snow = !!lv.snow, desert = lv.name.startsWith('Désert'), forest = lv.name.startsWith('Forêt'), city = !!lv.city;
+    const leafBase = desert ? [0.42, 0.42, 0.27] : forest ? [0.18, 0.31, 0.1] : snow ? [0.13, 0.25, 0.15] : city ? [0.27, 0.33, 0.16] : [0.25, 0.4, 0.13];
+    const leafTop = desert ? [0.56, 0.53, 0.34] : forest ? [0.3, 0.44, 0.13] : snow ? [0.2, 0.33, 0.19] : [0.46, 0.56, 0.2];
+    const dead = desert ? [0.5, 0.42, 0.26] : [0.42, 0.36, 0.17];
+    const wood = [0.2, 0.15, 0.1];
+    const berries = !desert && !snow && !city;
+    const plant = (x, y, pr, ph) => {
+      // branches principales
+      const nb = 5 + Math.floor(R() * 3);
+      for (let k = 0; k < nb; k++) {
+        const a = R() * Math.PI * 2, d = pr * rr(0.45, 0.8);
+        b.cyl([x, y, 0], [x + Math.cos(a) * d, y + Math.sin(a) * d, ph * rr(0.55, 0.85)], rr(0.025, 0.04), 0.01, 5, wood, 6);
+      }
+      // cœur sombre : pas de vide au milieu du feuillage
+      b.sphere([x, y, ph * 0.45], pr * 0.5, pr * 0.5, ph * 0.36, 6, [leafBase[0] * 0.55, leafBase[1] * 0.55, leafBase[2] * 0.55], 8);
+      // feuilles, plus denses en surface
+      // deux couches : bouquets larges à mi-profondeur, puis feuilles fines en surface
+      const nl = Math.round(120 * Math.min(1.8, (pr * pr) / 1.2)), nc = Math.round(nl * 0.45);
+      for (let k = 0; k < nl + nc; k++) {
+        const cluster = k >= nl, leafS = (desert ? 0.1 : 0.17) * (cluster ? 2.1 : 1);
+        const z0 = rr(-1, 1), ph0 = R() * Math.PI * 2, rr0 = Math.sqrt(1 - z0 * z0);
+        const dir = [rr0 * Math.cos(ph0), rr0 * Math.sin(ph0), Math.abs(z0) * (z0 < -0.3 ? 0.4 : 1)];
+        const f = cluster ? 0.55 + 0.3 * R() : 0.72 + 0.28 * Math.cbrt(R());
+        const c = [x + dir[0] * pr * f, y + dir[1] * pr * f, Math.max(0.05, ph * 0.45 + dir[2] * ph * 0.55 * f)];
+        let n = [dir[0] + rr(-0.5, 0.5), dir[1] + rr(-0.5, 0.5), dir[2] + rr(-0.2, 0.8)];
+        const nl2 = Math.hypot(n[0], n[1], n[2]) || 1; n = [n[0] / nl2, n[1] / nl2, n[2] / nl2];
+        const ref = Math.abs(n[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0];
+        let u = [n[1] * ref[2] - n[2] * ref[1], n[2] * ref[0] - n[0] * ref[2], n[0] * ref[1] - n[1] * ref[0]];
+        const ul = Math.hypot(u[0], u[1], u[2]) || 1; u = [u[0] / ul, u[1] / ul, u[2] / ul];
+        const sp = R() * Math.PI, cs = Math.cos(sp), sn = Math.sin(sp);
+        const v0 = [n[1] * u[2] - n[2] * u[1], n[2] * u[0] - n[0] * u[2], n[0] * u[1] - n[1] * u[0]];
+        u = [u[0] * cs + v0[0] * sn, u[1] * cs + v0[1] * sn, u[2] * cs + v0[2] * sn];
+        const v = [n[1] * u[2] - n[2] * u[1], n[2] * u[0] - n[0] * u[2], n[0] * u[1] - n[1] * u[0]];
+        const sz = leafS * rr(0.75, 1.35);
+        const P = (a, bb) => [c[0] + u[0] * a + v[0] * bb, c[1] + u[1] * a + v[1] * bb, c[2] + u[2] * a + v[2] * bb];
+        const tip = P(sz, 0), side1 = P(0, sz * 0.42), back = P(-sz * 0.55, 0), side2 = P(0, -sz * 0.42);
+        // teinte : cœur plus sombre, sommet plus clair, quelques feuilles mortes
+        const depth = Math.min(1, Math.max(0, (f - 0.55) / 0.45)), top = Math.max(0, dir[2]);
+        let col = [0, 1, 2].map(i => leafBase[i] + (leafTop[i] - leafBase[i]) * (0.3 * top + 0.4 * depth + 0.3 * R()));
+        if (R() < 0.02) col = dead.map(q => q * rr(0.8, 1.1));
+        const ao = 0.62 + 0.38 * depth;
+        col = col.map(q => q * ao);
+        b.triN(tip, side1, back, n, n, n, col, 14);
+        b.triN(tip, back, side2, n, n, n, col, 14);
+        if (berries && R() < 0.012) b.sphere(P(0, 0), 0.03, 0.03, 0.03, 4, R() < 0.6 ? [0.5, 0.05, 0.05] : [0.85, 0.85, 0.8], 7);
+      }
+      if (snow) b.sphere([x, y, ph * 0.92], pr * 0.75, pr * 0.75, ph * 0.14, 7, [0.9, 0.92, 0.96], 7);
+    };
+    for (const bu of bushes) {
+      const x = bu.x / px, y = -bu.y / px, r = bu.r / px;
+      const n = Math.max(2, Math.min(4, Math.round((r / 1.4) * (r / 1.4) * 0.6)));
+      for (let k = 0; k < n; k++) {
+        const a = R() * Math.PI * 2, d = Math.sqrt(R()) * r * 0.65;
+        const pr = rr(0.85, 1.5) * (desert ? 0.75 : 1), ph = pr * rr(0.9, 1.25);
+        plant(x + Math.cos(a) * d, y + Math.sin(a) * d, pr, ph);
+      }
+    }
+    return b;
+  }
+
+  return { create, buildScene, buildBushes };
 })();

@@ -1665,7 +1665,7 @@
     { az: 210, el: 34, sunCol: [0.28, 0.33, 0.5], skyCol: [0.03, 0.045, 0.08], bounce: [0.04, 0.05, 0.07], horizon: [0.02, 0.03, 0.06], zenith: [0.004, 0.006, 0.016], fogD: 0.011, snow: 1 },
   ];
 
-  let W3D = null, MESH3 = {}, scene3 = null, scene3Dirty = false, scene3T = 0;
+  let W3D = null, MESH3 = {}, bush3 = null, scene3 = null, scene3Dirty = false, scene3T = 0;
   const cam3 = { yaw: 0, pitch: 0.56, dist: 34, off: 0, eye: [0, 0, 40], target: [0, 0, 0], view: null, vp: null, init: false, drag: null };
   const dirtyTiles = new Set();
   try {
@@ -1689,6 +1689,8 @@
     W3D.setEnv({ sun: [Math.cos(el) * Math.cos(az), Math.cos(el) * Math.sin(az), Math.sin(el)], sunCol: e.sunCol, skyCol: e.skyCol, bounce: e.bounce, fogCol: e.horizon, fogD: e.fogD, horizon: e.horizon, zenith: e.zenith, snow: e.snow || 0 });
     W3D.setGround(groundCv, WW / PX, WH / PX);
     dirtyTiles.clear();
+    if (bush3) W3D.free(bush3);
+    bush3 = W3D.upload(World3D.buildBushes(L(), bushes, PX, 4242 + levelIdx * 131));
     rebuildScene3();
     cam3.init = false;
   }
@@ -1749,7 +1751,7 @@
       const tx = (k % 64) * 256, ty = Math.floor(k / 64) * 256, w = Math.min(256, WW - tx), h = Math.min(256, WH - ty);
       W3D.updateGround(gctx.getImageData(tx, ty, w, h), tx, ty);
     }
-    const M4 = G3.M4, items = [{ mesh: scene3, model: M4.ident() }];
+    const M4 = G3.M4, items = [{ mesh: scene3, model: M4.ident() }, { mesh: bush3, model: M4.ident() }];
     for (const t of tanks) {
       if (!t.dead && !visibleToPlayer(t)) continue;
       const p = to3(t.x, t.y), hm = M4.trs(p[0], p[1], 0, -t.angle);
@@ -2701,7 +2703,7 @@
   if (Q.has('debug')) {
     window.__fa = {
       get tanks() { return tanks; }, get state() { return state; }, get stats() { return waveStats; }, get shells() { return shells; },
-      get time() { return gameTime; }, get player() { return player; }, hitcam: HitCam, TYPES, SHELLS, bench, benchFire,
+      get time() { return gameTime; }, get player() { return player; }, get bushes() { return bushes; }, cam3, hitcam: HitCam, TYPES, SHELLS, bench, benchFire,
       // test : tir forcé du joueur sur la cible la plus proche
       fireAt(i, key) {
         const e = tanks.filter(t => t.team === 1 && !t.dead)[i || 0];
