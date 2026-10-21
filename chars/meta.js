@@ -14,20 +14,24 @@ const Meta = (() => {
   let platformMute = false; // réglage « son coupé » du portail (SDK.game.settings.muteAudio)
   const MIDGAME_GAP = 180000; // au plus une publicité entre deux parties toutes les 3 minutes
 
+  // Initialisation bornée à 8 s : un SDK qui ne répond pas est traité comme absent
   async function initSDK() {
+    const S = window.CrazyGames && window.CrazyGames.SDK;
+    if (!S) return;
+    let late = false;
     try {
-      if (window.CrazyGames && window.CrazyGames.SDK) {
-        SDK = window.CrazyGames.SDK;
-        await SDK.init();
-        env = SDK.environment || 'crazygames';
-        if (env === 'disabled') SDK = null;
-        // le portail a son propre bouton « muet » : on le suit, et on écoute ses changements
-        const g = SDK && SDK.game;
-        if (g) {
-          platformMute = !!(g.settings && g.settings.muteAudio);
-          if (g.addSettingsChangeListener) g.addSettingsChangeListener(st => { platformMute = !!(st && st.muteAudio); hooks.mute(platformMute); });
-        }
+      await Promise.race([S.init(), new Promise(r => setTimeout(() => { late = true; r(); }, 8000))]);
+      if (late) { console.warn('CrazyGames SDK init timed out'); return; }
+      env = S.environment || 'crazygames';
+      if (env === 'disabled') return;
+      SDK = S;
+      // le portail a son propre bouton « muet » : on le suit, et on écoute ses changements
+      const g = SDK.game;
+      if (g) {
+        platformMute = !!(g.settings && g.settings.muteAudio);
+        if (g.addSettingsChangeListener) g.addSettingsChangeListener(st => { platformMute = !!(st && st.muteAudio); hooks.mute(platformMute); });
       }
+      if (playing) call(s => s.game.gameplayStart());
     } catch (e) { console.warn('CrazyGames SDK unavailable', e); SDK = null; env = 'none'; }
   }
   const call = (fn) => { try { if (SDK) fn(SDK); } catch (e) { console.warn(e); } };
@@ -41,6 +45,9 @@ const Meta = (() => {
     // moments de joie : au plus un toutes les 45 s, pour ne pas en abuser
     happytime() { const n = Date.now(); if (n - lastHappy < 45000) return; lastHappy = n; call(s => s.game.happytime()); },
   };
+  // Le SDK est lancé dès le chargement de meta.js ; loadingStart part dès qu'il est prêt, avant la
+  // construction (lourde) des modèles 3D : game.js ne démarre qu'ensuite (Meta.whenReady)
+  const sdkReady = initSDK().catch(e => console.warn(e)).then(() => sdk.loadingStart());
 
   // écran de publicité simulée (hors CrazyGames) : 3 secondes, puis récompense
   function simAd(done) {
@@ -389,6 +396,7 @@ const Meta = (() => {
     get dev() { return devMode; }, buyTank, canBuyTank, buySkin, grantSkin, selectSkin, skinOf,
     featured, skinPrice, skinAd, adsLeft, partLv, buyPart, partAd, mods,
     dailyRoll, track, claim, canSpinFree, spinResult, applyPrize, battleEnd,
-    async init() { await initSDK(); sdk.loadingStart(); await load(); return dailyRoll(); },
+    whenReady: fn => sdkReady.then(fn),
+    async init() { await sdkReady; await load(); return dailyRoll(); },
   };
 })();

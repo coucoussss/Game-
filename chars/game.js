@@ -1,6 +1,7 @@
 'use strict';
 // Steel Front : combat de chars 5 contre 5, vue de dessus.
-(() => {
+// Le jeu démarre une fois le SDK prêt (loadingStart déjà envoyé), puis construit modèles et menu.
+Meta.whenReady(() => {
   // ===================== Outils =====================
   const TAU = Math.PI * 2, D2R = Math.PI / 180;
   const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
@@ -2373,8 +2374,20 @@
     }
   }
 
-  let last = performance.now(), acc = 0, viewerT = 0;
+  let last = performance.now(), acc = 0, viewerT = 0, errRun = 0, errLogged = false;
+  // Boucle principale : l'image suivante est demandée d'abord, et une exception n'arrête rien. Elle
+  // est journalisée une fois ; si elle se répète 30 images de suite, retour au QG.
   function frame(now) {
+    requestAnimationFrame(frame);
+    try { frameBody(now); errRun = 0; } catch (e) {
+      if (!errLogged) { errLogged = true; console.error(e); }
+      if (++errRun > 30) {
+        errRun = 0;
+        if (state !== 'menu') { console.error('Repeated errors, back to menu', e); toast('Something went wrong, back to HQ'); try { toMenu(); } catch (e2) { console.error(e2); } }
+      }
+    }
+  }
+  function frameBody(now) {
     const dt = Math.min(0.1, (now - last) / 1000);
     last = now;
     if (state === 'intro' || state === 'play' || state === 'ending') {
@@ -2399,7 +2412,6 @@
     const live = v >= 0 && player;
     Sfx.tracks(live ? Math.abs(player.speed) / PX : -1);
     Sfx.turret(live ? Math.abs(player.turretRate) / player.T.tturn : 0);
-    requestAnimationFrame(frame);
   }
 
   // ===================== Rendu =====================
@@ -4441,17 +4453,25 @@
     if (!Meta.P.tanks.includes(chosenType)) Meta.P.tanks.push(chosenType); // essais : char débloqué
     hide('menu'); startLevel();
   }
-  // profil, SDK et prime de présence ; puis le menu remplace l'écran de chargement
-  Meta.init().then(bonus => {
-    if ((Q.has('level') || AUTO) && !Meta.P.tanks.includes(chosenType)) Meta.P.tanks.push(chosenType);
-    applyOptions();
-    if (!Meta.P.tanks.includes(chosenType)) chosenType = Meta.P.tanks.includes('pz4') ? 'pz4' : Meta.P.tanks[0];
-    buildMenu();
+  // profil et prime de présence ; puis le menu remplace l'écran de chargement. Une erreur ou une
+  // attente trop longue n'empêche jamais le menu d'apparaître.
+  let booted = false;
+  function boot(bonus) {
+    if (booted) { if (state === 'menu') { applyOptions(); buildMenu(); } return; }
+    booted = true;
+    try {
+      if ((Q.has('level') || AUTO) && !Meta.P.tanks.includes(chosenType)) Meta.P.tanks.push(chosenType);
+      applyOptions();
+      if (!Meta.P.tanks.includes(chosenType)) chosenType = Meta.P.tanks.includes('pz4') ? 'pz4' : Meta.P.tanks[0];
+      buildMenu();
+    } catch (e) { console.error(e); }
     hide('loading');
     if (state === 'menu') show('menu');
     Meta.sdk.loadingStop();
     if (bonus) setTimeout(() => toast(`Daily login · day ${Meta.P.streak}: +✪ ${fmt(bonus)}`), 600);
-  });
+  }
+  const bootT = setTimeout(() => { console.warn('Profile loading timed out'); boot(0); }, 12000);
+  Meta.init().then(b => { clearTimeout(bootT); boot(b); }, e => { console.error(e); clearTimeout(bootT); boot(0); });
   addEventListener('pointerdown', () => { if (state === 'menu') playMusic(); }, { once: false });
   if (Q.has('debug')) {
     window.__fa = {
@@ -4494,4 +4514,10 @@
     };
   }
   requestAnimationFrame(frame);
-})();
+}).catch(e => {
+  // démarrage impossible : message lisible plutôt qu'un écran de chargement sans fin
+  console.error(e);
+  const t = document.querySelector('#loading .loadtip');
+  if (t) t.textContent = 'Something went wrong while loading. Please reload the page.';
+  Meta.sdk.loadingStop();
+});
