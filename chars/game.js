@@ -206,7 +206,7 @@
   try { survBest = Number(localStorage.getItem('frontdacier.survie')) || 0; } catch (e) { /* stockage indisponible */ }
   // vue du tireur : lunette à grossissement fixe, la souris oriente la visée
   const MAGS = [2.5, 5, 8];
-  const sight = { on: false, yaw: 0, pitch: 0, mag: 0, probe: null, probeT: 0, z0: 2, gunPitch: 0 };
+  const sight = { on: false, yaw: 0, pitch: 0, cx: 0, cy: 0, aimYaw: 0, aimPitch: 0, mag: 0, probe: null, probeT: 0, z0: 2, gunPitch: 0 };
   const mouse = { x: W / 2, y: H / 2, down: false };
   const keys = {};
 
@@ -1920,7 +1920,7 @@
     const m = W3D && cam3.view && !sight.on ? (player.aim3 = aimRay3(mouse.x, mouse.y)) : screenToWorld(mouse.x, mouse.y);
     if (!(W3D && cam3.view && !sight.on)) player.aim3 = { x: m.x, y: m.y, z: 1.5 };
     player.in.throttle = thr; player.in.turn = turn;
-    player.in.aim = sight.on ? sight.yaw : Math.atan2(m.y - pv.y, m.x - pv.x);
+    player.in.aim = sight.on ? sight.aimYaw : Math.atan2(m.y - pv.y, m.x - pv.x);
     player.in.mg = !!k.KeyF || (sight.on && mouse.right);
     player.in.fire = mouse.down || !!k.Space;
   }
@@ -2106,7 +2106,7 @@
     if (on === sight.on) return;
     sight.on = on;
     if (on) {
-      sight.yaw = player.angle + player.turret; sight.pitch = -0.004; sight.probe = null;
+      sight.yaw = sight.aimYaw = player.angle + player.turret; sight.pitch = sight.aimPitch = -0.004; sight.cx = sight.cy = 0; sight.probe = null;
       try { cv.requestPointerLock && cv.requestPointerLock(); } catch (e) { /* verrouillage refusé */ }
       showMsg(`Vue du tireur · ×${MAGS[sight.mag]}`, '#bcd8ff', 1);
     } else if (document.pointerLockElement === cv) document.exitPointerLock();
@@ -2117,20 +2117,34 @@
     const T = player.T, Sd = T.S, pv = pivot(player), ta = player.angle + player.turret;
     const mv = Math.abs(player.speed) / T.speed, tr = Math.abs(player.turnRate) / T.turn, g = gameTime;
     const sw = mv * 0.7 + tr * 0.5;
-    // sans verrouillage du curseur (page intégrée), la souris au bord de l'écran fait pivoter la visée
-    if (document.pointerLockElement !== cv) {
-      const ex = (mouse.x - W / 2) / (W / 2);
-      if (Math.abs(ex) > 0.85) sight.yaw += Math.sign(ex) * Math.min(1, (Math.abs(ex) - 0.85) / 0.15) * cam3.fov * 0.8 * dt;
+    // Curseur incrusté dans la lunette : il désigne le point visé, la vue le suit en douceur, et la
+    // tourelle suit à sa propre vitesse. Curseur verrouillé : la vue recentre le curseur. Sans
+    // verrouillage (page intégrée) : visée libre au centre, la vue ne pivote que vers les bords.
+    cam3.fov = 2 * Math.atan(Math.tan(0.49) / MAGS[sight.mag]);
+    const ppr = (H / 2) / Math.tan(cam3.fov / 2), R = sightR() * 0.92, locked = document.pointerLockElement === cv;
+    if (!locked) { sight.cx = mouse.x - W / 2; sight.cy = mouse.y - H / 2; }
+    const rl = Math.hypot(sight.cx, sight.cy);
+    if (rl > R) { sight.cx *= R / rl; sight.cy *= R / rl; }
+    let ay = Math.atan(sight.cx / ppr), ap = -Math.atan(sight.cy / ppr);
+    if (locked) {
+      const k = 1 - Math.exp(-3 * dt);
+      sight.yaw += ay * k; sight.pitch += ap * k; ay *= 1 - k; ap *= 1 - k;
+      sight.cx = Math.tan(ay) * ppr; sight.cy = -Math.tan(ap) * ppr;
+    } else {
+      const ex = Math.max(0, Math.hypot(sight.cx, sight.cy) / R - 0.6) / 0.4;
+      sight.yaw += ay * ex * 2.5 * dt; sight.pitch += ap * ex * 2.5 * dt;
     }
-    const yaw = sight.yaw + sw * (0.005 * Math.sin(g * 6.1) + 0.0025 * Math.sin(g * 15.7));
-    const pitch = sight.pitch + sw * (0.007 * Math.sin(g * 7.3 + 1) + 0.0035 * Math.sin(g * 17.9)) + player.recoil * 0.03;
-    sight.gunPitch = pitch;
+    sight.pitch = clamp(sight.pitch, -0.14, 0.3);
+    sight.aimYaw = sight.yaw + ay; sight.aimPitch = clamp(sight.pitch + ap, -0.14, 0.3);
+    const jy = sw * (0.005 * Math.sin(g * 6.1) + 0.0025 * Math.sin(g * 15.7));
+    const jp = sw * (0.007 * Math.sin(g * 7.3 + 1) + 0.0035 * Math.sin(g * 17.9)) + player.recoil * 0.03;
+    const yaw = sight.yaw + jy, pitch = sight.pitch + jp;
+    sight.gunPitch = sight.aimPitch + jp;
     const fx = pv.x + Math.cos(ta) * 0.9 * PX - Math.sin(ta) * 0.35 * PX, fy = pv.y + Math.sin(ta) * 0.9 * PX + Math.cos(ta) * 0.35 * PX;
     sight.z0 = Sd.gun.z + 0.08;
     const eye = to3(fx, fy, sight.z0), cp = Math.cos(pitch);
     const dir = [Math.cos(yaw) * cp, -Math.sin(yaw) * cp, Math.sin(pitch)];
     const tgt = [eye[0] + dir[0] * 60, eye[1] + dir[1] * 60, eye[2] + dir[2] * 60];
-    cam3.fov = 2 * Math.atan(Math.tan(0.49) / MAGS[sight.mag]);
     cam3.eye = eye; cam3.target = tgt;
     cam3.view = G3.M4.lookAt(eye, tgt, [0, 0, 1]);
     cam3.vp = G3.M4.mul(G3.M4.persp(cam3.fov, W / H, 0.25, 2400), cam3.view);
@@ -2143,7 +2157,7 @@
   // Ce que vise la lunette : premier obstacle, char ou point du sol sur la ligne de visée,
   // et, sur un char, la plaque touchée et la perforation attendue
   // a : direction ; z0 : hauteur de départ (m) ; sv : montée de la ligne de visée en m par px
-  function sightProbe(a = sight.yaw, z0 = sight.z0, sv = Math.tan(sight.gunPitch) / PX) {
+  function sightProbe(a = sight.aimYaw, z0 = sight.z0, sv = Math.tan(sight.gunPitch) / PX) {
     const pv = pivot(player), ux = Math.cos(a), uy = Math.sin(a), L0 = 1600;
     let best = { t: 1, kind: 'sky' };
     if (sv < 0) { const tg = (z0 / -sv) / L0; if (tg < 1) best = { t: tg, kind: 'ground' }; }
@@ -2717,6 +2731,28 @@
       ctx.beginPath(); ctx.arc(gp.x, gp.y, rr + 4, -Math.PI / 2, -Math.PI / 2 + TAU * rf); ctx.stroke();
     }
 
+    // curseur de la souris incrusté : point visé, avec distance et perforation à cette distance
+    const ca = sight.aimYaw, cpz = Math.cos(sight.aimPitch), e3 = cam3.eye;
+    const q = G3.M4.apply(cam3.vp, [e3[0] + Math.cos(ca) * cpz * 100, e3[1] - Math.sin(ca) * cpz * 100, e3[2] + Math.sin(sight.aimPitch) * 100]);
+    if (q[3] > 0) {
+      const mx = (q[0] * 0.5 + 0.5) * W, my = (1 - (q[1] * 0.5 + 0.5)) * H;
+      ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+      ctx.beginPath(); ctx.arc(mx, my, 9, 0, TAU); ctx.stroke();
+      ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+      ctx.beginPath(); ctx.arc(mx, my, 9, 0, TAU);
+      ctx.moveTo(mx - 15, my); ctx.lineTo(mx - 11, my); ctx.moveTo(mx + 11, my); ctx.lineTo(mx + 15, my);
+      ctx.moveTo(mx, my - 15); ctx.lineTo(mx, my - 11); ctx.moveTo(mx, my + 11); ctx.lineTo(mx, my + 15);
+      ctx.stroke();
+      ctx.fillStyle = pr && pr.kind === 'tank' ? verdictOf(pr).col : '#fff';
+      ctx.beginPath(); ctx.arc(mx, my, 1.8, 0, TAU); ctx.fill();
+      if (dm != null) {
+        ctx.font = '600 11px system-ui, sans-serif'; ctx.textAlign = 'left';
+        const tx = `${Math.round(dm)} m · ${Math.round(penAt(player.T, player.shell, pr.dist))} mm`;
+        ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillText(tx, mx + 19, my + 17);
+        ctx.fillStyle = '#fff'; ctx.fillText(tx, mx + 18, my + 16);
+      }
+    }
+
     // indicateur de perforation sous le réticule
     ctx.textAlign = 'center';
     const sb = SHELLS[player.shell];
@@ -2726,7 +2762,6 @@
     ctx.fillStyle = '#e9d9a6'; ctx.fillText(top, cx, cy + R * 0.42);
     if (pr && pr.kind === 'tank') {
       const t = pr.tank, ally = t.team === 0, { col, verdict } = verdictOf(pr);
-      ctx.fillStyle = col; ctx.beginPath(); ctx.arc(cx, cy, 2.2, 0, TAU); ctx.fill();
       const l1 = `${t.T.name}${ally ? ' (allié)' : ''} · ${verdict}`;
       const l2 = t.dead ? '' : `${pr.plate} : ${pr.mm} mm à ${Math.round(pr.angle)}° → ${Math.round(pr.eff)} mm effectifs · pénétration ${Math.round(pr.pen)} mm`;
       ctx.font = '700 14px system-ui, sans-serif';
@@ -3389,9 +3424,8 @@
   // à la lunette, la souris oriente la visée (déplacement relatif, curseur verrouillé si possible)
   addEventListener('mousemove', e => {
     if (!sight.on) return;
-    const k = cam3.fov / H * 0.9;
-    sight.yaw += (e.movementX || 0) * k;
-    sight.pitch = clamp(sight.pitch - (e.movementY || 0) * k, -0.14, 0.3);
+    if (document.pointerLockElement !== cv) return; // position absolue lue dans sightCam
+    sight.cx += e.movementX || 0; sight.cy += e.movementY || 0;
   });
   addEventListener('pointerdown', trackMouse);
   cv.addEventListener('mousedown', e => {

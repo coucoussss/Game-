@@ -88,6 +88,10 @@ un rebond au sol, et une poussée vers le haut pour les gaz chauds.
 verrouillé), la tourelle suit à sa vraie vitesse de rotation : le cercle montre où pointe réellement le
 canon, avec la dispersion et le rechargement. La molette change le grossissement (×2,5, ×5, ×8).
 
+- **Curseur incrusté** : un cercle blanc montre le point que désigne la souris, avec la distance et la
+  pénétration ; son point central prend la couleur du verdict. La vue le suit en douceur (curseur
+  verrouillé) ; sans verrouillage, on vise librement et la vue ne pivote qu'en approchant du bord.
+
 - **Réticule** inspiré de la TZF allemande : triangle central, triangles tous les 4 millièmes pour la
   correction sur cible mobile, réglette des distances en hectomètres avec le curseur du télémètre. Les
   traits sont à l'échelle angulaire réelle, donc grossissent avec le zoom. Réticule éclairé la nuit.
