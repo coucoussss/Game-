@@ -4069,27 +4069,27 @@ Meta.whenReady(() => {
   });
   $('spinFree').onclick = () => { if (Meta.canSpinFree()) spinWheel(true); };
   $('spinAd').onclick = () => Meta.rewarded(() => spinWheel(false), () => toast('Ad unavailable right now'));
-  const music = $('menuMusic');
+  // Musique du menu : aucune piste n'est livrée. Ces deux crochets décident seuls quand elle joue
+  // (menu, volume non nul, son non coupé, onglet visible) ; une musique de audio.js s'y branche en
+  // définissant Sfx.playMusic(volume) et Sfx.stopMusic().
   function playMusic() {
-    if (!music) return;
-    music.volume = Meta.P.opts.music * 0.7;
-    if (state === 'menu' && music.paused && Meta.P.opts.music > 0 && !Sfx.silenced && !document.hidden) music.play().catch(() => {});
+    if (!Sfx.playMusic) return;
+    if (state === 'menu' && Meta.P.opts.music > 0 && !Sfx.silenced && !document.hidden) Sfx.playMusic(Meta.P.opts.music);
+    else stopMusic();
   }
-  function stopMusic() { if (music && !music.paused) music.pause(); }
+  function stopMusic() { if (Sfx.stopMusic) Sfx.stopMusic(); }
   function applyOptions() {
     const o = Meta.P.opts;
     Sfx.setVolume(o.sfx); Sfx.setUserMute(o.mute); Sfx.setPortalMute(Meta.platformMute); hitcamOn = o.hitcam;
     QDPR = o.quality === 'basse' ? 1 : o.quality === 'moyenne' ? 1.25 : 2;
     PCAP = o.quality === 'basse' ? 900 : o.quality === 'moyenne' ? 1700 : 2600;
     resize();
-    if (music) music.volume = o.music * 0.7;
     $('oSfx').value = o.sfx; $('oMusic').value = o.music; $('oQuality').value = o.quality; $('oHitcam').checked = o.hitcam;
   }
   $('oSfx').oninput = e => { Meta.P.opts.sfx = +e.target.value; Meta.save(); applyOptions(); };
   $('oMusic').oninput = e => { Meta.P.opts.music = +e.target.value; Meta.save(); applyOptions(); playMusic(); };
   $('oQuality').onchange = e => { Meta.P.opts.quality = e.target.value; Meta.save(); applyOptions(); };
   $('oHitcam').onchange = e => { Meta.P.opts.hitcam = e.target.checked; Meta.save(); applyOptions(); };
-  $('oFull').onclick = () => { try { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen(); } catch (e) { /* refusé */ } };
   // Fenêtre de confirmation du jeu (les fenêtres natives sont bloquées dans l'iframe du portail
   // et font sortir du plein écran)
   function askConfirm(title, text, okLabel, onOk) {

@@ -270,8 +270,10 @@ Le jeu est prêt pour CrazyGames : téléverser le contenu du dossier `chars/` (
   carte historique (lieu et date), sans glorification.
 - **Menu** : vitrine 3D plein écran du char choisi, avec son camouflage, et onglets Battle, Garage,
   Wheel, Missions, Workshop (banc d'essai, commandes) et Options (volumes, qualité graphique, caméra
-  d'impact, plein écran, remise à zéro).
-- **Musique** : `music/menu.mp3`, voir `music/README.md`.
+  d'impact, remise à zéro). Pas de bouton plein écran : le portail a le sien.
+- **Musique** : aucune piste n'est livrée (plus d'erreur 404 sur un fichier absent). `playMusic` et
+  `stopMusic` (game.js) décident quand la musique du menu joue ; une musique synthétisée s'y branche
+  en définissant `Sfx.playMusic(volume)` et `Sfx.stopMusic()` dans audio.js.
 
 ## Rendu 3D
 
