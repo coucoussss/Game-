@@ -292,11 +292,15 @@ const Ballistics = (() => {
   // mode : 'pen' (perforation), 'spall' (écaillage sans perforation), 'heout' (explosif contre la plaque)
   function simulate(ctx) {
     const s = ctx.s, out = { core: [], frags: [], hits: new Map(), ignite: [], fuel: null, blast: null, jet: null, exit: null, plug: null, Vr: 0, Vbl: 0, tEnd: 0, coreStop: null, notes: [] };
-    const hit = (m, dmg, t) => {
-      if (dmg <= 0) return;
+    // hot : touché par des éclats incandescents, le jet ou la flamme d'une charge (allume les incendies) ;
+    // la cloison pare-feu (kind 'wall') freine sans être endommagée
+    const hit = (m, dmg, t, hot) => {
+      if (dmg <= 0 || m.kind === 'wall') return;
       const h = out.hits.get(m);
-      if (h) { h.dmg += dmg; h.time = Math.min(h.time, t); } else out.hits.set(m, { dmg, time: t });
+      if (h) { h.dmg += dmg; h.time = Math.min(h.time, t); h.hot = h.hot || !!hot; } else out.hits.set(m, { dmg, time: t, hot: !!hot });
     };
+    // soute : l'allumage dépend de ce qu'elle contient encore (ctx.ammoK, 0 si vide ou détruite)
+    const ignite = (m, p, t) => { if (Math.random() < p * (ctx.ammoK ? ctx.ammoK(m) : 1)) out.ignite.push({ m, t }); };
     const inner = ctx.inner, mn = [inner.x0, inner.y0, inner.z0], mx = [inner.x1, inner.y1, inner.z1];
     const piv = [ctx.piv[0], ctx.piv[1], 0];
     // modules traversés par un rayon : [entrée, sortie], chacun dans son repère
@@ -343,8 +347,8 @@ const Ballistics = (() => {
           p = add(p, mul(d, h.t0)); t += h.t0 / V; pts.push({ p, t });
           seen.add(h.m);
           const k = h.m.kind;
-          hit(h.m, k === 'crew' ? Math.min(260, E / 4) : E / 40, t);
-          if (k === 'ammo' && Math.random() < clamp(E / 4000, 0.02, 0.45) * (hot ? 1.5 : 1)) out.ignite.push({ m: h.m, t });
+          hit(h.m, k === 'crew' ? Math.min(260, E / 4) : E / 40, t, hot);
+          if (k === 'ammo') ignite(h.m, clamp(E / 4000, 0.02, 0.45) * (hot ? 1.5 : 1), t);
           if (k === 'fuel' && Math.random() < (hot ? 0.35 : 0.12)) out.fuel = Math.min(out.fuel == null ? 1e9 : out.fuel, t);
           E *= 1 - ABSORB[k];
           if (E < 15) { V = 0; break; }
@@ -372,8 +376,8 @@ const Ballistics = (() => {
         const q = m.frame === 'turret' ? rotZ(sub(F, piv), -ctx.tAng) : F;
         const c = [clamp(q[0], m.min[0], m.max[0]), clamp(q[1], m.min[1], m.max[1]), clamp(q[2], m.min[2], m.max[2])];
         const r = len(sub(q, c)), P = blastKPa(We, r, conf), ta = t + r / 1200;
-        if (m.kind === 'crew') hit(m, clamp((P - 150) / 3, 0, 260), ta);
-        else hit(m, clamp((P - 400) / 8, 0, 200), ta);
+        if (m.kind === 'crew') hit(m, clamp((P - 150) / 3, 0, 260), ta, true);
+        else hit(m, clamp((P - 400) / 8, 0, 200), ta, true);
       }
       const gv = gurney(We, Mcase);
       for (let i = 0; i < nFrag; i++) {
@@ -403,8 +407,8 @@ const Ballistics = (() => {
       for (const h of rayMods(E0, ctx.d, w.t)) {
         if (res <= 0) { L = Math.min(L, h.t0); break; }
         const tt = h.t0 / tipV, k = Math.min(1, res / 20);
-        hit(h.m, (h.m.kind === 'crew' ? 230 : 170) * k, tt);
-        if (h.m.kind === 'ammo' && Math.random() < 0.8 * k) out.ignite.push({ m: h.m, t: tt });
+        hit(h.m, (h.m.kind === 'crew' ? 230 : 170) * k, tt, true);
+        if (h.m.kind === 'ammo') ignite(h.m, 0.8 * k, tt);
         if (h.m.kind === 'fuel' && Math.random() < 0.6 * k) out.fuel = Math.min(out.fuel == null ? 1e9 : out.fuel, tt);
         const eq = EQ[h.m.kind];
         if (res <= eq) L = Math.min(L, h.t0 + (h.t1 - h.t0) * res / eq);
@@ -481,7 +485,7 @@ const Ballistics = (() => {
             passed.add(next.m);
             const k = next.m.kind, Ek = 0.5 * coreM * Vc * Vc / 1000;
             hit(next.m, k === 'crew' ? 400 : Math.min(420, 40 + Ek * 0.4), t);
-            if (k === 'ammo' && Math.random() < 0.6) out.ignite.push({ m: next.m, t });
+            if (k === 'ammo') ignite(next.m, 0.6, t);
             if (k === 'fuel' && Math.random() < 0.3) out.fuel = Math.min(out.fuel == null ? 1e9 : out.fuel, t);
             const vl = vLimit(coreS, EQ[k]);
             if (Vc <= vl) { Vc = 0; out.coreStop = next.m.name; break; }
