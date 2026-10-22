@@ -4146,10 +4146,13 @@ Meta.whenReady(() => {
     R3.onRestored = () => { $('showcase').classList.remove('no3d'); if (state === 'menu') buildMenu(); };
   }
   // Appareil tactile sans souris ni clavier (téléphone, tablette) : aucune commande tactile en bataille,
-  // le bouton de départ laisse place à un avertissement (jeu publié pour ordinateur seulement)
+  // le bouton de départ laisse place à un avertissement, levé dès qu'une touche du clavier est frappée
+  // une touche de clavier physique (iPad avec clavier) suffit à débloquer le jeu
+  let kbSeen = false;
+  addEventListener('keydown', () => { if (!kbSeen) { kbSeen = true; document.body.classList.remove('touch'); } }, true);
   function touchOnly() {
     try {
-      if (matchMedia('(any-pointer: fine)').matches) return false; // souris ou pavé tactile branché
+      if (kbSeen || matchMedia('(any-pointer: fine)').matches) return false; // clavier, souris ou pavé tactile branché
       const d = Meta.sdk.device;
       return d ? d !== 'desktop' : matchMedia('(pointer: coarse)').matches;
     } catch (e) { return false; }
