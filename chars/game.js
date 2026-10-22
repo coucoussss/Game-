@@ -766,6 +766,7 @@ Meta.whenReady(() => {
     reviveT = 0; reviveUsed = false;
     tanks = []; shells = []; bullets = []; smokes = []; texts = []; feed = []; parts = []; logs = []; runners = []; ribbons = [];
     if (obstacles.some(o => o.type === 'wreck')) { obstacles = obstacles.filter(o => o.type !== 'wreck'); buildGrid(); }
+    orders = { kind: 'free', pos: null, target: null, t: 0 };
     spotted[0].clear(); spotted[1].clear(); seenAt.clear(); artyMarks = []; contactT = [0, 0]; artyT = [0, 0];
     HitCam.stop();
     const lv = L();
@@ -1121,6 +1122,32 @@ Meta.whenReady(() => {
     return null;
   }
 
+  // Ordres radio (campagne) : 8 attaquer ma cible (20 s), 9 me suivre, 0 tenir la position, N aller au point
+  // visé ; la même touche une seconde fois rend la liberté de manœuvre. Seuls les chars dont la radio
+  // marche les reçoivent.
+  const ORDER_TXT = { free: 'As you were: free engagement', follow: 'Follow me', hold: 'Hold position', attack: 'Attack my target', move: 'Move to the marked point' };
+  const ACK = ['Wilco', 'Roger', 'Understood', 'On my way'];
+  function giveOrder(kind) {
+    if (mode !== 'campagne' || state !== 'play') return;
+    if (!radioOk(player)) { showMsg('Radio out: you cannot give orders', '#ff9a7a', 1.4); return; }
+    if (orders.kind === kind && kind !== 'attack' && kind !== 'move') kind = 'free';
+    // point visé : sous le réticule, ou au bout de la ligne de visée à la lunette
+    const pv = pivot(player), a = sight.on && sight.probe ? { x: pv.x + Math.cos(sight.aimYaw) * sight.probe.dist, y: pv.y + Math.sin(sight.aimYaw) * sight.probe.dist } : player.aim3 || player;
+    let target = null, bd = 90;
+    if (kind === 'attack') {
+      for (const e of player.knows || spotted[0]) if (!e.dead) { const d = Math.hypot(e.x - a.x, e.y - a.y); if (d < bd) { bd = d; target = e; } }
+      if (!target) { showMsg('No spotted enemy under the reticle', '#ff9a7a', 1.2); return; }
+    }
+    orders = { kind, pos: kind === 'move' ? { x: clamp(a.x, 60, WW - 60), y: clamp(a.y, 60, WH - 60) } : null, target, t: kind === 'attack' ? 20 : 0 };
+    showMsg(ORDER_TXT[kind], '#bcd8ff', 1.4);
+    let n = 0;
+    for (const t of tanks) {
+      if (!t.ai || t.team !== 0 || t === player || t.dead) continue;
+      t.ai.holdPt = null; t.ai.pathT = 0; t.ai.thinkT = 0;
+      if (n++ < 2) addLog(radioOk(t) ? `${t.name}: ${ACK[(n + tankId) % ACK.length]}` : `${t.name}: no answer (radio out)`, radioOk(t) ? '#9fd0ff' : '#ff9a7a');
+    }
+    Sfx.ping(0);
+  }
   // L'IA observe la chute de son coup sur la cible visée et corrige le suivant (encadrement) : 70 % de
   // l'écart latéral en direction, et la hausse selon le coup court ou long
   function aiObserve(s, x, y, hit) {
@@ -2347,7 +2374,11 @@ Meta.whenReady(() => {
       if (player && !player.dead && s.by !== player && !s.whiz) {
         const rx = player.x - s.x, ry = player.y - s.y, l2 = dx * dx + dy * dy || 1;
         const k = clamp((rx * dx + ry * dy) / l2, 0, 1);
-        if (Math.hypot(s.x + dx * k - player.x, s.y + dy * k - player.y) < 75) { s.whiz = true; Sfx.whiz(); }
+        if (Math.hypot(s.x + dx * k - player.x, s.y + dy * k - player.y) < 75) {
+          s.whiz = true; Sfx.whiz();
+          // obus allié passé tout près : le joueur le signale à la radio
+          if (s.by.team === player.team && gameTime - ffMsgT > 5) { ffMsgT = gameTime; addLog(`You: check fire, ${s.by.name}!`, '#ffcf7a'); }
+        }
       }
       s.trail.push(s.x, s.y, s.z);
       if (s.trail.length > 24) s.trail.splice(0, 3);
@@ -3583,6 +3614,10 @@ Meta.whenReady(() => {
     spotTimer -= dt;
     if (spotTimer <= 0) { spotTimer = 0.2; updateSpotting(0.2); }
     for (let i = artyMarks.length - 1; i >= 0; i--) if ((artyMarks[i].life -= dt) <= 0) artyMarks.splice(i, 1);
+    if (orders.kind === 'attack' && ((orders.t -= dt) <= 0 || !orders.target || orders.target.dead)) {
+      if (orders.target && orders.target.dead) addLog('Target destroyed: free engagement', '#9fd0ff');
+      orders = { kind: 'free', pos: null, target: null, t: 0 };
+    }
     if ((navT -= dt) <= 0) { navT = 0.5; buildWGrid(0.5); }
     for (const t of tanks) if (!t.dead && t.ai) aiThink(t, dt);
     if (state === 'intro') for (const t of tanks) { t.in.throttle = 0; t.in.turn = 0; t.in.fire = false; }
@@ -4653,6 +4688,8 @@ Meta.whenReady(() => {
         const b = 2 * Math.sin(gameTime * 5);
         ctx.beginPath(); ctx.moveTo(p.x - 7, p.y - 18 + b); ctx.lineTo(p.x + 7, p.y - 18 + b); ctx.lineTo(p.x, p.y - 9 + b); ctx.closePath();
         ctx.stroke(); ctx.fill();
+        // cible désignée aux alliés : cercle jaune qui pulse
+        if (orders.kind === 'attack' && orders.target === t) { ctx.save(); ctx.strokeStyle = '#ffe27a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(p.x, p.y - 14 + b, 13 + 2 * Math.sin(gameTime * 8), 0, TAU); ctx.stroke(); ctx.restore(); }
         continue;
       }
       // direction vers l'ennemi à l'écran (inversée s'il est derrière la caméra)
@@ -5038,6 +5075,15 @@ Meta.whenReady(() => {
     for (const [e, g] of seenAt) if (!e.dead && !visibleToPlayer(e) && gameTime - g.t < 6) ctx.strokeRect(x0 + g.x * k - 2, y0 + g.y * k - 2, 4, 4);
     for (const m of artyMarks) { ctx.globalAlpha = Math.min(1, m.life); ctx.beginPath(); ctx.arc(x0 + m.x * k, y0 + m.y * k, Math.max(3, 80 * k), 0, TAU); ctx.stroke(); }
     ctx.globalAlpha = 1;
+    if (mode === 'campagne' && orders.kind !== 'free') {
+      const o = orders.kind === 'move' ? orders.pos : orders.kind === 'attack' && visibleToPlayer(orders.target) ? orders.target : null;
+      ctx.strokeStyle = '#ffe27a';
+      if (o) { ctx.beginPath(); ctx.arc(x0 + o.x * k, y0 + o.y * k, 4, 0, TAU); ctx.stroke(); }
+      ctx.font = '700 10px system-ui, sans-serif'; ctx.textAlign = 'left';
+      const txt = 'Orders: ' + ORDER_TXT[orders.kind], w = ctx.measureText(txt).width;
+      ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(x0, y0 + mh - 14, w + 8, 14);
+      ctx.fillStyle = '#ffe27a'; ctx.fillText(txt, x0 + 4, y0 + mh - 4);
+    }
     ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1;
     if (W3D && cam3.vp) {
       ctx.beginPath();
@@ -5894,6 +5940,8 @@ Meta.whenReady(() => {
         else if (r === 'cancelled') showMsg(`Keeping ${SHELLS[key].name.toLowerCase()}`, '#e9d9a6', 1.2);
       }
     }
+    const ord = { Digit8: 'attack', Numpad8: 'attack', Digit9: 'follow', Numpad9: 'follow', Digit0: 'hold', Numpad0: 'hold', KeyN: 'move' }[e.code];
+    if (ord) giveOrder(ord);
     if (e.code === 'KeyE' && state === 'play') deploySmoke(player);
     // extincteur à main : 3 s pendant lesquelles le tireur ne tire pas ; inutile sur un feu de charges
     if (e.code === 'KeyT' && state === 'play' && player.fires.length && !(player.extT > 0)) {
@@ -5949,6 +5997,8 @@ Meta.whenReady(() => {
   });
   addEventListener('mouseup', e => { if (e.button === 0) mouse.down = false; if (e.button === 2) mouse.right = false; });
   cv.addEventListener('mousedown', e => { if (e.button === 2 && !adOn()) mouse.right = true; });
+  // clic du milieu : aller au point visé
+  cv.addEventListener('mousedown', e => { if (e.button === 1 && !adOn() && player && !player.dead && !player.ai) { e.preventDefault(); giveOrder('move'); } });
   cv.addEventListener('contextmenu', e => e.preventDefault());
   cv.addEventListener('wheel', e => {
     e.preventDefault();
@@ -6018,6 +6068,7 @@ Meta.whenReady(() => {
         shells.push(s);
         return s;
       },
+      giveOrder, get orders() { return orders; },
       place(t, x, y, angle, turret) { t.x = x; t.y = y; t.angle = angle; if (turret != null) t.turret = turret; t.vx = t.vy = t.speed = 0; },
       get meta() { return Meta.P; },
       kill(i, det) { const e = tanks.filter(t => t.team === 1 && !t.dead)[i || 0]; if (e) destroyTank(e, player, !!det); return !!e; },
