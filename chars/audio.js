@@ -163,6 +163,11 @@ const Sfx = (() => {
     ping(d) {
       play(d, (t, a) => { tone(t, 0.09, 2100 + Math.random() * 600, 1600, 0.09 * a, 'triangle'); noise(t, 0.03, 5000, 3, 0.12 * a, 'bandpass'); });
     },
+    // coup critique infligé : petite cloche, plus grave pour les munitions et le feu
+    critical(kind) {
+      const f = { ammo: 520, fire: 620, track: 740, engine: 700, gun: 800, radio: 990, optic: 940 }[kind] || 880;
+      play(null, (t, a) => { tone(t, 0.2, f * 2, f * 1.98, 0.07 * a, 'sine'); tone(t + 0.04, 0.28, f, f, 0.06 * a, 'triangle'); });
+    },
     whiz() {
       play(null, (t, a) => noise(t, 0.4, 3500, 7, 0.45 * a, 'bandpass', 500));
     },

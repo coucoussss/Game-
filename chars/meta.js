@@ -177,6 +177,9 @@ const Meta = (() => {
     { id: 'wave5', t: 'Reach wave 5 in Survival', ev: 'wave', goal: 5, reward: 1200, max: true },
     { id: 'ric5', t: 'Bounce 5 shots off your armor', ev: 'ricself', goal: 5, reward: 500 },
     { id: 'det2', t: 'Detonate 2 ammo racks', ev: 'det', goal: 2, reward: 1100 },
+    { id: 'fire3', t: 'Set 3 enemy tanks on fire', ev: 'fire', goal: 3, reward: 900 },
+    { id: 'bail3', t: 'Make 3 enemy crews bail out', ev: 'bail', goal: 3, reward: 1000 },
+    { id: 'drv5', t: 'Knock out 5 enemy drivers', ev: 'drv', goal: 5, reward: 900 },
   ];
   const RARITY = { common: 'Common', rare: 'Rare', epic: 'Epic', legendary: 'Legendary' };
   const MK = ['Stock', 'Mk I', 'Mk II', 'Mk III'];

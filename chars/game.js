@@ -745,7 +745,7 @@ Meta.whenReady(() => {
   function spawnWave() {
     if (W3D0) for (const t of tanks) if (t.scar3) { W3D0.free(t.scar3.hull); W3D0.free(t.scar3.turret); }
     reviveT = 0; reviveUsed = false;
-    tanks = []; shells = []; bullets = []; smokes = []; texts = []; feed = []; parts = []; logs = []; runners = [];
+    tanks = []; shells = []; bullets = []; smokes = []; texts = []; feed = []; parts = []; logs = []; runners = []; ribbons = [];
     if (obstacles.some(o => o.type === 'wreck')) { obstacles = obstacles.filter(o => o.type !== 'wreck'); buildGrid(); }
     spotted[0].clear(); spotted[1].clear();
     HitCam.stop();
@@ -1232,7 +1232,8 @@ Meta.whenReady(() => {
   const SEAT_FROM = { gunner: ['loader', 'radio', 'commander'], driver: ['radio', 'loader', 'commander'], loader: ['radio', 'commander'], commander: ['radio'] };
   function crewSwap(t, dt) {
     if (!t.swap) for (const role of SEAT_PRI) {
-      if (!t.T.S.crew.includes(role) || roleOk(t, role)) continue;
+      const occ = t.roles[role];
+      if (!t.T.S.crew.includes(role) || (occ >= 0 && t.mods[occ].hp > 0)) continue;
       const to = t.mods[t.seat[role]];
       let best = null;
       for (const r of SEAT_FROM[role]) {
@@ -1244,7 +1245,8 @@ Meta.whenReady(() => {
     }
     if (t.swap && (t.swap.t -= dt) <= 0) {
       const s = t.swap; t.swap = null;
-      if (!roleOk(t, s.from) || roleOk(t, s.role)) return;
+      const occ = t.roles[s.role];
+      if (!roleOk(t, s.from) || (occ >= 0 && t.mods[occ].hp > 0)) return;
       const j = t.roles[s.from], i = t.seat[s.role], a = t.mods[j], b = t.mods[i];
       for (const k of ['frame', 'c', 's', 'min', 'max']) { const q = a[k]; a[k] = b[k]; b[k] = q; }
       t.seat[s.role] = j; t.seat[s.from] = i; t.roles[s.role] = j; t.roles[s.from] = -1; a.sub = true;
@@ -1278,6 +1280,7 @@ Meta.whenReady(() => {
     if (t.dead) return;
     const moving = Math.abs(t.speed) > 0.5 * PX, rk = moving || t.fires.length ? 0 : (t.underFire > 0 ? 0.25 : 1) * crewWork(t);
     t.repOk = rk > 0;
+    for (const [k, l] of [['gunT', 'Gun barrel repaired'], ['ringT', 'Turret ring freed']]) if (t[k] > 0 && (t[k] -= dt * rk) <= 0 && t === player) addLog(l, '#a6f08a');
     for (const kind of ['engine', 'trans', 'breech']) {
       const m = modOf(t, kind);
       if (!m) continue;
@@ -1415,6 +1418,24 @@ Meta.whenReady(() => {
       P3({ x: h.x, y: h.y, z: h.z0, vx: rnd(-0.5, 0.5), vy: rnd(-0.5, 0.5), vz: rnd(6, 12), g: -0.5, size: rnd(0.3, 0.6), grow: 1.2, glow: true, life: rnd(0.3, 0.6), c: [1, 0.55, 0.18, 2.2] });
     }
   }
+  // Chenille cassée : deux hommes descendent la réparer, char arrêté (le joueur avec R) ; dehors, ils sont
+  // exposés aux balles et aux éclats. Seul, un homme va deux fois moins vite ; sous le feu, encore moitié moins.
+  function trackRepair(t, dt) {
+    if (t.ai && t !== player) t.dismount = !(t.underFire > 0) && !t.fires.length && Math.abs(t.speed) < 0.5 * PX;
+    if (t.dismount && (t.fires.length || (t === player && Math.abs(t.in.throttle) > 0.1))) { t.dismount = false; if (t === player) showMsg('Crew back inside', '#bcd8ff', 1.2); }
+    let n = 0;
+    for (const m of t.mods) m.out = false;
+    if (t.dismount) for (const r of ['radio', 'loader', 'commander', 'gunner']) {
+      const i = t.roles[r];
+      if (n < 2 && i != null && i >= 0 && t.mods[i].hp > 0) { t.mods[i].out = true; n++; }
+    }
+    if (n) t.trackT -= dt * n / 2 * (t.underFire > 0 ? 0.5 : 1);
+    if (t.trackT <= 0) {
+      t.trackT = 0; t.dismount = false;
+      for (const m of t.mods) m.out = false;
+      if (t === player) addLog('Track repaired', '#a6f08a');
+    }
+  }
   // Suspension à barres de torsion : caisse en tangage et en roulis, ressort amorti (≈ 1,2 Hz,
   // amortissement 0,3). Elle s'accroupit à l'accélération, plonge au freinage, se couche dans les
   // virages, encaisse les bosses, le recul du canon et les coups reçus.
@@ -1491,9 +1512,10 @@ Meta.whenReady(() => {
     crewLogic(t, dt);
     if (t.dead) return;
     const T = t.T, D = T.D, inp = t.in;
-    if (t.trackT > 0) t.trackT -= dt;
+    if (t.trackT > 0) trackRepair(t, dt);
+    if (t.elevJamT > 0) t.elevJamT -= dt;
     mobility(t, dt);
-    const driverOk = roleOk(t, 'driver'), engOn = modOk(t, 'engine') && !t.noFuel && !t.fires.some(f => f.bay), canDrive = driverOk && engOn && modOk(t, 'trans');
+    const driverOk = roleOk(t, 'driver'), engOn = modOk(t, 'engine') && !t.noFuel && !t.fires.some(f => f.bay), canDrive = driverOk && engOn && modOk(t, 'trans') && !t.dismount;
     // puissance selon l'état du moteur ; en dessous de 40 %, des ratés coupent la puissance un instant
     const eng = modOf(t, 'engine'), ef = Math.max(0, eng.hp) / eng.max0;
     t.misT = (t.misT || 0) - dt;
@@ -1571,7 +1593,7 @@ Meta.whenReady(() => {
     else d = angNorm(desiredRel - t.turret);
     // entraînement hydraulique (régime du moteur, manivelle s'il est arrêté), électrique ou à la main,
     // avec l'inertie de la tourelle : accélération limitée, freinage avant le point visé
-    const eG = eff(t, 'gunner'), ts = Vehicle.traverse(D, t.rpmA, engOn) * TRAV_K * eG * (t.turretGone ? 0 : 1);
+    const eG = eff(t, 'gunner'), ts = Vehicle.traverse(D, t.rpmA, engOn) * TRAV_K * eG * (t.turretGone ? 0 : 1) * (t.ringT > 0 ? 0.1 : 1);
     t.travWant = ts > 0 && Math.abs(d) > 0.01;
     const want = Math.sign(d) * Math.min(ts, Math.sqrt(2 * TRAV_ACC * Math.abs(d)));
     let rate = t.turretRate + clamp(want - t.turretRate, -TRAV_ACC * dt, TRAV_ACC * dt), rot = rate * dt;
@@ -1625,7 +1647,11 @@ Meta.whenReady(() => {
     t.flash = Math.max(0, t.flash - dt);
     t.hitFlash = Math.max(0, t.hitFlash - dt);
     t.revealT -= dt;
-    if (inp.fire && t.reloadT <= 0 && state === 'play' && canFire(t)) fireShell(t);
+    if (inp.fire && t.reloadT <= 0 && state === 'play' && canFire(t)) {
+      // culasse endommagée : un coup sur seize ne part pas, il faut l'extraire (6 s)
+      if (modState(modOf(t, 'breech')) === 1 && Math.random() < 0.06) { t.reloadMax = t.reloadT = 6; if (t === player) addLog('Misfire: clearing the damaged breech (6 s)', '#ffb070'); }
+      else fireShell(t);
+    }
     updateMG(t, dt);
   }
 
@@ -1796,6 +1822,11 @@ Meta.whenReady(() => {
         // balles qui claquent autour : l'équipage se sent pris à partie
         const rx = t.x - b.x, ry = t.y - b.y, l2 = dx * dx + dy * dy || 1, kk = clamp((rx * dx + ry * dy) / l2, 0, 1);
         if (Math.hypot(b.x + dx * kk - t.x, b.y + dy * kk - t.y) < t.r + 3 * PX && b.by.team !== t.team) t.underFire = 6;
+        // hommes descendus réparer une chenille, à côté de la caisse
+        if (t.dismount) {
+          const q = worldOf(t, [0, -t.trackSide * (t.T.S.W / 2 + 0.45), 0]), k2 = clamp(((q.x - b.x) * dx + (q.y - b.y) * dy) / l2, 0, 1);
+          if (Math.hypot(b.x + dx * k2 - q.x, b.y + dy * k2 - q.y) < 0.5 * PX && b.z + (zNext - b.z) * k2 < 1.6 && (!best || k2 < best.t)) best = { t: k2, tank: t, z: 0.8, crewOut: true };
+        }
         // chef de char debout dans sa coupole : la tête et le buste dépassent du blindage
         if (t.hatch && roleOk(t, 'commander')) {
           const hp = hatchPos(t), qx = hp.x - b.x, qy = hp.y - b.y, k2 = clamp((qx * dx + qy * dy) / l2, 0, 1);
@@ -1846,6 +1877,17 @@ Meta.whenReady(() => {
     const lx = (hx - t.x) * c + (hy - t.y) * sn, ly = -(hx - t.x) * sn + (hy - t.y) * c;
     const E = [lx / PX, -ly / PX, best.z], S = t.T.S, tAng = -t.turret;
     let kind = null, lines = [], mod = null, outcome = 'nopen', eff = 0, mm = 0, plate = '';
+    if (best.h && best.h.part === 'barrel') { Fx.armorHit(hx, hy, best.z, 'mg', ux, uy); return 'stop'; }
+    if (best.crewOut) {
+      const m = t.mods.find(q => q.out && q.hp > 0);
+      if (m) {
+        modDamage(t, m, rnd(60, 130), by);
+        if (t === player) addLog(`${m.name} ${m.hp <= 0 ? 'killed' : 'wounded'} while repairing the track`, '#ff6a5a');
+        if (show) floatText(hx, hy - 10, m.hp <= 0 ? 'Crewman killed' : 'Crewman wounded', '#ffb070');
+        checkKnock(t, by);
+      }
+      return 'stop';
+    }
     if (best.exposed) {
       // le chef de char est touché à la tête ou au buste
       const m = t.mods[t.roles.commander], dmg = rnd(60, 130);
@@ -1893,6 +1935,9 @@ Meta.whenReady(() => {
           const m = t.mods[mod];
           modDamage(t, m, m.kind === 'crew' ? rnd(35, 80) : rnd(4, 10), by);
           lines.push({ t: `${m.name} hit${m.kind === 'crew' ? (m.hp <= 0 ? ': killed' : ': wounded') : ''}`, c: '#ff8a6a' });
+          // balle dans un réservoir : l'essence s'allume parfois ; dans une soute, une douille fendue
+          if (m.kind === 'fuel' && Math.random() < (b.type === 'SmKH' ? 0.07 : 0.04)) { startFire(t, 'fuel', m, by, 0.2); lines.push({ t: 'Fuel ignited', c: '#ff9a3a' }); }
+          if (m.kind === 'ammo') { const k = SHELL_KEYS.find(q => m.rounds[q] > 0); if (k) { m.rounds[k]--; t.ammo[k]--; lines.push({ t: 'One round ruined', c: '#ffb070' }); } }
           checkKnock(t, by);
         } else lines.push({ t: 'The bullet passes through without hitting anything', c: '#c8c8c8' });
         if (show) floatText(hx, hy - 10, 'Armor-piercing bullet!', '#ffe27a');
@@ -2055,14 +2100,24 @@ Meta.whenReady(() => {
     const ldx = dx * c + dy * sn, ldy = -dx * sn + dy * c;
     const hl = t.T.len / 2, hw = t.T.wid / 2;
     const hh = segAABB(lx, ly, ldx, ldy, -hl, -hw, hl, hw);
-    if (!hh) return null;
     const zAt = k => z0 + (z1 - z0) * k;
     let cand = null;
+    // tube du canon : l'obus croise son axe (vu de dessus) entre le masque et la bouche, à sa hauteur
+    const gn = t.T.S.gun;
+    if (gn && !t.turretGone) {
+      const ux = Math.cos(t.turret), uy = Math.sin(t.turret), ax = lx - t.T.pivX, ay = ly - t.T.pivY;
+      const d0 = ax * uy - ay * ux, dd = ldx * uy - ldy * ux, k = Math.abs(dd) > 1e-9 ? -d0 / dd : -1;
+      if (k >= 0 && k <= 1) {
+        const al = ((ax + ldx * k) * ux + (ay + ldy * k) * uy) / PX, gz = gn.z + Math.tan(t.elev) * al;
+        if (al > gn.fx && al < gn.fx + gn.len && Math.abs(zAt(k) - gz) < gn.r * 1.3 + 0.04) cand = { t: k, part: 'barrel', nx: -uy, ny: ux, z: zAt(k), along: al };
+      }
+    }
     // une épave arrête ce qui la touche à sa hauteur, pas ce qui passe au-dessus
-    {
+    if (hh) {
       const Sd = t.T.S, ze = zAt(hh.t), zx = zAt(hh.t1);
-      if (ze <= Sd.ht) cand = { t: hh.t, part: 'hull', nx: hh.nx, ny: hh.ny, z: Math.max(0.15, ze) };
-      else if (zx < Sd.ht) cand = { t: hh.t + (hh.t1 - hh.t) * (ze - Sd.ht) / (ze - zx), part: 'hull', roof: true, nx: 0, ny: 0, z: Sd.ht };
+      const hc = ze <= Sd.ht ? { t: hh.t, part: 'hull', nx: hh.nx, ny: hh.ny, z: Math.max(0.15, ze) }
+        : zx < Sd.ht ? { t: hh.t + (hh.t1 - hh.t) * (ze - Sd.ht) / (ze - zx), part: 'hull', roof: true, nx: 0, ny: 0, z: Sd.ht } : null;
+      if (hc && (!cand || hc.t < cand.t)) cand = hc;
       if (t.T.tb && !t.turretGone && ze > Sd.ht) {
         const tc = Math.cos(t.turret), ts = Math.sin(t.turret);
         const qx = lx - t.T.pivX, qy = ly - t.T.pivY;
@@ -2098,7 +2153,7 @@ Meta.whenReady(() => {
       return 'continue';
     }
     if (s.key === 'HE') explode(x, y, s, null);
-    else if (s.key === 'HEAT') { Fx.blast(x, y, 0.2, 0.45); stampCrater(x, y, 9); Sfx.explosion(listenerDist(x, y), false); }
+    else if (s.key === 'HEAT') { Fx.blast(x, y, 0.2, 0.45); stampCrater(x, y, 9); Sfx.explosion(listenerDist(x, y), false); blastNear(x, y, s, null); }
     else { Fx.groundHit(x, y, ux, uy, Math.sqrt(s.by.T.caliber / 75), false); stampCrater(x, y, 7); Sfx.impact(listenerDist(x, y)); }
     return 'stop';
   }
@@ -2267,6 +2322,7 @@ Meta.whenReady(() => {
   // Plaque touchée : épaisseur, inclinaison, normale extérieure et protections annexes
   // probe : visée seulement (lunette), épaisseurs moyennes au lieu d'un tirage
   function platePick(t, h, d, key, cal = 75, probe = false) {
+    if (h.part === 'barrel') return { face: 'barrel', sideSign: 1, plate: 'Gun barrel', mm: 20, slope: 0, dd: d, low: false, extra: 0, extraOf: '', heatK: 1, gear: null, n: [-d[0], -d[1], -d[2]] };
     const Sd = t.T.S, A = Sd.armor, tAng = -t.turret, rr = (a, b) => Math.round(probe ? (a + b) / 2 : rnd(a, b));
     const face = h.roof ? 'roof' : h.nx > 0.5 ? 'front' : h.nx < -0.5 ? 'rear' : 'side';
     const sideSign = h.ny > 0 ? -1 : 1;
@@ -2280,6 +2336,12 @@ Meta.whenReady(() => {
         low = h.z < Sd.zn;
         [mm, slope] = low ? A.hull.low : A.hull.up;
         plate = low ? 'Lower front hull' : 'Upper front hull';
+        // visière du pilote et rotule de la mitrailleuse de caisse : trouées de la plaque (0,7 × l'épaisseur)
+        const ey = -h.ly / PX, dv = t.mods[t.seat.driver], rv = t.seat.radio != null ? t.mods[t.seat.radio] : null;
+        if (!low && key !== 'MG' && Math.abs(h.z - (Sd.ht - 0.28)) < 0.08) {
+          if (dv && Math.abs(ey - dv.c[1]) < 0.13) { mm = Math.round(mm * 0.7); plate = 'Driver’s visor'; }
+          else if (rv && Math.abs(ey - rv.c[1]) < 0.13) { mm = Math.round(mm * 0.7); plate = 'Hull MG ball mount'; }
+        }
       } else if (face === 'rear') { [mm, slope] = A.hull.rear; plate = 'Rear hull'; }
       else {
         // flanc : couches successives traversées par l'obus. D'abord la jupe (Schürzen) si l'impact tombe sur
@@ -2341,6 +2403,7 @@ Meta.whenReady(() => {
   function hitTank(s, t, h, hx, hy) {
     if (t === player) s.hitPlayer = true;
     if (s.key === 'SMOKE') { Fx.armorHit(hx, hy, h.z, 'mg', s.vx / s.sp, s.vy / s.sp); Sfx.clang(listenerDist(hx, hy)); return smokeShell(s, hx, hy); }
+    if (h.part === 'barrel' && !t.dead) return barrelStrike(s, t, h, hx, hy);
     if (t.dead) {
       Fx.armorHit(hx, hy, h.z || 1, 'non', s.vx / s.sp, s.vy / s.sp);
       if (s.key === 'HE') explode(hx, hy, s, null);
@@ -2358,6 +2421,23 @@ Meta.whenReady(() => {
     return strike(s, t, h, hx, hy, d, [h.lx / PX, -h.ly / PX, h.z], null);
   }
 
+  // Coup au tube : au-delà de 15 mm de perforation, il est faussé ou percé. Près de la bouche, le canon tire
+  // encore mais disperse ; ailleurs il est hors d'usage le temps de le remettre en état (25 s à l'arrêt).
+  function barrelStrike(s, t, h, hx, hy) {
+    const sb = s.sb, by = s.by, pen = sb.he || sb.heat ? 99 : Ballistics.penVel(sb, s.V);
+    if (by.team !== t.team) t.underFire = 8;
+    if (by === player) waveStats.hits++;
+    Fx.armorHit(hx, hy, h.z, 'non', s.vx / s.sp, s.vy / s.sp); Sfx.clang(listenerDist(hx, hy));
+    if (pen >= 15) {
+      const muzzle = h.along > t.T.S.gun.fx + t.T.S.gun.len * 0.75, l = muzzle ? 'Gun barrel holed near the muzzle' : 'Gun barrel damaged';
+      if (muzzle) t.bentT = Math.max(t.bentT || 0, 40); else t.gunT = 25;
+      if (visibleToPlayer(t) || by === player) floatText(hx, hy - 12, l, '#ffcf7a');
+      if (t === player) addLog(muzzle ? `${l}: dispersion × 3 (40 s)` : `${l}: the gun cannot fire (25 s of repairs, stopped)`, '#ff8a6a');
+      else if (by === player) ribbon(l);
+    }
+    if (sb.he) explode(hx, hy, s, null);
+    return 'stop';
+  }
   // Coup sur une plaque : d est la direction réelle de l'obus et E le point d'impact (repère de la caisse) ;
   // trap nomme la plaque qui vient de dévier l'obus sur celle-ci (piège à obus), sinon null
   function strike(s, t, h, hx, hy, d, E, trap) {
@@ -2421,20 +2501,23 @@ Meta.whenReady(() => {
     if (gear && pen >= 20) {
       const side = h.ny > 0 ? 1 : -1; // côté touché (repère du char : y vers la droite)
       if (gear === 'track' && Math.random() < 0.9 || gear === 'wheels' && Math.random() < 0.2) {
-        t.trackT = Math.max(t.trackT, 8); t.trackSide = side; gearRes = 'Track broken';
-        if (t === player) addLog('Track broken: repairing (8 s)', '#ffb070');
+        t.trackT = Math.max(t.trackT, rnd(14, 22)); t.trackSide = side; gearRes = 'Track broken';
+        if (t === player) addLog('Track broken: stop and press R to repair it', '#ffb070');
       } else if (gear === 'wheels') {
         t.wheelK = Math.max(0.6, (t.wheelK || 1) * 0.92); gearRes = 'Road wheel destroyed';
         if (t === player) addLog('Road wheel destroyed: top speed −8%', '#ffb070');
       } else if (gear === 'sprocket' && Math.random() < 0.8) {
-        t.trackT = Math.max(t.trackT, 15); t.trackSide = side; gearRes = 'Final drive hit';
-        if (t === player) addLog('Sprocket and final drive hit: immobilised (15 s)', '#ffb070');
+        t.trackT = Math.max(t.trackT, rnd(25, 35)); t.trackSide = side; gearRes = 'Final drive hit';
+        if (t === player) addLog('Sprocket and final drive hit: immobilised (R: repair)', '#ffb070');
       }
       if (gearRes && show) floatText(hx, hy + 8, gearRes, '#ffb070');
     }
 
     // trace du coup pour les effets de dégâts (points faibles, conséquences sans perforation, souffle) :
     // zone touchée, plaque, énergie à l'impact et issue ; Vr, vitesse résiduelle derrière la plaque
+    // anneau de tourelle (jonction caisse-tourelle) : la tourelle se bloque, il faut la tourner à la main
+    const crit = [];
+    if (!ric && t.T.tb && (face === 'front' || face === 'side') && Math.abs(h.z - Sd.ht) < 0.1 && pen > 20 && Math.random() < 0.6) { t.ringT = rnd(20, 30); crit.push('Turret ring jammed'); }
     t.lastHit = { by, key: s.key, part: h.part, face, plate, gear, z: h.z, E, d, V, Ek, pen, eff, shattered, outcome: ric ? 'ricochet' : pen >= eff ? 'pen' : 'nopen', Vr: 0, time: gameTime };
     // Ricochet : probabilité croissante avec l'incidence, nulle en cas de surcalibrage
     if (ric) {
@@ -2517,9 +2600,11 @@ Meta.whenReady(() => {
     let out = null;
     if (sim) { t.lastHit.Vr = sim.Vr; out = applySim(t, sim, by, ev); }
     if (sim && ev && gearRes) ev.results.unshift({ t: gearRes, c: '#ffb070', time: 0.1e-3 });
+    if (gearRes) crit.push(gearRes);
     addScar(t, h, E, d, plate, penetrated ? (sb.heat ? 'heatpen' : sb.he ? 'hepen' : 'pen') : (sb.heat ? 'heat' : sb.he ? 'he' : 'dent'), sb.cal,
       sb.he ? (mm0 < 30 ? 0.2 : 0.06) : Math.min(1, pen / eff));
     if (penetrated) {
+      t.morale -= 0.25;
       if (by === player) { waveStats.pens++; if (Meta.track('pen')) missionToast(); }
       if (show) {
         const col = t === player ? '#ff5a4a' : t.team === 0 ? '#ffaa44' : '#ffe27a';
@@ -2535,10 +2620,10 @@ Meta.whenReady(() => {
       Sfx.penetrate(listenerDist(hx, hy));
       if (t === player) shake = Math.max(shake, 12);
     } else {
-      if (s.key === 'HE') heExternal(t, s, by, face, h.z, 1);
-      // la charge creuse qui fonctionne contre la plaque souffle aussi un peu à l'extérieur
-      else if (sb.heat && pen > 0) heExternal(t, s, by, face, h.z, 0.35);
-      if (show) floatText(hx, hy - 12, shattered ? 'SHATTERED' : out && out.crewHurt ? 'Spalling!' : 'No penetration', shattered ? '#ffcf7a' : '#c8c8c8');
+      // explosif ou charge creuse qui éclate contre la plaque, sans la percer
+      if (s.key === 'HE' || (sb.heat && pen > 0)) heBlast(t, hx, hy, sb, by, E, face);
+      const why = plate === 'Gun mantlet' ? 'Hit the mantlet' : sb.heat && heatK < 1 && /Skirt/.test(plate) ? 'Skirt detonated the HEAT' : gear ? `Absorbed by the ${gear === 'wheels' ? 'road wheels' : gear}` : 'No penetration';
+      if (show) floatText(hx, hy - 12, shattered ? 'SHATTERED' : out && out.crewHurt ? 'Spalling!' : why, shattered ? '#ffcf7a' : '#c8c8c8');
       if (t === player) {
         addLog(`Not penetrated: ${plate.toLowerCase()} (${Math.round(pen)} mm vs ${Math.round(eff)} mm)`, '#c8c8c8');
         if (out) for (const l of out.lines) addLog(l.t, l.c);
@@ -2546,8 +2631,18 @@ Meta.whenReady(() => {
       Fx.armorHit(hx, hy, h.z, s.key === 'HEAT' ? 'heat' : 'non', s.vx / s.sp, s.vy / s.sp);
       Sfx.clang(listenerDist(hx, hy));
       if (t === player) shake = Math.max(shake, 6);
+      // masque frappé fort : le berceau du canon se bloque en hauteur
+      if (plate === 'Gun mantlet' && pen / eff > 0.6 && Math.random() < 0.5) { t.elevJamT = 8; crit.push('Gun elevation jammed'); }
+      // choc d'un gros obus qui ne perce pas (plus de 1,5 MJ) : l'équipage est sonné 2 à 3 s
+      if (kinetic && Ek > 1.5e6) { t.stunT = rnd(2, 3); crit.push('Crew stunned by the impact'); if (t === player) shake = Math.max(shake, 14); }
       checkKnock(t, by);
     }
+    for (const c of crit) {
+      if (t === player) addLog(c, '#ffb070');
+      else if (by === player && t.team !== by.team) ribbon(c);
+      if (ev) ev.results.push({ t: c, c: '#ffb070', time: 0.15e-3 });
+    }
+    if (out && by === player && t.team !== by.team) for (const l of out.lines) ribbon(l.t);
     if (ev) {
       const f = (v, k = 0) => v.toFixed(k);
       if (penetrated) {
@@ -2598,6 +2693,7 @@ Meta.whenReady(() => {
       startHitCam(ev);
     }
     if (s.key === 'HE') explode(hx, hy, s, t);
+    else if (sb.heat) blastNear(hx, hy, s, t);
     return 'stop';
   }
 
@@ -2695,24 +2791,48 @@ Meta.whenReady(() => {
   }
   function checkKnock(t, by) { if (!t.dead && crewAlive(t) < 2) destroyTank(t, by, null); }
 
-  // Explosif qui ne perfore pas, ou souffle d'une explosion proche
-  function heExternal(t, s, by, face, z, k) {
-    const Sd = t.T.S;
-    if ((face === 'side' || z < Sd.tt) && Math.random() < 0.6 * k) {
-      t.trackT = Math.max(t.trackT, 8); t.trackSide = Math.random() < 0.5 ? 1 : -1;
-      if (visibleToPlayer(t)) floatText(t.x, t.y + 10, 'Track broken', '#ffb070');
-      if (t === player) addLog('Track broken by an explosion', '#ffb070');
+  // Charge explosive d'un obus (kg d'équivalent TNT) ; charge creuse : environ 0,5 kg en 7,5 cm, 0,7 en 8,8 cm
+  const heW = sb => sb.heat ? 0.9 * (sb.cal / 100) ** 2 : (sb.filler || 0) * (sb.re || 1);
+  // probabilité qu'un homme à découvert (surface exposée A, m²) soit touché par l'un des 90 éclats par cm
+  // de calibre, répartis sur une demi-sphère de rayon r
+  const fragP = (cal, r, A) => 1 - Math.exp(-90 * cal / 10 * A / (2 * Math.PI * Math.max(0.3, r) ** 2));
+  // Explosion contre la caisse (E : point d'impact dans le repère du char, face touchée) ou au sol tout près
+  // (x, y). Chenille coupée seulement si elle est à moins de 0,8·W^(1/3) m ; épiscopes brisés sous 2,5·W^(1/3) ;
+  // éclats sur le chef sorti et les hommes descendus ; à travers la caisse, l'onde de choc n'atteint
+  // l'équipage fermé que sur un coup au but (toit mince surtout), chaque homme selon sa distance.
+  function heBlast(t, x, y, sb, by, E, face) {
+    const S = t.T.S, W = heW(sb), k = Math.cbrt(Math.max(0.01, W)), show = visibleToPlayer(t) || by === player, res = [];
+    const c = Math.cos(t.angle), sn = Math.sin(t.angle);
+    const lx = E ? E[0] : ((x - t.x) * c + (y - t.y) * sn) / PX, ly = E ? -E[1] : (-(x - t.x) * sn + (y - t.y) * c) / PX, lz = E ? E[2] : 0;
+    const ox = Math.max(0, Math.abs(lx) - S.L / 2), r = Math.hypot(ox, Math.max(0, Math.abs(ly) - S.W / 2));
+    const rt = Math.hypot(ox, Math.max(0, Math.abs(Math.abs(ly) - (S.W - S.tw) / 2) - S.tw / 2), Math.max(0, lz - S.tt));
+    t.morale -= 0.02;
+    if (rt < 0.8 * k && Math.random() < 0.7) {
+      t.trackT = Math.max(t.trackT, rnd(14, 22)); t.trackSide = ly > 0 ? 1 : -1; res.push('Track broken by the blast');
     }
-    // onde de choc : les toits minces laissent passer des éclats
-    const over = Ballistics.penAt(by.T.id, 'HE', 0) * 1.6 * k;
-    if (over > Sd.armor.hull.roof) {
-      const crew = t.mods.filter(m => m.kind === 'crew' && m.hp > 0);
-      if (crew.length) {
-        const m = crew[Math.floor(Math.random() * crew.length)];
-        modDamage(t, m, rnd(35, 75) * k, by);
-        if (t === player) addLog(`Shock wave: ${m.name.toLowerCase()} ${m.hp <= 0 ? 'knocked out' : 'wounded'}`, '#ffb070');
+    if (r < 2.5 * k && Math.random() < 0.4) { const o = Math.random() < 0.5 ? 'cmd' : 'driver'; if (t.optic[o] <= 0) { t.optic[o] = 15; res.push(`${OPTIC_NAMES[o]} broken`); } }
+    if (t.hatch && roleOk(t, 'commander')) {
+      const h = hatchPos(t), m = t.mods[t.roles.commander];
+      if (Math.random() < fragP(sb.cal, Math.hypot(h.x - x, h.y - y) / PX, 0.15)) {
+        modDamage(t, m, rnd(50, 130), by); t.hatch = false;
+        res.push(m.hp <= 0 ? 'Exposed commander killed by fragments' : 'Commander hit by shell fragments');
+        if (by === player && m.hp <= 0 && t.team !== by.team && Meta.track('cmd')) missionToast();
       }
     }
+    for (const m of t.mods) if (m.out && m.hp > 0 && Math.random() < fragP(sb.cal, r, 0.5)) { modDamage(t, m, rnd(50, 130), by); res.push(`${m.name} hit while repairing the track`); }
+    if (E) {
+      const att = face === 'roof' ? (S.armor.hull.roof >= 16 ? 0.15 : 0.5) : 0.08;
+      for (const m of t.mods) {
+        if (m.kind !== 'crew' || m.hp <= 0 || m.out) continue;
+        const dmg = clamp((Ballistics.blastKPa(W * 1.3, Math.max(0.2, d3(hullC(t, m), E)), 1) * att - 150) / 4, 0, 120);
+        if (dmg > 0) { modDamage(t, m, dmg, by); res.push(`Shock wave: ${m.name.toLowerCase()} ${m.hp <= 0 ? 'knocked out' : 'wounded'}`); }
+      }
+    }
+    for (const l of res) {
+      if (t === player) addLog(l, '#ffb070');
+      else if (by === player && t.team !== by.team) ribbon(l);
+    }
+    if (res.length && show) floatText(t.x, t.y + 10, res[0], '#ffb070');
     checkKnock(t, by);
   }
 
@@ -2797,15 +2917,21 @@ Meta.whenReady(() => {
     return 'stop';
   }
 
-  function explode(x, y, s, direct) {
-    const R = 75 * Math.sqrt(s.by.T.caliber / 75);
+  // Éclats et souffle d'un obus explosif ou d'une charge creuse sur les chars et les hommes à pied voisins ;
+  // l'IA ferme ses écoutilles quand un obus tombe à moins de 30 m
+  function blastNear(x, y, s, direct) {
     for (const t of tanks) {
       if (t.dead || t === direct) continue;
       const d = Math.hypot(t.x - x, t.y - y);
-      if (d > R + t.r) continue;
-      if (!losClear(x, y, t.x, t.y, false, true)) continue;
-      heExternal(t, s, s.by, 'side', 0.5, 1 - d / (R + t.r));
+      if (d < 30 * PX) t.underFire = Math.max(t.underFire, 2);
+      if (d > 25 * PX + t.r || !losClear(x, y, t.x, t.y, false, true)) continue;
+      heBlast(t, x, y, s.sb, s.by, null, null);
     }
+    for (const r of runners) if (Math.random() < fragP(s.sb.cal, Math.hypot(r.x - x, r.y - y) / PX, 0.5)) r.hp = 0;
+  }
+  function explode(x, y, s, direct) {
+    const R = 75 * Math.sqrt(s.by.T.caliber / 75);
+    blastNear(x, y, s, direct);
     for (const o of obstacles) {
       if (o.dead || o.hp === Infinity) continue;
       const cx = clamp(x, o.x, o.x + o.w), cy = clamp(y, o.y, o.y + o.h);
@@ -3060,6 +3186,23 @@ Meta.whenReady(() => {
     gctx.beginPath(); gctx.arc(x, y, r, 0, TAU); gctx.fill();
   }
   function missionToast() { toast('🎖 Mission complete! Claim your reward in “Missions”'); Sfx.reload(); }
+  // Bandeaux des coups critiques infligés par le joueur (4 au plus, 2,5 s chacun), son selon la catégorie
+  const RIB = [[/detonat|cook|rack|round/i, 'ammo', '✹', '#ff6a3a'], [/fire/i, 'fire', '🔥', '#ff9a3a'], [/track|drive|wheel/i, 'track', '⛓', '#ffcf7a'],
+    [/engine|transmission|fuel/i, 'engine', '⚙', '#ffcf7a'], [/breech|barrel|ring|elevation/i, 'gun', '⌖', '#ffcf7a'], [/radio set/i, 'radio', '⌁', '#bcd8ff'],
+    [/visor|sight|periscope|stunned/i, 'optic', '◉', '#bcd8ff'], [/./, 'crew', '✚', '#ff8a6a']];
+  let ribbons = [];
+  function ribbon(text) {
+    if (/: damaged|: wounded|No module|DESTROYED|^Fire!$|hit$/.test(text)) return;
+    const lab = text.replace(/^(.*): knocked out$/, '$1 knocked out').replace(/^(.*): destroyed$/, '$1 destroyed').replace(/^AMMO RACK: DETONATION$/, 'Ammo rack detonated')
+      .replace(/^Propellant charges ignited.*/, 'Ammo cooking off').replace(/^Fuel ignited$/, 'Set on fire');
+    if (ribbons.some(r => r.t === lab && r.life > 2)) return;
+    const k = RIB.find(r => r[0].test(lab));
+    ribbons.unshift({ t: lab, ic: k[2], c: k[3], life: 2.5 });
+    if (ribbons.length > 4) ribbons.pop();
+    waveStats.crits++;
+    if (lab === 'Driver knocked out' && Meta.track('drv')) missionToast();
+    Sfx.critical(k[1]);
+  }
   function floatText(x, y, text, color, scale = 1) { texts.push({ x, y, text, color, life: 1.4, max: 1.4, scale }); }
   function showMsg(text, color, life = 2) { msg = { text, color, life, max: life }; }
   function addLog(text, color) { logs.unshift({ text, color, life: 6 }); if (logs.length > 6) logs.pop(); }
@@ -3102,6 +3245,7 @@ Meta.whenReady(() => {
     }
     for (let i = texts.length - 1; i >= 0; i--) { const t = texts[i]; t.life -= dt; t.y -= 22 * dt; if (t.life <= 0) texts.splice(i, 1); }
     for (let i = feed.length - 1; i >= 0; i--) { feed[i].life -= dt; if (feed[i].life <= 0) feed.splice(i, 1); }
+    for (let i = ribbons.length - 1; i >= 0; i--) if ((ribbons[i].life -= dt) <= 0) ribbons.splice(i, 1);
     for (let i = logs.length - 1; i >= 0; i--) { logs[i].life -= dt; if (logs[i].life <= 0) logs.splice(i, 1); }
     if (msg) { msg.life -= dt; if (msg.life <= 0) msg = null; }
   }
@@ -4282,6 +4426,16 @@ Meta.whenReady(() => {
     }
     ctx.fillStyle = '#ccc'; ctx.font = '700 13px system-ui, sans-serif'; ctx.fillText('VS', W / 2, 45);
 
+    // bandeaux des coups critiques (au centre, sous le score)
+    ctx.textAlign = 'center'; ctx.font = '700 13px system-ui, sans-serif';
+    ribbons.forEach((r, i) => {
+      const y = 80 + i * 24, w = ctx.measureText(r.t).width + 44;
+      ctx.globalAlpha = Math.min(1, r.life * 2);
+      ctx.fillStyle = 'rgba(0,0,0,0.62)'; ctx.fillRect(W / 2 - w / 2, y - 15, w, 21);
+      ctx.fillStyle = r.c; ctx.fillRect(W / 2 - w / 2, y - 15, 3, 21);
+      ctx.fillText(`${r.ic}  ${r.t}`, W / 2, y);
+      ctx.globalAlpha = 1;
+    });
     // fil des destructions (en haut à gauche)
     ctx.textAlign = 'left'; ctx.font = '600 12px system-ui, sans-serif';
     feed.forEach((f, i) => {
@@ -4495,7 +4649,12 @@ Meta.whenReady(() => {
     const st = [];
     const gr = player.shiftT > 0 ? '·' : player.gear > 0 ? String(player.gear) : player.gear < 0 ? 'R' + -player.gear : 'N';
     st.push([`${Math.round(Math.abs(player.speed) / PX * 3.6)} km/h · ${gr} · ${Math.round(player.rpmA / 50) * 50} rpm`, '#d8d4c6']);
-    if (player.trackT > 0) st.push(['Track ' + Math.ceil(player.trackT) + ' s', '#ffb070']);
+    if (player.trackT > 0) st.push([player.dismount ? `Repairing track ${Math.ceil(player.trackT)} s` : 'Track broken · R: repair', '#ffb070']);
+    if (player.gunT > 0) st.push([`Gun barrel damaged ${Math.ceil(player.gunT)} s`, '#ff8a6a']);
+    if (player.ringT > 0) st.push(['Turret ring jammed', '#ffb070']);
+    if (player.elevJamT > 0) st.push(['Elevation jammed', '#ffb070']);
+    if (player.stunT > 0) st.push(['Crew stunned', '#ffcf7a']);
+    if (Object.keys(player.rep).length && !player.repOk) st.push(['Repairs: stop the tank', '#ffcf7a']);
     if ((player.wheelK || 1) < 1) st.push([`Wheels −${Math.round((1 - player.wheelK) * 100)}%`, '#ffb070']);
     if (player.bentT > 0) st.push(['Barrel bent', '#ffb070']);
     if (player.fires.length) st.push([`${FIRE_NAMES[player.fires[0].src].toUpperCase()}${player.extT > 0 ? ' · extinguishing' : player.extN > 0 && player.fires.some(f => f.src !== 'propellant') ? ` · T: extinguisher ×${player.extN}` : ''}`, '#ff6a3a']);
@@ -5131,7 +5290,7 @@ Meta.whenReady(() => {
     state = 'result';
     const win = waveResult === 'win';
     const ws = waveStats;
-    const pts = Math.round(ws.kills * 200 + ws.crew * 40 + ws.mods * 15 + ws.pens * 20 - ws.ffCrew * 80 - ws.tk * 400 + (win ? 500 : 0));
+    const pts = Math.round(ws.kills * 200 + ws.crew * 40 + ws.mods * 15 + ws.pens * 20 + ws.crits * 10 + ws.fires * 25 + ws.saved * 30 - ws.ffCrew * 80 - ws.tk * 400 + (win ? 500 : 0));
     if (win) campaignScore += pts;
     const lastWave = waveIdx >= WAVES - 1;
     const lastLevel = levelIdx >= LEVELS.length - 1;
@@ -5146,7 +5305,7 @@ Meta.whenReady(() => {
       `<tr><td>Enemy modules destroyed</td><td>${ws.mods}</td></tr>` +
       `<tr><td>Accuracy</td><td>${acc}% (${ws.hits}/${ws.shots})</td></tr>` +
       `<tr><td>Ricochets</td><td>${ws.ric}</td></tr>` +
-      `<tr><td>Shells dodged</td><td>${ws.dodged}</td></tr>` +
+      `<tr><td>Shells dodged</td><td>${ws.dodged}</td></tr>` + critRows(ws) +
       `<tr><td>Allied crew killed by your fire</td><td class="${ws.ffCrew ? 'bad' : ''}">${ws.ffCrew}</td></tr>` +
       `<tr><td>Allies destroyed by your fire</td><td class="${ws.tk ? 'bad' : ''}">${ws.tk}</td></tr>` +
       `<tr><td>Wave score</td><td>${win ? pts : 0}</td></tr>` +
@@ -5201,7 +5360,13 @@ Meta.whenReady(() => {
       `<tr><td>Enemy modules destroyed</td><td>${ws.mods}</td></tr>` +
       `<tr><td>Accuracy</td><td>${acc}% (${ws.hits}/${ws.shots})</td></tr>` +
       `<tr><td>Ricochets</td><td>${ws.ric}</td></tr>` +
-      `<tr><td>Shells dodged</td><td>${ws.dodged}</td></tr>`;
+      `<tr><td>Shells dodged</td><td>${ws.dodged}</td></tr>` + critRows(ws);
+  }
+  function critRows(ws) {
+    return `<tr><td>Critical hits</td><td>${ws.crits}</td></tr>` +
+      `<tr><td>Enemy tanks set on fire</td><td>${ws.fires}</td></tr>` +
+      `<tr><td>Enemy crews bailed out</td><td>${ws.bailed}</td></tr>` +
+      (ws.saved ? `<tr><td>Your crew saved by bailing out</td><td>${ws.saved}</td></tr>` : '');
   }
   function showModeResult() {
     state = 'result';
@@ -5404,6 +5569,11 @@ Meta.whenReady(() => {
     if (e.code === 'KeyT' && state === 'play' && player.fires.length && !(player.extT > 0)) {
       if (player.extN <= 0) showMsg('No extinguisher left', '#ff9a7a', 1.2);
       else { player.extN--; player.extT = 3; showMsg(`Extinguisher (${player.extN} left)`, '#bcd8ff', 1.4); }
+    }
+    // chenille : l'équipage descend la réparer (char arrêté), ou remonte
+    if (e.code === 'KeyR' && state === 'play' && player.trackT > 0) {
+      if (!player.dismount && Math.abs(player.speed) > 0.5 * PX) showMsg('Stop the tank to repair the track', '#ffcf7a', 1.4);
+      else { player.dismount = !player.dismount; showMsg(player.dismount ? 'Crew out: repairing the track' : 'Crew back inside', '#bcd8ff', 1.4); }
     }
     // abandon du char : l'équipage est sauvé, le char perdu
     if (e.code === 'KeyB' && state === 'play' && (player.fires.length || player.cookT > 0)) bail(player);
