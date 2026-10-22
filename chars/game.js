@@ -3845,7 +3845,7 @@ Meta.whenReady(() => {
     }
     if (debris3.length > 140) debris3.splice(0, debris3.length - 140);
     const dc = G3.hex(lv.dust);
-    for (let i = 0; i < 30; i++) { const b = rnd(0, TAU), v = rnd(3, 8); P3({ x: o.x + o.w / 2, y: o.y + o.h / 2, z: rnd(0.3, 1.5), vx: Math.cos(b) * v, vy: Math.sin(b) * v, vz: rnd(0, 0.8), drag: 0.7, wind: 0.6, size: rnd(1, 2), grow: 2.5, life: rnd(4, 7), c: [dc[0], dc[1], dc[2], 0.5] }); }
+    for (let i = 0; i < 30; i++) { const b = rnd(0, TAU), v = rnd(3, 8); P3({ x: o.x + o.w / 2, y: o.y + o.h / 2, z: rnd(0.3, 1.5), vx: Math.cos(b) * v, vy: Math.sin(b) * v, vz: rnd(0, 0.8), drag: 0.8, wind: 0.6, size: rnd(0.8, 1.5), grow: 1.1, life: rnd(3, 5), c: [dc[0], dc[1], dc[2], 0.28] }); }
     return true;
   }
   function fallModel(f) {
