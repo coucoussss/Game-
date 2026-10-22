@@ -768,8 +768,12 @@
   }
   // Choix de l'obus selon le blindage frontal de la cible
   function aiShell(t, e, d) {
-    const up = e.T.S.armor.hull.up;
-    const need = k => Ballistics.effective(Ballistics.shell(t.T.id, k), up[0], Math.min(80, up[1] + 10)).eff;
+    const up = e.T.S.armor.hull.up, ang = Math.min(80, up[1] + 10);
+    // épaisseur à vaincre, majorée par le risque de bris de l'obus sur cette plaque
+    const need = k => {
+      const sb = Ballistics.shell(t.T.id, k), shP = sb.heat || sb.he ? 0 : Ballistics.shatterChance(sb, up[0], ang, Ballistics.velAt(sb, d * RK));
+      return Ballistics.effective(sb, up[0], ang).eff / (1 - shP * (1 - (Ballistics.SHATTER_PEN[k] || 0.7)));
+    };
     if (t.ammo[t.shell] > 0 && penAt(t.T, t.shell, d) >= need(t.shell)) return t.shell;
     for (const k of ['APHE', 'AP', 'APCR', 'HEAT']) if (t.ammo[k] > 0 && penAt(t.T, k, d) >= need(k)) return k;
     let best = t.shell, bp = -1;
@@ -1857,9 +1861,16 @@
     const yaw = s.yaw && kinetic;
     const ef = Ballistics.effective(sb, mm, yaw ? Math.min(86, angle + 10) : angle);
     const eff = ef.eff + extra;
-    const pen = Ballistics.penVel(sb, V) * rnd(0.95, 1.05) * heatK * by.up.pen * (yaw ? 0.5 : 1);
-    const ricP = Ballistics.ricochetChance(sb, mm, angle, yaw ? 10 : 0);
-    const ric = s.key !== 'HE' && Math.random() < ricP;
+    let pen = Ballistics.penVel(sb, V) * rnd(0.95, 1.05) * heatK * (kinetic ? by.up.pen : 1) * (yaw ? 0.5 : 1);
+    // obus brisé à l'impact : il ne ricoche pas d'un bloc, il perd une bonne part de sa perforation
+    const shP = kinetic ? Ballistics.shatterChance(sb, mm, angle, V) : 0, shattered = Math.random() < shP;
+    if (shattered) pen *= Ballistics.SHATTER_PEN[s.key] || 0.7;
+    // charge creuse rasante (> 80°) : la fusée de nez fonctionne 6 fois sur 10 et le jet effleure la
+    // plaque ; sinon l'obus se brise sans fonctionner. Il ne repart jamais intact
+    const graze = sb.heat && angle > 80, fuzed = graze && Math.random() < 0.6;
+    if (graze && !fuzed) pen = 0;
+    const ricP = sb.heat || sb.he ? 0 : Ballistics.ricochetChance(sb, mm, angle, yaw ? 10 : 0);
+    const ric = !shattered && Math.random() < ricP;
     const Ek = 0.5 * sb.m * V * V;
     const ev = by === player && hitcamOn && R3 ? {
       typeId: T.id, turretAng: tAng, dir: d, entry: E, n: nHull, cosI: Math.max(0.05, -dot3(d, nHull)), V, cal: sb.cal,
@@ -1880,6 +1891,8 @@
       ev.data.push({ t: `${plate}: ${mm} mm at ${slope}° · incidence ${Math.round(angle)}°${!sb.heat && !sb.he ? ` → normalized ${Math.round(ef.angN)}°` : ''}`, c: '#d8d4c6' });
       if (mm < mm0) ev.data.push({ t: scw.hole ? `Into the hole of an earlier penetration: only ${mm} of ${mm0} mm left` : `Plate already scarred by a hit ${Math.round(scw.near * 100)} cm away: ${mm} mm effective instead of ${mm0} mm (work-hardened, cracked steel)`, c: '#ffcf7a' });
       ev.data.push({ t: `Effective armor ${Math.round(eff)} mm${extra ? ` (incl. ${extra} mm of ${trackHit ? 'track' : 'skirt'})` : ''} · penetration ${Math.round(pen)} mm${heatK < 1 ? ' (jet disrupted by the skirt)' : ''}`, c: '#d8d4c6' });
+      if (shattered) ev.data.push({ t: `SHATTERED on impact (risk ${Math.round(shP * 100)}%): penetration × ${Ballistics.SHATTER_PEN[s.key] || 0.7}`, c: '#ffcf7a' });
+      if (graze) ev.data.push({ t: fuzed ? `Grazing impact (${Math.round(angle)}°): the nose fuze functions, the jet skims the plate` : `Grazing impact (${Math.round(angle)}°): the fuze fails and the round breaks up`, c: '#ffcf7a' });
     }
     t.hitFlash = 0.15;
     if (trackHit && pen >= 20) {
@@ -1934,7 +1947,8 @@
       if (wf === 'rear') return { T: A.hull.rear[0], n: plateNormal('rear', A.hull.rear[1], 1, false) };
       return { T: A.hull.side[0], n: plateNormal('side', A.hull.side[1], sign, false) };
     };
-    const ctxSim = { mods: t.mods, piv: [I.pivotX, I.pivotY], tAng, inner, wall, E, d, n: nHull, s: sb, V, T: mm, eff };
+    // f : perforation retenue / loi de de Marre, pour que la simulation trouve la même limite balistique
+    const ctxSim = { mods: t.mods, piv: [I.pivotX, I.pivotY], tAng, inner, wall, E, d, n: nHull, s: sb, V, T: mm, los: mm / cosI, eff, pen, shatter: shattered, f: kinetic ? pen / Ballistics.penVel(sb, V) : 1 };
     let sim = null;
     const penetrated = pen >= eff;
     if (penetrated) sim = Ballistics.simulate(Object.assign(ctxSim, { mode: 'pen' }));
@@ -1950,6 +1964,7 @@
       if (show) {
         const col = t === player ? '#ff5a4a' : t.team === 0 ? '#ffaa44' : '#ffe27a';
         floatText(hx, hy - 12, out.knocked ? 'DESTROYED' : out.crewKilled ? `Penetrated · ${out.crewKilled} killed` : 'Penetrated', col, 1.15);
+        if (shattered) floatText(hx, hy + 18, 'SHATTERED', '#ffcf7a');
         if (out.fire) floatText(hx, hy + 6, 'Fire!', '#ffb070');
       }
       if (t === player) {
@@ -1961,7 +1976,9 @@
       if (t === player) shake = Math.max(shake, 12);
     } else {
       if (s.key === 'HE') heExternal(t, s, by, face, h.z, 1);
-      if (show) floatText(hx, hy - 12, out && out.crewHurt ? 'Spalling!' : 'No penetration', '#c8c8c8');
+      // la charge creuse qui fonctionne contre la plaque souffle aussi un peu à l'extérieur
+      else if (sb.heat && pen > 0) heExternal(t, s, by, face, h.z, 0.35);
+      if (show) floatText(hx, hy - 12, shattered ? 'SHATTERED' : out && out.crewHurt ? 'Spalling!' : 'No penetration', shattered ? '#ffcf7a' : '#c8c8c8');
       if (t === player) {
         addLog(`Not penetrated: ${plate.toLowerCase()} (${Math.round(pen)} mm vs ${Math.round(eff)} mm)`, '#c8c8c8');
         if (out) for (const l of out.lines) addLog(l.t, l.c);
@@ -1974,22 +1991,22 @@
     if (ev) {
       const f = (v, k = 0) => v.toFixed(k);
       if (penetrated) {
-        if (sim.jet) ev.data.push({ t: `PENETRATED · copper jet at 6,500 m/s, ${f((sim.jet.b[0] - sim.jet.a[0]) ** 2 + (sim.jet.b[1] - sim.jet.a[1]) ** 2 > 0 ? Math.hypot(sim.jet.b[0] - sim.jet.a[0], sim.jet.b[1] - sim.jet.a[1], sim.jet.b[2] - sim.jet.a[2]) : 0, 2)} m of residual jet`, c: '#a6f08a' });
+        if (sim.jet) ev.data.push({ t: `PENETRATED · copper jet at 6,500 m/s · ${Math.round(sim.jet.res)} mm of penetration left, spent within ${f(Math.hypot(sim.jet.b[0] - sim.jet.a[0], sim.jet.b[1] - sim.jet.a[1], sim.jet.b[2] - sim.jet.a[2]), 2)} m`, c: '#a6f08a' });
         else if (sb.he) ev.data.push({ t: `PENETRATED · ${Math.round(sb.filler * 1000)} g of explosive detonates behind the plate`, c: '#a6f08a' });
         else ev.data.push({ t: `PENETRATED · ballistic limit ${Math.round(sim.Vbl)} m/s → residual ${Math.round(sim.Vr)} m/s${sim.plug ? ` · ${f(sim.plug.m, 2)} kg plug punched out` : ''}`, c: '#a6f08a' });
         if (sim.blast) {
           const kpa = Ballistics.blastKPa(sim.blast.W, 0.5, 2);
-          ev.data.push({ t: `Charge: ${Math.round(sim.blast.W / 1.3 * 1000)} g at +${f(sim.blast.t * 1000, 2)} ms · ${f(sim.blast.W * 1000, 0)} g TNT eq. · blast ${f(kpa / 1000, 1)} MPa at 0.5 m`, c: '#ffcf7a' });
+          ev.data.push({ t: `Charge: ${Math.round(sim.blast.raw * 1000)} g at +${f(sim.blast.t * 1000, 2)} ms · ${f(sim.blast.W * 1000, 0)} g TNT eq. · blast ${f(kpa / 1000, 1)} MPa at 0.5 m`, c: '#ffcf7a' });
         }
         const nf = sim.frags.length, mt = sim.frags.reduce((a, q) => a + q.m, 0);
-        ev.data.push({ t: `${nf} fragments · ${f(mt, 2)} kg${sim.coreStop ? ` · core: ${sim.coreStop === 'sorti' ? 'exits the far side' : 'stopped (' + sim.coreStop + ')'}` : ''}`, c: '#ffcf7a' });
+        ev.data.push({ t: `${nf} fragments · ${f(mt, 2)} kg${sim.coreStop ? ` · core: ${sim.coreStop === 'sorti' ? 'exits the far side' : sim.coreStop === 'shattered' ? 'shattered' : 'stopped (' + sim.coreStop + ')'}` : ''}`, c: '#ffcf7a' });
       } else {
         ev.data.push({ t: `NOT PENETRATED: ${Math.round(pen)} mm < ${Math.round(eff)} mm${sim ? ' · spalling off the inner face' : ''}`, c: '#ff8a6a' });
       }
       for (const nt of sim ? sim.notes : []) ev.data.push({ t: nt, c: '#bcd8ff' });
       if (sb.he) {
         // détonation contre la plaque : boule de feu, onde de choc, éclats d'enveloppe (vitesse de Gurney)
-        const We = sb.filler * 1.3, gv = Ballistics.gurney(We, sb.m - sb.filler);
+        const We = sb.filler * (sb.re || 1), gv = Ballistics.gurney(We, sb.m - sb.filler);
         ev.extBlast = { p: [E[0] + nHull[0] * 0.05, E[1] + nHull[1] * 0.05, E[2] + nHull[2] * 0.05], t: 0.03e-3, E: We * 4.184e6 };
         for (let k = 0; k < 40; k++) {
           const u = norm3([gauss(), gauss(), gauss()]);
@@ -2001,7 +2018,12 @@
       if (sim) ev.sim = sim;
       else {
         ev.after = t.mods.map(m => Math.max(0, m.hp) / m.max0);
+        // éclats de surface ; un obus brisé part en morceaux le long de la plaque
         if (!sb.he) for (let k = 0; k < 6; k++) ev.chunks.push({ d: norm3([nHull[0] + gauss() * 0.5, nHull[1] + gauss() * 0.5, nHull[2] + gauss() * 0.5]), v: rnd(60, 250), r: sb.cal / 6000 });
+        if (shattered) {
+          const dn = dot3(d, nHull), gl = norm3([d[0] - dn * nHull[0], d[1] - dn * nHull[1], d[2] - dn * nHull[2]]);
+          for (let k = 0; k < 12; k++) ev.chunks.push({ d: norm3([gl[0] + nHull[0] * 0.4 + gauss() * 0.35, gl[1] + nHull[1] * 0.4 + gauss() * 0.35, gl[2] + nHull[2] * 0.4 + gauss() * 0.35]), v: V * rnd(0.15, 0.45), r: sb.cal / 4000 });
+        }
         t.mods.forEach((m, i) => {
           if (ev.after[i] >= ev.before[i]) return;
           ev.touch[i] = 0.3e-3;
@@ -2050,7 +2072,7 @@
     }
     if (sim.fuel != null) { fire = true; lines.push({ t: 'Fuel ignited', c: '#ff9a3a', time: sim.fuel }); }
     if (!lines.length) lines.push({ t: 'No module hit', c: '#c8c8c8', time: 0 });
-    if (!detonate && fire && !(t.fireT > 0)) { t.fireT = 8; t.fireBy = by; lines.push({ t: 'Incendie', c: '#ff9a3a', time: sim.tEnd * 0.8 }); }
+    if (!detonate && fire && !(t.fireT > 0)) { t.fireT = 8; t.fireBy = by; lines.push({ t: 'Fire', c: '#ff9a3a', time: sim.tEnd * 0.8 }); }
     else if (detonate) fire = false;
     if (detonate) { sim.tEnd = Math.max(sim.tEnd, detT + 6e-3); lines.push({ t: 'AMMO RACK: DETONATION', c: '#ff4a2a', time: detT }); }
     const knocked = detonate || crewAlive(t) < 2;
@@ -2693,7 +2715,8 @@
   // et, sur un char, la plaque touchée et la perforation attendue
   // a : direction ; z0 : hauteur de départ (m) ; sv : montée de la ligne de visée en m par px
   function sightProbe(a = sight.aimYaw, z0 = sight.z0, sv = Math.tan(sight.gunPitch) / PX) {
-    const pv = pivot(player), ux = Math.cos(a), uy = Math.sin(a), L0 = 1600;
+    const pv = pivot(player), ux = Math.cos(a), uy = Math.sin(a), L0 = 1600, key = player.shell, sb = Ballistics.shell(player.T.id, key);
+    const kin = !sb.heat && !sb.he;
     let best = { t: 1, kind: 'sky' };
     if (sv < 0) { const tg = (z0 / -sv) / L0; if (tg < 1) best = { t: tg, kind: 'ground' }; }
     for (const o of obstacles) {
@@ -2709,14 +2732,14 @@
     const dist = best.t * L0;
     best.dist = dist;
     if (best.kind === 'tank' && !best.tank.dead) {
-      const t = best.tank, h = best.h, key = player.shell, sb = Ballistics.shell(player.T.id, key);
+      const t = best.tank, h = best.h;
       const ll = Math.hypot(h.ldx, h.ldy) || 1, desc = Ballistics.descent(sb, dist * RK);
       const pp = platePick(t, h, norm3([h.ldx / ll, -h.ldy / ll, -desc]), key);
       const cosI = Math.max(0.03, -dot3(pp.dd, pp.n)), angle = Math.acos(Math.min(1, cosI)) / D2R;
       const eff = Ballistics.effective(sb, pp.mm, angle).eff + pp.extra;
-      const pen = penAt(player.T, key, dist) * pp.heatK * player.up.pen;
+      const pen = penAt(player.T, key, dist) * pp.heatK * (kin ? player.up.pen : 1), Vt = Ballistics.velAt(sb, dist * RK);
       best.fall = Math.atan(desc) / D2R;
-      Object.assign(best, { plate: pp.plate, mm: pp.mm, angle, eff, pen, ric: key === 'HE' ? 0 : Ballistics.ricochetChance(sb, pp.mm, angle) });
+      Object.assign(best, { plate: pp.plate, mm: pp.mm, angle, eff, pen, ric: kin ? Ballistics.ricochetChance(sb, pp.mm, angle) : 0, shat: kin ? Ballistics.shatterChance(sb, pp.mm, angle, Vt) : 0 });
     }
     return best;
   }
@@ -3346,6 +3369,11 @@
         ctx.font = '600 12px system-ui, sans-serif';
         ctx.fillStyle = 'rgba(0,0,0,0.65)'; ctx.fillText(l2, cx + 1, cy + R * 0.55 + 19);
         ctx.fillStyle = '#e8e4d8'; ctx.fillText(l2, cx, cy + R * 0.55 + 18);
+        // risques de ricochet et de bris de l'obus chargé sur cette plaque
+        const l3 = `ricochet ${Math.round(pr.ric * 100)}%${pr.shat >= 0.01 ? ` · shatter risk ${Math.round(pr.shat * 100)}%` : ''}`;
+        ctx.font = '600 11px system-ui, sans-serif';
+        ctx.fillStyle = 'rgba(0,0,0,0.65)'; ctx.fillText(l3, cx + 1, cy + R * 0.55 + 35);
+        ctx.fillStyle = pr.ric > 0.5 || pr.shat > 0.4 ? '#ffb070' : '#c9c4b2'; ctx.fillText(l3, cx, cy + R * 0.55 + 34);
       }
     }
     ctx.font = '600 11px system-ui, sans-serif'; ctx.fillStyle = 'rgba(220,215,200,0.7)';
@@ -4338,10 +4366,11 @@
     const id = $('bGun').value, key = $('bShell').value, T = Number($('bT').value), ang = Number($('bA').value), x = Number($('bD').value);
     const sb = Ballistics.shell(id, key), V = Ballistics.velAt(sb, x), pen = Ballistics.penVel(sb, V);
     const ef = Ballistics.effective(sb, T, ang), ric = sb.he ? 0 : Ballistics.ricochetChance(sb, T, ang);
+    const shat = sb.he || sb.heat ? 0 : Ballistics.shatterChance(sb, T, ang, V);
     const perforate = pen >= ef.eff && ric < 0.5;
     bench.sim = metalFor(sb, T, ang, pen, ef.eff, perforate);
     bench.t0 = performance.now();
-    bench.pred = { sb, V, pen, eff: ef.eff, angN: ef.angN, ric, perforate, T, ang, x };
+    bench.pred = { sb, V, pen, eff: ef.eff, angN: ef.angN, ric, shat, perforate, T, ang, x };
     Sfx.init(); Sfx.fire(200, sb.cal > 80);
   }
   function renderBench() {
@@ -4365,7 +4394,7 @@
     const P = bench.pred, f = (v, k = 0) => v.toFixed(k);
     $('benchInfo').innerHTML =
       `<b>${P.sb.name}</b> · ${f(P.sb.m, 2)} kg · velocity at ${P.x} m: <b>${Math.round(P.V)} m/s</b> (muzzle ${P.sb.v0}) · energy ${f(0.5 * P.sb.m * P.V * P.V / 1e6, 2)} MJ<br>` +
-      `Plate ${P.T} mm at ${P.ang}°${!P.sb.heat && !P.sb.he ? ` (normalized ${Math.round(P.angN)}°)` : ''} → effective armor <b>${Math.round(P.eff)} mm</b> · penetration <b>${Math.round(P.pen)} mm</b> · ricochet risk ${Math.round(P.ric * 100)}%<br>` +
+      `Plate ${P.T} mm at ${P.ang}°${!P.sb.heat && !P.sb.he ? ` (normalized ${Math.round(P.angN)}°)` : ''} → effective armor <b>${Math.round(P.eff)} mm</b> · penetration <b>${Math.round(P.pen)} mm</b> · ricochet risk ${Math.round(P.ric * 100)}%${P.shat >= 0.01 ? ` · shatter risk ${Math.round(P.shat * 100)}%` : ''}<br>` +
       `Ballistic prediction: <b>${P.perforate ? 'penetration' : P.ric >= 0.5 ? 'ricochet' : 'no penetration'}</b> · the metal simulation is calibrated to the same ballistic limit`;
   }
 

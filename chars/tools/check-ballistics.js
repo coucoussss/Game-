@@ -84,5 +84,77 @@ const r2 = v => Math.round(v * 100) / 100;
   check('Bastogne (−10 °C): −2.5 % muzzle velocity, ≈ −3.5 % penetration', near(v0Cold / s.v0, 0.975, 0.001) && near(pCold / p15, 0.965, 0.01), [r2(v0Cold / s.v0), r2(pCold / p15)]);
 }
 
+// ---------- Calage des APCR sur les tables allemandes à 30° ----------
+{
+  const hist = {
+    kingtiger: [[100, 237], [500, 217], [1000, 193], [1500, 170], [2000, 153]],
+    destroyer: [[100, 237], [500, 217], [1000, 193], [1500, 170], [2000, 153]],
+    heavy: [[100, 171], [500, 156], [1000, 138], [1500, 123], [2000, 110]],
+    medium: [[100, 194], [500, 174], [1000, 149], [1500, 127], [2000, 106]],
+    pz4: [[100, 126], [500, 108], [1000, 87], [1500, 69]],
+    light: [[100, 130], [500, 72], [1000, 38]],
+  };
+  // épaisseur d'une plaque à 30° tout juste perforée
+  const plate30 = (s, x) => { const p = B.penVel(s, B.velAt(s, x)); let lo = 1, hi = 600; for (let i = 0; i < 50; i++) { const m = (lo + hi) / 2; if (m * B.obliquity('APCR', m / s.cal, 30) > p) hi = m; else lo = m; } return lo; };
+  let worst = 0;
+  for (const [id, rows] of Object.entries(hist)) for (const [x, T] of rows) worst = Math.max(worst, Math.abs(plate30(B.shell(id, 'APCR'), x) / T - 1));
+  check('APCR within 4 % of the German 30° tables', worst < 0.04, r2(worst * 100) + ' %');
+  check('KwK 42 trial HEAT derated by spin (80 mm)', near(B.penVel(B.shell('medium', 'HEAT'), 450), 80, 1));
+}
+
+// ---------- Bris des obus ----------
+{
+  const ap = B.shell('medium', 'AP'), cr = B.shell('pz4', 'APCR'), aphe = B.shell('heavy', 'APHE');
+  check('uncapped AP: no shatter below 780 m/s', B.shatterChance(ap, 80, 30, 770) === 0);
+  check('uncapped AP shatters on thick plates at high velocity (capped at 70 %)', B.shatterChance(ap, 100, 45, 1100) === 0.7 && B.shatterChance(ap, 30, 45, 1100) === 0);
+  check('APCR shatters on sloped plates (T-34 glacis 45@60)', B.shatterChance(cr, 45, 60, 900) >= 0.9 && B.shatterChance(cr, 45, 20, 900) === 0);
+  check('APCBC rarely shatters', B.shatterChance(aphe, 100, 60, 800) === 0.03);
+  // simulation derrière la plaque : un AP brisé n'a pas de noyau intact
+  const inner = { x0: -2, x1: 2, y0: -1.5, y1: 1.5, z0: 0.4, z1: 2.2 };
+  const ctx = { mods: [], piv: [0, 0], tAng: 0, inner, wall: () => ({ T: 30, n: [1, 0, 0] }), E: [2, 0, 1.2], d: [-1, 0, 0], n: [1, 0, 0], s: ap, V: 900, T: 40, eff: 45, mode: 'pen', shatter: true };
+  const sim = B.simulate(ctx);
+  check('shattered AP: fragments but no core path', sim.coreStop === 'shattered' && sim.core.length === 0 && sim.frags.length > 10 && !sim.plug);
+}
+
+// ---------- Limite balistique, fusée et explosif ----------
+{
+  const inner = { x0: -2, x1: 2, y0: -1.5, y1: 1.5, z0: 0.4, z1: 2.2 };
+  const base = s => ({ mods: [], piv: [0, 0], tAng: 0, inner, wall: () => ({ T: 30, n: [1, 0, 0] }), E: [2, 0, 1.2], d: [-1, 0, 0], n: [1, 0, 0], s, V: 700, mode: 'pen' });
+  const aphe = B.shell('pz4', 'APHE'), raw = B.penVel(aphe, 700);
+  // perforation obtenue grâce à l'aléa et aux améliorations (pén. brute = 0,9 × épaisseur effective)
+  const sim = B.simulate(Object.assign(base(aphe), { T: raw * 0.6, eff: raw / 0.9, f: 1.15 }));
+  check('boosted penetration keeps a residual velocity (limit uses pen / de Marre)', sim.Vbl < 700 && sim.Vr >= 70, [Math.round(sim.Vbl), Math.round(sim.Vr)]);
+  let blasts = 0, duds = 0, raws = new Set(), delays = [];
+  for (let i = 0; i < 400; i++) {
+    const r = B.simulate(Object.assign(base(aphe), { T: 10, los: 10 / Math.cos(70 * Math.PI / 180), eff: 20, f: 1 }));
+    if (r.blast) { blasts++; raws.add(r.blast.W / r.blast.raw); delays.push(r.blast.t); }
+    if (r.notes.some(n => /Fuze failed/.test(n))) duds++;
+  }
+  check('fuze arms on line-of-sight thickness (10 mm at 70°)', blasts > 300, blasts);
+  check('about 6 % of APHE fuzes fail', duds > 8 && duds < 45, duds);
+  check('APHE filler counted at RE 1.5 (no extra ×1.3)', raws.size === 1 && near([...raws][0], 1.5, 1e-9));
+  const v = B.simulate(Object.assign(base(aphe), { T: 12, los: 12, eff: 20, f: 1 }));
+  check('vertical 12 mm plate does not arm the fuze', !v.blast && v.notes.some(n => /not armed/.test(n)));
+  const he = B.shell('heavy', 'HE'), rh = B.simulate(Object.assign(base(he), { T: 10, eff: 10 }));
+  check('HE filler counted at RE 1.0', rh.blast && near(rh.blast.W, he.filler, 1e-9));
+}
+
+// ---------- Charge creuse ----------
+{
+  check('standoff: Pz IV skirt (0.6 m = 8 calibres) leaves 65 % of a 75 mm jet', near(B.standoffK(0.6, 75), 0.65, 0.005) && B.standoffK(0.1, 75) === 1 && B.standoffK(3, 75) === 0.45);
+  // le jet dépense son reste de perforation dans les modules : moteur (45 mm) puis transmission (38 mm)
+  const mods = [
+    { kind: 'engine', frame: 'hull', min: [-1, -0.5, 0.6], max: [0, 0.5, 1.6], name: 'Engine' },
+    { kind: 'trans', frame: 'hull', min: [-2, -0.5, 0.6], max: [-1.2, 0.5, 1.6], name: 'Transmission' },
+  ];
+  const inner = { x0: -2.5, x1: 2, y0: -1.5, y1: 1.5, z0: 0.4, z1: 2.2 };
+  const heat = B.shell('pz4', 'HEAT');
+  const run = pen => B.simulate({ mods, piv: [0, 0], tAng: 0, inner, wall: () => ({ T: 30, n: [1, 0, 0] }), E: [0.4, 0, 1.1], d: [-1, 0, 0], n: [1, 0, 0], s: heat, V: 400, T: 30, eff: 30, pen, mode: 'pen' });
+  const weak = run(50), strong = run(130);
+  const dmg = (r, m) => (r.hits.get(m) || { dmg: 0 }).dmg;
+  check('a weak jet stops in the engine block', dmg(weak, mods[0]) > 0 && dmg(weak, mods[1]) === 0 && weak.jet.b[0] > -1, [Math.round(dmg(weak, mods[0])), weak.jet.b[0]]);
+  check('a strong jet reaches the transmission', dmg(strong, mods[1]) > 0);
+}
+
 console.log(failed ? `CHECK FAILED (${failed})` : 'CHECK PASSED');
 process.exit(failed ? 1 : 0);
