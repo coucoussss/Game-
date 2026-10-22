@@ -987,62 +987,132 @@ Meta.whenReady(() => {
   }
 
   // ===================== Simulation des chars =====================
-  function collideObstacles(t, vPre = t.speed) {
+  // Collisions d'un char (boîte orientée) avec les obstacles (boîtes alignées) : dégagement minimal, et un
+  // pivot qui fait buter la caisse est annulé. Au premier contact, choc selon l'énergie d'approche ; en
+  // appui prolongé, l'effort de traction renverse un muret ou un arbre. posOnly : épave poussée.
+  const BOX = {}, BOX2 = {};
+  function collideObstacles(t, vPre = t.speed, lPre = t.vl, a0 = t.angle, posOnly = false) {
+    const T = t.T, hl = T.len / 2, hw = T.wid / 2, R = Math.hypot(hl, hw), now = new Set();
     for (const o of obstacles) {
-      if (o.dead) continue;
-      if (t.x + t.r < o.x || t.x - t.r > o.x + o.w || t.y + t.r < o.y || t.y - t.r > o.y + o.h) continue;
-      const cx = clamp(t.x, o.x, o.x + o.w), cy = clamp(t.y, o.y, o.y + o.h);
-      const dx = t.x - cx, dy = t.y - cy, d2 = dx * dx + dy * dy;
-      if (d2 >= t.r * t.r) continue;
-      // quantité de mouvement (t·m/s) : un char lourd couche un arbre au pas, un char léger doit
-      // prendre de l'élan ; un muret cède sous un choc assez violent
-      const q = t.T.mass * Math.abs(vPre) / PX;
-      if (o.type === 'tree' && q > 30) { knockTree(o, t.angle); t.speed *= 1 - Math.min(0.5, 12 / q); continue; }
-      if (o.type === 'wall' && q > 140 && !t.dead) { damageObstacle(o, q * 2.5); t.speed *= 0.55; Sfx.impact(listenerDist(t.x, t.y)); if (o.dead) continue; }
-      if (d2 < 1e-6) {
-        const l = t.x - o.x, r = o.x + o.w - t.x, u = t.y - o.y, b = o.y + o.h - t.y;
-        const m = Math.min(l, r, u, b);
-        if (m === l) t.x = o.x - t.r; else if (m === r) t.x = o.x + o.w + t.r;
-        else if (m === u) t.y = o.y - t.r; else t.y = o.y + o.h + t.r;
-      } else {
-        const d = Math.sqrt(d2), p = t.r - d;
-        t.x += dx / d * p; t.y += dy / d * p;
+      if (o.dead || t.x + R < o.x || t.x - R > o.x + o.w || t.y + R < o.y || t.y - R > o.y + o.h) continue;
+      const ob = o.box || (o.box = Vehicle.box(o.x + o.w / 2, o.y + o.h / 2, 0, o.w / 2, o.h / 2));
+      const h = Vehicle.sat(Vehicle.box(t.x, t.y, t.angle, hl, hw, BOX), ob);
+      if (!h) continue;
+      // pivot contre l'obstacle : la caisse garde son orientation d'avant
+      if (t.angle !== a0 && !Vehicle.sat(Vehicle.box(t.x, t.y, a0, hl, hw, BOX2), ob)) { t.angle = a0; t.turnRate = 0; continue; }
+      now.add(o);
+      if (!posOnly) {
+        const c = Math.cos(t.angle), s = Math.sin(t.angle);
+        if (!(t.touch && t.touch.has(o))) {
+          // vitesse d'approche (m/s) le long de la normale, d'avant le contact
+          const vn = -((c * vPre - s * lPre) * h.nx + (s * vPre + c * lPre) * h.ny) / PX;
+          if (vn > 0.3 && obstacleImpact(t, o, h, vn)) continue;
+        } else {
+          const F = Math.max(0, -t.fDrive * (c * h.nx + s * h.ny)); // effort de traction contre l'obstacle (N)
+          if (o.type === 'tree' && F > 40e3 * o.size * o.size) { knockTree(o, t.angle); continue; }
+          if (o.type === 'wall') { damageObstacle(o, F * 0.3 * STEP / 1000); if (o.dead) continue; }
+        }
       }
+      t.x += h.nx * h.d; t.y += h.ny * h.d;
     }
+    t.touch = now;
   }
-  function tankCollisions() {
+  // Choc contre un obstacle à vn m/s : énergie ½·m·vn² (J). Un arbre tombe au-delà de 25 kJ × taille², un
+  // muret absorbe ses points en kJ avant de céder, un char de 40 t et plus enfonce une grange à 2 m/s ;
+  // les rochers et les maisons de ville tiennent. Renvoie vrai si le char passe.
+  function obstacleImpact(t, o, h, vn) {
+    const T = t.T, m = T.mass * 1000, E = 0.5 * m * vn * vn;
+    let Eabs = E, pass = false;
+    if (o.type === 'tree') { const need = 25e3 * o.size * o.size; if (E > need) { knockTree(o, t.angle); Eabs = need; pass = true; } }
+    else if (o.type === 'wall') { const cap = o.hp * 1000; damageObstacle(o, Math.min(E, cap) / 1000); if (o.dead) { Eabs = cap; pass = true; } }
+    else if (o.type === 'building' && o.maxHp <= 700 && T.mass >= 40 && vn >= 2) { damageObstacle(o, o.hp); Eabs = E * 0.6; pass = true; }
+    const k = pass ? Math.sqrt(Math.max(0, 1 - Eabs / E)) : 0;
+    if (pass) { t.speed *= k; t.vl *= k; }
+    // secousse de la caisse (choc reçu le long de la normale), bruit une seule fois par contact
+    const c = Math.cos(t.angle), s = Math.sin(t.angle);
+    rock(t, 0.4 * m * vn * (1 - k), c * h.nx + s * h.ny, c * h.ny - s * h.nx, 0.6);
+    if (vn > 1.5 && o.type !== 'tree') Sfx.impact(listenerDist(t.x, t.y));
+    if (vn > 4) bruise(t, ['driver', 'radio'], 2, 8, 0.2);
+    return pass;
+  }
+  // Équipage secoué (points de vie entre a et b) et chenille qui saute avec la probabilité pTrack
+  function bruise(t, roles, a, b, pTrack) {
+    for (const r of roles) if (roleOk(t, r)) modDamage(t, t.mods[t.roles[r]], rnd(a, b), null, true);
+    if (Math.random() < pTrack) { t.trackT = Math.max(t.trackT, 8); t.trackSide = Math.random() < 0.5 ? 1 : -1; if (t === player) addLog('Impact: track thrown', '#ffb070'); }
+  }
+  // Bord de la carte : la boîte du char reste dedans
+  function clampMap(t) {
+    const e = Vehicle.extent(Vehicle.box(t.x, t.y, t.angle, t.T.len / 2, t.T.wid / 2, BOX));
+    t.x = clamp(t.x, e[0], WW - e[0]); t.y = clamp(t.y, e[1], WH - e[1]);
+  }
+
+  // Contacts entre chars (boîtes orientées). Premier contact : choc à restitution 0,1, en 2D (avance,
+  // glissement latéral, lacet), secousse et dégâts selon l'énergie. Contact prolongé : équilibre des
+  // forces. Le pousseur n'avance que si son effort dépasse la résistance de l'autre (freins ou roulement en
+  // long, ripage en travers) et l'entraîne alors à sa vitesse ; sinon il cale. Une épave a les chenilles
+  // bloquées et ne bouge que sous la poussée d'un char lourd, lentement.
+  let pairs = new Set();
+  function resistTo(t, nx, ny) {
+    const g = groundAt(t.x, t.y).type, c = Math.cos(t.angle), s = Math.sin(t.angle), mg = t.T.mass * 1000 * Vehicle.G;
+    const lon = t.dead ? 0.5 * g.mu : t.braking ? 0.55 * g.mu : Vehicle.crrOf(g, t.T.D.press) + (t.gear ? 0.04 : 0);
+    return mg * (Math.abs(c * nx + s * ny) * lon + Math.abs(c * ny - s * nx) * g.lat);
+  }
+  const driveTo = (t, nx, ny) => t.dead ? 0 : Math.max(0, t.fDrive * (Math.cos(t.angle) * nx + Math.sin(t.angle) * ny));
+  // vitesse ajoutée (px/s, repère du monde), répartie entre l'avance et le glissement latéral
+  function addVel(t, vx, vy) {
+    if (t.dead) return;
+    const c = Math.cos(t.angle), s = Math.sin(t.angle);
+    t.speed += vx * c + vy * s; t.vl += vy * c - vx * s;
+  }
+  function tankCollisions(dt) {
+    const now = new Set();
     for (let i = 0; i < tanks.length; i++) {
-      const a = tanks[i];
+      const a = tanks[i], Ra = Math.hypot(a.T.len, a.T.wid) / 2;
       for (let j = i + 1; j < tanks.length; j++) {
         const b = tanks[j];
         if (a.dead && b.dead) continue;
-        const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy), m = a.r + b.r;
-        if (d >= m || d < 1e-6) continue;
-        const p = m - d, nx = dx / d, ny = dy / d;
-        // le plus lourd pousse le plus léger (masses réelles) ; une épave pèse autant qu'un char
-        const ma = a.T.mass, mb = b.T.mass;
-        const wa = mb / (ma + mb), wb = 1 - wa;
-        a.x -= nx * p * wa; a.y -= ny * p * wa;
-        b.x += nx * p * wb; b.y += ny * p * wb;
-        // choc : vitesse relative le long de la normale, restitution 0,1 (acier contre acier, chenilles)
+        if (Math.hypot(b.x - a.x, b.y - a.y) >= Ra + Math.hypot(b.T.len, b.T.wid) / 2) continue;
+        const h = Vehicle.sat(Vehicle.box(b.x, b.y, b.angle, b.T.len / 2, b.T.wid / 2, BOX), Vehicle.box(a.x, a.y, a.angle, a.T.len / 2, a.T.wid / 2, BOX2));
+        if (!h) continue;
+        const nx = h.nx, ny = h.ny, key = a.id * 4096 + b.id; // normale de a vers b
+        now.add(key);
+        const ma = a.T.mass * 1000, mb = b.T.mass * 1000, ia = a.dead ? 0 : 1 / ma, ib = b.dead ? 0 : 1 / mb;
         const vrel = ((a.vx - b.vx) * nx + (a.vy - b.vy) * ny) / PX;
-        if (vrel > 0.3) {
-          const J = 1.1 * vrel * ma * mb / (ma + mb); // t·m/s
-          a.speed -= J / ma * PX * (Math.cos(a.angle) * nx + Math.sin(a.angle) * ny);
-          b.speed += J / mb * PX * (Math.cos(b.angle) * nx + Math.sin(b.angle) * ny);
-          if (!a.dead) rock(a, J * 1000, -(Math.cos(a.angle) * nx + Math.sin(a.angle) * ny), 0, 0.6);
-          if (!b.dead) rock(b, J * 1000, (Math.cos(b.angle) * nx + Math.sin(b.angle) * ny), 0, 0.6);
-          if (vrel > 2.5 && gameTime - (a.bumpT || 0) > 0.6) {
-            a.bumpT = gameTime;
-            Sfx.clang(listenerDist((a.x + b.x) / 2, (a.y + b.y) / 2));
-            Fx.armorHit((a.x + b.x) / 2, (a.y + b.y) / 2, 0.8, 'non', nx, ny);
-            // au-delà de 4 m/s, le plus léger peut perdre une chenille
-            const lt = ma < mb ? a : b;
-            if (vrel > 4 && !lt.dead && Math.random() < 0.5) { lt.trackT = Math.max(lt.trackT, 8); lt.trackSide = Math.random() < 0.5 ? 1 : -1; if (lt === player) addLog('Collision: track thrown', '#ffb070'); }
+        let wa, wb, impact = false;
+        if (!pairs.has(key) && vrel > 0.3) {
+          impact = true;
+          const M = 1 / (ia + ib), J = 1.1 * M * vrel; // kg·m/s
+          for (const [t, sg, inv] of [[a, -1, ia], [b, 1, ib]]) {
+            if (!inv) continue;
+            const fx = sg * nx, fy = sg * ny, c = Math.cos(t.angle), sn = Math.sin(t.angle);
+            addVel(t, fx * J * inv * PX, fy * J * inv * PX);
+            t.turnRate += ((h.px - t.x) * fy - (h.py - t.y) * fx) / PX * J / t.T.D.Iz;
+            rock(t, J, c * fx + sn * fy, c * fy - sn * fx, 0.6);
           }
+          // énergie du choc : suspension ou chenille au-delà de 50 kJ, tube faussé et équipage contusionné
+          // pour le plus léger au-delà de 150 kJ
+          const E = 0.5 * M * vrel * vrel, lt = a.dead ? b : b.dead ? a : ma < mb ? a : b, mid = [(a.x + b.x) / 2, (a.y + b.y) / 2];
+          if (vrel > 1.5) { Sfx.clang(listenerDist(mid[0], mid[1])); Fx.armorHit(mid[0], mid[1], 0.8, 'non', nx, ny); }
+          if (E > 50e3) for (const t of [a, b]) if (!t.dead && Math.random() < 0.3) { if (Math.random() < 0.5) bruise(t, [], 0, 0, 1); else t.wheelK = Math.max(0.6, (t.wheelK || 1) * 0.92); }
+          if (E > 150e3 && !lt.dead) {
+            lt.bentT = 30; bruise(lt, lt.T.S.crew.filter(() => Math.random() < 0.5), 3, 10, 0);
+            if (lt === player) addLog('Ram: gun barrel bent, accuracy reduced (30 s)', '#ffb070');
+          }
+          if ((a === player || b === player) && E > 50e3) floatText(mid[0], mid[1] - 10, 'RAM!', '#ffcf7a', 1.2);
+          wa = ia / (ia + ib); wb = 1 - wa;
+        } else {
+          const Fa = driveTo(a, nx, ny), Fb = driveTo(b, -nx, -ny), net = Fa - Fb, Rb = resistTo(b, nx, ny), Ra2 = resistTo(a, -nx, -ny);
+          if (net > Rb) { wa = 0; wb = 1; addVel(a, -nx * Rb / ma * dt * PX, -ny * Rb / ma * dt * PX); }
+          else if (-net > Ra2) { wa = 1; wb = 0; addVel(b, nx * Ra2 / mb * dt * PX, ny * Ra2 / mb * dt * PX); }
+          else if (Fa || Fb) { wa = net >= 0 ? 1 : 0; wb = 1 - wa; }
+          else { wa = ia / (ia + ib); wb = 1 - wa; }
         }
+        // dégagement ; hors choc, le déplacement imposé devient la vitesse du char (pas d'une épave)
+        a.x -= nx * h.d * wa; a.y -= ny * h.d * wa; b.x += nx * h.d * wb; b.y += ny * h.d * wb;
+        if (!impact) { addVel(a, -nx * h.d * wa / dt, -ny * h.d * wa / dt); addVel(b, nx * h.d * wb / dt, ny * h.d * wb / dt); }
       }
     }
+    pairs = now;
   }
 
   // Remplacements d'équipage, réparations, incendie
@@ -1124,6 +1194,8 @@ Meta.whenReady(() => {
   function updateTank(t, dt) {
     if (t.dead) {
       t.deadT += dt;
+      t.speed = t.vl = t.turnRate = t.vx = t.vy = 0;
+      if (t.x !== t.lx || t.y !== t.ly) { collideObstacles(t, 0, 0, t.angle, true); clampMap(t); t.lx = t.x; t.ly = t.y; }
       if (t.deadT < 7 && Math.random() < dt * 22) addFire(t.x + rnd(-10, 10), t.y + rnd(-8, 8));
       burnFx(t, dt, t.deadT < 12 ? 1.6 : t.deadT < 45 ? 0.6 : 0.2);
       // munitions qui détonent une à une dans l'épave
@@ -1165,14 +1237,14 @@ Meta.whenReady(() => {
     // tourelle hydraulique à l'arrêt : le pilote fait monter le régime pour que la pompe la tourne vite
     c.rev = D.trav.kind === 'hyd' && t.travWant && Math.abs(t.speed) < 0.5 * PX ? 0.9 : 0;
     t.bumpK = 1 + ((gR.bump || 0) + (gL.bump || 0)) / 2;
-    const vPre = t.speed, ox = t.x, oy = t.y;
+    const vPre = t.speed, lPre = t.vl, a0 = t.angle, ox = t.x, oy = t.y;
     Vehicle.step(t, D, c, dt, PX);
     t.angle = angNorm(t.angle + t.turnRate * dt);
     const c2 = Math.cos(t.angle), s2 = Math.sin(t.angle);
     t.x += (c2 * t.speed - s2 * t.vl) * dt;
     t.y += (s2 * t.speed + c2 * t.vl) * dt;
-    collideObstacles(t, vPre);
-    t.x = clamp(t.x, t.r, WW - t.r); t.y = clamp(t.y, t.r, WH - t.r);
+    collideObstacles(t, vPre, lPre, a0);
+    clampMap(t);
     // vitesse réelle : ce qu'un obstacle ou le bord de la carte a retenu est perdu, sans élan fantôme
     const mvx = (t.x - ox) / dt, mvy = (t.y - oy) / dt, va = mvx * c2 + mvy * s2, la = mvy * c2 - mvx * s2;
     t.spin = Math.abs(t.speed - va);
@@ -1222,7 +1294,8 @@ Meta.whenReady(() => {
     } else { t.turret = nt; t.turretRate = rate; }
 
     // Dispersion : elle augmente en mouvement et se resserre à l'arrêt
-    const goal = T.disp / t.up.optic * (t.optic.gunner > 0 ? 2.5 : 1) * (1 + 0.6 * Math.abs(t.speed) / T.speed + 0.8 * Math.abs(t.turnRate) / T.turn + 1.1 * Math.abs(t.turretRate) / T.tturn);
+    if (t.bentT > 0 && (t.bentT -= dt) <= 0 && t === player) addLog('Gun barrel straightened', '#a6f08a');
+    const goal = T.disp / t.up.optic * (t.optic.gunner > 0 ? 2.5 : 1) * (t.bentT > 0 ? 3 : 1) * (1 + 0.6 * Math.abs(t.speed) / T.speed + 0.8 * Math.abs(t.turnRate) / T.turn + 1.1 * Math.abs(t.turretRate) / T.tturn);
     t.disp += (goal - t.disp) * Math.min(1, dt * (goal > t.disp ? 6 : 1.3));
 
     // hors du tir, le chargeur regarnit le râtelier : un obus toutes les 8 s
@@ -2702,7 +2775,7 @@ Meta.whenReady(() => {
     for (const t of tanks) if (!t.dead && t.ai) aiThink(t, dt);
     if (state === 'intro') for (const t of tanks) { t.in.throttle = 0; t.in.turn = 0; t.in.fire = false; }
     for (const t of tanks) updateTank(t, dt);
-    tankCollisions();
+    tankCollisions(dt);
     updateShells(dt);
     updateBullets(dt);
     updateParts(dt);
@@ -4043,6 +4116,7 @@ Meta.whenReady(() => {
     st.push([`${Math.round(Math.abs(player.speed) / PX * 3.6)} km/h · ${gr} · ${Math.round(player.rpmA / 50) * 50} rpm`, '#d8d4c6']);
     if (player.trackT > 0) st.push(['Track ' + Math.ceil(player.trackT) + ' s', '#ffb070']);
     if ((player.wheelK || 1) < 1) st.push([`Wheels −${Math.round((1 - player.wheelK) * 100)}%`, '#ffb070']);
+    if (player.bentT > 0) st.push(['Barrel bent', '#ffb070']);
     if (player.fireT > 0) st.push(['ON FIRE', '#ff6a3a']);
     if (!player.dead && player.revealT <= 0 && inBush(player)) st.push(['Concealed', '#a6f08a']);
     let sx2 = bx + 230;
