@@ -781,7 +781,7 @@ Meta.whenReady(() => {
     ambush: [[0, 0], [60, -150], [60, 150], [0, -300], [0, 300]],
   };
   const HEAVY = ['kingtiger', 'heavy', 'destroyer', 'medium', 'stug', 'pz4', 'light'];
-  let reinf = [];
+  let reinf = [], waveForm = 'line';
   function spawnWave() {
     if (W3D0) for (const t of tanks) if (t.scar3) { W3D0.free(t.scar3.hull); W3D0.free(t.scar3.turret); }
     reviveT = 0; reviveUsed = false;
@@ -817,7 +817,7 @@ Meta.whenReady(() => {
     if (mode === 'campagne') {
       // dispositif tiré au sort parmi ceux de la vague, retourné une fois sur deux ; les plus lourds aux
       // premières places
-      const fl = (lv.forms && lv.forms[waveIdx]) || ['line'], f = fl[Math.floor(Math.random() * fl.length)], F = FORMS[f], sg = Math.random() < 0.5 ? 1 : -1, used = [];
+      const fl = (lv.forms && lv.forms[waveIdx]) || ['line'], f = waveForm = fl[Math.floor(Math.random() * fl.length)], F = FORMS[f], sg = Math.random() < 0.5 ? 1 : -1, used = [];
       enemyTypes.slice().sort((a, b) => HEAVY.indexOf(a) - HEAVY.indexOf(b)).forEach((type, i) => {
         const q = F[i], name = 'Enemy ' + (i + 1);
         let x = WW - 200 - q[0], y = WH / 2 + sg * q[1], post = null;
@@ -6116,7 +6116,7 @@ Meta.whenReady(() => {
         shells.push(s);
         return s;
       },
-      giveOrder, get orders() { return orders; }, get aiSkillK() { return aiSkillK; }, set aiSkillK(k) { aiSkillK = k; },
+      giveOrder, get orders() { return orders; }, get aiSkillK() { return aiSkillK; }, set aiSkillK(k) { aiSkillK = k; }, get form() { return waveForm; },
       place(t, x, y, angle, turret) { t.x = x; t.y = y; t.angle = angle; if (turret != null) t.turret = turret; t.vx = t.vy = t.speed = 0; },
       get meta() { return Meta.P; },
       kill(i, det) { const e = tanks.filter(t => t.team === 1 && !t.dead)[i || 0]; if (e) destroyTank(e, player, !!det); return !!e; },
