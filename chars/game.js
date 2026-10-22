@@ -1132,8 +1132,13 @@
     else d = angNorm(desiredRel - t.turret);
     const ts = T.tturn * (roleOk(t, 'gunner') ? 1 : 0) * (t.turretGone ? 0 : 1);
     const rot = clamp(d, -ts * dt, ts * dt);
-    t.turret = T.arc ? clamp(t.turret + rot, -T.arc, T.arc) : angNorm(t.turret + rot);
-    t.turretRate = rot / dt;
+    const nt = T.arc ? clamp(t.turret + rot, -T.arc, T.arc) : angNorm(t.turret + rot);
+    // le tube ne traverse ni les maisons, ni les rochers, ni les autres chars : la tourelle bute (les arbres
+    // plient) ; déjà engagé, il peut toujours se dégager
+    if (rot !== 0 && barrelHit(t, t.angle + nt, false) && !barrelHit(t, t.angle + t.turret, false)) {
+      t.turretRate = 0;
+      if (gameTime - (t.barrelT || -9) > 1) { t.barrelT = gameTime; Sfx.clang(listenerDist(t.x, t.y)); }
+    } else { t.turret = nt; t.turretRate = rot / dt; }
 
     // Dispersion : elle augmente en mouvement et se resserre à l'arrêt
     const goal = T.disp / t.up.optic * (t.optic.gunner > 0 ? 2.5 : 1) * (1 + 2.6 * Math.abs(t.speed) / T.speed + 1.6 * Math.abs(tr) / T.turn + 1.1 * Math.abs(t.turretRate) / T.tturn);
@@ -1188,12 +1193,33 @@
     if (e && !e.dead) return { D: Math.hypot(e.x - mx, e.y - my), z: e.T.S.ht - 0.25 };
     return { D: 600, z: 1.4 };
   }
+  // Tube du canon, du pivot à la bouche, à hauteur de tourillons : premier obstacle (assez haut) ou char
+  // qu'il traverse ; trees : les arbres comptent (sinon ils plient sous le tube)
+  function barrelHit(t, ta, trees) {
+    const pv = pivot(t), z = t.T.S.gun.z, dx = Math.cos(ta) * t.T.gunEnd, dy = Math.sin(ta) * t.T.gunEnd;
+    const minx = Math.min(pv.x, pv.x + dx), maxx = Math.max(pv.x, pv.x + dx), miny = Math.min(pv.y, pv.y + dy), maxy = Math.max(pv.y, pv.y + dy);
+    let best = null;
+    for (const o of obstacles) {
+      if (o.dead || (o.type === 'tree' && !trees) || o.x > maxx || o.x + o.w < minx || o.y > maxy || o.y + o.h < miny || obsH(o) < z) continue;
+      const h = segAABB(pv.x, pv.y, dx, dy, o.x, o.y, o.x + o.w, o.y + o.h);
+      if (h && h.t < 1 && (!best || h.t < best.t)) best = { t: h.t, o, nx: h.nx, ny: h.ny };
+    }
+    for (const e of tanks) {
+      if (e === t || e.x > maxx + 40 || e.x < minx - 40 || e.y > maxy + 40 || e.y < miny - 40) continue;
+      const c = tankCand(e, pv.x, pv.y, dx, dy, z, z);
+      if (c && c.t < 1 && (!best || c.t < best.t)) best = c;
+    }
+    if (best) { best.x = pv.x + dx * best.t; best.y = pv.y + dy * best.t; }
+    return best;
+  }
   function fireShell(t) {
     const T = t.T, key = t.shell, sh = SHELLS[key];
     const ta = t.angle + t.turret;
     const ang = ta + gauss() * t.disp;
     const pv = pivot(t);
-    const mx = pv.x + Math.cos(ta) * T.gunEnd, my = pv.y + Math.sin(ta) * T.gunEnd;
+    // canon collé à un arbre, un mur ou un char : la bouche est au-delà, l'obus part du point de contact
+    const blk = barrelHit(t, ta, true);
+    const mx = blk ? blk.x : pv.x + Math.cos(ta) * T.gunEnd, my = blk ? blk.y : pv.y + Math.sin(ta) * T.gunEnd;
     t.ammo[key]--;
     const sb = Ballistics.shell(T.id, key), v0 = Ballistics.muzzle(sb), pxk = shellPxK(), sp = v0 * pxk;
     // vertical : élévation du canon (débattement de −8° à +20°) et dispersion, isotrope avec l'horizontale
@@ -1209,10 +1235,15 @@
         const a = ang + gauss() * 0.028, bsp = v0 * 0.92 * (0.95 + Math.random() * 0.1);
         bullets.push({ x: mx, y: my, z: z0, vx: Math.cos(a) * bsp, vy: Math.sin(a) * bsp, sp: bsp, slope: slope + gauss() * 0.028 / k3, dist: 0, tracer: i % 9 === 0, by: t, team: t.team, type: 'CAN' });
       }
-    } else shells.push({
-      id: ++shellId, x: mx, y: my, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, sp, pxk, V: v0, team: t.team, owner: t, by: t,
-      key, sb, v0, dist: 0, z: z0, slope, trail: [], ric: 0, yaw: false, whiz: false, warned: false,
-    });
+    } else {
+      const s = {
+        id: ++shellId, x: mx, y: my, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, sp, pxk, V: v0, team: t.team, owner: t, by: t,
+        key, sb, v0, dist: 0, z: z0, slope, trail: [], ric: 0, yaw: false, whiz: false, warned: false,
+      };
+      // touché à bout portant dès la bouche ; l'obus ne continue que s'il traverse ou ricoche
+      const res = blk ? (blk.tank ? hitTank(s, blk.tank, blk, mx, my) : hitObstacle(s, blk.o, blk, mx, my)) : 'continue';
+      if (res !== 'stop') shells.push(s);
+    }
     // les premiers obus viennent du râtelier de tourelle ; ensuite le chargeur va les chercher dans
     // les soutes de caisse, plus lentement
     if (t.ready > 0) t.ready--;
@@ -4462,7 +4493,7 @@
   if (Q.has('debug')) {
     window.__fa = {
       get tanks() { return tanks; }, get state() { return state; }, get stats() { return waveStats; }, get shells() { return shells; },
-      get time() { return gameTime; }, get player() { return player; }, get bushes() { return bushes; }, cam3, sight, setSight, sightProbe, get mode() { return mode; }, get survWave() { return survWave; }, hitcam: HitCam, TYPES, SHELLS, bench, benchFire,
+      get time() { return gameTime; }, get player() { return player; }, get bushes() { return bushes; }, get obstacles() { return obstacles; }, barrelHit, cam3, sight, setSight, sightProbe, get mode() { return mode; }, get survWave() { return survWave; }, hitcam: HitCam, TYPES, SHELLS, bench, benchFire,
       // test : tir forcé du joueur sur la cible la plus proche
       fireAt(i, key) {
         const e = tanks.filter(t => t.team === 1 && !t.dead)[i || 0];
