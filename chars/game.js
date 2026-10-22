@@ -620,14 +620,15 @@ Meta.whenReady(() => {
   }
 
   // ===================== Chars et équipage =====================
+  // Équipage de l'IA : tireur (dispersion, réaction), mémoire de la cible, corrections de tir, repli,
+  // réaction à un canon braqué, débordement et embuscade
   function makeAI(skill) {
     return {
-      skill, aimStd: 0.05 * (1 - skill) + 0.006, lead: 0.3 + 0.7 * skill, dodge: 0.12 + skill * 0.68,
-      react: 1.1 - 0.75 * skill, careless: Math.random() < (1 - skill) * 0.35,
-      target: null, los: false, lastKnown: null, dest: null, path: null, pi: 0, pathT: 0, pathDest: null,
-      thinkT: Math.random() * 0.3, reactT: 0, aimErr: gauss() * 0.04, dodgeT: 0, dodgeDir: 0, seen: new Set(),
-      stuckT: 0, unstickT: 0, unstickDir: -1, unstickTurn: 1, wiggleT: 0, wig: 1, laneY: WH / 2,
-      angleOff: (Math.random() < 0.5 ? -1 : 1) * rnd(0.25, 0.45), retreatT: 0, waitT: 0, noContactT: 0, pushT: 0,
+      skill, aimStd: 0.05 * (1 - skill) + 0.006, react: 1.1 - 0.75 * skill, careless: Math.random() < (1 - skill) * 0.35,
+      target: null, threat: null, threatK: 0, los: false, lastKnown: null, dest: null, path: null, pi: 0, pathT: 0, pathDest: null,
+      thinkT: Math.random() * 0.3, reactT: 0, aimErr: 0, biasA: 0, corrA: 0, leadErr: 0, rngK: 1, bearErr: 0, trackT: 0, lostT: 0, mem: null, vx: 0, vy: 0, shots: 0, pen: 1,
+      stuckT: 0, unstickT: 0, unstickDir: -1, unstickTurn: 1, wiggleT: 0, wig: 1, laneY: WH / 2, waitT: 0, noContactT: 0, pushT: 0,
+      state: 'engage', wdT: 0, wdCd: 0, noFireT: 0, cover: null, evadeT: 0, evadeDir: 0, evCd: 0, aimedT: 0, mode: null, flankT: 0, post: null,
     };
   }
   const DEF_UP = { hp: 1, pen: 1, armor: 1, grip: 1, optic: 1, reload: 1, ready: 0, armorLv: 0 };
@@ -974,6 +975,7 @@ Meta.whenReady(() => {
     }
     return null;
   }
+  // Tireur sans précaution : il frôle ses alliés de plus près, jamais le char du joueur
   function friendlyClear(t, aim, d) {
     const pv = pivot(t), ux = Math.cos(aim), uy = Math.sin(aim);
     for (const a of tanks) {
@@ -981,143 +983,341 @@ Meta.whenReady(() => {
       const rx = a.x - pv.x, ry = a.y - pv.y;
       const along = rx * ux + ry * uy;
       if (along < 0 || along > d + 30) continue;
-      if (Math.abs(rx * -uy + ry * ux) < a.r + 14) return false;
+      if (Math.abs(rx * -uy + ry * ux) < a.r + (t.ai && t.ai.careless && !a.isPlayer ? 4 : 14)) return false;
     }
     return true;
   }
-  // Choix de l'obus selon le blindage frontal de la cible
+
+  // ----- Blindage vu du tireur -----
+  const AI_SHELLS = ['APHE', 'AP', 'APCR', 'HEAT'];
+  // Plaque que la cible présente au tireur : face (à moins de 35° de son axe), flanc ou arrière, avec le
+  // lacet (degrés) qui s'ajoute à l'inclinaison propre de la plaque
+  function aspectOf(t, e) {
+    const rel = Math.abs(angNorm(Math.atan2(t.y - e.y, t.x - e.x) - e.angle)) / D2R, A = e.T.S.armor.hull;
+    return rel < 35 ? { k: 'front', p: A.up, yaw: rel } : rel < 145 ? { k: 'side', p: A.side, yaw: Math.abs(90 - rel) } : { k: 'rear', p: A.rear, yaw: 180 - rel };
+  }
+  // Épaisseur à vaincre (mm) : obliquité composée (inclinaison et lacet), majorée par le risque de bris
+  function plateNeed(sb, p, yaw, V) {
+    const ang = Math.min(80, Math.acos(Math.cos(p[1] * D2R) * Math.cos(yaw * D2R)) / D2R);
+    const shP = sb.heat || sb.he ? 0 : Ballistics.shatterChance(sb, p[0], ang, V);
+    return Ballistics.effective(sb, p[0], ang).eff / (1 - shP * (1 - (Ballistics.SHATTER_PEN[sb.key] || 0.7)));
+  }
+  // Rapport perforation / épaisseur à vaincre de l'obus k, ou du meilleur obus en soute, sur la plaque p
+  function penRatio(t, e, d, k, a = aspectOf(t, e), p = a.p) {
+    let best = 0;
+    for (const s of k ? [k] : AI_SHELLS) {
+      if (!k && !(t.ammo[s] > 0)) continue;
+      const sb = Ballistics.shell(t.T.id, s);
+      best = Math.max(best, penAt(t.T, s, d) / plateNeed(sb, p, a.yaw, Ballistics.velAt(sb, d * RK)));
+    }
+    return best;
+  }
+  // Danger que l'ennemi e fait courir à t : sa perforation sur ce que t lui montre, plus grand s'il pointe
+  // déjà son canon sur t, ou s'il est sur le point de tirer
+  function threatOf(t, e, d) {
+    const b = Math.atan2(t.y - e.y, t.x - e.x);
+    return penRatio(e, t, d) * (Math.abs(angNorm(e.angle + e.turret - b)) < 5 * D2R ? 1.5 : 1) * (e.reloadT < 1 ? 1.2 : 1);
+  }
+  // Lacet de caisse (rad) qui maximise le plus faible des blindages de face et de flanc contre l'obus
+  // probable de la menace, ricochet compris ; en cache par couple de types et tranche de 100 px
+  const YAW = new Map();
+  function bestYaw(t, e, d) {
+    const key = t.T.id + e.T.id + Math.round(d / 100);
+    if (YAW.has(key)) return YAW.get(key);
+    const A = t.T.S.armor.hull, sb = Ballistics.shell(e.T.id, AI_SHELLS.find(k => e.T.ammo[k] > 0) || 'APHE');
+    const eff = (p, i) => Ballistics.effective(sb, p[0], Math.min(i, 86)).eff * (1 + Ballistics.ricochetChance(sb, p[0], Math.min(i, 86)));
+    let y = 0, bv = -1;
+    for (let a = 0; a <= 45; a += 5) {
+      const iF = Math.acos(Math.cos(A.up[1] * D2R) * Math.cos(a * D2R)) / D2R, iS = Math.acos(Math.cos(A.side[1] * D2R) * Math.sin(a * D2R)) / D2R;
+      const v = Math.min(eff(A.up, iF), eff(A.side, iS));
+      if (v > bv * 1.02) { bv = v; y = a * D2R; }
+    }
+    YAW.set(key, y);
+    return y;
+  }
+  // Choix de l'obus selon la plaque visée : l'obus chargé tant qu'il perce ; sinon explosif perforant avec
+  // 10 % de marge, sous-calibré de près, charge creuse, perforant ; si rien ne passe, un tireur exercé tire
+  // de l'explosif dans le train de roulement ; mitraille sur un chef de char sorti, de près
   function aiShell(t, e, d) {
-    const up = e.T.S.armor.hull.up, ang = Math.min(80, up[1] + 10);
-    // épaisseur à vaincre, majorée par le risque de bris de l'obus sur cette plaque
-    const need = k => {
-      const sb = Ballistics.shell(t.T.id, k), shP = sb.heat || sb.he ? 0 : Ballistics.shatterChance(sb, up[0], ang, Ballistics.velAt(sb, d * RK));
-      return Ballistics.effective(sb, up[0], ang).eff / (1 - shP * (1 - (Ballistics.SHATTER_PEN[k] || 0.7)));
-    };
-    if (t.ammo[t.shell] > 0 && penAt(t.T, t.shell, d) >= need(t.shell)) return t.shell;
-    for (const k of ['APHE', 'AP', 'APCR', 'HEAT']) if (t.ammo[k] > 0 && penAt(t.T, k, d) >= need(k)) return k;
-    let best = t.shell, bp = -1;
-    for (const k of ['APCR', 'AP', 'APHE', 'HEAT']) { const p = penAt(t.T, k, d) / need(k); if (t.ammo[k] > 0 && p > bp) { bp = p; best = k; } }
+    const has = k => t.ammo[k] > 0, ok = k => has(k) && penRatio(t, e, d, k) >= 1;
+    if (e.hatch && d < 120 && has('CAN')) return 'CAN';
+    if (AI_SHELLS.includes(t.shell) && ok(t.shell)) return t.shell;
+    if (has('APHE') && penRatio(t, e, d, 'APHE') >= 1.1) return 'APHE';
+    if (d < 300 && ok('APCR')) return 'APCR';
+    for (const k of ['HEAT', 'AP', 'APHE']) if (ok(k)) return k;
+    if (t.ai.skill > 0.5 && has('HE')) return 'HE';
+    let best = null, bp = -1;
+    for (const k of AI_SHELLS) { const p = has(k) ? penRatio(t, e, d, k) : -1; if (p > bp) { bp = p; best = k; } }
+    return best && has(best) ? best : nextShell(t);
+  }
+  // Hauteur visée (m) : haut de caisse ; un tireur exercé prend la plaque la plus faible (caisse basse,
+  // caisse haute ou tourelle) ; l'explosif vise le train de roulement, la mitraille le chef de char
+  function aiAimZ(t, e, d) {
+    const S = e.T.S, A = S.armor;
+    if (t.shell === 'HE') return S.gc + 0.3;
+    if (t.shell === 'CAN') return e.T.I.totalH;
+    if (t.ai.skill <= 0.6 || !AI_SHELLS.includes(t.shell)) return S.ht - 0.25;
+    const a = aspectOf(t, e), f = a.k === 'front', s = a.k === 'side';
+    const tu = A.turret || {}, C = [[S.ht - 0.25, a.p], [S.gc + 0.45, (f ? A.hull.low : s ? A.hull.lowSide : 0) || a.p], [(S.ht + e.T.I.totalH) / 2, (f ? tu.front : s ? tu.side : tu.rear) || a.p]];
+    let z = C[0][0], bv = -1;
+    for (const [zz, p] of C) { const v = penRatio(t, e, d, t.shell, a, p); if (v > bv * 1.05) { bv = v; z = zz; } }
+    return z;
+  }
+
+  // ----- Postes et itinéraires -----
+  // Rôles par type : reconnaissance (Lynx), ligne et débordement (moyens), fer de lance (lourds),
+  // embuscade (chasseurs de chars et canons d'assaut, qui ne poursuivent pas)
+  const ROLES = { light: 'scout', pz4: 'line', medium: 'line', heavy: 'spear', kingtiger: 'spear', stug: 'ambush', destroyer: 'ambush' };
+  const bushNear = (p, r) => { let best = null, bd = r; for (const b of bushes) { const d = Math.hypot(p.x - b.x, p.y - b.y); if (d < bd) { bd = d; best = b; } } return best; };
+  // Couvert le plus proche (à moins de rmax) qu'aucune des menaces ne voit
+  function coverPoint(t, threats, rmax) {
+    let best = null, bs = 1e9;
+    for (let i = 0; i < 16; i++) {
+      const a = i / 16 * TAU, R = rmax * (i % 2 ? 0.55 : 1), p = { x: clamp(t.x + Math.cos(a) * R, 60, WW - 60), y: clamp(t.y + Math.sin(a) * R, 60, WH - 60) };
+      if (blocked(cellOf(p.x, p.y)) || threats.some(e => losClear(e.x, e.y, p.x, p.y, false))) continue;
+      const s = dist(t, p);
+      if (s < bs) { bs = s; best = p; }
+    }
+    return best;
+  }
+  // Poste d'embuscade : un buisson sur l'axe d'approche, à environ « ahead » px en avant vers l'objectif
+  function ambushPost(t, goalX, ahead, not) {
+    const dir = Math.sign(goalX - t.x) || (t.team ? -1 : 1);
+    let best = null, bs = 1e9;
+    for (const b of bushes) {
+      const f = (b.x - t.x) * dir;
+      if (f < -200 || f > 750 || (not && Math.hypot(b.x - not.x, b.y - not.y) < 60) || blocked(cellOf(b.x, b.y))) continue;
+      const s = Math.abs(f - ahead) + Math.abs(b.y - t.y) * 0.6;
+      if (s < bs) { bs = s; best = { x: b.x, y: b.y }; }
+    }
+    return best;
+  }
+  // Point de débordement : à 80° de l'axe de la cible, aux trois quarts de la portée ; pénalisé s'il est
+  // en vue d'autres ennemis, favorisé près d'un buisson
+  function flankPoint(t, e, foes) {
+    const R = 0.75 * t.T.range;
+    let best = null, bs = -1e9;
+    for (const sg of [-1, 1]) {
+      const a = e.angle + sg * 80 * D2R, p = { x: clamp(e.x + Math.cos(a) * R, 80, WW - 80), y: clamp(e.y + Math.sin(a) * R, 80, WH - 80) };
+      if (blocked(cellOf(p.x, p.y))) continue;
+      let s = -dist(t, p) + (bushNear(p, 90) ? 150 : 0);
+      for (const o of foes) if (o !== e && !o.dead && losClear(o.x, o.y, p.x, p.y, false)) s -= 300;
+      if (s > bs) { bs = s; best = p; }
+    }
     return best;
   }
 
+  // ----- Ordres du joueur à ses alliés (campagne) -----
+  let orders = { kind: 'free', pos: null, target: null, t: 0 };
+  const FOLLOW = [[-70, -60], [-70, 60], [-130, -120], [-130, 120]], SPREAD = [[0, 0], [40, 40], [-40, 40], [40, -40], [-40, -40]];
+  function orderDest(t) {
+    const i = Math.max(0, tanks.filter(a => a.team === 0 && a !== player && !a.dead).indexOf(t));
+    if (orders.kind === 'follow') {
+      const q = FOLLOW[i % 4], c = Math.cos(player.angle), s = Math.sin(player.angle);
+      return { x: clamp(player.x + c * q[0] - s * q[1], 60, WW - 60), y: clamp(player.y + s * q[0] + c * q[1], 60, WH - 60) };
+    }
+    if (orders.kind === 'move') { const q = SPREAD[i % 5]; return { x: clamp(orders.pos.x + q[0], 60, WW - 60), y: clamp(orders.pos.y + q[1], 60, WH - 60) }; }
+    if (orders.kind === 'hold') return t.ai.holdPt || (t.ai.holdPt = bushNear(t, 150) || { x: t.x, y: t.y });
+    return null;
+  }
+
+  // L'IA observe la chute de son coup sur la cible visée et corrige le suivant (encadrement) : 70 % de
+  // l'écart latéral en direction, et la hausse selon le coup court ou long
+  function aiObserve(s, x, y, hit) {
+    const a = s.by && s.by.ai, e = s.tgt;
+    if (s.obs || !a || !e || e.dead || a.target !== e || !(s.by.sees && s.by.sees.has(e))) return;
+    s.obs = true;
+    if (hit === e) return;
+    const d = Math.hypot(e.x - s.fx, e.y - s.fy) || 1, ux = (e.x - s.fx) / d, uy = (e.y - s.fy) / d, rx = x - e.x, ry = y - e.y;
+    a.corrA -= 0.7 * Math.atan2(-rx * uy + ry * ux, d);
+    a.rngK = clamp(a.rngK * (1 - 0.7 * clamp((rx * ux + ry * uy) / d, -0.15, 0.15)), 0.7, 1.3);
+  }
 
   function aiThink(t, dt) {
-    const ai = t.ai, T = t.T;
-    ai.thinkT -= dt; ai.reactT -= dt; ai.dodgeT -= dt; ai.unstickT -= dt; ai.retreatT -= dt; ai.pathT -= dt; ai.pushT -= dt;
-    if (ai.waitT > 5) { ai.waitT = 0; ai.pushT = 3; } // impossible de tirer d'ici : on se rapproche
-    const seen = t.knows || spotted[t.team];
+    const ai = t.ai, T = t.T, role = ROLES[T.id] || 'line';
+    ai.thinkT -= dt; ai.reactT -= dt; ai.unstickT -= dt; ai.pathT -= dt; ai.pushT -= dt; ai.evadeT -= dt; ai.evCd -= dt; ai.flankT -= dt; ai.wdT -= dt; ai.wdCd -= dt;
+    ai.noFireT = canFire(t) ? 0 : ai.noFireT + dt;
+    if (ai.waitT > 5) { ai.waitT = 0; if (role !== 'ambush') ai.pushT = 3; } // impossible de tirer d'ici : on se rapproche
+    const seen = t.knows || spotted[t.team], own = t.sees || seen;
+    const ordered = t.team === 0 && orders.kind !== 'free' && player && !player.dead && radioOk(t);
+    const amb = role === 'ambush' || ai.mode === 'ambush';
+    const homeX = ai.homeX != null ? ai.homeX : t.team === 0 ? 160 : WW - 160, goalX = ai.goalX != null ? ai.goalX : t.team === 0 ? WW - 260 : 260;
     if (ai.thinkT <= 0) {
-      ai.thinkT = rnd(0.25, 0.45);
-      let best = null, bs = 1e9, bestLos = false;
-      let bestSide = null;
+      const iv = ai.iv || 0.35;
+      ai.iv = ai.thinkT = rnd(0.25, 0.45);
+      // --- cible : celle qu'on peut percer, qui nous menace, que les autres visent déjà ; on ne change que
+      // pour bien mieux, ou si la cible est hors de vue depuis 1,5 s ---
+      const cur = ai.target && !ai.target.dead ? ai.target : null;
+      let best = null, bs = 0, curS = 0, threat = null, ts = 0, tk = 0, pens = 0, aimed = false, bWreck = false;
       for (const e of seen) {
         if (e.dead) continue;
-        const d = dist(t, e);
-        const lo = losClear(t.x, t.y, e.x, e.y, true), los = lo && wreckClear(t, e);
-        const sc = d * (los ? 1 : 1.7) * (crewFrac(e) < 0.5 ? 0.8 : 1);
-        if (sc < bs) { bs = sc; best = e; bestLos = los; bestSide = lo && !los; }
+        const d = dist(t, e), lo = losClear(t.x, t.y, e.x, e.y, true), wc = wreckClear(t, e), vis = own.has(e), los = lo && wc && vis;
+        const pen = penRatio(t, e, d), th = threatOf(t, e, d);
+        let focus = 0;
+        for (const a of tanks) if (a !== t && !a.dead && a.team === t.team && a.ai && a.ai.target === e) focus++;
+        const sc = (pen >= 1 ? 1 : 0.3 + 0.4 * pen) * (0.6 + 0.4 * Math.min(th, 2)) * (1 + 0.25 * focus) * (e === cur ? 1.3 : 1) * (crewFrac(e) < 0.5 ? 1.2 : 1) * (los ? 1 : 0.6) / (d + 150);
+        if (sc > bs) { bs = sc; best = e; bWreck = lo && !wc && vis; }
+        if (e === cur) curS = sc;
+        if (vis) {
+          if (th / (d + 150) > ts) { ts = th / (d + 150); threat = e; tk = th; }
+          // ennemi qui nous perce et qu'aucun allié ne voit
+          if (th >= 1 && !tanks.some(a => a !== t && !a.dead && a.team === t.team && a.sees && a.sees.has(e))) pens++;
+          // canon ennemi pointé sur nous et prêt à tirer
+          if (e.reloadT <= 0.5 && Math.abs(angNorm(e.angle + e.turret - Math.atan2(t.y - e.y, t.x - e.x))) < 2.5 * D2R) aimed = true;
+        }
       }
-      ai.side = bestSide ? sideStep(t, best) : null;
+      if (cur && seen.has(cur) && best !== cur && bs < curS * 1.3 && ai.lostT < 1.5) { best = cur; bWreck = false; }
+      if (ordered && orders.kind === 'attack' && orders.target && !orders.target.dead) best = orders.target;
       if (best && best !== ai.target) {
         // chef de char blessé ou mort : l'équipage réagit plus lentement
-        const eC = eff(t, 'commander');
+        const eC = eff(t, 'commander'), d = dist(t, best);
         ai.reactT = ai.react * rnd(0.6, 1.3) * (eC > 0 ? 1 / eC : 1.6);
-        const k = aiShell(t, best, dist(t, best));
-        // demande l'obus voulu, ou annule celui qui attendait si l'obus chargé convient (jamais d'extraction)
-        if (k === t.shell ? t.nextShell : k !== t.nextShell) selectShell(t, k);
+        // nouvelle cible : estimation de la distance et du pointage à refaire, mémoire effacée
+        ai.trackT = 0; ai.lostT = 0; ai.corrA = 0; ai.shots = 0; ai.mem = null; ai.vx = ai.vy = 0;
+        ai.rngK = 1 + gauss() * 0.12 * (1 - ai.skill); ai.biasA = gauss() * ai.aimStd * (0.6 + d / 700); ai.bearErr = gauss() * 6 * D2R;
+        if (ai.mode === 'flank') ai.mode = null;
       }
-      ai.target = best; ai.los = bestLos;
-      if (best) { ai.lastKnown = { x: best.x, y: best.y }; ai.noContactT = 0; }
-      else {
-        ai.noContactT += 0.35;
+      ai.target = best; ai.threat = threat; ai.threatK = tk;
+      const d = best ? dist(t, best) : 0;
+      ai.los = !!best && own.has(best) && losClear(t.x, t.y, best.x, best.y, true) && wreckClear(t, best);
+      ai.side = bWreck ? sideStep(t, best) : null;
+      ai.pen = best ? penRatio(t, best, d) : 0;
+      if (best) {
+        // demande l'obus voulu, ou annule celui qui attendait si l'obus chargé convient (jamais d'extraction)
+        const k = aiShell(t, best, d);
+        if (k === t.shell ? t.nextShell : k !== t.nextShell) selectShell(t, k);
+        ai.az = aiAimZ(t, best, d);
+        ai.lastKnown = ai.mem ? { x: ai.mem.x, y: ai.mem.y } : { x: best.x, y: best.y }; ai.noContactT = 0;
+      } else ai.noContactT += iv;
+
+      // --- repli : canon hors d'usage, incendie, équipage décimé sous le feu, ou deux ennemis en vue qui
+      // nous percent sans qu'aucun allié ne les voie (trois si l'équipage est au complet) ; vers un couvert qu'aucun ne voit, fumée vers la menace ---
+      const want = ai.noFireT > 1 ? 'gun' : t.fires.length > 0 ? 'fire' : crewFrac(t) < 0.5 && pens > 0 ? 'crew' : pens >= 3 || pens >= 2 && crewFrac(t) < 0.85 ? 'odds' : '';
+      if (want) ai.wdWhy = want;
+      if (want && ai.state !== 'withdraw' && ai.wdCd <= 0) {
+        ai.state = 'withdraw'; ai.wdT = 25;
+        ai.cover = coverPoint(t, [...own].filter(e => !e.dead), 250);
+        if (!ai.cover && threat) { const a = Math.atan2(t.y - threat.y, t.x - threat.x); ai.cover = { x: clamp(t.x + Math.cos(a) * 160, 60, WW - 60), y: clamp(t.y + Math.sin(a) * 160, 60, WH - 60) }; }
+        if (t.smoke > 0 && threat && ai.los) deploySmoke(t, Math.atan2(threat.y - t.y, threat.x - t.x));
+      } else if (ai.state === 'withdraw' && (!want && ai.wdT < 19 || ai.wdT <= 0)) { ai.state = 'engage'; ai.wdCd = 8; }
+      // --- canon braqué sur nous depuis 0,6 s : arrêt ou marche arrière, caisse de biais (indice visible,
+      // donc une réaction lisible, jamais une esquive d'obus en vol) ---
+      ai.aimedT = aimed ? ai.aimedT + iv : 0;
+      if (ai.aimedT >= 0.6 && ai.evCd <= 0 && ai.state !== 'withdraw') {
+        ai.evCd = 3;
+        if (Math.random() < 0.6 * ai.skill * (roleOk(t, 'commander') ? 1 : 0.6)) {
+          ai.evadeT = rnd(0.8, 1.4); ai.evadeDir = Math.abs(t.speed) > 1.5 * PX ? 0 : -1;
+          if (t.smoke > 0 && crewFrac(t) < 0.6 && threat) deploySmoke(t, Math.atan2(threat.y - t.y, threat.x - t.x));
+        }
       }
 
+      // --- destination ---
       let dest = null;
       const range = T.range * (crewFrac(t) < 0.6 ? 1.3 : 1);
-      const homeX = ai.homeX != null ? ai.homeX : t.team === 0 ? 160 : WW - 160, goalX = ai.goalX != null ? ai.goalX : t.team === 0 ? WW - 260 : 260;
-      if (ai.retreatT > 0) dest = { x: homeX, y: t.y };
+      if (ai.state === 'withdraw') dest = ai.cover;
       else if (best && ai.side) dest = ai.side;
+      else if (best && ai.mode === 'flank') { dest = ai.flankPt; if (dist(t, dest) < 50 || ai.flankT <= 0 || ai.flankE !== best) { ai.mode = null; dest = null; } }
       else if (best && ai.pushT > 0) dest = { x: best.x, y: best.y };
-      else if (best) {
-        const d = dist(t, best);
-        if (ai.los && d < range * 1.25 && d > range * 0.5) dest = null;
-        else if (ai.los && d <= range * 0.5) {
-          const a = Math.atan2(t.y - best.y, t.x - best.x);
-          dest = { x: clamp(t.x + Math.cos(a) * 160, 60, WW - 60), y: clamp(t.y + Math.sin(a) * 160, 60, WH - 60) };
-        } else dest = { x: best.x, y: best.y };
+      else if (best && amb) {
+        // embuscade : on reste au poste et on en change après deux coups ; sans poste, on approche à 80 %
+        // de la portée sans jamais poursuivre
+        if (ai.shots >= 2 && ai.post) { ai.post = ambushPost(t, goalX, 0, ai.post) || ai.post; ai.shots = 0; }
+        if (ai.post) dest = dist(t, ai.post) > 25 ? ai.post : null;
+        else if (!ai.los && d > range * 0.8) { const k = (d - range * 0.8) / d; dest = { x: t.x + (best.x - t.x) * k, y: t.y + (best.y - t.y) * k }; }
+      } else if (best && role === 'scout' && ai.pen < 1.2) {
+        // éclaireur : il ne gaspille pas d'obus sur un blindage trop épais, il observe depuis un buisson
+        const b = bushNear(t, 220);
+        dest = b && dist(t, b) > 25 ? b : null;
+        if (!b && !ai.los) dest = { x: best.x, y: best.y };
+      } else if (best) {
+        // débordement : la face est imperméable mais le flanc ne l'est pas ; un seul flanqueur par cible,
+        // les autres la fixent de face
+        if (role !== 'spear' && !ordered && ai.pen < 0.9 && penRatio(t, best, d, null, { k: 'side', p: best.T.S.armor.hull.side, yaw: 0 }) >= 1.1 &&
+          !tanks.some(a => a !== t && a.ai && !a.dead && a.team === t.team && a.ai.mode === 'flank' && a.ai.flankE === best)) {
+          const p = flankPoint(t, best, seen);
+          if (p) { ai.mode = 'flank'; ai.flankE = best; ai.flankPt = p; ai.flankT = 25; dest = p; }
+        }
+        if (!dest) {
+          if (ai.los && d < range * 1.25 && d > range * 0.5) dest = null;
+          else if (ai.los && d <= range * 0.5) {
+            const a = Math.atan2(t.y - best.y, t.x - best.x);
+            dest = { x: clamp(t.x + Math.cos(a) * 160, 60, WW - 60), y: clamp(t.y + Math.sin(a) * 160, 60, WH - 60) };
+          } else dest = { x: best.x, y: best.y };
+        }
       } else if (ai.lastKnown) {
         dest = ai.lastKnown;
         if (dist(t, dest) < 90) ai.lastKnown = null;
+      } else if (amb && (ai.post || (ai.post = ambushPost(t, goalX, 350)))) {
+        // sans contact depuis 45 s, l'embuscade se reporte plus en avant
+        if (ai.noContactT > 45) { ai.post = ambushPost(t, goalX, 350, ai.post) || ai.post; ai.noContactT = 0; }
+        dest = dist(t, ai.post) > 25 ? ai.post : null;
       } else {
-        dest = { x: goalX, y: ai.laneY };
-        if (Math.hypot(t.x - dest.x, t.y - dest.y) < 150) { ai.laneY = rnd(150, WH - 150); ai.goalX = clamp(goalX + rnd(-500, 500), 200, WW - 200); }
+        // en coin derrière un char lourd de l'équipe, sinon sur son couloir (le lourd prend le centre)
+        const lead = role === 'line' && tanks.find(a => !a.dead && a.team === t.team && a.ai && ROLES[a.T.id] === 'spear');
+        if (lead) {
+          const dir = Math.sign(goalX - lead.x) || 1, sl = t.id % 2 ? 1 : -1;
+          dest = { x: clamp(lead.x - dir * 110, 60, WW - 60), y: clamp(lead.y + sl * 110, 60, WH - 60) };
+          if (dist(t, dest) < 40) dest = null;
+        } else {
+          dest = { x: goalX, y: role === 'spear' ? WH / 2 + (ai.laneY - WH / 2) * 0.35 : ai.laneY };
+          if (Math.hypot(t.x - dest.x, t.y - dest.y) < 150) { ai.laneY = rnd(150, WH - 150); ai.goalX = clamp(goalX + rnd(-500, 500), 200, WW - 200); }
+        }
       }
+      // ordres du joueur : place dans la formation, position tenue ou point désigné (il tire sur ce qu'il
+      // voit sans s'en éloigner) ; un repli reste prioritaire
+      if (ordered && ai.state !== 'withdraw') { const od = orderDest(t); if (od) dest = dist(t, od) > 45 ? od : null; }
+      if (orders.kind !== 'hold') ai.holdPt = null;
       ai.dest = dest;
       if (dest) {
         if (!ai.path || ai.pathT <= 0 || !ai.pathDest || Math.hypot(ai.pathDest.x - dest.x, ai.pathDest.y - dest.y) > 60) {
           ai.path = findPath(t.x, t.y, dest.x, dest.y); ai.pi = 0; ai.pathDest = { x: dest.x, y: dest.y }; ai.pathT = 2.5;
         }
       } else ai.path = null;
-
-      if (t.smoke > 0 && best && ai.los && crewFrac(t) < 0.6 && Math.random() < 0.4) { deploySmoke(t); ai.retreatT = 5; }
     }
 
-    // Esquive des obus qui arrivent : seulement s'il reste plus de 0,6 s avant l'impact (temps de réaction
-    // de l'équipage), donc en pratique contre une charge creuse ou un explosif lent tiré de loin
-    if (ai.dodgeT <= 0) {
-      for (const s of shells) {
-        if (s.owner === t || ai.seen.has(s.id)) continue;
-        const rx = t.x - s.x, ry = t.y - s.y, ux = s.vx / s.sp, uy = s.vy / s.sp;
-        const along = rx * ux + ry * uy;
-        if (along < 0) continue;
-        const tt = along / s.sp;
-        if (tt > 2.5) continue;
-        const perp = rx * -uy + ry * ux;
-        if (Math.abs(perp) > T.len * 0.5 + 8) continue;
-        ai.seen.add(s.id);
-        if (tt < 0.6 || Math.random() > ai.dodge * (roleOk(t, 'commander') ? 1 : 0.6)) continue;
-        const sg = perp >= 0 ? 1 : -1;
-        const nx = -uy * sg, ny = ux * sg;
-        const f = Math.cos(t.angle) * nx + Math.sin(t.angle) * ny;
-        if (Math.abs(f) < 0.35) continue; // obus de face : on compte sur le blindage
-        if (f < 0 && T.rev < 6 / 3.6 * PX) continue; // marche arrière au pas : pas d'esquive en reculant
-        ai.dodgeT = rnd(0.5, 0.8); ai.dodgeDir = f > 0 ? 1 : -1;
-        break;
-      }
-      if (ai.seen.size > 80) ai.seen.clear();
-    }
-
+    // --- conduite : caisse de biais face à la menace principale ---
     let thr = 0, turn = 0;
-    if (ai.dodgeT > 0) thr = ai.dodgeDir;
+    // (une menace qui ne nous perce pas compte moins que la cible)
+    const tg = ai.target && !ai.target.dead ? ai.target : null, th = ai.threat && !ai.threat.dead && (ai.threatK >= 1 || !tg) ? ai.threat : tg;
+    let des = null;
+    if (th) {
+      const b = Math.atan2(th.y - t.y, th.x - t.x), y = T.arc ? 0 : bestYaw(t, th, dist(t, th));
+      des = Math.abs(angNorm(b + y - t.angle)) < Math.abs(angNorm(b - y - t.angle)) ? b + y : b - y;
+    }
+    if (t.trackT > 0 && des != null) {
+      // chenille cassée : la chenille intacte fait pivoter la caisse vers la menace, puis on s'arrête
+      const err = angNorm(des - t.angle);
+      thr = Math.abs(err) > 0.15 ? 0.6 * Math.sign(err) * t.trackSide : 0
+    } else if (ai.evadeT > 0) { thr = ai.evadeDir; if (des != null) turn = clamp(angNorm(des - t.angle) * 3, -1, 1); }
     else if (ai.unstickT > 0) { thr = ai.unstickDir; turn = ai.unstickTurn; }
     else if (ai.path && ai.pi < ai.path.length) {
       let wp = ai.path[ai.pi];
       if (Math.hypot(wp.x - t.x, wp.y - t.y) < 28) { ai.pi++; wp = ai.path[ai.pi]; }
       if (wp) {
-        const des = Math.atan2(wp.y - t.y, wp.x - t.x);
-        let df = angNorm(des - t.angle);
-        if (Math.abs(df) > 2.4 && Math.hypot(wp.x - t.x, wp.y - t.y) < 160) {
-          df = angNorm(des + Math.PI - t.angle);
+        const dw = Math.hypot(wp.x - t.x, wp.y - t.y), des2 = Math.atan2(wp.y - t.y, wp.x - t.x);
+        let df = angNorm(des2 - t.angle);
+        // point de passage derrière soi par rapport à la menace : on recule, face à elle
+        const back = th && dw < 300 && (wp.x - t.x) * (th.x - t.x) + (wp.y - t.y) * (th.y - t.y) < 0 && T.rev >= 6 / 3.6 * PX;
+        if (back || Math.abs(df) > 2.4 && dw < 160) {
+          df = angNorm(des2 + Math.PI - t.angle);
           turn = clamp(df * 3, -1, 1); thr = Math.abs(df) < 0.8 ? -1 : -0.2;
         } else {
           turn = clamp(df * 3, -1, 1);
           thr = Math.abs(df) < 0.7 ? 1 : Math.abs(df) < 1.4 ? 0.4 : 0;
         }
       }
-    } else if (ai.target && !ai.target.dead) {
-      const off = T.arc || T.id === 'light' ? 0 : ai.angleOff;
-      const des = Math.atan2(ai.target.y - t.y, ai.target.x - t.x) + off;
-      const df = angNorm(des - t.angle);
+    } else if (des != null) {
+      // à l'arrêt : caisse au lacet le plus favorable ; un canon fixe garde la cible dans son champ de tir
+      const df = angNorm((T.arc && tg ? Math.atan2(tg.y - t.y, tg.x - t.x) : des) - t.angle);
       turn = Math.abs(df) > 0.04 ? clamp(df * 3, -1, 1) : 0;
-      if (T.id === 'light' || T.id === 'medium' && ai.skill > 0.6) {
-        ai.wiggleT -= dt;
-        if (ai.wiggleT <= 0) { ai.wiggleT = rnd(0.8, 2); ai.wig = -ai.wig; }
-        thr = ai.wig * (T.id === 'light' ? 0.8 : 0.5);
+      // le Lynx tire et se déplace sans cesse (rien qui ressemble à une esquive des obus)
+      if (T.id === 'light' && ai.los) {
+        if ((ai.wiggleT -= dt) <= 0) { ai.wiggleT = rnd(0.8, 2); ai.wig = -ai.wig; }
+        thr = ai.wig * 0.6;
       }
     }
     // bloqué : un rapport est engagé dans le bon sens et le char n'avance pas (le passage d'un rapport
-    // et l'engagement de la marche arrière prennent du temps)
-    // (rien pendant l'introduction : les chars n'ont pas encore le droit de rouler)
+    // et l'engagement de la marche arrière prennent du temps) ; rien pendant l'introduction
     if (state !== 'play') ai.stuckT = ai.unstickT = 0;
     else if (Math.abs(thr) > 0.3 && Math.hypot(t.vx, t.vy) < 6 && !(t.shiftT > 0) && t.gear * thr > 0 && ai.unstickT <= 0 && t.trackT <= 0 && roleOk(t, 'driver') && modOk(t, 'engine') && modOk(t, 'trans')) {
       ai.stuckT += dt;
@@ -1134,32 +1334,59 @@ Meta.whenReady(() => {
       }
     } else ai.stuckT = Math.max(0, ai.stuckT - dt);
 
-    // Visée avec anticipation et erreur
+    // --- pointage : sur ce qu'on voit soi-même, sinon sur le souvenir (extrapolé 1 s au plus) ou sur le
+    // relèvement transmis par radio (± 6°) ; anticipation sur la vitesse observée, erreurs humaines ---
     let aim = t.angle + t.turret, fire = false;
-    const tg = ai.target;
-    if (tg && !tg.dead) {
-      const pv = pivot(t);
-      const d = Math.hypot(tg.x - pv.x, tg.y - pv.y);
-      const tt = Ballistics.tof(Ballistics.shell(T.id, t.shell), d * RK) / TOF;
-      const px = tg.x + tg.vx * tt * ai.lead, py = tg.y + tg.vy * tt * ai.lead;
-      aim = Math.atan2(py - pv.y, px - pv.x) + ai.aimErr;
-      // arrêt court (Kurzhalt) : obus prêt, le char s'arrête et attend que la caisse se calme ; une tourelle
-      // lente se fait aider par la caisse quand la cible est loin de son axe
-      if (ai.los && seen.has(tg) && t.reloadT < 0.6 && canFire(t) && ai.retreatT <= 0 && ai.dodgeT <= 0 && ai.unstickT <= 0) {
-        thr = 0;
-        if (ai.path) turn = 0;
-        if (!T.arc && T.tturn < 15 * D2R && Math.abs(angNorm(aim - t.angle - t.turret)) > 30 * D2R) turn = clamp(angNorm(aim - t.angle) * 3, -1, 1);
+    if (tg) {
+      const pv = pivot(t), vis = own.has(tg) && ai.los;
+      let bx = null, by = 0, vx = 0, vy = 0;
+      if (vis) {
+        // la cible réapparaît après plus d'une seconde : temps de réaction, et premier coup moins précis
+        if (ai.lostT > 1) { ai.reactT = Math.max(ai.reactT, ai.react * rnd(0.5, 1)); ai.aimErr = gauss() * ai.aimStd * 1.5; }
+        const k = Math.min(1, dt / 0.6);
+        ai.vx += (tg.vx - ai.vx) * k; ai.vy += (tg.vy - ai.vy) * k;
+        ai.mem = { x: tg.x, y: tg.y, t: gameTime }; ai.trackT += dt; ai.lostT = 0;
+        bx = tg.x; by = tg.y; vx = ai.vx; vy = ai.vy;
+      } else {
+        ai.lostT += dt;
+        if (ai.mem && gameTime - ai.mem.t < 6) { const age = Math.min(1, gameTime - ai.mem.t); bx = ai.mem.x + ai.vx * age; by = ai.mem.y + ai.vy * age; }
+        else if (seen.has(tg)) { const a = Math.atan2(tg.y - pv.y, tg.x - pv.x) + ai.bearErr, dd = dist(t, tg); bx = pv.x + Math.cos(a) * dd; by = pv.y + Math.sin(a) * dd; }
       }
-      if (ai.los && ai.reactT <= 0 && t.reloadT <= 0 && seen.has(tg) && canFire(t)) {
-        ai.waitT += dt;
-        const err = Math.abs(angNorm(t.angle + t.turret - aim));
-        const steady = (t.disp < T.disp * (2.6 - ai.skill) || d < 300 || ai.waitT > 2) && (t.stillT > 1.1 || d < 250 || ai.waitT > 4);
-        if (err < Math.max(0.012, 9 / d) && steady && (ai.careless || friendlyClear(t, aim, d))) {
-          fire = true; ai.waitT = 0;
-          ai.aimErr = gauss() * ai.aimStd * (0.6 + d / 700);
+      if (bx != null) {
+        const d = Math.hypot(bx - pv.x, by - pv.y) || 1;
+        ai.ax = bx; ai.ay = by;
+        const tt = Ballistics.tof(Ballistics.shell(T.id, t.shell), d * RK) / TOF;
+        aim = Math.atan2(by + vy * tt * (1 + ai.leadErr) - pv.y, bx + vx * tt * (1 + ai.leadErr) - pv.x) + ai.biasA + ai.corrA + ai.aimErr;
+        // tir à l'aveugle dans la fumée, sur la position retenue : seulement les tireurs exercés
+        const blind = !vis && ai.skill > 0.7 && ai.mem && gameTime - ai.mem.t < 3 && losClear(t.x, t.y, tg.x, tg.y, false);
+        // feu retenu : embuscade tant que la cible est loin et qu'on n'est pas repéré, éclaireur devant un
+        // blindage trop épais, débordement pas encore assez de flanc
+        const hold = (amb && d > 0.8 * T.range && !spotted[1 - t.team].has(t)) || (role === 'scout' && ai.pen < 1.2) || (ai.mode === 'flank' && ai.pen < 1);
+        // arrêt court (Kurzhalt) : obus prêt, le char s'arrête et attend que la caisse se calme ; une tourelle
+        // lente se fait aider par la caisse quand la cible est loin de son axe
+        if (vis && !hold && t.reloadT < 0.6 && canFire(t) && ai.state !== 'withdraw' && ai.evadeT <= 0 && ai.unstickT <= 0 && !(t.trackT > 0)) {
+          thr = 0;
+          if (ai.path) turn = 0;
+          // canon fixe : toute la caisse pointe
+          if (T.arc) turn = clamp(angNorm(aim - t.angle) * 3, -1, 1);
+          else if (T.tturn < 15 * D2R && Math.abs(angNorm(aim - t.angle - t.turret)) > 30 * D2R) turn = clamp(angNorm(aim - t.angle) * 3, -1, 1);
+        }
+        if ((vis || blind) && !hold && ai.reactT <= 0 && t.reloadT <= 0 && canFire(t)) {
+          ai.waitT += dt;
+          const err = Math.abs(angNorm(t.angle + t.turret - aim));
+          const steady = (t.disp < T.disp * (2.6 - ai.skill) || d < 300 || ai.waitT > 2) && (t.stillT > 1.1 || d < 250 || ai.waitT > 4);
+          if (err < Math.max(0.012, 9 / d) * (blind ? 3 : 1) && steady && friendlyClear(t, aim, d)) {
+            fire = true; ai.waitT = 0; ai.shots++;
+            // coup suivant : dispersion de pointage selon la distance, la vitesse angulaire de la cible et
+            // le temps de suivi ; erreur d'anticipation qui diminue à mesure qu'on suit la cible
+            const w = Math.abs(vx * (by - pv.y) - vy * (bx - pv.x)) / (d * d);
+            ai.aimErr = gauss() * ai.aimStd * (0.6 + d / 700) * (1 + 2 * w / 0.1) * (ai.trackT < 2 ? 1.4 : 1) * (blind ? 3 : 0.6);
+            ai.leadErr = gauss() * 0.35 * (1 - ai.skill) / (1 + ai.trackT);
+          }
         }
       }
-    } else if (ai.path) aim = t.angle;
+    } else if (ai.lastKnown) aim = Math.atan2(ai.lastKnown.y - t.y, ai.lastKnown.x - t.x);
+    else if (ai.path) aim = t.angle;
     // le pilote freine pour s'arrêter ou ralentir à la vitesse demandée (lâcher l'accélérateur ne fait
     // que rouler en roue libre)
     t.in.brake = Math.abs(thr) < 0.05 || Math.abs(t.speed) > Math.abs(thr) * T.speed + 1.5 * PX;
@@ -1739,8 +1966,8 @@ Meta.whenReady(() => {
       if (sight.on) { const D = sight.probe && sight.probe.kind !== 'sky' ? sight.probe.dist : 700; return { D, z: sight.z0 + Math.tan(sight.gunPitch) * D / PX }; }
       if (t.aim3) return { D: Math.hypot(t.aim3.x - mx, t.aim3.y - my), z: t.aim3.z };
     }
-    const e = t.ai && t.ai.target;
-    if (e && !e.dead) return { D: Math.hypot(e.x - mx, e.y - my), z: e.T.S.ht - 0.25 };
+    const a = t.ai, e = a && a.target;
+    if (e && !e.dead) return a.ax != null ? { D: Math.hypot(a.ax - mx, a.ay - my) * a.rngK, z: a.az != null ? a.az : e.T.S.ht - 0.25 } : { D: Math.hypot(e.x - mx, e.y - my), z: e.T.S.ht - 0.25 };
     return { D: 600, z: 1.4 };
   }
   // Tube du canon, du pivot à la bouche, à hauteur de tourillons : premier obstacle (assez haut) ou char
@@ -1790,7 +2017,7 @@ Meta.whenReady(() => {
     } else {
       const s = {
         id: ++shellId, x: mx, y: my, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, sp, pxk, V: v0, team: t.team, owner: t, by: t,
-        key, sb, v0, dist: 0, z: z0, slope, trail: [], ric: 0, yaw: false, whiz: false, warned: false,
+        key, sb, v0, dist: 0, z: z0, slope, trail: [], ric: 0, yaw: false, whiz: false, warned: false, tgt: t.ai && t.ai.target, fx: mx, fy: my,
       };
       // touché à bout portant dès la bouche ; l'obus ne continue que s'il traverse ou ricoche
       const res = blk ? (blk.tank ? hitTank(s, blk.tank, blk, mx, my) : hitObstacle(s, blk.o, blk, mx, my)) : 'continue';
@@ -1852,10 +2079,10 @@ Meta.whenReady(() => {
     let want = t.in.mg;
     if (t.ai) {
       // l'IA lâche des rafales courtes sur une cible visible à moyenne portée
-      const e = t.ai.target;
-      if (e && !e.dead && t.ai.los && Math.hypot(e.x - t.x, e.y - t.y) < 900) {
+      const e = t.ai.target, d = e ? Math.hypot(e.x - t.x, e.y - t.y) : 0;
+      if (e && !e.dead && t.ai.los && d < 900 && friendlyClear(t, t.angle + t.turret, d)) {
         if (g.burst > 0) { g.burst -= dt; want = true; } else if ((g.wait -= dt) <= 0) { g.burst = rnd(0.4, 1.3); g.wait = rnd(2, 6); }
-      }
+      } else g.burst = 0;
     }
     if (!want || state !== 'play' || g.ammo <= 0 || !roleOk(t, 'gunner') || t.turretGone || g.cd > 0) return;
     g.cd = 1 / 15 + rnd(-0.004, 0.004);
@@ -2060,10 +2287,10 @@ Meta.whenReady(() => {
     Sfx.smoke(listenerDist(x, y));
     return 'stop';
   }
-  function deploySmoke(t) {
+  function deploySmoke(t, ang = t.angle) {
     if (t.smoke <= 0) return;
     t.smoke--;
-    const c = Math.cos(t.angle), s = Math.sin(t.angle);
+    const c = Math.cos(ang), s = Math.sin(ang);
     smokes.push({ x: t.x + c * 30, y: t.y + s * 30, r: 20, maxR: 110, life: 13 });
     Sfx.smoke(listenerDist(t.x, t.y));
   }
@@ -2127,6 +2354,7 @@ Meta.whenReady(() => {
       let remove = false;
       if (best) {
         const hx = s.x + dx * best.t, hy = s.y + dy * best.t;
+        if (!best.burst && !best.exit) aiObserve(s, hx, hy, best.tank);
         s.dist += s.sp * dt * best.t;
         s.x = hx; s.y = hy; s.z = Math.max(0, s.z + (zNext - s.z) * best.t);
         const res = best.burst ? apheBurst(s) : best.exit ? exitWall(s, hx, hy) : best.ground ? hitGround(s, hx, hy) : best.tank ? hitTank(s, best.tank, best, hx, hy) : hitObstacle(s, best.o, best, hx, hy);
@@ -2151,6 +2379,7 @@ Meta.whenReady(() => {
       // un compteur de sécurité borne son trajet
       if (!remove && (s.z > 60 || s.dist > 8000 || s.x < -50 || s.y < -50 || s.x > WW + 50 || s.y > WH + 50)) remove = true;
       if (remove) {
+        if (s.tgt && !s.obs && s.by.ai && s.tgt === s.by.ai.target) { s.obs = true; s.by.ai.rngK = Math.max(0.7, s.by.ai.rngK * 0.95); } // passé au-dessus : on raccourcit
         if (player && !player.dead && s.by !== player && s.warned && !s.hitPlayer) waveStats.dodged++;
         shells.splice(i, 1);
       }
@@ -2481,7 +2710,11 @@ Meta.whenReady(() => {
       return 'stop';
     }
     const by = s.by;
-    if (t.ai && by && by.team !== t.team && !t.ai.target) t.ai.lastKnown = { x: by.x, y: by.y };
+    // l'équipage touché sait à peu près d'où vient le coup (± 10°), pas qui tire ni de quelle distance
+    if (t.ai && by && by.team !== t.team && !(t.ai.target && t.ai.los)) {
+      const a = Math.atan2(-s.vy, -s.vx) + gauss() * 10 * D2R, d = dist(t, by) * rnd(0.7, 1.3);
+      t.ai.lastKnown = { x: clamp(t.x + Math.cos(a) * d, 60, WW - 60), y: clamp(t.y + Math.sin(a) * d, 60, WH - 60) };
+    }
     if (by === player) waveStats.hits++;
     if (by.team !== t.team) t.underFire = 8;
     // Géométrie 3D de l'impact (repère du modèle : y vers la gauche), avec la vraie pente balistique de
