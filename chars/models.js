@@ -241,7 +241,7 @@ const TankModels = (() => {
     driver: 'Driver', radio: 'Radio operator', gunner: 'Gunner', commander: 'Commander', loader: 'Loader',
     engine: 'Engine', trans: 'Transmission', fuel: 'Fuel tank', ammo: 'Ammo rack', breech: 'Breech',
   };
-  const HP = { crew: 100, engine: 140, trans: 120, fuel: 90, ammo: 70, breech: 160 };
+  const HP = { crew: 100, engine: 140, trans: 120, fuel: 90, ammo: 70, breech: 160, radio: 40 };
 
   function convexHull(pts) {
     pts = pts.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
@@ -284,12 +284,16 @@ const TankModels = (() => {
     };
   }
 
+  // Le poste radio (FuG 5) est ajouté à côté de l'opérateur radio, ou du chargeur qui le sert sur les
+  // casemates, côté axe du char et un peu plus haut
   function makeModules(id) {
-    return SPECS[id].modules.map((m, i) => ({
+    const list = SPECS[id].modules.slice(), op = list.find(m => m[1] === 'radio') || list.find(m => m[1] === 'loader');
+    if (op && !list.some(m => m[0] === 'radio')) list.push(['radio', null, op[2], op[3], op[4] * 0.3, op[5] + 0.3, 0.28, 0.2, 0.18]);
+    return list.map((m, i) => ({
       i, kind: m[0], role: m[1], frame: m[2],
       c: [m[3], m[4], m[5]], s: [m[6], m[7], m[8]],
       min: [m[3] - m[6] / 2, m[4] - m[7] / 2, m[5] - m[8] / 2], max: [m[3] + m[6] / 2, m[4] + m[7] / 2, m[5] + m[8] / 2],
-      name: m[0] === 'crew' ? NAMES[m[1]] : NAMES[m[0]], hp: HP[m[0]], max0: HP[m[0]],
+      name: m[0] === 'crew' ? NAMES[m[1]] : m[0] === 'radio' ? 'Radio set' : NAMES[m[0]], hp: HP[m[0]], max0: HP[m[0]],
     }));
   }
 
@@ -751,6 +755,7 @@ const TankModels = (() => {
       case 'trans': transMesh(b, m.s); break;
       case 'fuel': fuelMesh(b, m.s); break;
       case 'ammo': ammoMesh(b, m.s, cal); break;
+      case 'radio': b.box(0, 0, 0, m.s[0], m.s[1], m.s[2], '#4a5246', 7); b.box(m.s[0] * 0.5, 0, m.s[2] * 0.1, 0.01, m.s[1] * 0.8, m.s[2] * 0.5, '#222', 3); break;
       default: breechMesh(b, m.s, cal);
     }
     return b;

@@ -285,8 +285,8 @@ const Ballistics = (() => {
 
   // ===================== Effets dans le char =====================
   // Épaisseur d'acier équivalente des modules traversés par le noyau (mm)
-  const EQ = { crew: 4, fuel: 6, ammo: 14, engine: 45, trans: 38, breech: 70 };
-  const ABSORB = { crew: 0.7, fuel: 0.85, ammo: 1, engine: 1, trans: 1, breech: 1 };
+  const EQ = { crew: 4, fuel: 6, ammo: 14, engine: 45, trans: 38, breech: 70, radio: 5, wall: 10 };
+  const ABSORB = { crew: 0.7, fuel: 0.85, ammo: 1, engine: 1, trans: 1, breech: 1, radio: 0.6, wall: 0.75 };
 
   // ctx : { mods, piv:[x,y], tAng, inner, wall(face) → {T, slope, n}, E, d, n (normale extérieure), s, V, T, eff, mode }
   // mode : 'pen' (perforation), 'spall' (écaillage sans perforation), 'heout' (explosif contre la plaque)

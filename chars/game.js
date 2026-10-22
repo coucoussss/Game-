@@ -618,14 +618,16 @@ Meta.whenReady(() => {
     const mods = TankModels.makeModules(typeId);
     const roles = {};
     mods.forEach((m, i) => { if (m.kind === 'crew') roles[m.role] = i; });
-    return {
-      id: ++tankId, T, team, x, y, angle, turret: 0, speed: 0, turnRate: 0, turretRate: 0, vx: 0, vy: 0,
+    const t = {
+      id: ++tankId, T, team, x, y, x0: x, angle, turret: 0, speed: 0, turnRate: 0, turretRate: 0, vx: 0, vy: 0,
       // conduite : glissement latéral (px/s), rapport (0 point mort, < 0 marche arrière), régime (tr/min, et
       // 0..1 pour le son), charge du moteur, effort à la jante (N)
       vl: 0, gear: 0, nextGear: 0, shiftT: 0, rpmA: Vehicle.IDLE, rpm: 0, load: 0, fDrive: 0, braking: false, slip: 0,
       dead: false, deadT: 0, isPlayer, name, r: (T.len + T.wid) / 4,
-      mods, roles, swap: null, rep: {}, ammo: Object.assign({}, T.ammo), shell: 'APHE', nextShell: null,
-      reloadT: rnd(0.8, 1.6), disp: T.disp * 3, smoke: 2, trackT: 0, fireT: 0, fireBy: null,
+      mods, roles, seat: Object.assign({}, roles), swap: null, rep: {}, ammo: Object.assign({}, T.ammo), shell: 'APHE', nextShell: null,
+      reloadT: rnd(0.8, 1.6), disp: T.disp * 3, smoke: 2, trackT: 0, fires: [], cookT: 0, extN: 2, extT: 0, stunT: 0,
+      // moral de l'équipage (0..1) : sous 0,2, l'IA abandonne le char
+      morale: isPlayer ? 1 : 0.6 + 0.4 * (skill || 0.5), wreck: null, dismount: false, aid: null, leak: 0,
       mg: { ammo: 2700, ammoH: 150, type: 'SmK', heat: 0, jam: 0, cd: 0, n: 0, burst: 0, wait: rnd(1, 4) },
       // chef de char sorti de la coupole (meilleure vue, mais exposé aux balles), optiques endommagées
       sus: { p: 0, vp: 0, r: 0, vr: 0, v0: 0 }, wd: [0, 0], trackSide: 1, up, ready: T.ready + up.ready, readyT: 0, reloadMax: T.reload, elev: 0, fireAge: 9, scars: [], scarDirty: false, scarT: 0, scar3: null,
@@ -634,6 +636,53 @@ Meta.whenReady(() => {
       in: { throttle: 0, turn: 0, brake: false, aim: angle, fire: false },
       ai: (isPlayer && !AUTO) ? null : makeAI(skill),
     };
+    stowAmmo(t);
+    return t;
+  }
+  // Soutes : chaque râtelier reçoit sa part de chaque obus au prorata de son volume (m.rounds) ; t.ammo en
+  // reste la somme. Rangé de nouveau au ravitaillement.
+  const rackN = m => { let n = 0; for (const k in m.rounds) n += m.rounds[k]; return n; };
+  function stowAmmo(t) {
+    const racks = t.mods.filter(m => m.kind === 'ammo'), vol = m => m.s[0] * m.s[1] * m.s[2], V = racks.reduce((a, m) => a + vol(m), 0);
+    for (const m of racks) m.rounds = {};
+    for (const k of SHELL_KEYS) {
+      let left = t.ammo[k];
+      racks.forEach((m, i) => { m.rounds[k] = i === racks.length - 1 ? left : Math.min(left, Math.round(t.ammo[k] * vol(m) / V)); left -= m.rounds[k]; });
+    }
+    for (const m of racks) m.cap = Math.max(m.cap || 1, rackN(m));
+  }
+  // un obus pris pour le tir : râtelier de tourelle d'abord, puis la soute de caisse la mieux garnie
+  function takeRound(t, key) {
+    t.ammo[key]--;
+    let best = null;
+    const sc = m => (m.frame === 'turret' ? 1e3 : 0) + m.rounds[key];
+    for (const m of t.mods) if (m.kind === 'ammo' && m.rounds[key] > 0 && (!best || sc(m) > sc(best))) best = m;
+    if (best) best.rounds[key]--;
+  }
+  // soute crevée : une part des obus est ruinée (douilles fendues, charges éparpillées)
+  function ruinRack(t, m, frac) {
+    let lost = 0;
+    for (const k in m.rounds) { const n = Math.round(m.rounds[k] * frac); m.rounds[k] -= n; t.ammo[k] = Math.max(0, t.ammo[k] - n); lost += n; }
+    if (m.frame === 'turret') t.ready = 0;
+    return lost;
+  }
+  // Place de chaque homme : la géométrie des modules d'origine (les remplaçants changent de place)
+  function resetSeats(t) {
+    const fresh = TankModels.makeModules(t.T.id);
+    t.roles = {};
+    t.mods.forEach((m, i) => {
+      const f = fresh[i];
+      m.frame = f.frame; m.c = f.c; m.s = f.s; m.min = f.min; m.max = f.max; m.sub = false; m.out = false; m.band = false;
+      if (m.kind === 'crew') t.roles[m.role] = i;
+    });
+    t.seat = Object.assign({}, t.roles); t.swap = null; t.aid = null; t.dismount = false;
+  }
+  // Équipage remis en état (char réparé sur place) : chacun à son poste, plus de minuteries en cours
+  function resetCrew(t) {
+    resetSeats(t);
+    t.rep = {}; t.optic = { driver: 0, gunner: 0, cmd: 0 }; t.mg.jam = 0; t.mg.heat = 0;
+    t.fires = []; t.cookT = 0; t.stunT = 0; t.ringT = 0; t.elevJamT = 0; t.gunT = 0; t.morale = 1; t.leak = 0; t.extN = 2; t.extT = 0;
+    for (const m of t.mods) m.wreckd = false;
   }
   function pivot(t) {
     const c = Math.cos(t.angle), s = Math.sin(t.angle);
@@ -641,18 +690,39 @@ Meta.whenReady(() => {
   }
   function crewAlive(t) { let n = 0; for (const m of t.mods) if (m.kind === 'crew' && m.hp > 0) n++; return n; }
   const crewFrac = t => crewAlive(t) / t.T.crewN;
-  function roleOk(t, r) { const i = t.roles[r]; return i != null && i >= 0 && t.mods[i].hp > 0; }
+  function roleOk(t, r) { const i = t.roles[r]; return i != null && i >= 0 && t.mods[i].hp > 0 && !t.mods[i].out; }
   function modOk(t, kind) { for (const m of t.mods) if (m.kind === kind && m.hp <= 0) return false; return true; }
+  // état d'un module : 0 intact (≥ 60 %), 1 endommagé, 2 détruit
+  const modState = m => m.hp <= 0 ? 2 : m.hp < m.max0 * 0.6 ? 1 : 0;
+  // aptitude d'un blessé : 100 % au-dessus de 60 points de vie, 75 % au-dessus de 25, 50 % en dessous
+  const woundK = m => m.hp >= 60 ? 1 : m.hp >= 25 ? 0.75 : 0.5;
+  // Efficacité d'un poste (0 s'il est vacant) : blessure, remplaçant ou recrue moins entraînés (80 %),
+  // équipage sonné par un coup (50 %)
+  function eff(t, r) {
+    const i = t.roles[r], m = i != null && i >= 0 ? t.mods[i] : null;
+    if (!m || m.hp <= 0 || m.out) return 0;
+    return woundK(m) * (m.sub || m.rookie ? 0.8 : 1) * (t.stunT > 0 ? 0.5 : 1);
+  }
+  // position d'un module dans le repère de la caisse (la tourelle tourne autour de son pivot)
+  function hullC(t, m) {
+    if (m.frame !== 'turret') return m.c;
+    const q = rotZ(m.c, -t.turret);
+    return [q[0] + t.T.I.pivotX, q[1] + t.T.I.pivotY, q[2]];
+  }
+  const d3 = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
   const modOf = (t, kind) => t.mods.find(m => m.kind === kind);
   function ammoFrac(t) {
     let a = 0, b = 0;
     for (const k of SHELL_KEYS) { a += t.ammo[k]; b += t.T.ammo[k]; }
     return b ? a / b : 0;
   }
-  const canFire = t => roleOk(t, 'gunner') && modOk(t, 'breech') && t.ammo[t.shell] > 0;
+  const canFire = t => roleOk(t, 'gunner') && modOk(t, 'breech') && t.ammo[t.shell] > 0 && !(t.gunT > 0) && !(t.extT > 0);
+  // Chargeur (ou chef de char sans chargeur) : sa blessure ralentit le chargement ; absent, le tireur
+  // ou le chef charge (× 2,2 ou × 1,6). Culasse endommagée : × 1,3.
+  const loaderRole = t => t.T.S.crew.includes('loader') ? 'loader' : 'commander';
   function reloadMul(t) {
-    if (t.T.S.crew.includes('loader')) return roleOk(t, 'loader') ? 1 : 2.2;
-    return roleOk(t, 'commander') ? 1 : 1.6;
+    const r = loaderRole(t), e = eff(t, r);
+    return (e > 0 ? 1 / e : r === 'loader' ? 2.2 : 1.6) * (modState(modOf(t, 'breech')) === 1 ? 1.3 : 1);
   }
   function nextShell(t, pref) {
     for (const k of [pref, 'APHE', 'AP', 'APCR', 'HEAT', 'HE']) if (k && t.ammo[k] > 0) return k;
@@ -729,10 +799,17 @@ Meta.whenReady(() => {
     }
     return count;
   }
-  // Entre deux vagues de survie : munitions complétées de moitié, réparations de campagne
+  // Entre deux vagues de survie : munitions complétées de moitié, réparations de campagne ; les blessés
+  // sont soignés en partie, les morts remplacés par des recrues (80 %), chacun reprend son poste
   function resupply(t) {
     for (const k of SHELL_KEYS) t.ammo[k] = Math.min(t.T.ammo[k], t.ammo[k] + Math.ceil(t.T.ammo[k] * 0.5));
-    for (const m of t.mods) if (m.kind !== 'crew') m.hp = m.max0;
+    for (const m of t.mods) {
+      if (m.kind !== 'crew') { m.hp = m.max0; m.wreckd = false; }
+      else if (m.hp <= 0) { m.hp = m.max0; m.rookie = true; }
+      else m.hp = Math.min(m.max0, m.hp + 40);
+    }
+    resetSeats(t); stowAmmo(t);
+    t.optic = { driver: 0, gunner: 0, cmd: 0 }; t.gunT = 0; t.ringT = 0; t.elevJamT = 0; t.cookT = 0; t.leak = 0; t.extN = 2;
     t.rep = {}; t.trackT = 0; t.fireT = 0; t.wheelK = 1; t.smoke = Math.min(2, t.smoke + 1); t.noFuel = false; t.fuelOutT = null; t.bentT = 0;
     if (t.ammo[t.shell] <= 0) t.shell = nextShell(t);
   }
@@ -775,10 +852,26 @@ Meta.whenReady(() => {
     }
     return true;
   }
+  // Radio : poste intact et quelqu'un pour le servir (radio, chef ou chargeur)
+  const radioOk = t => modOk(t, 'radio') && (roleOk(t, 'radio') || roleOk(t, 'commander') || roleOk(t, 'loader'));
+  // Une épave sur la ligne de visée cache ce qui est plus bas qu'elle (portée de détection divisée par deux)
+  function wreckCover(a, e) {
+    const dx = e.x - a.x, dy = e.y - a.y, l2 = dx * dx + dy * dy || 1;
+    for (const w of tanks) {
+      if (!w.dead || w === e) continue;
+      const k = ((w.x - a.x) * dx + (w.y - a.y) * dy) / l2;
+      if (k > 0 && k < 1 && Math.hypot(a.x + dx * k - w.x, a.y + dy * k - w.y) < w.r && e.T.I.totalH < wreckTop(w) + 0.3) return true;
+    }
+    return false;
+  }
+  const wreckTop = w => w.turretGone ? w.T.S.ht : w.T.I.totalH;
+  // Détection : chaque char voit par lui-même (t.sees) ; ce que voient les chars dont la radio marche est
+  // partagé entre eux (t.knows). Un char sans radio ne connaît que ce qu'il voit.
   function updateSpotting() {
     const night = !!L().night;
+    for (const a of tanks) (a.sees || (a.sees = new Set())).clear();
     for (let team = 0; team < 2; team++) {
-      const set = spotted[team];
+      const set = spotted[team], net = new Set();
       set.clear();
       for (const e of tanks) {
         if (e.dead || e.team === team) continue;
@@ -786,15 +879,20 @@ Meta.whenReady(() => {
         for (const a of tanks) {
           if (a.dead || a.team !== team) continue;
           const d = dist(a, e);
-          if (d < 90 || waveTime > 120) { set.add(e); break; } // après 2 min, l'artillerie trahit les positions
-          let range = a.T.view * a.up.optic * (night ? 0.6 : 1) * (roleOk(a, 'commander') ? (a.hatch ? 1.15 : 1) : 0.75) * (a.optic.cmd > 0 && !a.hatch ? 0.8 : 1);
+          if (d < 90) { a.sees.add(e); continue; }
+          let range = a.T.view * a.up.optic * (night ? 0.6 : 1) * (0.75 + 0.25 * eff(a, 'commander')) * (a.hatch ? 1.15 : 1) * (a.optic.cmd > 0 && !a.hatch ? 0.8 : 1);
           if (bush) range = Math.min(range, 210);
           if (e.revealT > 0) range *= 1.3;
           // un char qui roule vite soulève un panache de poussière qui se voit de loin
           if (!night && !L().snow && Math.abs(e.speed) > e.T.speed * 0.5) range *= 1.2;
-          if (d < range && losClear(a.x, a.y, e.x, e.y, true)) { set.add(e); break; }
+          if (d < range && wreckCover(a, e)) range *= 0.5;
+          if (d < range && losClear(a.x, a.y, e.x, e.y, true)) a.sees.add(e);
         }
       }
+      for (const a of tanks) if (!a.dead && a.team === team) for (const e of a.sees) { set.add(e); if (radioOk(a)) net.add(e); }
+      // après 2 min, l'artillerie trahit les positions (par radio)
+      if (waveTime > 120) for (const e of tanks) if (!e.dead && e.team !== team) { set.add(e); net.add(e); }
+      for (const a of tanks) if (a.team === team) a.knows = radioOk(a) ? net : a.sees;
     }
   }
 
@@ -804,7 +902,7 @@ Meta.whenReady(() => {
     for (const w of tanks) {
       if (!w.dead) continue;
       const k = clamp(((w.x - a.x) * dx + (w.y - a.y) * dy) / l2, 0, 1);
-      if (k <= 0 || k >= 1) continue;
+      if (k <= 0 || k >= 1 || b.T.S.ht - 0.25 >= wreckTop(w) + 0.2) continue;
       if (Math.hypot(a.x + dx * k - w.x, a.y + dy * k - w.y) < w.r * 0.9) return false;
     }
     return true;
@@ -840,7 +938,7 @@ Meta.whenReady(() => {
     const ai = t.ai, T = t.T;
     ai.thinkT -= dt; ai.reactT -= dt; ai.dodgeT -= dt; ai.unstickT -= dt; ai.retreatT -= dt; ai.pathT -= dt; ai.pushT -= dt;
     if (ai.waitT > 5) { ai.waitT = 0; ai.pushT = 3; } // impossible de tirer d'ici : on se rapproche
-    const seen = spotted[t.team];
+    const seen = t.knows || spotted[t.team];
     if (ai.thinkT <= 0) {
       ai.thinkT = rnd(0.25, 0.45);
       let best = null, bs = 1e9, bestLos = false;
@@ -852,7 +950,9 @@ Meta.whenReady(() => {
         if (sc < bs) { bs = sc; best = e; bestLos = los; }
       }
       if (best && best !== ai.target) {
-        ai.reactT = ai.react * rnd(0.6, 1.3);
+        // chef de char blessé ou mort : l'équipage réagit plus lentement
+        const eC = eff(t, 'commander');
+        ai.reactT = ai.react * rnd(0.6, 1.3) * (eC > 0 ? 1 / eC : 1.6);
         const k = aiShell(t, best, dist(t, best));
         // demande l'obus voulu, ou annule celui qui attendait si l'obus chargé convient (jamais d'extraction)
         if (k === t.shell ? t.nextShell : k !== t.nextShell) selectShell(t, k);
@@ -912,7 +1012,7 @@ Meta.whenReady(() => {
         const perp = rx * -uy + ry * ux;
         if (Math.abs(perp) > T.len * 0.5 + 8) continue;
         ai.seen.add(s.id);
-        if (tt < 0.6 || Math.random() > ai.dodge) continue;
+        if (tt < 0.6 || Math.random() > ai.dodge * (roleOk(t, 'commander') ? 1 : 0.6)) continue;
         const sg = perp >= 0 ? 1 : -1;
         const nx = -uy * sg, ny = ux * sg;
         const f = Math.cos(t.angle) * nx + Math.sin(t.angle) * ny;
@@ -1123,32 +1223,68 @@ Meta.whenReady(() => {
     pairs = now;
   }
 
-  // Remplacements d'équipage, réparations, incendie
-  function crewLogic(t, dt) {
-    for (const role of ['driver', 'gunner']) {
-      if (roleOk(t, role) || t.swap) continue;
-      const cand = ['radio', 'loader', 'commander'].find(r => r !== role && roleOk(t, r));
-      if (cand) t.swap = { role, from: cand, t: 5 };
-    }
-    if (t.swap) {
-      t.swap.t -= dt;
-      if (t.swap.t <= 0) {
-        const s = t.swap; t.swap = null;
-        if (roleOk(t, s.from) && !roleOk(t, s.role)) {
-          t.roles[s.role] = t.roles[s.from]; t.roles[s.from] = -1;
-          if (t === player) addLog(`${TankModels.NAMES[s.from]} takes over as ${TankModels.NAMES[s.role].toLowerCase()}`, '#bcd8ff');
-        }
+  // Remplacements d'équipage : chaque poste vide est repris par ordre d'importance, par l'homme qui
+  // l'atteint le plus vite (3 s + 3 s par mètre, 4 s de plus entre caisse et tourelle). Il prend la place
+  // du mort, dont le corps reste à la sienne : les coups suivants le touchent là où il est assis.
+  const SEAT_PRI = ['gunner', 'driver', 'loader', 'commander'];
+  const SEAT_FROM = { gunner: ['loader', 'radio', 'commander'], driver: ['radio', 'loader', 'commander'], loader: ['radio', 'commander'], commander: ['radio'] };
+  function crewSwap(t, dt) {
+    if (!t.swap) for (const role of SEAT_PRI) {
+      if (!t.T.S.crew.includes(role) || roleOk(t, role)) continue;
+      const to = t.mods[t.seat[role]];
+      let best = null;
+      for (const r of SEAT_FROM[role]) {
+        if (!roleOk(t, r)) continue;
+        const m = t.mods[t.roles[r]], time = 3 + 3 * d3(hullC(t, m), hullC(t, to)) + (m.frame !== to.frame ? 4 : 0);
+        if (!best || time < best.t) best = { role, from: r, t: time };
       }
+      if (best) { t.swap = best; break; }
     }
-    const REP = { engine: 22, trans: 18, breech: 14 };
+    if (t.swap && (t.swap.t -= dt) <= 0) {
+      const s = t.swap; t.swap = null;
+      if (!roleOk(t, s.from) || roleOk(t, s.role)) return;
+      const j = t.roles[s.from], i = t.seat[s.role], a = t.mods[j], b = t.mods[i];
+      for (const k of ['frame', 'c', 's', 'min', 'max']) { const q = a[k]; a[k] = b[k]; b[k] = q; }
+      t.seat[s.role] = j; t.seat[s.from] = i; t.roles[s.role] = j; t.roles[s.from] = -1; a.sub = true;
+      if (t === player) addLog(`${a.name} takes over as ${TankModels.NAMES[s.role].toLowerCase()} (80% efficiency)`, '#bcd8ff');
+    }
+  }
+  // Blessés : sous 30 points de vie, un homme saigne (0,4 par seconde) jusqu'à ce qu'un camarade valide
+  // (le radio d'abord) le panse en 10 s : l'hémorragie s'arrête et il regagne 10 points
+  function firstAid(t, dt) {
+    const crew = t.mods.filter(m => m.kind === 'crew' && m.hp > 0);
+    for (const m of crew) if (m.hp < 30 && !m.band) modDamage(t, m, 0.4 * dt, t.lastHit && t.lastHit.by);
+    if (t.aid) {
+      const a = t.aid;
+      if (a.m.hp <= 0 || a.by.hp <= 0) t.aid = null;
+      else if ((a.t -= dt) <= 0) { a.m.band = true; a.m.hp = Math.min(a.m.max0, a.m.hp + 10); t.aid = null; if (t === player) addLog(`${a.m.name} bandaged`, '#a6f08a'); }
+      return;
+    }
+    const w = crew.find(m => m.hp < 30 && !m.band);
+    if (!w) return;
+    const medics = crew.filter(m => m !== w && m.hp >= 60 && !m.out).sort((p, q) => (q.role === 'radio') - (p.role === 'radio'));
+    if (medics.length) t.aid = { m: w, by: medics[0], t: 10 };
+  }
+  // Réparations de campagne (moteur, boîte, culasse) : à l'arrêt seulement, sans incendie, quatre fois
+  // plus lentes sous le feu, au rythme des hommes valides. Un organe brûlé ou broyé est irréparable.
+  const crewWork = t => { let k = 0; for (const m of t.mods) if (m.kind === 'crew' && m.hp > 0 && !m.out) k += woundK(m); return k / t.T.crewN; };
+  const REP = { engine: 22, trans: 18, breech: 14 };
+  function crewLogic(t, dt) {
+    crewSwap(t, dt);
+    firstAid(t, dt);
+    checkKnock(t, t.lastHit && t.lastHit.by);
+    if (t.dead) return;
+    const moving = Math.abs(t.speed) > 0.5 * PX, rk = moving || t.fireT > 0 ? 0 : (t.underFire > 0 ? 0.25 : 1) * crewWork(t);
+    t.repOk = rk > 0;
     for (const kind of ['engine', 'trans', 'breech']) {
       const m = modOf(t, kind);
-      if (!m || m.hp > 0) continue;
+      if (!m) continue;
+      if (m.hp > 0 || m.wreckd) { delete t.rep[kind]; continue; }
       if (t.rep[kind] == null) t.rep[kind] = REP[kind];
-      t.rep[kind] -= dt * (crewAlive(t) >= 3 ? 1 : 0.6);
+      t.rep[kind] -= dt * rk;
       if (t.rep[kind] <= 0) {
         m.hp = m.max0 * 0.5; delete t.rep[kind];
-        if (t === player) addLog(`${m.name} repaired`, '#a6f08a');
+        if (t === player) addLog(`${m.name} repaired (damaged)`, '#a6f08a');
       }
     }
     if (t.fireT > 0) {
@@ -1251,7 +1387,8 @@ Meta.whenReady(() => {
     const eng = modOf(t, 'engine'), ef = Math.max(0, eng.hp) / eng.max0;
     t.misT = (t.misT || 0) - dt;
     if (ef < 0.4 && t.misT < -1 && Math.random() < dt * 1.5 * (1 - ef)) t.misT = 0.3;
-    const engK = (0.35 + 0.65 * ef) * (t.misT > 0 ? 0.3 : 1);
+    // moteur endommagé (sous 60 %) : puissance réduite, jusqu'à 45 % ; réparé à 50 %, il rend environ 90 %
+    const engK = (0.45 + 0.55 * clamp(ef / 0.6, 0, 1)) * (t.misT > 0 ? 0.3 : 1);
     // optiques : l'équipage remplace la visière ou l'épiscope brisé ; le chef rentre sous le feu
     for (const k in t.optic) if (t.optic[k] > 0 && (t.optic[k] -= dt) <= 0 && t === player) addLog(`${OPTIC_NAMES[k]} replaced`, '#a6f08a');
     t.underFire -= dt;
@@ -1266,7 +1403,9 @@ Meta.whenReady(() => {
     const crrR = Vehicle.crrOf(gR, D.press), crrL = Vehicle.crrOf(gL, D.press), broken = t.trackT > 0 && canDrive;
     const c = DRV, gov = D.gov + (D.rated - D.gov) * clamp((t.up.hp - 1) / 0.24, 0, 1);
     c.thr = canDrive ? clamp(inp.throttle, -1, 1) : 0; c.turn = canDrive && !broken ? clamp(inp.turn, -1, 1) : 0; c.brake = !!inp.brake;
-    c.P = T.hp * 735.5 * t.up.hp * engK; c.gov = gov;
+    // pilote blessé ou remplaçant : il passe les rapports et braque moins vite
+    const eD = 0.6 + 0.4 * eff(t, 'driver');
+    c.turn *= eD; c.P = T.hp * 735.5 * t.up.hp * engK * eD; c.gov = gov;
     c.crr = (crrR + crrL) / 2; c.crrD = crrR - crrL; c.mu = (gR.mu + gL.mu) / 2; c.lat = (gR.lat + gL.lat) / 2; c.slope = slope; c.grip = t.up.grip;
     c.drive = canDrive; c.driver = driverOk; c.engine = engOn; c.broken = broken ? t.trackSide : 0;
     c.vCap = D.top * gov / D.gov * (t.wheelK || 1) * (t.optic.driver > 0 ? 0.7 : 1) * 1.02;
@@ -1321,7 +1460,7 @@ Meta.whenReady(() => {
     else d = angNorm(desiredRel - t.turret);
     // entraînement hydraulique (régime du moteur, manivelle s'il est arrêté), électrique ou à la main,
     // avec l'inertie de la tourelle : accélération limitée, freinage avant le point visé
-    const ts = Vehicle.traverse(D, t.rpmA, engOn) * TRAV_K * (roleOk(t, 'gunner') ? 1 : 0) * (t.turretGone ? 0 : 1);
+    const eG = eff(t, 'gunner'), ts = Vehicle.traverse(D, t.rpmA, engOn) * TRAV_K * eG * (t.turretGone ? 0 : 1);
     t.travWant = ts > 0 && Math.abs(d) > 0.01;
     const want = Math.sign(d) * Math.min(ts, Math.sqrt(2 * TRAV_ACC * Math.abs(d)));
     let rate = t.turretRate + clamp(want - t.turretRate, -TRAV_ACC * dt, TRAV_ACC * dt), rot = rate * dt;
@@ -1336,12 +1475,16 @@ Meta.whenReady(() => {
 
     // Dispersion : elle augmente en mouvement et se resserre à l'arrêt
     if (t.bentT > 0 && (t.bentT -= dt) <= 0 && t === player) addLog('Gun barrel straightened', '#a6f08a');
-    const goal = T.disp / t.up.optic * (t.optic.gunner > 0 ? 2.5 : 1) * (t.bentT > 0 ? 3 : 1) * (1 + 0.6 * Math.abs(t.speed) / T.speed + 0.8 * Math.abs(t.turnRate) / T.turn + 1.1 * Math.abs(t.turretRate) / T.tturn);
+    const goal = T.disp / t.up.optic / Math.max(0.4, eG) * (t.optic.gunner > 0 ? 2.5 : 1) * (t.bentT > 0 ? 3 : 1) * (1 + 0.6 * Math.abs(t.speed) / T.speed + 0.8 * Math.abs(t.turnRate) / T.turn + 1.1 * Math.abs(t.turretRate) / T.tturn);
     t.disp += (goal - t.disp) * Math.min(1, dt * (goal > t.disp ? 6 : 1.3));
 
     // hors du tir, le chargeur regarnit le râtelier : un obus toutes les 8 s
-    if (t.reloadT <= 0 && t.ready < T.ready + t.up.ready && (t.readyT += dt) > 8) { t.ready++; t.readyT = 0; }
-    if (t.reloadT > 0) { t.reloadT -= dt / reloadMul(t); if (t.reloadT <= 0 && t === player) Sfx.reload(); }
+    // (plus vite ou plus lentement selon son état ; plus de râtelier s'il a été détruit)
+    const rack = t.mods.find(m => m.kind === 'ammo' && m.frame === 'turret');
+    if (t.reloadT <= 0 && t.ready < T.ready + t.up.ready && !(rack && rack.hp <= 0) && (t.readyT += dt * eff(t, loaderRole(t))) > 8) { t.ready++; t.readyT = 0; }
+    // équipage sonné par un coup : le chargement s'interrompt
+    if (t.stunT > 0) t.stunT -= dt;
+    else if (t.reloadT > 0) { t.reloadT -= dt / reloadMul(t); if (t.reloadT <= 0 && t === player) Sfx.reload(); }
     t.recoil = Math.max(0, t.recoil - dt * 3);
     t.fireAge += dt;
     // Pointage en hauteur, relatif à la caisse (aucun char de l'époque n'était stabilisé) : le tireur
@@ -1350,7 +1493,7 @@ Meta.whenReady(() => {
     {
       const sb = Ballistics.shell(T.id, t.shell), pv = pivot(t), ta = t.angle + t.turret, hp = hullPitch(t);
       const ap = aimPoint(t, pv.x + Math.cos(ta) * T.gunEnd, pv.y + Math.sin(ta) * T.gunEnd);
-      const want = Math.atan(aimSlope(sb, ap.D, T.S.gun.z, ap.z) * PX * RK), er = D.elevRate * D2R * (roleOk(t, 'gunner') ? 1 : 0);
+      const want = Math.atan(aimSlope(sb, ap.D, T.S.gun.z, ap.z) * PX * RK), er = D.elevRate * D2R * eG * (t.elevJamT > 0 ? 0 : 1);
       // le tireur corrige le tangage qu'il voit dans la lunette, avec un temps de réaction (≈ 0,5 s)
       t.hpSeen = (t.hpSeen || 0) + (hp - (t.hpSeen || 0)) * Math.min(1, dt / 0.5);
       t.elev = clamp(t.elev + clamp(want - t.hpSeen - t.elev, -er * dt, er * dt), D.elev[0] * D2R, D.elev[1] * D2R);
@@ -1364,7 +1507,7 @@ Meta.whenReady(() => {
       P3({ x: pv.x + Math.cos(ta) * T.gunEnd, y: pv.y + Math.sin(ta) * T.gunEnd, z: T.S.gun.z, vz: rnd(0.3, 0.8), drag: 1, g: -0.15, wind: 1, size: rnd(0.08, 0.15), grow: 0.35, life: rnd(1.5, 2.5), c: [0.7, 0.7, 0.68, 0.3] });
     }
     // moteur endommagé : fumée grise qui sort des grilles, noire quand il rate
-    if (eng.hp < eng.max0 * 0.5 && Math.random() < dt * 5) {
+    if (eng.hp < eng.max0 * 0.6 && Math.random() < dt * 5) {
       const c = Math.cos(t.angle), sn = Math.sin(t.angle), g = ef < 0.4 ? 0.1 : 0.3;
       P3({ x: t.x - c * T.len * 0.32 + rnd(-4, 4), y: t.y - sn * T.len * 0.32 + rnd(-4, 4), z: T.S.ht, vz: rnd(0.8, 1.6), drag: 0.8, g: -0.25, wind: 1.2, size: rnd(0.25, 0.4), grow: 0.6, life: rnd(2, 3.5), c: [g, g, g, 0.45] });
     }
@@ -1421,7 +1564,7 @@ Meta.whenReady(() => {
     // canon collé à un arbre, un mur ou un char : la bouche est au-delà, l'obus part du point de contact
     const blk = barrelHit(t, ta, true);
     const mx = blk ? blk.x : pv.x + Math.cos(ta) * T.gunEnd, my = blk ? blk.y : pv.y + Math.sin(ta) * T.gunEnd;
-    t.ammo[key]--;
+    takeRound(t, key);
     const sb = Ballistics.shell(T.id, key), v0 = Ballistics.muzzle(sb), pxk = shellPxK(), sp = v0 * pxk;
     // vertical : élévation du tube, caisse comprise, et dispersion, isotrope avec l'horizontale ; la bouche
     // monte ou descend avec le tangage
@@ -1798,8 +1941,8 @@ Meta.whenReady(() => {
     if (!hh) return null;
     const zAt = k => z0 + (z1 - z0) * k;
     let cand = null;
-    if (t.dead) cand = { t: hh.t, part: 'hull', nx: hh.nx, ny: hh.ny, z: 1 };
-    else {
+    // une épave arrête ce qui la touche à sa hauteur, pas ce qui passe au-dessus
+    {
       const Sd = t.T.S, ze = zAt(hh.t), zx = zAt(hh.t1);
       if (ze <= Sd.ht) cand = { t: hh.t, part: 'hull', nx: hh.nx, ny: hh.ny, z: Math.max(0.15, ze) };
       else if (zx < Sd.ht) cand = { t: hh.t + (hh.t1 - hh.t) * (ze - Sd.ht) / (ze - zx), part: 'hull', roof: true, nx: 0, ny: 0, z: Sd.ht };
@@ -1843,7 +1986,9 @@ Meta.whenReady(() => {
     return 'stop';
   }
 
-  function visibleToPlayer(t) { return t.team === 0 || spotted[0].has(t) || t.dead; }
+  // le joueur ne voit sur le champ de bataille que ce que son char connaît (radio comprise) ; mort, il suit
+  // ce que voit son équipe
+  function visibleToPlayer(t) { return t.team === 0 || t.dead || (player && !player.dead && player.knows ? player.knows : spotted[0]).has(t); }
 
   // ===================== Simulation du métal (metal.js) =====================
   // Calage : vitesse limite propre à la simulation, Vlim = A · (T/d)^b / cos(θ)^c (mesurée par dichotomie),
@@ -2380,12 +2525,21 @@ Meta.whenReady(() => {
     return { detonate, fire, knocked, crewKilled, crewHurt, lines };
   }
 
+  const ROLE_FX = { gunner: 'aim', driver: 'driving', loader: 'loading', commander: 'awareness', radio: 'first aid' };
   // Dégâts à un module ; statistiques et tirs alliés
   function modDamage(t, m, amount, by, silent) {
     if (t.dead || m.hp <= 0 || amount <= 0) return;
     if (GOD && t === player) return;
     if (t.invulnT > 0) return;
+    // organe broyé (dégâts au-delà de 160 % de sa résistance) : hors de portée d'une réparation de campagne
+    if (m.kind !== 'crew' && amount - m.hp > 0.6 * m.max0) m.wreckd = true;
+    const k0 = woundK(m);
     m.hp = Math.max(0, m.hp - amount);
+    if (t === player && m.kind === 'crew' && m.hp > 0 && woundK(m) < k0) {
+      const r = Object.keys(t.roles).find(q => t.roles[q] === m.i) || m.role;
+      addLog(`${m.name} ${woundK(m) < 0.75 ? 'badly ' : ''}wounded: ${ROLE_FX[r]} −${Math.round((1 - woundK(m)) * 100)}%`, '#ffb070');
+    }
+    if (m.kind === 'crew' && m.hp <= 0) t.morale -= 0.2;
     if (m.hp > 0 || !by || by === t) return;
     if (m.kind === 'crew') {
       if (by.team === t.team) {
@@ -3703,7 +3857,7 @@ Meta.whenReady(() => {
         hole(t.x, t.y, 260, 0.95);
         const c = Math.cos(t.angle), s = Math.sin(t.angle);
         hole(t.x + c * 120, t.y + s * 120, 120, 0.6);
-      } else if (spotted[0].has(t)) hole(t.x, t.y, 70, 0.5);
+      } else if (visibleToPlayer(t)) hole(t.x, t.y, 70, 0.5);
     }
     for (const s of shells) hole(s.x, s.y, 50, 0.8);
     for (const p of parts) if (p.k === 'flash') hole(p.x, p.y, p.size * 3, p.life / p.max);
@@ -3854,7 +4008,7 @@ Meta.whenReady(() => {
     const mx0 = 26, my0 = 70, my1 = H - 120, cx = W / 2, cy = (my0 + my1) / 2;
     ctx.textAlign = 'center'; ctx.font = '700 11px system-ui, sans-serif';
     for (const t of tanks) {
-      if (t.dead || t.team === 0 || !spotted[0].has(t)) continue;
+      if (t.dead || t.team === 0 || !visibleToPlayer(t)) continue;
       const d = Math.round(Math.hypot(t.x - f.x, t.y - f.y) * RK);
       const p = worldToScreen(t.x, t.y, t.T.I.totalH + 2.6);
       const inside = !p.behind && p.x > mx0 && p.y > my0 && p.x < W - mx0 && p.y < my1;
@@ -4134,9 +4288,13 @@ Meta.whenReady(() => {
       ctx.fillStyle = '#fff'; ctx.font = '700 11px system-ui, sans-serif'; ctx.textAlign = 'center';
       ctx.fillText(CREW_ABBR[role], x + 15, by + 38);
       if (r <= 0) { ctx.strokeStyle = '#ff6a5a'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x + 4, by + 27); ctx.lineTo(x + 26, by + 41); ctx.stroke(); }
+      // efficacité du poste (blessure, remplaçant) ; une croix rouge sur un blessé qui saigne
+      ctx.fillStyle = '#8cc8ff'; ctx.fillRect(x, by + 45, 30 * eff(player, role), 2);
+      if (m.hp > 0 && m.hp < 30 && !m.band) { ctx.fillStyle = '#ff4a3a'; ctx.fillRect(x + 24, by + 26, 4, 1.5); ctx.fillRect(x + 25.25, by + 24.75, 1.5, 4); }
       x += 34;
     }
-    if (player.swap) { ctx.textAlign = 'left'; ctx.fillStyle = '#8cc8ff'; ctx.font = '600 10px system-ui, sans-serif'; ctx.fillText(`Crew swap ${player.swap.t.toFixed(0)} s`, x + 2, by + 38); }
+    const cs = player.swap ? `${CREW_ABBR[player.swap.from]}→${CREW_ABBR[player.swap.role]} ${player.swap.t.toFixed(0)} s` : player.aid ? `First aid ${player.aid.t.toFixed(0)} s` : '';
+    if (cs) { ctx.textAlign = 'left'; ctx.fillStyle = '#8cc8ff'; ctx.font = '600 10px system-ui, sans-serif'; ctx.fillText(cs, x + 2, by + 38); }
     // modules
     const MODS = [['engine', 'Engine'], ['trans', 'Transm.'], ['breech', 'Breech'], ['fuel', 'Fuel'], ['ammo', 'Ammo']];
     x = bx + 200;
@@ -4164,6 +4322,8 @@ Meta.whenReady(() => {
     if (player.fireT > 0) st.push([player.extUsed ? 'ON FIRE' : 'ON FIRE · T: extinguisher', '#ff6a3a']);
     if (player.noFuel) st.push(['Out of fuel', '#ff6a5a']); else if (player.fuelOutT != null) st.push(['Fuel leak', '#ffb070']);
     if (player.grind) st.push(['Gear stuck', '#ffb070']);
+    if (!radioOk(player)) st.push(['Radio out', '#ffb070']);
+    if (!roleOk(player, 'commander')) st.push(['No commander: reduced awareness', '#ffb070']);
     if (!player.dead && player.revealT <= 0 && inBush(player)) st.push(['Concealed', '#a6f08a']);
     let sx2 = bx + 230;
     for (const [s, c] of st) { ctx.fillStyle = c; ctx.fillText(s, sx2, by + 15); sx2 += ctx.measureText(s).width + 12; }
@@ -4754,7 +4914,9 @@ Meta.whenReady(() => {
     if (!t || !t.dead || state !== 'play') return;
     t.dead = false; t.deadT = 0; t.turretGone = false; t.fireT = 0; t.trackT = 0; t.wheelK = 1; t.speed = 0; t.noFuel = false; t.fuelOutT = null; t.bentT = 0; t.extUsed = false; t.vx = t.vy = t.vl = t.turnRate = 0; t.gear = 0;
     for (const m of t.mods) m.hp = m.max0;
+    resetCrew(t);
     for (const k of SHELL_KEYS) t.ammo[k] = Math.min(t.T.ammo[k], t.ammo[k] + Math.ceil(t.T.ammo[k] * 0.3));
+    stowAmmo(t);
     t.smoke = Math.max(t.smoke, 2); t.invulnT = 3; t.reloadT = 0;
     if (t.ammo[t.shell] <= 0) t.shell = nextShell(t);
     for (let i = 0; i < 20; i++) P3({ x: t.x + rnd(-12, 12), y: t.y + rnd(-12, 12), z: rnd(0.2, 2), vz: rnd(0.5, 2), size: 0.08, glow: true, life: rnd(0.4, 0.9), c: [0.6, 0.85, 1, 2] });
