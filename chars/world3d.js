@@ -34,6 +34,20 @@ void main(){
   vW = w.xyz; vO = aPos; vN = nW; vC = aCol; vM = aMat; vL = uLVP * vec4(w.xyz + nW * uNOff.x, 1.0);
   gl_Position = uVP * w;
 }`;
+  // Brume : exponentielle au carré selon la distance, plus une nappe basse dont la densité décroît
+  // avec l'altitude (intégrée le long du rayon), teintée vers le soleil quand on le regarde
+  const FOG = `
+float fogAt(vec3 W, vec3 rd, float dist){
+  float fh = 0.0;
+  if (uFogH.x > 0.0) {
+    float b = uFogH.y, k = uFogH.x * exp(-b * uEye.z);
+    fh = abs(rd.z) < 1e-3 ? k * dist : k * (1.0 - exp(-b * rd.z * dist)) / (b * rd.z);
+  }
+  return clamp(1.0 - exp(-fh - pow(dist * uFogD, 2.0)), 0.0, 1.0);
+}
+vec3 fogCol(vec3 rd){ float sa = pow(max(dot(rd, normalize(uSun)), 0.0), 8.0); return mix(uFogCol, uSunCol * 0.55, sa * 0.6); }
+vec3 tm(vec3 c){ c = (c * (2.51 * c + 0.03)) / (c * (2.43 * c + 0.59) + 0.14); return pow(clamp(c, 0.0, 1.0), vec3(1.0 / 2.2)); }
+`;
   const FS = `
 precision highp float;
 varying vec3 vW; varying vec3 vN; varying vec3 vC; varying vec3 vO; varying float vM; varying vec3 vNO; varying vec4 vL; varying vec4 vLS;
@@ -43,6 +57,9 @@ uniform vec3 uCamo0; uniform vec3 uCamo1; uniform vec3 uCamo2; uniform float uPa
 uniform float uBurnt; uniform vec4 uTint; uniform float uTread; uniform float uSeed; uniform float uSnow;
 uniform sampler2D uShadow; uniform sampler2D uShadowS; uniform vec2 uShT; uniform vec2 uSR; uniform sampler2D uGround; uniform vec2 uMap;
 uniform vec4 uLP[NL]; uniform vec3 uLC[NL]; uniform float uNL; uniform float uTime;
+uniform vec2 uFogH; uniform vec3 uOuter; uniform float uPix; uniform float uCloud; uniform vec2 uWind; uniform float uNight;
+uniform vec4 uTk[10]; uniform vec2 uTkH[10]; uniform float uNT;
+` + FOG + `
 float h3(vec3 p){ p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
 float n3(vec3 x){
   vec3 i = floor(x); vec3 f = fract(x); f = f * f * (3.0 - 2.0 * f);
@@ -69,7 +86,6 @@ float shadowAt(sampler2D t, vec4 l, float ts, float bias){
   return s / float((KR - 1) * (KR - 1));
 }
 vec3 lin(vec3 c){ return pow(c, vec3(2.2)); }
-vec3 tm(vec3 c){ c = (c * (2.51 * c + 0.03)) / (c * (2.43 * c + 0.59) + 0.14); return pow(clamp(c, 0.0, 1.0), vec3(1.0 / 2.2)); }
 void main(){
   vec3 N = normalize(vN);
   vec3 V = normalize(uEye - vW);
@@ -82,6 +98,18 @@ void main(){
     float sd = max(dot(d, normalize(uSun)), 0.0);
     sky += uSunCol * (pow(sd, 900.0) * 6.0 + pow(sd, 12.0) * 0.18);
     sky += vec3(0.02) * fbm(d * 6.0 + vec3(uTime * 0.01, 0.0, 0.0)) * smoothstep(0.0, 0.3, h);
+    // nuages projetés sur un plafond, qui dérivent avec le vent ; éclairés du côté du soleil
+    if (uCloud > 0.0) {
+      vec2 cuv = d.xy / max(d.z, 0.05) * 0.9 + uWind * uTime * 0.004;
+      float cd = smoothstep(0.48, 0.78, fbm(vec3(cuv * 1.7, uTime * 0.003))) * smoothstep(0.02, 0.2, h);
+      vec3 cc = mix(uHorizon * 1.1 + 0.05, uSunCol * 0.55 + uSkyCol * 0.5, 0.5 + 0.5 * dot(d, normalize(uSun)));
+      sky = mix(sky, cc, cd * uCloud);
+    }
+    // étoiles qui scintillent, la nuit, au-dessus de l'horizon
+    if (uNight > 0.0) {
+      vec3 sp = floor(d * 480.0);
+      sky += vec3(step(0.9986, h3(sp)) * smoothstep(0.05, 0.4, h) * uNight * (0.6 + 0.4 * sin(uTime * 3.0 + h3(sp + 7.0) * 40.0))) * (1.0 - uCloud * 0.8);
+    }
     gl_FragColor = vec4(tm(sky), 1.0);
     return;
   }
@@ -147,11 +175,19 @@ void main(){
     // sol : texture de la carte (traces, cratères) et détail procédural
     vec2 uv = vec2(vW.x / uMap.x, -vW.y / uMap.y);
     base = texture2D(uGround, clamp(uv, 0.001, 0.999)).rgb;
-    float g1 = fbm(vec3(vW.xy * 0.35, 1.0)), g2 = fbm(vec3(vW.xy * 2.2, 7.0)), g3 = n3(vec3(vW.xy * 9.0, 3.0));
-    base *= 0.62 + 0.42 * g1 + 0.22 * (g2 - 0.5) + 0.12 * (g3 - 0.5);
-    float e = 0.08;
-    vec3 bump = vec3(fbm(vec3(vW.xy * 2.2 + vec2(e, 0.0), 7.0)) - g2, fbm(vec3(vW.xy * 2.2 + vec2(0.0, e), 7.0)) - g2, 0.0);
-    N = normalize(N - bump * 1.8);
+    // hors de la carte, la couleur du terrain remplace les bords étirés de la texture
+    float o = max(max(-uv.x, uv.x - 1.0), max(-uv.y, uv.y - 1.0));
+    base = mix(base, uOuter, smoothstep(0.0, 0.03, o));
+    // les détails plus fins qu'un pixel s'effacent (pas de scintillement au loin)
+    float fw = dist * uPix / max(abs(V.z), 0.15);
+    float k2 = 1.0 - smoothstep(0.15, 0.5, fw), k3 = 1.0 - smoothstep(0.03, 0.09, fw), kb = 1.0 - smoothstep(0.1, 0.35, fw);
+    float g1 = fbm(vec3(vW.xy * 0.35, 1.0)), g2 = k2 > 0.0 ? fbm(vec3(vW.xy * 2.2, 7.0)) : 0.5, g3 = k3 > 0.0 ? n3(vec3(vW.xy * 9.0, 3.0)) : 0.5;
+    base *= 0.62 + 0.42 * g1 + 0.22 * (g2 - 0.5) * k2 + 0.12 * (g3 - 0.5) * k3;
+    if (kb > 0.0) {
+      float e = 0.08;
+      vec3 bump = vec3(fbm(vec3(vW.xy * 2.2 + vec2(e, 0.0), 7.0)) - g2, fbm(vec3(vW.xy * 2.2 + vec2(0.0, e), 7.0)) - g2, 0.0);
+      N = normalize(N - bump * 1.8 * kb);
+    }
     ks = 0.04;
   } else if (vM < 10.5) {
     // tuiles : rangées et irrégularités
@@ -195,9 +231,19 @@ void main(){
   if (sh > 0.0) sh = min(sh, shadowAt(uShadow, vL, uShT.x, bm * uSR.x));
   float hemi = 0.5 + 0.5 * N.z;
   float ao = 0.55 + 0.45 * smoothstep(-0.1, 1.4, vW.z);
-  if (vM > 8.5 && vM < 9.5) ao = 1.0;
+  if (vM > 8.5 && vM < 9.5) {
+    // sol : assombri au contact des chars (occlusion sous la caisse)
+    ao = 1.0;
+    for (int i = 0; i < 10; i++) {
+      if (float(i) >= uNT) break;
+      vec2 q = vW.xy - uTk[i].xy; q = vec2(q.x * uTk[i].z + q.y * uTk[i].w, -q.x * uTk[i].w + q.y * uTk[i].z);
+      ao *= 1.0 - 0.45 * (1.0 - smoothstep(0.0, 1.3, length(max(abs(q) - uTkH[i], 0.0))));
+    }
+  }
   vec3 H = normalize(L + V);
   float spec = pow(max(dot(N, H), 0.0), shin) * ks * sh * (1.0 - uBurnt * 0.8);
+  // ombre des nuages qui passent
+  if (uCloud > 0.0) sh *= 1.0 - uCloud * 0.4 * smoothstep(0.5, 0.75, 0.65 * n3(vec3(vW.xy * 0.006 + uWind * uTime * 0.01, 0.0)) + 0.35 * n3(vec3(vW.xy * 0.013, 2.0)));
   vec3 col = base * (uSunCol * diff * sh + mix(uBounce, uSkyCol, hemi) * ao) + uSunCol * spec;
   for (int i = 0; i < NL; i++) {
     if (float(i) >= uNL) break;
@@ -207,8 +253,8 @@ void main(){
     att *= att;
     col += base * uLC[i] * att * (max(dot(N, lv / max(ld, 0.001)), 0.0) * 0.85 + 0.15);
   }
-  float fog = 1.0 - exp(-pow(dist * uFogD, 2.0));
-  col = mix(col, uFogCol, clamp(fog, 0.0, 1.0));
+  vec3 rd = -V;
+  col = mix(col, fogCol(rd), fogAt(vW, rd, dist));
   gl_FragColor = vec4(tm(col), 1.0);
 }`;
   const SVS = `
@@ -235,36 +281,41 @@ void main(){
 }`;
   // particules : billboards doux (fumée éclairée) ou lumineux (flammes, éclairs, traceurs)
   const PVS = `
-attribute vec3 aP; attribute vec2 aUV; attribute vec4 aC;
+attribute vec3 aP; attribute vec2 aUV; attribute vec4 aC; attribute float aS;
 uniform mat4 uVP;
-varying vec2 vUV; varying vec4 vC; varying vec3 vW;
-void main(){ vUV = aUV; vC = aC; vW = aP; gl_Position = uVP * vec4(aP, 1.0); }`;
+varying vec2 vUV; varying vec4 vC; varying vec3 vW; varying float vS;
+void main(){ vUV = aUV; vC = aC; vW = aP; vS = aS; gl_Position = uVP * vec4(aP, 1.0); }`;
   const PFS = `
 precision highp float;
-varying vec2 vUV; varying vec4 vC; varying vec3 vW;
-uniform float uGlow; uniform vec3 uSunCol; uniform vec3 uSkyCol; uniform vec3 uFogCol; uniform float uFogD; uniform vec3 uEye;
+varying vec2 vUV; varying vec4 vC; varying vec3 vW; varying float vS;
+uniform float uGlow; uniform vec3 uSunCol; uniform vec3 uSkyCol; uniform vec3 uFogCol; uniform float uFogD; uniform vec3 uEye; uniform vec3 uSun; uniform vec2 uFogH;
+` + FOG + `
 float h(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 float n2(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(h(i), h(i + vec2(1, 0)), f.x), mix(h(i + vec2(0, 1)), h(i + vec2(1, 1)), f.x), f.y); }
 void main(){
   vec2 q = vUV * 2.0 - 1.0;
   float r = length(q);
+  float dist = length(vW - uEye);
+  vec3 rd = (vW - uEye) / max(dist, 0.001);
+  float fog = fogAt(vW, rd, dist);
   if (uGlow > 0.5) {
+    // les lueurs s'éteignent dans la brume comme le reste
     float s = pow(max(0.0, 1.0 - r), 2.2);
-    gl_FragColor = vec4(vC.rgb * s * vC.a, 1.0);
+    gl_FragColor = vec4(vC.rgb * s * vC.a * (1.0 - fog), 1.0);
     return;
   }
   float nz = 0.55 + 0.45 * n2(vUV * 5.0 + vec2(vC.a * 31.0, vW.z));
-  float a = smoothstep(1.0, 0.25, r) * nz * vC.a;
+  // fondu au contact du sol : pas de coupure nette là où le sprite le traverse
+  float a = smoothstep(1.0, 0.25, r) * nz * vC.a * smoothstep(0.0, 0.5 * vS, vW.z);
   vec3 c = vC.rgb * vC.rgb * (uSkyCol * 1.3 + uSunCol * (0.32 + 0.18 * q.y));
-  float fog = 1.0 - exp(-pow(length(uEye - vW) * uFogD, 2.0));
-  c = mix(c, uFogCol, clamp(fog, 0.0, 1.0));
-  gl_FragColor = vec4(pow(clamp(c, 0.0, 1.0), vec3(1.0 / 2.2)), a);
+  c = mix(c, fogCol(rd), fog);
+  gl_FragColor = vec4(tm(c), a);
 }`;
 
   // Réglages du rendu selon la qualité : noyau de filtrage des ombres (KR texels par axe), lumières
   // dynamiques, cartes d'ombre statique (toute la carte, calculée une fois) et dynamique (chars, à
   // chaque image), échelle des distances de détail. Les niveaux eux-mêmes sont choisis par le jeu.
-  const QDEF = { kr: 4, nl: 8, sms: 4096, smd: 2048, lod: 1 };
+  const QDEF = { kr: 4, nl: 8, sms: 4096, smd: 2048, lod: 1, gt: [4096, 2048], aniso: 8 };
   function create(canvas, opt = {}) {
     const gl = canvas.getContext('webgl', { antialias: opt.msaa !== false, alpha: false, preserveDrawingBuffer: false });
     if (!gl) return null;
@@ -366,23 +417,40 @@ void main(){
       const at = (n, size, type, nrm, off) => { if (A[n] == null || A[n] < 0) return; gl.enableVertexAttribArray(A[n]); gl.vertexAttribPointer(A[n], size, type, nrm, 20, off); };
       at('aPos', 3, gl.FLOAT, false, 0); at('aNor', 3, gl.BYTE, true, 12); at('aMat', 1, gl.UNSIGNED_BYTE, false, 15); at('aCol', 3, gl.UNSIGNED_BYTE, true, 16);
     };
-    // texture du sol (mise à jour par tuiles quand des traces s'y impriment)
-    let mapW = 1, mapH = 1;
+    // Texture du sol : recopiée à une taille puissance de deux pour avoir des mipmaps (pas de
+    // scintillement au loin) et un filtrage anisotrope ; mise à jour par tuiles quand des traces s'y
+    // impriment, mipmaps refaites au plus deux fois par seconde
+    let mapW = 1, mapH = 1, gSrc = null, gW = 1, gH = 1, mipDirty = false, mipT = 0;
+    const tmpCv = document.createElement('canvas'), tmpCtx = tmpCv.getContext('2d');
     function setGround(cv, wm, hm) {
+      gSrc = cv; gW = Q.gt[0]; gH = Q.gt[1];
+      tmpCv.width = gW; tmpCv.height = gH;
+      tmpCtx.drawImage(cv, 0, 0, gW, gH);
       gl.bindTexture(gl.TEXTURE_2D, gTex);
       gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, cv);
-      texP(gl.LINEAR);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, tmpCv);
+      tmpCv.width = tmpCv.height = 1;
+      gl.generateMipmap(gl.TEXTURE_2D);
+      texP(gl.LINEAR_MIPMAP_LINEAR, gl.LINEAR);
+      const an = gl.getExtension('EXT_texture_filter_anisotropic');
+      if (an) gl.texParameterf(gl.TEXTURE_2D, an.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(Q.aniso, gl.getParameter(an.MAX_TEXTURE_MAX_ANISOTROPY_EXT)));
       if (wm !== mapW || hm !== mapH) slvp = null;
       mapW = wm; mapH = hm;
     }
-    function updateGround(img, x, y) {
+    // zone (x, y, w, h) du canevas source modifiée
+    function updateGround(cv, x, y, w, h) {
+      const sx = gW / cv.width, sy = gH / cv.height;
+      const X0 = Math.floor(x * sx), Y0 = Math.floor(y * sy), X1 = Math.min(gW, Math.ceil((x + w) * sx)), Y1 = Math.min(gH, Math.ceil((y + h) * sy));
+      if (X1 <= X0 || Y1 <= Y0) return;
+      tmpCv.width = X1 - X0; tmpCv.height = Y1 - Y0;
+      tmpCtx.drawImage(cv, X0 / sx, Y0 / sy, (X1 - X0) / sx, (Y1 - Y0) / sy, 0, 0, X1 - X0, Y1 - Y0);
       gl.bindTexture(gl.TEXTURE_2D, gTex);
-      gl.texSubImage2D(gl.TEXTURE_2D, 0, x, y, gl.RGBA, gl.UNSIGNED_BYTE, img);
+      gl.texSubImage2D(gl.TEXTURE_2D, 0, X0, Y0, gl.RGBA, gl.UNSIGNED_BYTE, tmpCv);
+      mipDirty = true;
     }
     // particules
     const PCAP = 4000;
-    const pData = new Float32Array(PCAP * 6 * 9);
+    const pData = new Float32Array(PCAP * 6 * 10);
     let env = null;
 
     function setEnv(e) { env = e; slvp = null; }
@@ -483,13 +551,13 @@ void main(){
       vis.sort((a, b) => a.d - b.d);
       stats.cells = vis.length; stats.verts = 0;
       for (const c of vis) {
-        const L = c.d < 45 ? 0 : c.d < 110 ? 1 : 2;
+        const L = c.d < 55 ? 0 : c.d < 130 ? 1 : 2;
         for (const m of [c.m[3], c.m[L]]) if (m && m.buf) { bindMesh(main, m); gl.drawArrays(gl.TRIANGLES, 0, m.count); stats.verts += m.count; }
       }
     }
 
     // ---- dessin ----
-    const lp = new Float32Array(32), lc = new Float32Array(24);
+    const lp = new Float32Array(32), lc = new Float32Array(24), tk = new Float32Array(40), tkh = new Float32Array(20);
     function uniformsMain(cam, lvp, dRange, dTexel) {
       const U = main.U;
       gl.useProgram(main.p);
@@ -504,6 +572,13 @@ void main(){
       gl.uniform3fv(U.uFogCol, env.fogCol); gl.uniform1f(U.uFogD, env.fogD); gl.uniform3fv(U.uZenith, env.zenith); gl.uniform3fv(U.uHorizon, env.horizon);
       gl.uniform1f(U.uSnow, env.snow || 0); gl.uniform1f(U.uTime, cam.time);
       gl.uniform2f(U.uMap, mapW, mapH);
+      gl.uniform2fv(U.uFogH, env.fogH || [0, 0.1]); gl.uniform3fv(U.uOuter, env.outer || [0.3, 0.3, 0.25]);
+      gl.uniform1f(U.uCloud, env.cloud || 0); gl.uniform2fv(U.uWind, env.wind || [1, 0]); gl.uniform1f(U.uNight, env.night || 0);
+      gl.uniform1f(U.uPix, 2 * Math.tan((cam.fov || 0.9) / 2) / Math.max(1, canvas.height));
+      // contacts des chars avec le sol : [x, y, cap, demi-longueur, demi-largeur]
+      const C = cam.contacts || [], nt = Math.min(10, C.length);
+      for (let i = 0; i < nt; i++) { const c = C[i]; tk[i * 4] = c[0]; tk[i * 4 + 1] = c[1]; tk[i * 4 + 2] = Math.cos(c[2]); tk[i * 4 + 3] = Math.sin(c[2]); tkh[i * 2] = c[3]; tkh[i * 2 + 1] = c[4]; }
+      gl.uniform4fv(U.uTk, tk); gl.uniform2fv(U.uTkH, tkh); gl.uniform1f(U.uNT, nt);
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, shD.tex); gl.uniform1i(U.uShadow, 0);
       gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, gTex); gl.uniform1i(U.uGround, 1);
       gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, shS.tex); gl.uniform1i(U.uShadowS, 2);
@@ -551,6 +626,7 @@ void main(){
       const cam = scene.cam;
       gl.disable(gl.BLEND); gl.depthMask(true);
       if (!slvp) fitStatic();
+      if (mipDirty && performance.now() - mipT > 500) { mipDirty = false; mipT = performance.now(); gl.bindTexture(gl.TEXTURE_2D, gTex); gl.generateMipmap(gl.TEXTURE_2D); }
       if (bakeAll || bakeBoxes.length) bakeStatic();
       // passe d'ombre dynamique : chars, épaves, débris
       const dl = dynLight(cam.target, scene.shadowExt || 80);
@@ -582,33 +658,33 @@ void main(){
       gl.uniformMatrix4fv(P.U.uVP, false, cam.vp);
       gl.uniform3fv(P.U.uSunCol, env.sunCol); gl.uniform3fv(P.U.uSkyCol, env.skyCol);
       gl.uniform3fv(P.U.uFogCol, env.fogCol); gl.uniform1f(P.U.uFogD, env.fogD); gl.uniform3fv(P.U.uEye, cam.eye);
-      const right = [cam.view[0], cam.view[4], cam.view[8]], up = [cam.view[1], cam.view[5], cam.view[9]];
+      gl.uniform3fv(P.U.uSun, env.sun); gl.uniform2fv(P.U.uFogH, env.fogH || [0, 0.1]);
+      // quads écrits directement dans le tampon, sans tableaux temporaires
+      const v = cam.view, R0 = v[0], R1 = v[4], R2 = v[8], U0 = v[1], U1 = v[5], U2 = v[9], e = cam.eye;
       const fill = list => {
         let n = 0;
         for (const q of list) {
           if (n >= PCAP) break;
-          let c0, c1, c2, c3;
-          if (q.a2) { // traînée orientée (traceur, étincelle)
-            const d = [q.a2[0] - q.p[0], q.a2[1] - q.p[1], q.a2[2] - q.p[2]];
-            const mid = [(q.p[0] + q.a2[0]) / 2 - cam.eye[0], (q.p[1] + q.a2[1]) / 2 - cam.eye[1], (q.p[2] + q.a2[2]) / 2 - cam.eye[2]];
-            let s = norm(cross(d, mid)); s = [s[0] * q.s, s[1] * q.s, s[2] * q.s];
-            c0 = [q.p[0] - s[0], q.p[1] - s[1], q.p[2] - s[2]]; c1 = [q.a2[0] - s[0], q.a2[1] - s[1], q.a2[2] - s[2]];
-            c2 = [q.a2[0] + s[0], q.a2[1] + s[1], q.a2[2] + s[2]]; c3 = [q.p[0] + s[0], q.p[1] + s[1], q.p[2] + s[2]];
+          const p = q.p, s = q.s;
+          if (q.a2) { // traînée orientée (traceur, étincelle) : largeur perpendiculaire au regard
+            const a = q.a2, dx = a[0] - p[0], dy = a[1] - p[1], dz = a[2] - p[2];
+            const mx = (p[0] + a[0]) / 2 - e[0], my = (p[1] + a[1]) / 2 - e[1], mz = (p[2] + a[2]) / 2 - e[2];
+            let sx = dy * mz - dz * my, sy = dz * mx - dx * mz, sz = dx * my - dy * mx;
+            const l = s / (Math.hypot(sx, sy, sz) || 1); sx *= l; sy *= l; sz *= l;
+            QC[0] = p[0] - sx; QC[1] = p[1] - sy; QC[2] = p[2] - sz; QC[3] = a[0] - sx; QC[4] = a[1] - sy; QC[5] = a[2] - sz;
+            QC[6] = a[0] + sx; QC[7] = a[1] + sy; QC[8] = a[2] + sz; QC[9] = p[0] + sx; QC[10] = p[1] + sy; QC[11] = p[2] + sz;
           } else {
-            const s = q.s, cr = Math.cos(q.rot || 0), sr = Math.sin(q.rot || 0);
-            const rx = [(right[0] * cr + up[0] * sr) * s, (right[1] * cr + up[1] * sr) * s, (right[2] * cr + up[2] * sr) * s];
-            const ux = [(-right[0] * sr + up[0] * cr) * s, (-right[1] * sr + up[1] * cr) * s, (-right[2] * sr + up[2] * cr) * s];
-            c0 = [q.p[0] - rx[0] - ux[0], q.p[1] - rx[1] - ux[1], q.p[2] - rx[2] - ux[2]];
-            c1 = [q.p[0] + rx[0] - ux[0], q.p[1] + rx[1] - ux[1], q.p[2] + rx[2] - ux[2]];
-            c2 = [q.p[0] + rx[0] + ux[0], q.p[1] + rx[1] + ux[1], q.p[2] + rx[2] + ux[2]];
-            c3 = [q.p[0] - rx[0] + ux[0], q.p[1] - rx[1] + ux[1], q.p[2] - rx[2] + ux[2]];
+            const cr = Math.cos(q.rot || 0) * s, sr = Math.sin(q.rot || 0) * s;
+            const ax = R0 * cr + U0 * sr, ay = R1 * cr + U1 * sr, az = R2 * cr + U2 * sr, bx = U0 * cr - R0 * sr, by = U1 * cr - R1 * sr, bz = U2 * cr - R2 * sr;
+            QC[0] = p[0] - ax - bx; QC[1] = p[1] - ay - by; QC[2] = p[2] - az - bz; QC[3] = p[0] + ax - bx; QC[4] = p[1] + ay - by; QC[5] = p[2] + az - bz;
+            QC[6] = p[0] + ax + bx; QC[7] = p[1] + ay + by; QC[8] = p[2] + az + bz; QC[9] = p[0] - ax + bx; QC[10] = p[1] - ay + by; QC[11] = p[2] - az + bz;
           }
-          const vs = [[c0, 0, 0], [c1, 1, 0], [c2, 1, 1], [c0, 0, 0], [c2, 1, 1], [c3, 0, 1]];
+          const c = q.c;
           for (let vi = 0; vi < 6; vi++) {
-            const v = vs[vi], o = (n * 6 + vi) * 9;
-            pData[o] = v[0][0]; pData[o + 1] = v[0][1]; pData[o + 2] = v[0][2];
-            pData[o + 3] = v[1]; pData[o + 4] = v[2];
-            pData[o + 5] = q.c[0]; pData[o + 6] = q.c[1]; pData[o + 7] = q.c[2]; pData[o + 8] = q.c[3];
+            const k = QI[vi] * 3, o = (n * 6 + vi) * 10;
+            pData[o] = QC[k]; pData[o + 1] = QC[k + 1]; pData[o + 2] = QC[k + 2];
+            pData[o + 3] = QU[vi * 2]; pData[o + 4] = QU[vi * 2 + 1];
+            pData[o + 5] = c[0]; pData[o + 6] = c[1]; pData[o + 7] = c[2]; pData[o + 8] = c[3]; pData[o + 9] = s;
           }
           n++;
         }
@@ -618,11 +694,12 @@ void main(){
         if (!list.length) return;
         const n = fill(list);
         gl.bindBuffer(gl.ARRAY_BUFFER, pBuf);
-        gl.bufferData(gl.ARRAY_BUFFER, pData.subarray(0, n * 54), gl.DYNAMIC_DRAW);
+        gl.bufferData(gl.ARRAY_BUFFER, pData.subarray(0, n * 60), gl.DYNAMIC_DRAW);
         const A = P.A;
-        gl.enableVertexAttribArray(A.aP); gl.vertexAttribPointer(A.aP, 3, gl.FLOAT, false, 36, 0);
-        gl.enableVertexAttribArray(A.aUV); gl.vertexAttribPointer(A.aUV, 2, gl.FLOAT, false, 36, 12);
-        gl.enableVertexAttribArray(A.aC); gl.vertexAttribPointer(A.aC, 4, gl.FLOAT, false, 36, 20);
+        gl.enableVertexAttribArray(A.aP); gl.vertexAttribPointer(A.aP, 3, gl.FLOAT, false, 40, 0);
+        gl.enableVertexAttribArray(A.aUV); gl.vertexAttribPointer(A.aUV, 2, gl.FLOAT, false, 40, 12);
+        gl.enableVertexAttribArray(A.aC); gl.vertexAttribPointer(A.aC, 4, gl.FLOAT, false, 40, 20);
+        if (A.aS >= 0) { gl.enableVertexAttribArray(A.aS); gl.vertexAttribPointer(A.aS, 1, gl.FLOAT, false, 40, 36); }
         gl.uniform1f(P.U.uGlow, glow ? 1 : 0);
         gl.enable(gl.BLEND);
         if (glow) gl.blendFunc(gl.ONE, gl.ONE); else gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
@@ -632,7 +709,6 @@ void main(){
         gl.disable(gl.BLEND);
       };
       // fumées triées de la plus lointaine à la plus proche
-      const e = cam.eye;
       parts.soft.sort((a, b) => ((b.p[0] - e[0]) ** 2 + (b.p[1] - e[1]) ** 2 + (b.p[2] - e[2]) ** 2) - ((a.p[0] - e[0]) ** 2 + (a.p[1] - e[1]) ** 2 + (a.p[2] - e[2]) ** 2));
       draw(parts.soft, false);
       draw(parts.glow, true);
@@ -640,7 +716,7 @@ void main(){
 
     initGL();
     // nouvelle qualité : programmes et cartes d'ombre refaits (l'anticrénelage, lui, est fixé à la création)
-    function setQuality(q) { Q = Object.assign({}, QDEF, q); if (!lost) { initTargets(); slvp = null; } }
+    function setQuality(q) { Q = Object.assign({}, QDEF, q); if (!lost) { initTargets(); slvp = null; if (gSrc) setGround(gSrc, mapW, mapH); } }
     const api = { gl, canvas, upload, free, render, setEnv, setGround, updateGround, putCell, clearCells, setQuality, stats, get lost() { return lost; }, onLost: null, onRestored: null };
     // sans preventDefault, le navigateur refuse de rendre le contexte
     canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); lost = true; if (api.onLost) api.onLost(); });
@@ -654,6 +730,8 @@ void main(){
     });
     return api;
   }
+  // coins des quads de particules, ordre des sommets et coordonnées de texture
+  const QC = new Float32Array(12), QI = [0, 1, 2, 0, 2, 3], QU = [0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1];
   const norm = a => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
   const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 
@@ -919,8 +997,9 @@ void main(){
         col = col.map(q => q * ao);
         B[0].triN(tip, side1, back, n, n, n, col, 14);
         B[0].triN(tip, back, side2, n, n, n, col, 14);
-        if (cluster) {
-          const P2 = (a, bb) => [c[0] + (u[0] * a + v[0] * bb) * 1.3, c[1] + (u[1] * a + v[1] * bb) * 1.3, c[2] + (u[2] * a + v[2] * bb) * 1.3];
+        // mi-distance : les bouquets larges et une feuille fine sur quatre, grossis
+        if (cluster || k % 4 === 0) {
+          const g = cluster ? 1.5 : 1.8, P2 = (a, bb) => [c[0] + (u[0] * a + v[0] * bb) * g, c[1] + (u[1] * a + v[1] * bb) * g, c[2] + (u[2] * a + v[2] * bb) * g];
           const t2 = P2(sz, 0), b2 = P2(-sz * 0.55, 0);
           B[1].triN(t2, P2(0, sz * 0.42), b2, n, n, n, col, 14);
           B[1].triN(t2, b2, P2(0, -sz * 0.42), n, n, n, col, 14);

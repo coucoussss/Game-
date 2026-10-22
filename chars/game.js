@@ -227,9 +227,9 @@ Meta.whenReady(() => {
   // smd : cartes d'ombre statique et dynamique, lod : échelle des distances de détail). Un préréglage
   // (mobile par exemple) s'ajoute simplement ici et dans la liste du menu Options.
   const QUALITY = {
-    basse: { dpr: 1, pcap: 900, leaf: 0.35, wx: 0, r3: { kr: 2, nl: 3, sms: 2048, smd: 1024, lod: 0.6 } },
-    moyenne: { dpr: 1.25, pcap: 1700, leaf: 0.6, wx: 1200, r3: { kr: 3, nl: 5, sms: 2048, smd: 2048, lod: 0.8 } },
-    haute: { dpr: 2, pcap: 2600, leaf: 1, wx: 2500, r3: { kr: 4, nl: 8, sms: 4096, smd: 2048, lod: 1 } },
+    basse: { dpr: 1, pcap: 900, leaf: 0.35, wx: 0, r3: { kr: 2, nl: 3, sms: 2048, smd: 1024, lod: 0.6, gt: [2048, 1024], aniso: 2 } },
+    moyenne: { dpr: 1.25, pcap: 1700, leaf: 0.6, wx: 1200, r3: { kr: 3, nl: 5, sms: 2048, smd: 2048, lod: 0.8, gt: [4096, 2048], aniso: 4 } },
+    haute: { dpr: 2, pcap: 2600, leaf: 1, wx: 2500, r3: { kr: 4, nl: 8, sms: 4096, smd: 2048, lod: 1, gt: [4096, 2048], aniso: 8 } },
   };
   const QL = () => QUALITY[Meta.P.opts.quality] || QUALITY.haute;
   let QDPR = 2, PCAP = 2600; // qualité graphique : résolution maximale et nombre de particules
@@ -800,6 +800,7 @@ Meta.whenReady(() => {
     orders = { kind: 'free', pos: null, target: null, t: 0 }; reinf = []; veils = [];
     spotted[0].clear(); spotted[1].clear(); seenAt.clear(); artyMarks = []; contactT = [0, 0]; artyT = [0, 0];
     HitCam.stop();
+    if (W3D && groundCv) setEnv3();
     const lv = L();
     const allyTypes = levelIdx < 2 ? ['pz4', 'light', 'medium', 'stug'] : levelIdx < 4 ? ['medium', 'heavy', 'destroyer', 'pz4'] : ['kingtiger', 'medium', 'stug', 'heavy'];
     const enemyTypes = lv.waves[waveIdx];
@@ -3852,13 +3853,31 @@ Meta.whenReady(() => {
   }
 
   // ===================== Rendu 3D =====================
+  // fogH : nappe de brume basse (densité au sol par mètre, décroissance avec l'altitude) ; cloud : ciel couvert
   const ENV = [
-    { az: 135, el: 36, sunCol: [1.9, 1.75, 1.5], skyCol: [0.2, 0.25, 0.34], bounce: [0.13, 0.12, 0.08], horizon: [0.5, 0.58, 0.68], zenith: [0.12, 0.24, 0.5], fogD: 0.0042 },
-    { az: 120, el: 28, sunCol: [1.5, 1.42, 1.2], skyCol: [0.18, 0.23, 0.27], bounce: [0.09, 0.12, 0.06], horizon: [0.4, 0.47, 0.47], zenith: [0.14, 0.22, 0.33], fogD: 0.0075 },
-    { az: 150, el: 40, sunCol: [1.05, 1.0, 0.96], skyCol: [0.27, 0.28, 0.3], bounce: [0.12, 0.11, 0.1], horizon: [0.4, 0.4, 0.41], zenith: [0.24, 0.26, 0.3], fogD: 0.0065 },
-    { az: 160, el: 55, sunCol: [2.3, 2.0, 1.6], skyCol: [0.24, 0.26, 0.32], bounce: [0.26, 0.2, 0.12], horizon: [0.72, 0.64, 0.5], zenith: [0.17, 0.32, 0.58], fogD: 0.0038 },
-    { az: 210, el: 34, sunCol: [0.28, 0.33, 0.5], skyCol: [0.03, 0.045, 0.08], bounce: [0.04, 0.05, 0.07], horizon: [0.02, 0.03, 0.06], zenith: [0.004, 0.006, 0.016], fogD: 0.011, snow: 1 },
+    { az: 135, el: 36, sunCol: [1.9, 1.75, 1.5], skyCol: [0.2, 0.25, 0.34], bounce: [0.13, 0.12, 0.08], horizon: [0.5, 0.58, 0.68], zenith: [0.12, 0.24, 0.5], fogD: 0.0042, fogH: [0.0015, 0.1], cloud: 0.45 },
+    { az: 120, el: 28, sunCol: [1.5, 1.42, 1.2], skyCol: [0.18, 0.23, 0.27], bounce: [0.09, 0.12, 0.06], horizon: [0.4, 0.47, 0.47], zenith: [0.14, 0.22, 0.33], fogD: 0.0075, fogH: [0.006, 0.3], cloud: 0.8 },
+    { az: 150, el: 40, sunCol: [1.05, 1.0, 0.96], skyCol: [0.27, 0.28, 0.3], bounce: [0.12, 0.11, 0.1], horizon: [0.4, 0.4, 0.41], zenith: [0.24, 0.26, 0.3], fogD: 0.0065, fogH: [0.004, 0.08], cloud: 0.85 },
+    { az: 160, el: 55, sunCol: [2.3, 2.0, 1.6], skyCol: [0.24, 0.26, 0.32], bounce: [0.26, 0.2, 0.12], horizon: [0.72, 0.64, 0.5], zenith: [0.17, 0.32, 0.58], fogD: 0.0038, fogH: [0.002, 0.2], cloud: 0.12 },
+    { az: 210, el: 34, sunCol: [0.28, 0.33, 0.5], skyCol: [0.03, 0.045, 0.08], bounce: [0.04, 0.05, 0.07], horizon: [0.02, 0.03, 0.06], zenith: [0.004, 0.006, 0.016], fogD: 0.011, snow: 1, fogH: [0.008, 0.35], cloud: 0.5 },
   ];
+  // Heure du jour selon la vague : matin (soleil bas à l'est, lumière chaude), milieu de journée, fin
+  // d'après-midi (soleil rasant, orangé). La nuit, seule la lune tourne.
+  const DAYTIME = [
+    { el: 16, az: -45, sun: [0.95, 0.78, 0.62], hor: [1.06, 0.96, 0.88], sky: 0.85, cloud: 0.8 },
+    { el: 0, az: 0, sun: [1, 1, 1], hor: [1, 1, 1], sky: 1, cloud: 1 },
+    { el: 11, az: 50, sun: [1.0, 0.66, 0.42], hor: [1.14, 0.9, 0.74], sky: 0.8, cloud: 1.2 },
+  ];
+  function setEnv3() {
+    const e = ENV[levelIdx], lv = L(), w = DAYTIME[(mode === 'survie' ? survWave : waveIdx) % 3], d = lv.night ? DAYTIME[1] : w;
+    const el = (d.el ? Math.min(e.el, d.el) : e.el) * D2R, az = (e.az + w.az) * D2R, mul = (a, b) => a.map((v, i) => v * b[i]);
+    const hor = mul(e.horizon, d.hor);
+    W3D.setEnv({
+      sun: [Math.cos(el) * Math.cos(az), Math.cos(el) * Math.sin(az), Math.sin(el)], sunCol: mul(e.sunCol, d.sun), skyCol: e.skyCol.map(v => v * d.sky), bounce: e.bounce,
+      fogCol: hor, fogD: e.fogD * 0.6, horizon: hor, zenith: e.zenith, snow: e.snow || 0, fogH: e.fogH, cloud: clamp(e.cloud * w.cloud, 0, 1),
+      wind: [WIND.x, -WIND.y], night: lv.night ? 1 : 0, outer: G3.hex(lv.ground[0]),
+    });
+  }
 
   let CMDR3 = null; const RAYTRI = {}, ADD3 = {}, ADDR = {};
   // maillages du blindage additionnel, construits à la demande (jeu et vitrine)
@@ -3942,8 +3961,7 @@ Meta.whenReady(() => {
   }
   function setup3D() {
     if (!W3D) return;
-    const e = ENV[levelIdx], az = e.az * D2R, el = e.el * D2R;
-    W3D.setEnv({ sun: [Math.cos(el) * Math.cos(az), Math.cos(el) * Math.sin(az), Math.sin(el)], sunCol: e.sunCol, skyCol: e.skyCol, bounce: e.bounce, fogCol: e.horizon, fogD: e.fogD * 0.6, horizon: e.horizon, zenith: e.zenith, snow: e.snow || 0 });
+    setEnv3();
     W3D.setGround(groundCv, WW / PX, WH / PX);
     dirtyTiles.clear();
     build3DScene();
@@ -4201,7 +4219,7 @@ Meta.whenReady(() => {
       if (n++ >= 6) break;
       dirtyTiles.delete(k);
       const tx = (k % 64) * 256, ty = Math.floor(k / 64) * 256, w = Math.min(256, WW - tx), h = Math.min(256, WH - ty);
-      W3D.updateGround(gctx.getImageData(tx, ty, w, h), tx, ty);
+      W3D.updateGround(groundCv, tx, ty, w, h);
     }
     const M4 = G3.M4, items = [];
     for (const t of tanks) {
@@ -4260,7 +4278,7 @@ Meta.whenReady(() => {
             glow.push(g);
           } else {
             const fin = Math.min(1, (p.max - p.life) * 12) * Math.pow(a, 0.8);
-            soft.push({ p: [P[0], P[1], Math.max(p.z, p.size * 0.35)], s: p.size, c: [p.c[0], p.c[1], p.c[2], p.c[3] * fin], rot: p.x * 0.13 + p.y * 0.07 });
+            soft.push({ p: [P[0], P[1], Math.max(p.z, p.size * 0.2)], s: p.size, c: [p.c[0], p.c[1], p.c[2], p.c[3] * fin], rot: p.x * 0.13 + p.y * 0.07 });
           }
           break;
         }
@@ -4313,9 +4331,12 @@ Meta.whenReady(() => {
       if (t.dead ? t.wreck === 'burning' || (t.wreck === 'brewed' && t.deadT < 12) : t.fires.length) lights.push({ p: [P[0], P[1], 2], r: 11, c: [3.2 * (0.8 + 0.4 * Math.random()), 1.4, 0.35] });
       if (night && !t.dead && t.team === 0) { const c = Math.cos(t.angle), sn = Math.sin(t.angle); lights.push({ p: [P[0] + c * 6, P[1] - sn * 6, 1.6], r: 20, c: [0.9, 0.85, 0.7], head: true }); }
     }
-    const tg = cam3.target;
+    // ombre de contact des chars les plus proches de la zone regardée
+    const tg = cam3.target, contacts = [];
+    for (const t of tanks) { const P = to3(t.x, t.y), d = Math.hypot(P[0] - tg[0], P[1] - tg[1]); if (d < 90 && (t.dead || visibleToPlayer(t))) contacts.push([P[0], P[1], -t.angle, t.T.S.L / 2, t.T.S.W / 2, d]); }
+    contacts.sort((a, b) => a[5] - b[5]);
     lights.sort((a, b) => Math.hypot(a.p[0] - tg[0], a.p[1] - tg[1]) / a.r - Math.hypot(b.p[0] - tg[0], b.p[1] - tg[1]) / b.r);
-    W3D.render({ cam: { eye: cam3.eye, target: cam3.target, vp: cam3.vp, view: cam3.view, fov: cam3.fov, time: gameTime, lights }, items, parts: { soft, glow }, shadowExt: sight.on ? 110 : Math.max(60, cam3.dist * 1.6) }, Math.round(W * DPR * dyn.k), Math.round(H * DPR * dyn.k));
+    W3D.render({ cam: { eye: cam3.eye, target: cam3.target, vp: cam3.vp, view: cam3.view, fov: cam3.fov, time: gameTime, lights, contacts }, items, parts: { soft, glow }, shadowExt: sight.on ? 110 : Math.max(60, cam3.dist * 1.6) }, Math.round(W * DPR * dyn.k), Math.round(H * DPR * dyn.k));
     // interface par-dessus
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, cv.width, cv.height);
