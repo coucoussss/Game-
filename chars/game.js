@@ -487,9 +487,27 @@ Meta.whenReady(() => {
   function groundAt(x, y) { GND.type = soil ? Vehicle.SOILS[soil[cellOf(x, y)]] : Vehicle.SOIL.steppe; return GND; }
   function buildGrid() {
     GC = Math.ceil(WW / CELL); GR = Math.ceil(WH / CELL);
-    grid = new Uint8Array(GC * GR);
+    grid = new Uint8Array(GC * GR); wgrid = new Uint8Array(GC * GR); navBlocks = [];
     for (const o of obstacles) markGrid(o);
   }
+  // Couche mobile du pathfinding, refaite toutes les 0,5 s : épaves (contournées, ou seulement coûteuses
+  // quand elles sont assez légères pour qu'on les pousse) et passages où un char s'est bloqué deux fois
+  let wgrid = null, navBlocks = [], navT = 0;
+  function stampW(x, y, rad, v) {
+    const c0 = Math.max(0, Math.floor((x - rad) / CELL)), c1 = Math.min(GC - 1, Math.floor((x + rad) / CELL));
+    const r0 = Math.max(0, Math.floor((y - rad) / CELL)), r1 = Math.min(GR - 1, Math.floor((y + rad) / CELL));
+    for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
+      const i = r * GC + c;
+      if (wgrid[i] !== 1 && Math.hypot((c + 0.5) * CELL - x, (r + 0.5) * CELL - y) < rad + CELL / 2) wgrid[i] = v;
+    }
+  }
+  function buildWGrid(dt) {
+    wgrid.fill(0);
+    for (const w of tanks) if (w.dead) stampW(w.x, w.y, w.r + 12, w.T.mass < 28 ? 2 : 1);
+    navBlocks = navBlocks.filter(b => (b.t -= dt) > 0);
+    for (const b of navBlocks) stampW(b.x, b.y, b.r, 1);
+  }
+  const blocked = i => grid[i] === 1 || wgrid[i] === 1;
   function markGrid(o) {
     if (o.dead) return;
     const tree = o.type === 'tree';
@@ -500,7 +518,7 @@ Meta.whenReady(() => {
   }
   const cellOf = (x, y) => clamp(Math.floor(y / CELL), 0, GR - 1) * GC + clamp(Math.floor(x / CELL), 0, GC - 1);
   function nearestFree(i) {
-    if (grid[i] !== 1) return i;
+    if (!blocked(i)) return i;
     const c = i % GC, r = (i / GC) | 0;
     for (let d = 1; d < 20; d++) {
       for (let dy = -d; dy <= d; dy++) for (let dx = -d; dx <= d; dx++) {
@@ -508,7 +526,7 @@ Meta.whenReady(() => {
         const cc = c + dx, rr = r + dy;
         if (cc < 0 || rr < 0 || cc >= GC || rr >= GR) continue;
         const j = rr * GC + cc;
-        if (grid[j] !== 1) return j;
+        if (!blocked(j)) return j;
       }
     }
     return -1;
@@ -567,9 +585,9 @@ Meta.whenReady(() => {
         const nc = c + dx, nr = r + dy;
         if (nc < 0 || nr < 0 || nc >= GC || nr >= GR) continue;
         const ni = nr * GC + nc;
-        if (grid[ni] === 1 || closedId[ni] === searchId) continue;
-        if (dx && dy && (grid[r * GC + nc] === 1 || grid[nr * GC + c] === 1)) continue;
-        const cost = (dx && dy ? 1.414 : 1) * (grid[ni] === 2 ? 2.5 : 1) * (soil ? Vehicle.SOILS[soil[ni]].path : 1);
+        if (blocked(ni) || closedId[ni] === searchId) continue;
+        if (dx && dy && (blocked(r * GC + nc) || blocked(nr * GC + c))) continue;
+        const cost = (dx && dy ? 1.414 : 1) * (grid[ni] === 2 || wgrid[ni] === 2 ? 2.5 : 1) * (soil ? Vehicle.SOILS[soil[ni]].path : 1);
         const ng = gScore[cur] + cost;
         if (seenId[ni] !== searchId || ng < gScore[ni]) {
           seenId[ni] = searchId; gScore[ni] = ng; came[ni] = cur;
@@ -596,7 +614,7 @@ Meta.whenReady(() => {
     const d = Math.hypot(b.x - a.x, b.y - a.y), n = Math.ceil(d / 8);
     for (let k = 1; k < n; k++) {
       const x = a.x + (b.x - a.x) * k / n, y = a.y + (b.y - a.y) * k / n;
-      if (grid[cellOf(x, y)] === 1) return false;
+      if (blocked(cellOf(x, y))) return false;
     }
     return true;
   }
@@ -909,6 +927,18 @@ Meta.whenReady(() => {
     }
     return true;
   }
+  // Seule une épave masque la cible : pas de côté perpendiculaire à la ligne de tir, d'où on la voit
+  function sideStep(t, e) {
+    const d = dist(t, e) || 1, nx = -(e.y - t.y) / d, ny = (e.x - t.x) / d;
+    let w = null;
+    for (const o of tanks) if (o.dead && (!w || dist(t, o) < dist(t, w))) w = o;
+    if (!w) return null;
+    for (const sg of [1, -1]) {
+      const k = sg * (t.T.wid * 2 + w.r), p = { x: clamp(t.x + nx * k, 60, WW - 60), y: clamp(t.y + ny * k, 60, WH - 60) };
+      if (wreckClear(p, e) && losClear(p.x, p.y, e.x, e.y, false) && gridLineFree(t, p)) return p;
+    }
+    return null;
+  }
   function friendlyClear(t, aim, d) {
     const pv = pivot(t), ux = Math.cos(aim), uy = Math.sin(aim);
     for (const a of tanks) {
@@ -944,13 +974,15 @@ Meta.whenReady(() => {
     if (ai.thinkT <= 0) {
       ai.thinkT = rnd(0.25, 0.45);
       let best = null, bs = 1e9, bestLos = false;
+      let bestSide = null;
       for (const e of seen) {
         if (e.dead) continue;
         const d = dist(t, e);
-        const los = losClear(t.x, t.y, e.x, e.y, false) && wreckClear(t, e);
+        const lo = losClear(t.x, t.y, e.x, e.y, false), los = lo && wreckClear(t, e);
         const sc = d * (los ? 1 : 1.7) * (crewFrac(e) < 0.5 ? 0.8 : 1);
-        if (sc < bs) { bs = sc; best = e; bestLos = los; }
+        if (sc < bs) { bs = sc; best = e; bestLos = los; bestSide = lo && !los; }
       }
+      ai.side = bestSide ? sideStep(t, best) : null;
       if (best && best !== ai.target) {
         // chef de char blessé ou mort : l'équipage réagit plus lentement
         const eC = eff(t, 'commander');
@@ -976,6 +1008,7 @@ Meta.whenReady(() => {
       let dest = null;
       const range = T.range * (crewFrac(t) < 0.6 ? 1.3 : 1);
       if (ai.retreatT > 0) dest = { x: t.team === 0 ? 160 : WW - 160, y: t.y };
+      else if (best && ai.side) dest = ai.side;
       else if (best && ai.pushT > 0) dest = { x: best.x, y: best.y };
       else if (best) {
         const d = dist(t, best);
@@ -1056,11 +1089,20 @@ Meta.whenReady(() => {
     }
     // bloqué : un rapport est engagé dans le bon sens et le char n'avance pas (le passage d'un rapport
     // et l'engagement de la marche arrière prennent du temps)
-    if (Math.abs(thr) > 0.3 && Math.hypot(t.vx, t.vy) < 6 && !(t.shiftT > 0) && t.gear * thr > 0 && ai.unstickT <= 0 && t.trackT <= 0 && roleOk(t, 'driver') && modOk(t, 'engine') && modOk(t, 'trans')) {
+    // (rien pendant l'introduction : les chars n'ont pas encore le droit de rouler)
+    if (state !== 'play') ai.stuckT = ai.unstickT = 0;
+    else if (Math.abs(thr) > 0.3 && Math.hypot(t.vx, t.vy) < 6 && !(t.shiftT > 0) && t.gear * thr > 0 && ai.unstickT <= 0 && t.trackT <= 0 && roleOk(t, 'driver') && modOk(t, 'engine') && modOk(t, 'trans')) {
       ai.stuckT += dt;
       if (ai.stuckT > 1) {
         ai.stuckT = 0; ai.unstickT = T.D.box.rs + 1.4; ai.unstickDir = thr > 0 ? -1 : 1;
         ai.unstickTurn = Math.random() < 0.5 ? -1 : 1; ai.pathT = 0;
+        // deuxième blocage au même endroit en 6 s : le passage devant la caisse est interdit 10 s
+        const u = ai.lastStuck;
+        if (u && gameTime - u.t < 6 && Math.hypot(t.x - u.x, t.y - u.y) < 25) {
+          const k = thr > 0 ? 30 : -30;
+          navBlocks.push({ x: t.x + Math.cos(t.angle) * k, y: t.y + Math.sin(t.angle) * k, r: 14, t: 10 }); navT = 0;
+        }
+        ai.lastStuck = { x: t.x, y: t.y, t: gameTime };
       }
     } else ai.stuckT = Math.max(0, ai.stuckT - dt);
 
@@ -3279,6 +3321,7 @@ Meta.whenReady(() => {
     if (player && !player.dead && !player.ai) playerInput();
     spotTimer -= dt;
     if (spotTimer <= 0) { spotTimer = 0.2; updateSpotting(); }
+    if ((navT -= dt) <= 0) { navT = 0.5; buildWGrid(0.5); }
     for (const t of tanks) if (!t.dead && t.ai) aiThink(t, dt);
     if (state === 'intro') for (const t of tanks) { t.in.throttle = 0; t.in.turn = 0; t.in.fire = false; }
     for (const t of tanks) updateTank(t, dt);
