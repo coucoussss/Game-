@@ -3666,7 +3666,7 @@ Meta.whenReady(() => {
     const M4 = G3.M4, I = TYPES[id].I, Sd = I.S;
     R3.begin(w, h, clear);
     // vitrine plein écran : plus de recul (même taille apparente pour tous les chars), char à droite
-    const d = (6.2 + Sd.L * 0.75) * (xray ? 0.72 : 1) * (hero ? 1.5 * Math.max(1, (h / w) * 1.6) : 1);
+    const d = (6.2 + Sd.L * 0.75) * (xray ? 0.72 : 1) * (hero ? 1.5 * Math.max(1, (h / w) * 1.6) * viewer.dist : 1);
     const eye = [Math.cos(ang) * Math.cos(elev) * d, Math.sin(ang) * Math.cos(elev) * d, Math.sin(elev) * d + 1.0];
     let tgt = [0, 0, Sd.ht * 0.6];
     if (hero && w > h) { const k = d * 0.17; tgt = [tgt[0] + Math.sin(ang) * k, tgt[1] - Math.cos(ang) * k, tgt[2] + d * 0.03]; }
@@ -4411,6 +4411,11 @@ Meta.whenReady(() => {
     viewer.elev = clamp(viewer.drag.e + (e.clientY - viewer.drag.y) * 0.006, 0.05, 1.3);
   });
   vc.addEventListener('pointerup', () => { viewer.drag = null; });
+  // molette sur la vitrine : rapproche ou éloigne la caméra du char
+  vc.addEventListener('wheel', e => { e.preventDefault(); if (!adOn()) viewer.dist = clamp(viewer.dist * Math.exp(e.deltaY * 0.001), 0.62, 1.5); }, { passive: false });
+  // ailleurs, la molette ne fait jamais défiler la page du portail : seuls les panneaux du menu et les
+  // écrans centrés défilent (sans entraîner la page quand ils arrivent au bout, voir overscroll-behavior)
+  addEventListener('wheel', e => { if (!(e.target && e.target.closest && e.target.closest('.side, .center'))) e.preventDefault(); }, { passive: false });
 
   // ===================== Entrées =====================
   // Pendant une publicité, le SDK l'affiche dans la page du jeu : nos gestionnaires de clavier et de
