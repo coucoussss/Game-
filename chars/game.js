@@ -808,7 +808,8 @@
       if (best && best !== ai.target) {
         ai.reactT = ai.react * rnd(0.6, 1.3);
         const k = aiShell(t, best, dist(t, best));
-        if (k !== t.shell && k !== t.nextShell) selectShell(t, k);
+        // demande l'obus voulu, ou annule celui qui attendait si l'obus chargé convient (jamais d'extraction)
+        if (k === t.shell ? t.nextShell : k !== t.nextShell) selectShell(t, k);
       }
       ai.target = best; ai.los = bestLos;
       if (best) { ai.lastKnown = { x: best.x, y: best.y }; ai.noContactT = 0; }
@@ -1535,6 +1536,12 @@
         const cand = tankCand(t, s.x, s.y, dx, dy, s.z, zNext);
         if (cand && (!best || cand.t < best.t)) best = cand;
       }
+      // maison traversée : le mur opposé, là où l'obus le franchit sur ce pas (avant un char collé derrière)
+      const ew = s.exitWall;
+      if (ew && ew.o === s.skipObs && !ew.o.dead) {
+        const o = ew.o, h = segAABB(s.x, s.y, dx, dy, o.x, o.y, o.x + o.w, o.y + o.h);
+        if (h && h.t1 < 1 && s.z + (zNext - s.z) * h.t1 <= obsH(o) && (!best || h.t1 < best.t)) best = { t: h.t1, exit: true };
+      }
       if (zNext <= 0) {
         const tg = s.z / Math.max(1e-6, s.z - zNext);
         if (!best || tg < best.t) best = { t: tg, ground: true };
@@ -1556,7 +1563,7 @@
         const hx = s.x + dx * best.t, hy = s.y + dy * best.t;
         s.dist += s.sp * dt * best.t;
         s.x = hx; s.y = hy; s.z = Math.max(0, s.z + (zNext - s.z) * best.t);
-        const res = best.burst ? apheBurst(s) : best.ground ? hitGround(s, hx, hy) : best.tank ? hitTank(s, best.tank, best, hx, hy) : hitObstacle(s, best.o, best, hx, hy);
+        const res = best.burst ? apheBurst(s) : best.exit ? exitWall(s, hx, hy) : best.ground ? hitGround(s, hx, hy) : best.tank ? hitTank(s, best.tank, best, hx, hy) : hitObstacle(s, best.o, best, hx, hy);
         if (res === 'stop') remove = true;
       } else {
         s.x += dx; s.y += dy;
@@ -1570,17 +1577,9 @@
         s.V *= Math.exp(-kd);
         s.z = zNext; s.slope -= gk * dX;
         shellAim(s, s.vx / s.sp, s.vy / s.sp);
+        // obstacle traversé derrière lui (une maison quittée par le toit n'a plus de mur à percer)
         const so = s.skipObs;
-        if (so && !(s.x >= so.x - 1 && s.x <= so.x + so.w + 1 && s.y >= so.y - 1 && s.y <= so.y + so.h + 1)) {
-          s.skipObs = null;
-          // sortie d'une maison : le mur opposé à traverser à son tour
-          if (s.exitWall && s.exitWall.o === so && !so.dead && s.z <= obsH(so)) {
-            const vl = Ballistics.vLimit(s.sb, s.exitWall.los);
-            if (!(Ballistics.penVel(s.sb, s.V) > s.exitWall.los)) { remove = true; Fx.chips(s.x, s.y, Math.min(obsH(so), s.z || 1), false); Sfx.impact(listenerDist(s.x, s.y)); damageObstacle(so, s.by.T.obs * 0.5); }
-            else { s.V = Math.sqrt(Math.max(1, s.V * s.V - vl * vl)); s.wallLoss += s.exitWall.los; shellAim(s, s.vx / s.sp, s.vy / s.sp); }
-          }
-          s.exitWall = null;
-        }
+        if (so && !(s.x >= so.x - 1 && s.x <= so.x + so.w + 1 && s.y >= so.y - 1 && s.y <= so.y + so.h + 1)) { s.skipObs = null; s.exitWall = null; }
       }
       // l'obus vole jusqu'au sol (traité plus haut), hors de la carte ou très haut après un ricochet ;
       // un compteur de sécurité borne son trajet
@@ -1920,9 +1919,10 @@
     const shP = kinetic ? Ballistics.shatterChance(sb, mm, angle, V) : 0, shattered = Math.random() < shP;
     if (shattered) pen *= Ballistics.SHATTER_PEN[s.key] || 0.7;
     // charge creuse rasante (> 80°) : la fusée de nez fonctionne 6 fois sur 10 et le jet effleure la
-    // plaque ; sinon l'obus se brise sans fonctionner. Il ne repart jamais intact
+    // plaque, qu'il creuse sans la traverser ; sinon l'obus se brise sans fonctionner. Il ne repart
+    // jamais intact
     const graze = sb.heat && angle > 80, fuzed = graze && Math.random() < 0.6;
-    if (graze && !fuzed) pen = 0;
+    if (graze) pen = fuzed ? Math.min(pen, mm) : 0;
     const ricP = sb.heat || sb.he ? 0 : Ballistics.ricochetChance(sb, mm, angle, yaw ? 10 : 0);
     const ric = !shattered && Math.random() < ricP;
     const Ek = 0.5 * sb.m * V * V;
@@ -2279,6 +2279,21 @@
     if (s.key === 'APHE' && sb.filler && !s.fuzeAt && los >= sb.sens && Math.random() > 0.06) s.fuzeAt = s.dist * RK + rnd(1.1e-3, 1.5e-3) * s.V;
     if (s.wallLoss == null) s.wallLoss = 0;
     s.wallLoss += los;
+    return 'continue';
+  }
+  // Obus qui ressort d'une maison : il perce le mur opposé à son tour, ou s'y arrête
+  function exitWall(s, x, y) {
+    const o = s.exitWall.o, los = s.exitWall.los;
+    s.exitWall = null;
+    Sfx.impact(listenerDist(x, y));
+    if (!(Ballistics.penVel(s.sb, s.V) > los)) {
+      Fx.chips(x, y, Math.min(obsH(o), s.z || 1), false);
+      damageObstacle(o, s.by.T.obs * 0.5);
+      return 'stop';
+    }
+    const vl = Ballistics.vLimit(s.sb, los);
+    s.V = Math.sqrt(Math.max(1, s.V * s.V - vl * vl)); s.wallLoss += los;
+    shellAim(s, s.vx / s.sp, s.vy / s.sp);
     return 'continue';
   }
   // Éclatement en vol de l'APHE dont la fusée s'est armée sur un obstacle : petite charge, éclats ;
