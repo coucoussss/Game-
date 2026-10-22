@@ -578,7 +578,7 @@
     return {
       id: ++tankId, T, team, x, y, angle, turret: 0, speed: 0, turnRate: 0, turretRate: 0, vx: 0, vy: 0,
       dead: false, deadT: 0, isPlayer, name, r: (T.len + T.wid) / 4,
-      mods, roles, swap: null, rep: {}, ammo: Object.assign({}, T.ammo), shell: 'APHE',
+      mods, roles, swap: null, rep: {}, ammo: Object.assign({}, T.ammo), shell: 'APHE', nextShell: null,
       reloadT: rnd(0.8, 1.6), disp: T.disp * 3, smoke: 2, trackT: 0, fireT: 0, fireBy: null,
       mg: { ammo: 2700, ammoH: 150, type: 'SmK', heat: 0, jam: 0, cd: 0, n: 0, burst: 0, wait: rnd(1, 4) },
       // chef de char sorti de la coupole (meilleure vue, mais exposé aux balles), optiques endommagées
@@ -611,6 +611,19 @@
   function nextShell(t, pref) {
     for (const k of [pref, 'APHE', 'AP', 'APCR', 'HEAT', 'HE']) if (k && t.ammo[k] > 0) return k;
     return t.shell;
+  }
+  // Durée d'un rechargement : chargeur (amélioration), puis soutes de caisse une fois le râtelier de
+  // tourelle vide
+  const reloadTime = t => t.T.reload * t.up.reload * (t.ready > 0 ? 1 : 1.45);
+  // Changement d'obus. L'obus déjà dans la culasse y reste : on le tire et le chargeur prend ensuite celui
+  // demandé (mis en attente). Pendant un rechargement, il prend directement l'autre. Demander deux fois le
+  // même obus, ou unload, fait extraire l'obus chargé : rechargement complet plus 1,5 s.
+  function selectShell(t, key, unload) {
+    if (key === t.shell) { const had = !!t.nextShell; t.nextShell = null; return had ? 'cancelled' : 'loaded'; }
+    if (t.reloadT > 0) { t.shell = key; t.nextShell = null; return 'switched'; }
+    if (unload || t.nextShell === key) { t.shell = key; t.nextShell = null; t.reloadMax = reloadTime(t) + 1.5; t.reloadT = t.reloadMax; return 'unloaded'; }
+    t.nextShell = key;
+    return 'queued';
   }
 
   function spawnWave() {
@@ -783,7 +796,7 @@
       if (best && best !== ai.target) {
         ai.reactT = ai.react * rnd(0.6, 1.3);
         const k = aiShell(t, best, dist(t, best));
-        if (k !== t.shell) { t.shell = k; t.reloadT = Math.max(t.reloadT, T.reload * 0.6); }
+        if (k !== t.shell && k !== t.nextShell) selectShell(t, k);
       }
       ai.target = best; ai.los = bestLos;
       if (best) { ai.lastKnown = { x: best.x, y: best.y }; ai.noContactT = 0; }
@@ -1203,12 +1216,15 @@
     // les premiers obus viennent du râtelier de tourelle ; ensuite le chargeur va les chercher dans
     // les soutes de caisse, plus lentement
     if (t.ready > 0) t.ready--;
-    t.reloadMax = T.reload * t.up.reload * (t.ready > 0 ? 1 : 1.45);
+    t.reloadMax = reloadTime(t);
     t.reloadT = t.reloadMax; t.readyT = 0;
+    // le chargeur prend l'obus demandé pendant le tir
+    if (t.nextShell && t.ammo[t.nextShell] > 0) t.shell = t.nextShell;
+    t.nextShell = null;
     t.disp += T.disp * 3;
     t.recoil = 1; t.flash = 0.09; t.revealT = 3;
     t.speed -= 14 * Math.sign(Math.cos(t.turret)) * (T.caliber / 75);
-    if (t.ammo[key] <= 0) {
+    if (t.ammo[t.shell] <= 0) {
       t.shell = nextShell(t);
       if (t === player) showMsg(`Out of ${sh.name.toLowerCase()} rounds: ${SHELLS[t.shell].name.toLowerCase()} loaded`, '#e9d9a6', 1.6);
     }
@@ -3567,6 +3583,9 @@
     const g = player.mg;
     ctx.font = '600 11px system-ui, sans-serif'; ctx.fillStyle = g.jam > 0 ? '#ff9a5c' : '#c9c4b2';
     ctx.fillText(g.jam > 0 ? `MG: barrel change ${Math.ceil(g.jam)} s` : `MG (F/G) ${MG_AMMO[g.type].name} : ${g.type === 'SmKH' ? g.ammoH : g.ammo}`, bx + 175, by + 17);
+    const tag = k => SHELLS[k].tag || k;
+    ctx.fillStyle = '#e9d9a6';
+    ctx.fillText(player.nextShell ? `${tag(player.shell)} → next ${tag(player.nextShell)}` : `Loaded ${tag(player.shell)}`, bx + 468, by + 49);
     ctx.fillStyle = player.ready > 0 ? '#c9c4b2' : '#ffb070';
     ctx.fillText(`Ready rack ${player.ready}/${T.ready + player.up.ready}`, bx + 468, by + 64);
     ctx.fillStyle = player.hatch ? '#ffcf7a' : '#8f8a77';
@@ -3617,6 +3636,7 @@
       ctx.fillStyle = sel ? '#4a3f1a' : 'rgba(255,255,255,0.06)';
       ctx.fillRect(x, by + 52, 62, 30);
       if (sel) { ctx.strokeStyle = '#e9c46a'; ctx.lineWidth = 1.5; ctx.strokeRect(x + 0.5, by + 52.5, 61, 29); }
+      if (player.nextShell === k) { ctx.strokeStyle = '#e9c46a'; ctx.lineWidth = 1.2; ctx.setLineDash([3, 3]); ctx.strokeRect(x + 0.5, by + 52.5, 61, 29); ctx.setLineDash([]); }
       ctx.fillStyle = n ? (sel ? '#ffe27a' : '#ddd') : '#666'; ctx.font = '700 10px system-ui, sans-serif';
       ctx.fillText(`[${sh.n}] ${sh.tag || k}`, x + 4, by + 65);
       ctx.font = '600 9.5px system-ui, sans-serif'; ctx.fillStyle = n ? '#aaa' : '#555';
@@ -4356,10 +4376,12 @@
     if (dm) {
       const key = SHELL_KEYS[Number(dm[1]) - 1];
       if (player.ammo[key] <= 0) showMsg(`Out of ${SHELLS[key].name.toLowerCase()} rounds`, '#ff9a7a', 1.2);
-      else if (key !== player.shell) {
-        player.shell = key;
-        player.reloadT = player.reloadMax = player.T.reload; // changer d'obus impose de recharger
-        showMsg(SHELLS[key].full, '#e9d9a6', 1.2);
+      else {
+        const r = selectShell(player, key);
+        if (r === 'queued') showMsg(`Next round: ${SHELLS[key].name.toLowerCase()} · press again to unload the gun`, '#e9d9a6', 1.6);
+        else if (r === 'unloaded') showMsg(`Unloading the gun: ${SHELLS[key].name.toLowerCase()} in ${player.reloadT.toFixed(1)} s`, '#ffcf7a', 1.6);
+        else if (r === 'switched') showMsg(SHELLS[key].full, '#e9d9a6', 1.2);
+        else if (r === 'cancelled') showMsg(`Keeping ${SHELLS[key].name.toLowerCase()}`, '#e9d9a6', 1.2);
       }
     }
     if (e.code === 'KeyE' && state === 'play') deploySmoke(player);
