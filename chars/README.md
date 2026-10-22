@@ -251,6 +251,28 @@ canon, avec la dispersion et le rechargement. La molette change le grossissement
   le roulis de la caisse ; elle saute au départ du coup. Pour tirer juste, on marque un arrêt court
   (environ 1 s) le temps que la suspension se calme ; l'IA fait de même.
 
+## Son et musique
+
+Tout est synthétisé par la Web Audio API (`audio.js`), sans fichier.
+
+- **Espace** : chaque son est placé (panoramique selon l'axe de la caméra ou de la lunette), filtré par
+  l'air (les aigus disparaissent au loin) et retardé à 343 m/s au-delà de 120 m : un duel lointain se
+  voit avant de s'entendre. Une réverbération propre à la carte (plaine, désert, neige, forêt, ruines)
+  et un écho tardif des coups de canon au-delà de 300 m donnent la profondeur. Un obus supersonique
+  qui passe tout près claque avant de siffler.
+- **Moteurs** : fréquence d'allumage tirée du régime réel et du nombre de cylindres (6 en ligne du Luchs,
+  V12 HL 120 et HL 230), claquement de la boîte à chaque rapport, chenilles qui changent de timbre selon
+  le sol, tourelle hydraulique, électrique ou à la manivelle. Les trois chars les plus proches qui
+  roulent (à moins de 500 m) s'entendent, vus ou non.
+- **Intérieur** : dans la lunette, l'extérieur s'étouffe, le moteur monte et fait vibrer la caisse ;
+  le chargement s'entend (obus tiré du râtelier, refoulé, culasse qui se ferme, « prêt » à
+  l'interphone), la douille tinte après le coup.
+- **Musique** : ré mineur, i–VI–III–VII. Le menu joue un thème lent (nappe, basse, cor) ; en bataille,
+  des couches (nappe, ostinato, caisse claire, cuivres) s'ouvrent avec l'intensité du combat (ennemis
+  repérés, obus qui arrivent, feu subi, équipage décimé), avec des ponctuations de victoire, de défaite
+  et de coup critique. Elle baisse de 6 dB pendant la caméra d'impact et s'arrête pendant les
+  publicités. Une piste du menu peut être fournie plus tard (`MENU_FILE` dans `audio.js`).
+
 ## Publication sur CrazyGames
 
 Le jeu est prêt pour CrazyGames : téléverser le contenu du dossier `chars/` (ou l'archive

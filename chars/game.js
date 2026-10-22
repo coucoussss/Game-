@@ -834,9 +834,12 @@ Meta.whenReady(() => {
       });
     }
     camX = player.x + 300; camY = player.y;
+    Sfx.setTank(player.T.id, player.T.D.rated, player.T.D.trav.kind);
+    Sfx.setRoom(lv.forest ? 'forest' : lv.city ? 'city' : lv.desert ? 'desert' : lv.snow ? 'snow' : 'open');
     specIdx = 0;
     waveStats = { kills: 0, pens: 0, crew: 0, mods: 0, ffCrew: 0, tk: 0, hits: 0, shots: 0, ric: 0, dodged: 0, crits: 0, fires: 0, bailed: 0, saved: 0 };
     state = 'intro'; introT = 3.2; waveTime = 0;
+    playMusic();
     if (mode === 'campagne' && waveIdx === 0) addLog('Radio orders: 8 attack my target · 9 follow me · 0 hold · N move there', '#bcd8ff');
     Meta.sdk.gameplayStart();
     msg = null;
@@ -2002,7 +2005,12 @@ Meta.whenReady(() => {
     if (t.reloadT <= 0 && t.ready < T.ready + t.up.ready && !(rack && rack.hp <= 0) && (t.readyT += dt * eff(t, loaderRole(t))) > 8) { t.ready++; t.readyT = 0; }
     // équipage sonné par un coup : le chargement s'interrompt
     if (t.stunT > 0) t.stunT -= dt;
-    else if (t.reloadT > 0) { t.reloadT -= dt / reloadMul(t); if (t.reloadT <= 0 && t === player) Sfx.reload(); }
+    else if (t.reloadT > 0) {
+      const r0 = t.reloadT;
+      t.reloadT -= dt / reloadMul(t);
+      // étapes sonores du chargement : râtelier, refouloir, culasse
+      if (t === player) Sfx.loading(1 - r0 / t.reloadMax, 1 - t.reloadT / t.reloadMax);
+    }
     t.recoil = Math.max(0, t.recoil - dt * 3);
     t.fireAge += dt;
     // Pointage en hauteur, relatif à la caisse (aucun char de l'époque n'était stabilisé) : le tireur
@@ -2131,7 +2139,7 @@ Meta.whenReady(() => {
     if (t === player) { waveStats.shots++; shake = Math.max(shake, 5); }
     parts.push({ k: 'flash', x: mx, y: my, life: 0.08, max: 0.08, size: 20 + T.caliber / 4, z: T.S.gun.z });
     Fx.muzzle(t, mx, my); muzzleVeil(t, mx, my);
-    Sfx.fire(listenerDist(mx, my), T.caliber >= 85);
+    Sfx.fire(listenerDist(mx, my), T.caliber >= 85, t === player);
   }
 
   // ===================== Mitrailleuses =====================
@@ -2436,7 +2444,7 @@ Meta.whenReady(() => {
         const rx = player.x - s.x, ry = player.y - s.y, l2 = dx * dx + dy * dy || 1;
         const k = clamp((rx * dx + ry * dy) / l2, 0, 1);
         if (Math.hypot(s.x + dx * k - player.x, s.y + dy * k - player.y) < 75) {
-          s.whiz = true; Sfx.whiz();
+          s.whiz = true; Sfx.whiz(listenerDist(s.x + dx * k, s.y + dy * k), s.V > 343);
           // obus allié passé tout près : le joueur le signale à la radio
           if (s.by.team === player.team && gameTime - ffMsgT > 5) { ffMsgT = gameTime; addLog(`You: check fire, ${s.by.name}!`, '#ffcf7a'); }
         }
@@ -3529,7 +3537,13 @@ Meta.whenReady(() => {
   };
 
   // ===================== Effets =====================
-  function listenerDist(x, y) { return Math.hypot(x - camX, y - camY) * 0.8; }
+  // Place d'un son pour Sfx : distance en mètres balistiques et panoramique (−1 gauche, 1 droite) selon
+  // l'axe droit de la caméra (vue 3D ou lunette), atténué tout près pour ne pas sauter d'une oreille à l'autre
+  function listenerDist(x, y) {
+    const dx = x - camX, dy = y - camY, l = Math.hypot(dx, dy), v = W3D && cam3.view;
+    const rx = v ? v[0] : 1, ry = v ? -v[4] : 0, rl = Math.hypot(rx, ry) || 1;
+    return { d: l * RK, pan: l < 1 ? 0 : (dx * rx + dy * ry) / (l * rl) * Math.min(1, l / 60) * 0.85 };
+  }
   function addSmoke(x, y, size, color, life, vx = 0, vy = 0) {
     if (parts.length > 1800) return;
     parts.push({ k: 'smoke', x, y, vx: vx + rnd(-8, 8), vy: vy + rnd(-8, 8) - 6, life, max: life, size, color, grow: 10 });
@@ -3581,7 +3595,7 @@ Meta.whenReady(() => {
     gctx.fillStyle = g;
     gctx.beginPath(); gctx.arc(x, y, r, 0, TAU); gctx.fill();
   }
-  function missionToast() { toast('🎖 Mission complete! Claim your reward in “Missions”'); Sfx.reload(); }
+  function missionToast() { toast('🎖 Mission complete! Claim your reward in “Missions”'); Sfx.notify(); }
   // Bandeaux des coups critiques infligés par le joueur (4 au plus, 2,5 s chacun), son selon la catégorie
   const RIB = [[/detonat|cook|rack|round/i, 'ammo', '✹', '#ff6a3a'], [/fire/i, 'fire', '🔥', '#ff9a3a'], [/track|drive|wheel/i, 'track', '⛓', '#ffcf7a'],
     [/engine|transmission|fuel/i, 'engine', '⚙', '#ffcf7a'], [/breech|barrel|ring|elevation/i, 'gun', '⌖', '#ffcf7a'], [/radio set/i, 'radio', '⌁', '#bcd8ff'],
@@ -3601,7 +3615,7 @@ Meta.whenReady(() => {
   }
   function floatText(x, y, text, color, scale = 1) { texts.push({ x, y, text, color, life: 1.4, max: 1.4, scale }); }
   function showMsg(text, color, life = 2) { msg = { text, color, life, max: life }; }
-  function addLog(text, color) { logs.unshift({ text, color, life: 6 }); if (logs.length > 6) logs.pop(); }
+  function addLog(text, color) { logs.unshift({ text, color, life: 6 }); if (logs.length > 6) logs.pop(); if (inBattle()) Sfx.intercom(); }
 
   function startHitCam(ev) {
     if (!ev.after) ev.after = ev.before.slice();
@@ -3701,11 +3715,11 @@ Meta.whenReady(() => {
         navT = 0;
       }
       const e = tanks.some(t => t.team === 1 && !t.dead);
-      if (player.dead && !revivePending()) { state = 'ending'; endT = 3.5; waveResult = 'lose'; showMsg('TANK DESTROYED', '#ff7a5c', 3); }
+      if (player.dead && !revivePending()) { state = 'ending'; endT = 3.5; waveResult = 'lose'; showMsg('TANK DESTROYED', '#ff7a5c', 3); Sfx.sting('lose'); }
       else if (!e) {
         if (nextWaveT <= 0) {
           nextWaveT = 8; resupply(player);
-          showMsg(`WAVE ${survWave} REPELLED · resupply`, '#b8e07a', 3);
+          showMsg(`WAVE ${survWave} REPELLED · resupply`, '#b8e07a', 3); Sfx.sting('win');
           addLog('Resupply: ammunition topped up, modules repaired', '#b8e07a');
         } else if ((nextWaveT -= dt) <= 0) {
           survWave++;
@@ -3725,7 +3739,7 @@ Meta.whenReady(() => {
         if (!i) addLog(`Radio: enemy reinforcements to the ${r.y < WH / 2 ? 'north' : 'south'}-east`, '#ff9a7a');
       }
       const a = tanks.some(t => t.team === 0 && !t.dead) || revivePending(), e = reinf.length || tanks.some(t => t.team === 1 && !t.dead);
-      if (!a || !e) { state = 'ending'; endT = 3.5; waveResult = a ? 'win' : 'lose'; showMsg(a ? 'WAVE WON' : 'WAVE LOST', a ? '#b8e07a' : '#ff7a5c', 3); }
+      if (!a || !e) { state = 'ending'; endT = 3.5; waveResult = a ? 'win' : 'lose'; showMsg(a ? 'WAVE WON' : 'WAVE LOST', a ? '#b8e07a' : '#ff7a5c', 3); Sfx.sting(a ? 'win' : 'lose'); }
     } else if (state === 'ending') {
       endT -= dt;
       if (endT <= 0 && !HitCam.active()) showResult();
@@ -3791,10 +3805,32 @@ Meta.whenReady(() => {
     if (groundCv && state !== 'menu' && (inBattle() || redraw)) { render(inBattle() ? dt : 0); redraw = false; }
     const live = player && !player.dead && inBattle();
     // moteur au régime réel et selon sa charge ; chenilles à leur vitesse moyenne, pivot compris
-    Sfx.engine(live ? player.rpm : -1, live ? player.load : 0);
-    Sfx.tracks(live ? Math.abs(player.speed) / PX + Math.abs(player.turnRate) * player.T.D.B / 2 : -1);
+    Sfx.engine(live ? player.rpm : -1, live ? player.load : 0, live ? player.gear : 0);
+    Sfx.tracks(live ? Math.abs(player.speed) / PX + Math.abs(player.turnRate) * player.T.D.B / 2 : -1, live ? groundAt(player.x, player.y).type.id : '');
     // moteur de tourelle, ou pompe hydraulique qui chante avec le régime
     Sfx.turret(live ? Math.abs(player.turretRate) / player.T.tturn : 0, live && player.T.D.trav.kind === 'hyd' && modOk(player, 'engine') ? player.rpm : undefined);
+    battleSound(dt, live);
+  }
+  // Ambiance de bataille : vue intérieure dans la lunette, moteurs des trois chars les plus proches qui
+  // roulent (à moins de 500 m, vus ou non) et intensité de la musique : ennemis repérés, obus qui arrivent
+  // sur le joueur, feu subi, équipage décimé
+  let sndT = 0;
+  function battleSound(dt, live) {
+    Sfx.setInterior(live && sight.on);
+    if ((sndT -= dt) > 0) return;
+    sndT = 0.25;
+    const near = [];
+    let n = 0;
+    if (inBattle()) for (const t of tanks) {
+      if (t === player || t.dead) continue;
+      if (live && t.team !== player.team && (player.knows || spotted[0]).has(t)) n++;
+      if (Math.abs(t.speed) < 0.5 * PX) continue;
+      const p = listenerDist(t.x, t.y);
+      if (p.d < 500) near.push({ id: t.id, type: t.T.id, d: p.d, pan: p.pan, rpm: t.rpmA, k: Math.min(1, Math.abs(t.speed) / t.T.speed) });
+    }
+    Sfx.others(near.sort((a, b) => a.d - b.d).slice(0, 3));
+    const I = live ? Math.max(n / 3, shells.some(s => s.warned) ? 0.8 : 0, player.underFire > 0 ? 0.7 : 0, crewFrac(player) < 0.6 ? 0.6 : 0) : 0;
+    Sfx.setIntensity(I, HitCam.active());
   }
 
   // ===================== Rendu =====================
@@ -5520,7 +5556,7 @@ Meta.whenReady(() => {
       b.className = 'btn small' + (done && !m.claimed ? '' : ' alt');
       b.textContent = m.claimed ? 'Claimed' : done ? 'Claim' : 'In progress';
       b.disabled = !done || m.claimed;
-      b.onclick = () => { const c = Meta.claim(m.id); if (c) { toast(`Mission complete: +✪ ${fmt(c)}`); Sfx.reload(); buildMenu(); } };
+      b.onclick = () => { const c = Meta.claim(m.id); if (c) { toast(`Mission complete: +✪ ${fmt(c)}`); Sfx.notify(); buildMenu(); } };
       d.appendChild(b);
       ml.appendChild(d);
     }
@@ -5592,7 +5628,7 @@ Meta.whenReady(() => {
         buildMenu();
         if (state !== 'menu') return; // parti au combat pendant le tirage : pas de fête par-dessus la bataille
         if (won) celebrateSkin(won, 'Wheel prize');
-        else { toast(`🎁 ${txt}`); Sfx.reload(); if (Meta.WHEEL[idx].c >= 2500) Meta.sdk.happytime(); }
+        else { toast(`🎁 ${txt}`); Sfx.notify(); if (Meta.WHEEL[idx].c >= 2500) Meta.sdk.happytime(); }
       }
     };
     requestAnimationFrame(anim);
@@ -5605,12 +5641,12 @@ Meta.whenReady(() => {
   });
   $('spinFree').onclick = () => { if (Meta.canSpinFree()) spinWheel(true); };
   $('spinAd').onclick = () => Meta.rewarded(() => spinWheel(false), () => toast('Ad unavailable right now'));
-  // Musique du menu : aucune piste n'est livrée. Ces deux crochets décident seuls quand elle joue
-  // (menu, volume non nul, son non coupé, onglet visible) ; une musique de audio.js s'y branche en
-  // définissant Sfx.playMusic(volume) et Sfx.stopMusic().
+  // Musique synthétisée de audio.js (thème du menu, couches de bataille). Ces deux crochets décident seuls
+  // quand elle joue : volume non nul, son non coupé, onglet visible, et pas pendant la publicité de sortie
   function playMusic() {
     if (!Sfx.playMusic) return;
-    if (state === 'menu' && Meta.P.opts.music > 0 && !Sfx.silenced && !document.hidden) Sfx.playMusic(Meta.P.opts.music);
+    const m = state === 'menu' ? 'menu' : state === 'leaving' ? '' : 'battle';
+    if (m && Meta.P.opts.music > 0 && !Sfx.silenced && !document.hidden) Sfx.playMusic(Meta.P.opts.music, m);
     else stopMusic();
   }
   function stopMusic() { if (Sfx.stopMusic) Sfx.stopMusic(); }
@@ -5720,7 +5756,7 @@ Meta.whenReady(() => {
     for (let i = 0; i < 20; i++) P3({ x: t.x + rnd(-12, 12), y: t.y + rnd(-12, 12), z: rnd(0.2, 2), vz: rnd(0.5, 2), size: 0.08, glow: true, life: rnd(0.4, 0.9), c: [0.6, 0.85, 1, 2] });
     showMsg('TANK REPAIRED!', '#8fd46a', 2.2);
     addLog('Field repair: crew and modules restored', '#8fd46a');
-    Sfx.reload();
+    Sfx.notify();
   }
   $('revAd').onclick = () => {
     if (reviveAd || state !== 'revive') return;
@@ -5925,7 +5961,7 @@ Meta.whenReady(() => {
     bench.sim = metalFor(sb, T, ang, pen, ef.eff, perforate);
     bench.t0 = performance.now();
     bench.pred = { sb, V, pen, eff: ef.eff, angN: ef.angN, ric, shat, perforate, T, ang, x };
-    Sfx.init(); Sfx.fire(200, sb.cal > 80);
+    Sfx.init(); Sfx.fire(100, sb.cal > 80);
   }
   function renderBench() {
     const c = $('bench');
@@ -5954,7 +5990,7 @@ Meta.whenReady(() => {
 
   $('startBtn').onclick = () => {
     if (!Meta.P.tanks.includes(chosenType) || touchOnly()) return;
-    Sfx.init(); stopMusic(); hide('menu'); waveIdx = 0; campaignScore = 0; duelScore = [0, 0];
+    Sfx.init(); hide('menu'); waveIdx = 0; campaignScore = 0; duelScore = [0, 0];
     if (mode === 'campagne') levelIdx = Math.min(levelIdx, unlockedIdx());
     startLevel();
   };
@@ -6114,7 +6150,8 @@ Meta.whenReady(() => {
   }
   const bootT = setTimeout(() => { console.warn('Profile loading timed out'); boot(0); }, 12000);
   Meta.init({ dev: DEV_RUN }).then(b => { clearTimeout(bootT); boot(b); }, e => { console.error(e); clearTimeout(bootT); boot(0); });
-  addEventListener('pointerdown', () => { if (state === 'menu') playMusic(); }, { once: false });
+  // premier geste dans le menu : le contexte audio naît (règle des navigateurs) et le thème démarre
+  addEventListener('pointerdown', () => { if (state === 'menu') { Sfx.init(); playMusic(); } }, { once: false });
   if (Q.has('debug')) {
     window.__fa = {
       get tanks() { return tanks; }, get state() { return state; }, get stats() { return waveStats; }, get shells() { return shells; },
