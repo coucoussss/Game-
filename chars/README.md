@@ -20,6 +20,8 @@ Le fichier `chars/steel-front.html` contient tout le jeu en un seul fichier, à 
 |---|---|
 | Z / S (AZERTY), W / S (QWERTY) ou ↑ / ↓ | Avancer / reculer |
 | Q / D (AZERTY), A / D (QWERTY) ou ← / → | Faire pivoter la caisse |
+| X | Freiner (lâcher l'avance laisse rouler en roue libre) |
+| T | Extincteur à main (une fois par char) |
 | Souris | Viser (la tourelle tourne à sa propre vitesse) |
 | Clic gauche / Espace | Tirer |
 | 1 à 5 | Obus AP, APHE, APCR, HEAT, HE (changer d'obus impose de recharger) |
@@ -155,26 +157,48 @@ Deux munitions s'ajoutent (touches `6` et `7`) :
   encaisse les bosses.
 - **Recul et coups reçus** : impulsion = quantité de mouvement × bras de levier / inertie de la caisse
   (masse réelle du char).
-- **Canon** : séparé de la tourelle et monté sur ses tourillons. Il prend l'élévation qui amène l'obus
-  sur le point visé, chute comprise, à 8,6°/s ; c'est cette élévation réelle qui fixe le départ de
-  l'obus. Il recule d'une longueur réaliste (0,3 à 0,6 m selon le calibre) en 0,05 s, puis revient
+- **Canon** : séparé de la tourelle et monté sur ses tourillons. Le tireur règle au volant (4 à 5°/s,
+  rien s'il est hors de combat) l'élévation relative à la caisse qui amène l'obus sur le point visé,
+  chute comprise, dans le débattement réel de chaque char (StuG −6°/+20°, Tiger −8°/+15°…). Aucun char
+  n'est stabilisé : le tangage et le roulis de la caisse partent avec l'obus. Il recule d'une longueur réaliste (0,3 à 0,6 m selon le calibre) en 0,05 s, puis revient
   en batterie.
 
 ## Conduite et physique des chars
 
-- **Puissance et terrain** : effort moteur = puissance utile (rendement de transmission 0,6) / vitesse,
-  limité par l'adhérence (0,5 g), contre la résistance au roulement du sol (herbe 0,06, gravats 0,07,
-  sable 0,08, boue 0,085, neige 0,09). La vitesse de pointe dépend donc du terrain et du rapport
-  poids / puissance : sur herbe, environ 43 km/h pour la Panthère et 28 km/h pour le Tigre royal ;
-  dans la boue de l'Ardenne, 30 et 20 km/h. Freinage des chenilles : 0,6 g.
-- **Virages** : les chenilles ripent ; plus le sol colle, plus le pivot est lent.
-- **Chenille cassée** : le char ne peut plus que pivoter autour d'elle, entraîné par la chenille
-  intacte. Les roues du côté cassé s'arrêtent.
-- **Collisions** : les masses réelles comptent, le plus lourd pousse le plus léger. Le choc échange
-  la quantité de mouvement (restitution 0,1) et fait basculer les caisses. Au-delà de 4 m/s, le plus
-  léger peut déchausser une chenille.
-- **Obstacles** : un arbre se couche si la quantité de mouvement dépasse 30 t·m/s (un Tigre royal au
-  pas, un Lynx lancé) ; un muret cède au-delà de 140 t·m/s.
+Toute la mécanique de conduite est dans `vehicle.js` (données par char, sols, boîte, direction,
+boîtes orientées) ; `node tools/check-vehicle.js` vérifie vitesses, freinages et pivots.
+
+- **Moteur et boîte** : chaque char a ses rapports historiques (Panther 7+1, Tiger 8+4 Olvar, Pz IV
+  6+1…), son régime régulé (Maybach HL 230 régulé à 2500 tr/min) et une boîte automatique : départ
+  sur un rapport court, passages avec rupture de couple (0,8 s synchronisée, 0,45 s Olvar), marche
+  arrière engagée à l'arrêt. Effort = puissance (rendement 0,6) / vitesse, limité par l'adhérence du
+  sol. Le kit moteur retire le régulateur : la Panther passe de 46 à 55 km/h.
+- **Forces** : roulement selon le sol et la pression au sol, frein moteur, freins (0,47 g sur route,
+  0,19 g sur la neige), puissance absorbée par le braquage. Lâcher l'avance laisse rouler 50 à 80 m.
+  Marches arrière d'époque : 4 km/h pour la Panther, 5 pour le Pz IV, 7 à 8 pour les Tiger.
+- **Sols** : routes et pistes, herbe sèche, sous-bois boueux et flaques de boue, sable, neige et neige
+  tassée, gravats des maisons détruites, cratères, troncs couchés. Chaque chenille lit son sol : une
+  chenille dans la boue tire la caisse. Panther : 46 km/h sur route, 25 sur l'herbe, 13 dans la boue.
+- **Direction** : embrayages et freins pour le Luchs, le Pz IV et le StuG (pas de pivot sur place, le
+  char tourne autour d'une chenille freinée) ; différentielle à un rayon par rapport pour la Panther,
+  les Tiger et le Jagdpanther, qui pivotent au point mort à 15-25°/s. Inertie en lacet, adhérence
+  latérale limitée : au-delà, la caisse dérape.
+- **Tourelles** : vitesses réelles. Hydraulique entraînée par le moteur (Tiger : 2°/s au ralenti,
+  6,5°/s quand le pilote fait monter le régime ; manivelle si le moteur est arrêté), électrique pour le
+  Pz IV (14°/s), manivelle pour le Luchs et les casemates.
+- **Chenille cassée** : le char ne peut plus que pivoter lentement autour d'elle, entraîné par la
+  chenille intacte. Les roues du côté cassé s'arrêtent.
+- **Collisions** : boîtes orientées. Le premier contact échange une impulsion (restitution 0,1) en
+  avance, glissement et lacet, fait basculer les caisses et, selon l'énergie, abîme la suspension, les
+  chenilles, fausse le tube du plus léger. En poussée prolongée, l'effort de traction affronte la
+  résistance de l'autre : un Tigre royal pousse un Luchs de côté, l'inverse est impossible. Les
+  épaves ne bougent que sous un char lourd.
+- **Obstacles** : un arbre tombe au-delà de 25 kJ (ou 40 kN de poussée) × taille², un muret absorbe
+  son énergie avant de céder ou se renverse sous la poussée, un char de 40 t enfonce une grange à
+  2 m/s ; rochers et immeubles tiennent. Au-delà de 4 m/s, l'équipage est secoué.
+- **Dégâts de mobilité** : puissance selon l'état du moteur, avec des ratés ; boîte qui perd son
+  dernier rapport puis se bloque ; réservoirs percés qui fuient puis arrêtent le moteur ; incendies
+  de gravité variable, extincteur automatique du compartiment moteur sur les Tiger et la Panther.
 - **Roues porteuses** : chacune tourne selon le chemin de sa chenille (v ± ω·W/2) et débat sur les
   bosses.
 - **Râtelier** : les premiers obus (6 à 10 selon le char) sont dans la tourelle. Ensuite le chargeur
@@ -223,8 +247,9 @@ canon, avec la dispersion et le rechargement. La molette change le grossissement
   fiche dans le sol.
 - **Indicateur** : char visé, plaque, épaisseur et inclinaison, blindage effectif, pénétration à cette
   distance, et verdict (perce, incertain, ne perce pas, ricochet probable, allié).
-- **Sans stabilisateur**, comme tous les chars de l'époque : l'image tremble quand le char roule ou
-  pivote, et saute au départ du coup.
+- **Sans stabilisateur**, comme tous les chars de l'époque : la lunette suit le tube, donc le tangage et
+  le roulis de la caisse ; elle saute au départ du coup. Pour tirer juste, on marque un arrêt court
+  (environ 1 s) le temps que la suspension se calme ; l'IA fait de même.
 
 ## Publication sur CrazyGames
 

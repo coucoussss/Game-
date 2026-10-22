@@ -62,6 +62,14 @@ Meta.whenReady(() => {
   }
 
   // ===================== Données =====================
+  // Deux échelles, choix assumé : les unifier imposerait de redessiner la carte, les obstacles, la caméra,
+  // le brouillard et l'IA, pour un gain de réalisme qui ne compense pas le risque.
+  // - PX : conduite et 3D. Chars, obstacles, vitesses (km/h affichés), collisions, sols et vue 3D sont en
+  //   vrais mètres de 7 px : le terrain praticable fait 371 × 243 m.
+  // - RK : balistique. Portées, chute, temps de vol, pénétration et toutes les distances affichées
+  //   (lunette, marqueurs, caméra d'impact) comptent 0,5 m par px : le champ de tir fait 1300 × 850 m.
+  // Toute distance montrée au joueur est donc en mètres balistiques (px × RK), toute vitesse en km/h de
+  // conduite (px/s ÷ PX × 3,6) ; les hauteurs (z) sont en vrais mètres partout.
   const PX = 7;    // pixels de jeu par mètre (taille des chars)
   const RK = 0.5;  // mètres de balistique par pixel (distances de tir)
   const G = 9.81;  // pesanteur (m/s²)
