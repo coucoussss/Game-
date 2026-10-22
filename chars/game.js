@@ -229,8 +229,8 @@ Meta.whenReady(() => {
   // (mobile par exemple) s'ajoute simplement ici et dans la liste du menu Options.
   const QUALITY = {
     basse: { dpr: 1, pcap: 900, leaf: 0.35, r3: { kr: 2, nl: 3, sms: 2048, smd: 1024, lod: 0.6, gt: [2048, 1024], aniso: 2, wx: 500, bloom: 0 } },
-    moyenne: { dpr: 1.25, pcap: 1700, leaf: 0.6, r3: { kr: 3, nl: 5, sms: 2048, smd: 2048, lod: 0.8, gt: [4096, 2048], aniso: 4, wx: 1200 } },
-    haute: { dpr: 2, pcap: 2600, leaf: 1, r3: { kr: 4, nl: 8, sms: 4096, smd: 2048, lod: 1, gt: [4096, 2048], aniso: 8, wx: 2500 } },
+    moyenne: { dpr: 1.25, pcap: 1700, leaf: 0.6, r3: { kr: 2, nl: 5, sms: 2048, smd: 2048, lod: 0.8, gt: [4096, 2048], aniso: 4, wx: 1200 } },
+    haute: { dpr: 2, pcap: 2600, leaf: 1, r3: { kr: 3, nl: 8, sms: 4096, smd: 2048, lod: 1, gt: [4096, 2048], aniso: 8, wx: 2500 } },
   };
   const QL = () => QUALITY[Meta.P.opts.quality] || QUALITY.haute;
   let QDPR = 2, PCAP = 2600; // qualité graphique : résolution maximale et nombre de particules

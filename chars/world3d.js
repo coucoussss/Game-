@@ -351,7 +351,7 @@ void main(){
   // Réglages du rendu selon la qualité : noyau de filtrage des ombres (KR texels par axe), lumières
   // dynamiques, cartes d'ombre statique (toute la carte, calculée une fois) et dynamique (chars, à
   // chaque image), échelle des distances de détail. Les niveaux eux-mêmes sont choisis par le jeu.
-  const QDEF = { kr: 4, nl: 8, sms: 4096, smd: 2048, lod: 1, gt: [4096, 2048], aniso: 8, wx: 2500, bloom: 1 };
+  const QDEF = { kr: 3, nl: 8, sms: 4096, smd: 2048, lod: 1, gt: [4096, 2048], aniso: 8, wx: 2500, bloom: 1 };
   // Météo : un volume de particules qui suit la caméra (enroulé autour d'un point entre l'œil et la
   // zone regardée), entièrement animé sur le GPU, un seul appel de dessin. Pluie et sable en traits
   // orientés selon leur vitesse, neige et cendres en flocons qui se balancent.
