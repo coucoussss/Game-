@@ -60,7 +60,13 @@ float fogAt(vec3 W, vec3 rd, float dist){
   return clamp(1.0 - exp(-fh - pow(dist * uFogD, 2.0)), 0.0, 1.0);
 }
 vec3 fogCol(vec3 rd){ float sa = pow(max(dot(rd, normalize(uSun)), 0.0), 8.0); return mix(uFogCol, uSunCol * 0.55, sa * 0.6); }
-vec3 tm(vec3 c){ c = (c * (2.51 * c + 0.03)) / (c * (2.43 * c + 0.59) + 0.14); return pow(clamp(c, 0.0, 1.0), vec3(1.0 / 2.2)); }
+// tonalité (ACES) puis étalonnage propre à chaque bataille : gain par canal, relèvement des noirs, saturation
+uniform vec3 uGain; uniform float uLift; uniform float uSat;
+vec3 tm(vec3 c){
+  c = clamp((c * (2.51 * c + 0.03)) / (c * (2.43 * c + 0.59) + 0.14), 0.0, 1.0) * uGain + uLift;
+  c = mix(vec3(dot(c, vec3(0.299, 0.587, 0.114))), c, uSat);
+  return pow(clamp(c, 0.0, 1.0), vec3(1.0 / 2.2));
+}
 `;
   const FS = `
 precision highp float;
@@ -345,7 +351,7 @@ void main(){
   // Réglages du rendu selon la qualité : noyau de filtrage des ombres (KR texels par axe), lumières
   // dynamiques, cartes d'ombre statique (toute la carte, calculée une fois) et dynamique (chars, à
   // chaque image), échelle des distances de détail. Les niveaux eux-mêmes sont choisis par le jeu.
-  const QDEF = { kr: 4, nl: 8, sms: 4096, smd: 2048, lod: 1, gt: [4096, 2048], aniso: 8, wx: 2500 };
+  const QDEF = { kr: 4, nl: 8, sms: 4096, smd: 2048, lod: 1, gt: [4096, 2048], aniso: 8, wx: 2500, bloom: 1 };
   // Météo : un volume de particules qui suit la caméra (enroulé autour d'un point entre l'œil et la
   // zone regardée), entièrement animé sur le GPU, un seul appel de dessin. Pluie et sable en traits
   // orientés selon leur vitesse, neige et cendres en flocons qui se balancent.
@@ -374,6 +380,27 @@ void main(){
   float a = uStreak > 0.5 ? (1.0 - abs(vQ.x)) * smoothstep(1.0, 0.5, abs(vQ.y)) : smoothstep(1.0, 0.35, length(vQ));
   gl_FragColor = vec4(uCol.rgb, uCol.a * a * vA);
 }`;
+  // Halo des lueurs : les particules lumineuses sont redessinées dans une petite cible (quart de la
+  // résolution), floutées sur deux échelles puis ajoutées à l'image. La même passe assombrit les
+  // bords (vignettage) et rougit le pourtour quand le joueur est touché.
+  const QVS = `attribute vec2 aQ; varying vec2 vUV; void main(){ vUV = aQ * 0.5 + 0.5; gl_Position = vec4(aQ, 0.0, 1.0); }`;
+  const BLUR = `
+precision mediump float;
+varying vec2 vUV; uniform sampler2D uT; uniform vec2 uD;
+void main(){
+  vec4 c = texture2D(uT, vUV) * 0.227;
+  c += (texture2D(uT, vUV + uD * 1.385) + texture2D(uT, vUV - uD * 1.385)) * 0.316;
+  c += (texture2D(uT, vUV + uD * 3.231) + texture2D(uT, vUV - uD * 3.231)) * 0.07;
+  gl_FragColor = c;
+}`;
+  const COMP = `
+precision mediump float;
+varying vec2 vUV; uniform sampler2D uA; uniform sampler2D uB; uniform float uK; uniform float uVig; uniform float uHit;
+void main(){
+  float r = length(vUV - 0.5) * 1.4, e = smoothstep(0.45, 0.8, r);
+  vec3 b = (texture2D(uA, vUV).rgb * 0.35 + texture2D(uB, vUV).rgb * 0.5) * uK + vec3(0.55, 0.03, 0.0) * uHit * e;
+  gl_FragColor = vec4(b, (1.0 - uVig * smoothstep(0.35, 0.9, r)) * (1.0 - 0.5 * uHit * e));
+}`;
   function create(canvas, opt = {}) {
     const gl = canvas.getContext('webgl', { antialias: opt.msaa !== false, alpha: false, preserveDrawingBuffer: false });
     if (!gl) return null;
@@ -393,7 +420,7 @@ void main(){
     };
     // Ressources du GPU, toutes recréées après une perte du contexte WebGL (pilote réinitialisé,
     // mémoire saturée, changement d'application sur mobile)
-    let main, shadow, part, wprog, shS = null, shD = null, gTex, sky, pBuf, wBuf, lost = false;
+    let main, shadow, part, wprog, blur, comp, qBuf, bt = [], shS = null, shD = null, gTex, sky, pBuf, wBuf, lost = false;
     const mkBuf = data => {
       const buf = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, buf);
@@ -446,7 +473,7 @@ void main(){
       shS = depthOK && mkTarget(Q.sms);
       if (!shS) { depthOK = false; Q.sms = Math.min(Q.sms, 2048); shS = mkTarget(Q.sms); }
       shD = mkTarget(Q.smd);
-      main = compile(VS, FS); shadow = compile(SVS, SFS); part = compile(PVS, PFS); wprog = compile(WVS, WFS);
+      main = compile(VS, FS); shadow = compile(SVS, SFS); part = compile(PVS, PFS); wprog = compile(WVS, WFS); blur = compile(QVS, BLUR); comp = compile(QVS, COMP);
       bakeAll = true;
     }
     function initGL() {
@@ -458,6 +485,64 @@ void main(){
       sky = { buf: mkBuf(skyData), count: skyData.length / 20 };
       pBuf = gl.createBuffer();
       wBuf = mkBuf(wData);
+      qBuf = mkBuf(new Float32Array([-1, -1, 3, -1, -1, 3]));
+      bt = [];
+    }
+    // cibles du halo : deux au quart de la résolution, deux au huitième (aller-retour du flou)
+    function bloomTargets(w, h) {
+      const W = [w >> 2, w >> 2, w >> 3, w >> 3].map(v => Math.max(1, v)), H = [h >> 2, h >> 2, h >> 3, h >> 3].map(v => Math.max(1, v));
+      if (bt.length && bt[0].w === W[0] && bt[0].h === H[0]) return;
+      for (const t of bt) { gl.deleteTexture(t.tex); gl.deleteFramebuffer(t.fb); }
+      bt = W.map((ww, i) => {
+        const t = { w: ww, h: H[i], tex: gl.createTexture(), fb: gl.createFramebuffer() };
+        gl.bindTexture(gl.TEXTURE_2D, t.tex);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, t.w, t.h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+        texP(gl.LINEAR);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, t.fb);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t.tex, 0);
+        gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+        return t;
+      });
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    }
+    const quad = (P, dst) => {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, dst ? dst.fb : null);
+      gl.bindBuffer(gl.ARRAY_BUFFER, qBuf);
+      gl.enableVertexAttribArray(P.A.aQ); gl.vertexAttribPointer(P.A.aQ, 2, gl.FLOAT, false, 8, 0);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+    };
+    function blurPass(src, dst, dx, dy) {
+      gl.viewport(0, 0, dst.w, dst.h);
+      gl.useProgram(blur.p);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, src.tex); gl.uniform1i(blur.U.uT, 0);
+      gl.uniform2f(blur.U.uD, dx / src.w, dy / src.h);
+      quad(blur, dst);
+    }
+    // nGlow : quads lumineux encore dans le tampon des particules (dernier dessin de drawParticles)
+    function bloom(scene, w, h, nGlow) {
+      bloomTargets(w, h);
+      const on = Q.bloom && nGlow > 0;
+      gl.disable(gl.DEPTH_TEST);
+      if (on) {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, bt[0].fb);
+        gl.viewport(0, 0, bt[0].w, bt[0].h);
+        gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+        gl.useProgram(part.p);
+        gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);
+        gl.drawArrays(gl.TRIANGLES, 0, nGlow * 6);
+        gl.disable(gl.BLEND);
+        blurPass(bt[0], bt[1], 1, 0); blurPass(bt[1], bt[0], 0, 1);
+        blurPass(bt[0], bt[2], 1, 0); blurPass(bt[2], bt[3], 0, 1); blurPass(bt[3], bt[2], 1, 0); blurPass(bt[2], bt[3], 0, 1);
+      }
+      gl.viewport(0, 0, w, h);
+      gl.useProgram(comp.p);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, bt[0].tex); gl.uniform1i(comp.U.uA, 0);
+      gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, bt[3].tex); gl.uniform1i(comp.U.uB, 1);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.uniform1f(comp.U.uK, on ? 1 : 0); gl.uniform1f(comp.U.uVig, scene.vig || 0); gl.uniform1f(comp.U.uHit, scene.hit || 0);
+      gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.SRC_ALPHA);
+      quad(comp, null);
+      gl.disable(gl.BLEND); gl.enable(gl.DEPTH_TEST);
     }
     // volume de météo : positions aléatoires dans la boîte, coins des quads et graine par flocon
     const WMAX = 2500, WBOX = [50, 50, 30], wData = new Float32Array(WMAX * 36);
@@ -518,6 +603,8 @@ void main(){
     let env = null;
 
     function setEnv(e) { env = e; slvp = null; }
+    // étalonnage : env.grade = { gain: [r, g, b], lift, sat }
+    function grade(U) { const g = env.grade || {}; gl.uniform3fv(U.uGain, g.gain || [1, 1, 1]); gl.uniform1f(U.uLift, g.lift || 0); gl.uniform1f(U.uSat, g.sat == null ? 1 : g.sat); }
 
     // ---- décor statique par cellules ----
     // Chaque cellule : boîte englobante, maillages par niveau de détail (0 proche, 1 moyen, 2 lointain,
@@ -635,6 +722,7 @@ void main(){
       gl.uniform3fv(U.uSun, env.sun); gl.uniform3fv(U.uSunCol, env.sunCol); gl.uniform3fv(U.uSkyCol, env.skyCol); gl.uniform3fv(U.uBounce, env.bounce);
       gl.uniform3fv(U.uFogCol, env.fogCol); gl.uniform1f(U.uFogD, env.fogD); gl.uniform3fv(U.uZenith, env.zenith); gl.uniform3fv(U.uHorizon, env.horizon);
       gl.uniform1f(U.uSnow, env.snow || 0); gl.uniform1f(U.uTime, cam.time);
+      grade(U);
       bl.fill(0); (cam.blasts || []).slice(0, 4).forEach((b, i) => bl.set(b, i * 4));
       gl.uniform4fv(U.uBlast, bl);
       gl.uniform2f(U.uMap, mapW, mapH);
@@ -718,9 +806,13 @@ void main(){
       gl.depthMask(true);
       drawCells(cam);
       for (const it of scene.items) if (!it.cull || sphereIn(it.cull)) drawMain(it.mesh, it.model, it.o || {});
-      drawParticles(scene.parts, cam);
+      const nGlow = drawParticles(scene.parts, cam);
+      if (Q.bloom && nGlow) bloomGlow = nGlow; else bloomGlow = 0;
+      if (bloomGlow) bloom(scene, w, h, bloomGlow);
       drawWeather(cam, h);
+      if (!bloomGlow) bloom(scene, w, h, 0);
     }
+    let bloomGlow = 0;
     // env.weather : { vel, col (couleur et opacité), size (m), px (taille minimale à l'écran), len (s, traits), streak, rate (0..1) }
     function drawWeather(cam, h) {
       const W = env.weather, n = W ? Math.round(Math.min(WMAX, Q.wx) * W.rate) : 0;
@@ -742,13 +834,14 @@ void main(){
     }
 
     function drawParticles(parts, cam) {
-      if (!parts) return;
+      if (!parts) return 0;
       const P = part;
       gl.useProgram(P.p);
       gl.uniformMatrix4fv(P.U.uVP, false, cam.vp);
       gl.uniform3fv(P.U.uSunCol, env.sunCol); gl.uniform3fv(P.U.uSkyCol, env.skyCol);
       gl.uniform3fv(P.U.uFogCol, env.fogCol); gl.uniform1f(P.U.uFogD, env.fogD); gl.uniform3fv(P.U.uEye, cam.eye);
       gl.uniform3fv(P.U.uSun, env.sun); gl.uniform2fv(P.U.uFogH, env.fogH || [0, 0.1]);
+      grade(P.U);
       // les quatre lumières omnidirectionnelles les plus importantes éclairent aussi la fumée
       let n4 = 0;
       for (const l of cam.lights || []) { if (n4 >= 4) break; if (l.d) continue; plp.set([l.p[0], l.p[1], l.p[2], l.r], n4 * 4); plc.set(l.c, n4 * 3); n4++; }
@@ -785,7 +878,7 @@ void main(){
         return n;
       };
       const draw = (list, glow) => {
-        if (!list.length) return;
+        if (!list.length) return 0;
         const n = fill(list);
         gl.bindBuffer(gl.ARRAY_BUFFER, pBuf);
         gl.bufferData(gl.ARRAY_BUFFER, pData.subarray(0, n * 60), gl.DYNAMIC_DRAW);
@@ -801,11 +894,12 @@ void main(){
         gl.drawArrays(gl.TRIANGLES, 0, n * 6);
         gl.depthMask(true);
         gl.disable(gl.BLEND);
+        return n;
       };
       // fumées triées de la plus lointaine à la plus proche
       parts.soft.sort((a, b) => ((b.p[0] - e[0]) ** 2 + (b.p[1] - e[1]) ** 2 + (b.p[2] - e[2]) ** 2) - ((a.p[0] - e[0]) ** 2 + (a.p[1] - e[1]) ** 2 + (a.p[2] - e[2]) ** 2));
       draw(parts.soft, false);
-      draw(parts.glow, true);
+      return draw(parts.glow, true);
     }
 
     initGL();
