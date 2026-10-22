@@ -284,12 +284,15 @@ const MetalSim = (() => {
       st.projDamage = projBonds ? projBroken / projBonds : 0;
     }
 
-    // Avance la simulation pendant au plus « ms » millisecondes ; renvoie vrai quand c'est fini
+    // Avance la simulation pendant au plus « ms » millisecondes ; renvoie vrai quand c'est fini.
+    // L'horloge est lue à chaque pas (pas de dépassement du budget) ; les contrôles de fin restent
+    // faits tous les 10 pas depuis le début, si bien que le résultat ne dépend pas du découpage.
     function run(ms) {
       if (st.done) return true;
-      const t0 = (typeof performance !== 'undefined' ? performance : Date).now();
-      while ((typeof performance !== 'undefined' ? performance : Date).now() - t0 < ms) {
-        for (let k2 = 0; k2 < 10; k2++) step();
+      const clock = typeof performance !== 'undefined' ? performance : Date, t0 = clock.now();
+      while (clock.now() - t0 < ms) {
+        step();
+        if (st.step % 10) continue;
         if (st.t >= tMax) { finish(); return true; }
         // arrêt anticipé : obus immobilisé
         if (kind !== 'HE' && kind !== 'HEAT' && st.step > 400 && st.step % 50 === 0) {

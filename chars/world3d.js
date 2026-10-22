@@ -8,7 +8,19 @@ const World3D = (() => {
 
   const VS = `
 attribute vec3 aPos; attribute vec3 aNor; attribute vec3 aCol; attribute float aMat;
-uniform mat4 uVP; uniform mat4 uModel; uniform mat4 uLVP; uniform mat4 uLVPS; uniform float uTime; uniform vec2 uNOff;
+uniform mat4 uVP; uniform mat4 uModel; uniform mat4 uLVP; uniform mat4 uLVPS; uniform float uTime; uniform vec2 uNOff; uniform vec4 uBlast[4];
+// souffles (coup de canon, explosion, char qui traverse) : le feuillage s'écarte puis revient en oscillant
+vec3 blast(vec3 w){
+  float h = clamp(w.z, 0.0, 3.0);
+  for (int i = 0; i < 4; i++) {
+    vec4 b = uBlast[i];
+    if (b.z <= 0.0) continue;
+    vec2 dv = w.xy - b.xy; float d = length(dv), tau = max(uTime - b.w, 0.0);
+    float k = b.z * exp(-d / 6.0) * exp(-tau * 3.0) * sin(tau * 9.0);
+    w.xy += dv / max(d, 0.5) * k * h * 0.25; w.z -= k * h * 0.05;
+  }
+  return w;
+}
 varying vec3 vW; varying vec3 vN; varying vec3 vC; varying vec3 vO; varying float vM; varying vec3 vNO; varying vec4 vL; varying vec4 vLS;
 void main(){
   vNO = aNor;
@@ -21,6 +33,7 @@ void main(){
     float h = max(0.0, w.z - 0.8);
     w.x += sin(uTime * 1.3 + w.x * 0.15 + w.y * 0.11) * 0.035 * h;
     w.y += cos(uTime * 1.1 + w.y * 0.13 + w.x * 0.07) * 0.025 * h;
+    w.xyz = blast(w.xyz);
   }
   if (aMat > 13.5) {
     // feuilles : balancement de la plante et frémissement de chaque feuille
@@ -30,6 +43,7 @@ void main(){
     w.x += g * 0.04 * h + fl * 0.012;
     w.y += g * 0.025 * h + fl * 0.01;
     w.z += fl * 0.008;
+    w.xyz = blast(w.xyz);
   }
   vW = w.xyz; vO = aPos; vN = nW; vC = aCol; vM = aMat; vL = uLVP * vec4(w.xyz + nW * uNOff.x, 1.0);
   gl_Position = uVP * w;
@@ -607,7 +621,7 @@ void main(){
     }
 
     // ---- dessin ----
-    const lp = new Float32Array(32), lc = new Float32Array(24), ld = new Float32Array(32), tk = new Float32Array(40), tkh = new Float32Array(20);
+    const bl = new Float32Array(16), lp = new Float32Array(32), lc = new Float32Array(24), ld = new Float32Array(32), tk = new Float32Array(40), tkh = new Float32Array(20);
     function uniformsMain(cam, lvp, dRange, dTexel) {
       const U = main.U;
       gl.useProgram(main.p);
@@ -621,6 +635,8 @@ void main(){
       gl.uniform3fv(U.uSun, env.sun); gl.uniform3fv(U.uSunCol, env.sunCol); gl.uniform3fv(U.uSkyCol, env.skyCol); gl.uniform3fv(U.uBounce, env.bounce);
       gl.uniform3fv(U.uFogCol, env.fogCol); gl.uniform1f(U.uFogD, env.fogD); gl.uniform3fv(U.uZenith, env.zenith); gl.uniform3fv(U.uHorizon, env.horizon);
       gl.uniform1f(U.uSnow, env.snow || 0); gl.uniform1f(U.uTime, cam.time);
+      bl.fill(0); (cam.blasts || []).slice(0, 4).forEach((b, i) => bl.set(b, i * 4));
+      gl.uniform4fv(U.uBlast, bl);
       gl.uniform2f(U.uMap, mapW, mapH);
       gl.uniform2fv(U.uFogH, env.fogH || [0, 0.1]); gl.uniform3fv(U.uOuter, env.outer || [0.3, 0.3, 0.25]);
       gl.uniform1f(U.uWet, env.wet || 0); gl.uniform1f(U.uCloud, env.cloud || 0); gl.uniform2fv(U.uWind, env.wind || [1, 0]); gl.uniform1f(U.uNight, env.night || 0);

@@ -2186,6 +2186,7 @@ Meta.whenReady(() => {
     }
     if (t === player) { waveStats.shots++; shake = Math.max(shake, 5); }
     parts.push({ k: 'flash', x: mx, y: my, life: 0.08, max: 0.08, size: 20 + T.caliber / 4, z: T.S.gun.z });
+    addBlast3(mx, my, T.caliber / 60);
     Fx.muzzle(t, mx, my); muzzleVeil(t, mx, my);
     Sfx.fire(listenerDist(mx, my), T.caliber >= 85, t === player);
   }
@@ -3619,6 +3620,7 @@ Meta.whenReady(() => {
     }
   }
   function boom(x, y, k, z = 0.3) {
+    addBlast3(x, y, 1.5 * k);
     parts.push({ k: 'flash', x, y, life: 0.25 * k, max: 0.25 * k, size: 70 * k });
     Fx.blast(x, y, z, k * 0.8);
     for (let i = 0; i < 6 * k; i++) addFire(x + rnd(-10, 10) * k, y + rnd(-10, 10) * k);
@@ -3848,6 +3850,17 @@ Meta.whenReady(() => {
     for (let i = 0; i < 30; i++) { const b = rnd(0, TAU), v = rnd(3, 8); P3({ x: o.x + o.w / 2, y: o.y + o.h / 2, z: rnd(0.3, 1.5), vx: Math.cos(b) * v, vy: Math.sin(b) * v, vz: rnd(0, 0.8), drag: 0.8, wind: 0.6, size: rnd(0.8, 1.5), grow: 1.1, life: rnd(3, 5), c: [dc[0], dc[1], dc[2], 0.28] }); }
     return true;
   }
+  // souffles récents qui agitent le feuillage (rendu 3D) : [x, y, force, instant] en mètres
+  let blasts3 = [];
+  function addBlast3(x, y, k) { if (!W3D) return; blasts3.push([x / PX, -y / PX, k, gameTime]); if (blasts3.length > 12) blasts3.shift(); }
+  function blastList3() {
+    const tg = cam3.target, now = gameTime;
+    blasts3 = blasts3.filter(b => now - b[3] < 2);
+    const L4 = blasts3.filter(b => Math.hypot(b[0] - tg[0], b[1] - tg[1]) < 90);
+    // char qui roule dans un buisson : poussée continue, selon sa vitesse
+    for (const t of tanks) if (!t.dead && Math.abs(t.speed) > 0.5 * PX && inBush(t)) { const P = to3(t.x, t.y); L4.push([P[0], P[1], Math.min(1.2, Math.abs(t.speed) / t.T.speed), now - 0.17]); }
+    return L4.sort((a, b) => b[2] * Math.exp(-(now - b[3]) * 3) - a[2] * Math.exp(-(now - a[3]) * 3)).slice(0, 4);
+  }
   function fallModel(f) {
     const T = M4.trs(f.x, f.y, 0, 0), Ti = M4.trs(-f.x, -f.y, 0, 0);
     if (!f.house) return M4.mul(T, M4.mul(rotAxis(f.k[0], f.k[1], 0, f.th), Ti));
@@ -3930,8 +3943,13 @@ Meta.whenReady(() => {
       }
     }
   }
+  // Simulation du métal (caméra d'impact, banc d'essai) : elle prend le temps qui reste dans l'image
+  // (16,7 ms visées), entre 1 et 6 ms (jusqu'à max quand rien d'autre ne tourne, comme dans le menu)
+  let metalMs = 0, metalPrev = 0;
+  function metalRun(sim, ms, max) { const t0 = performance.now(); sim.run(clamp(16.7 - (ms - metalPrev) - 2, 1, max)); metalMs += performance.now() - t0; }
   function frameBody(now) {
     const ms = now - last, dt = Math.min(0.1, ms / 1000);
+    metalPrev = metalMs; metalMs = 0;
     last = now;
     if (W3D && state === 'play' && ms > 0 && ms < 1000) dynRes(Math.min(ms, 100), ms / 1000);
     if ((state === 'intro' || state === 'play' || state === 'ending') && !dbgFreeze) {
@@ -3944,9 +3962,9 @@ Meta.whenReady(() => {
       if (n >= 40) acc = 0;
       HitCam.update(dt);
       const hev = HitCam.ev();
-      if (hev && hev.metal && !hev.metal.st.done) hev.metal.run(9);
+      if (hev && hev.metal && !hev.metal.st.done) metalRun(hev.metal, ms, 6);
     }
-    if (state === 'menu' && bench.sim && !bench.sim.st.done) bench.sim.run(14);
+    if (state === 'menu' && bench.sim && !bench.sim.st.done) metalRun(bench.sim, ms, 14);
     if (state === 'menu' && R3 && !R3.lost) { viewerT += dt; renderViewer(dt); }
     if (state === 'menu') renderBench();
     // le champ de bataille n'est dessiné qu'en jeu : en pause, réparation, résultats ou pendant la
@@ -4508,7 +4526,7 @@ Meta.whenReady(() => {
     for (const t of tanks) { const P = to3(t.x, t.y), d = Math.hypot(P[0] - tg[0], P[1] - tg[1]); if (d < 90 && (t.dead || visibleToPlayer(t))) contacts.push([P[0], P[1], -t.angle, t.T.S.L / 2, t.T.S.W / 2, d]); }
     contacts.sort((a, b) => a[5] - b[5]);
     lights.sort((a, b) => Math.hypot(a.p[0] - tg[0], a.p[1] - tg[1]) / a.r - Math.hypot(b.p[0] - tg[0], b.p[1] - tg[1]) / b.r);
-    W3D.render({ cam: { eye: cam3.eye, target: cam3.target, vp: cam3.vp, view: cam3.view, fov: cam3.fov, time: gameTime, lights, contacts }, items, parts: { soft, glow }, shadowExt: sight.on ? 110 : Math.max(60, cam3.dist * 1.6) }, Math.round(W * DPR * dyn.k), Math.round(H * DPR * dyn.k));
+    W3D.render({ cam: { eye: cam3.eye, target: cam3.target, vp: cam3.vp, view: cam3.view, fov: cam3.fov, time: gameTime, lights, contacts, blasts: blastList3() }, items, parts: { soft, glow }, shadowExt: sight.on ? 110 : Math.max(60, cam3.dist * 1.6) }, Math.round(W * DPR * dyn.k), Math.round(H * DPR * dyn.k));
     // interface par-dessus
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, cv.width, cv.height);
