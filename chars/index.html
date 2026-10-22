@@ -113,6 +113,11 @@
   .cta .sum b { display: block; font-family: var(--head); font-size: clamp(30px, 4vw, 54px); font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; line-height: 1; }
   .cta .sum span { color: var(--mute); font-size: 14px; }
   #startBtn { font-size: 26px; padding: 18px 46px; letter-spacing: 0.18em; border-radius: 14px; border: 0; color: #2a1d05; background: linear-gradient(180deg, #ffe39a, #e9c46a 45%, #b8913a); box-shadow: 0 10px 40px rgba(233, 180, 80, 0.35), inset 0 -3px 0 rgba(0, 0, 0, 0.25); animation: glow 2.4s ease-in-out infinite; }
+  /* écran tactile sans souris : le jeu se joue au clavier et à la souris, on le dit au lieu de lancer */
+  #touchNote { display: none; max-width: 340px; padding: 14px 18px; border-radius: var(--r); background: var(--glass2); border: 1px solid var(--line); text-align: left; font-size: 13px; color: var(--mute); }
+  #touchNote b { display: block; font-family: var(--head); font-size: 20px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gold); margin-bottom: 4px; }
+  body.touch #touchNote { display: block; }
+  body.touch #startBtn, body.touch .kbOnly { display: none; }
   #startBtn:disabled { animation: none; background: #3a372c; color: #8a836c; box-shadow: none; }
   @keyframes glow { 50% { box-shadow: 0 10px 60px rgba(233, 180, 80, 0.6), inset 0 -3px 0 rgba(0, 0, 0, 0.25); } }
   .vbar { position: absolute; z-index: 3; right: 28px; top: 84px; display: flex; gap: 10px; align-items: center; font-size: 12px; color: var(--mute); }
@@ -195,6 +200,13 @@
   .rw.xp b { color: var(--blue); }
   .lvup { margin-top: 14px; font-family: var(--head); font-size: 20px; letter-spacing: 0.1em; color: var(--green); display: none; }
   .lvup.on { display: block; animation: pop .4s; }
+  /* emplacements de bannières CrazyGames (menu, résultats), absents hors du portail */
+  .banner { display: none; }
+  body.cg .banner { display: block; }
+  #bannerMenu { width: 300px; height: 250px; margin-top: 22px; }
+  #result { flex-direction: column; }
+  body.cg #result .box { margin: auto auto 0; }
+  #bannerRes { flex: none; width: min(728px, 100%); height: 90px; margin: 14px auto auto; }
   #revive { z-index: 30; }
   .ring { width: 120px; height: 120px; margin: 14px auto; border-radius: 50%; display: grid; place-items: center; font-family: var(--head); font-size: 44px; background: conic-gradient(var(--red) var(--p, 100%), rgba(255, 255, 255, 0.08) 0); position: relative; }
   .ring::before { content: ''; position: absolute; inset: 8px; border-radius: 50%; background: #15170f; }
@@ -299,11 +311,29 @@
   @keyframes conf { to { transform: translate3d(var(--dx), 110vh, 0) rotate(var(--rot)); } }
 
   @media (max-width: 900px) {
-    .tabs { order: 3; width: 100%; margin-left: 0; overflow-x: auto; flex-wrap: nowrap; }
-    .topbar { flex-wrap: wrap; padding: 10px 14px; }
+    /* onglets sur une ligne à part, repliés sur deux lignes plutôt que coupés (la molette ne fait pas défiler en largeur) */
+    .tabs { order: 3; width: 100%; margin-left: 0; flex-wrap: wrap; }
+    .tab { padding: 8px 11px; font-size: 13px; letter-spacing: 0.08em; }
+    .tab.on::after { left: 11px; right: 11px; }
+    .topbar { flex-wrap: wrap; padding: 10px 14px; gap: 10px; }
     .content { padding: 0 14px; }
     .cta { right: 16px; bottom: 16px; }
     .vbar { display: none; }
+  }
+  /* iframe basse (640×360, 800×450) : bouton de départ plus compact, panneau qui défile sous lui,
+     annonces en bas pour ne pas couvrir le grade et les crédits */
+  @media (max-height: 520px) {
+    .topbar { padding-top: 8px; padding-bottom: 6px; }
+    .topbar .logo .l1 { font-size: 24px; }
+    .ptitle { font-size: 26px; }
+    .psub { margin-bottom: 10px; }
+    .cta { gap: 6px; }
+    .cta .sum b { font-size: 26px; }
+    .cta .sum span { display: none; }
+    #startBtn { font-size: 18px; padding: 12px 28px; }
+    .side { padding-bottom: 104px; }
+    #toasts { top: auto; bottom: 90px; }
+    .toast { font-size: 15px; padding: 9px 18px; }
   }
 </style>
 </head>
@@ -390,8 +420,8 @@
           <canvas id="bench"></canvas>
           <div id="benchInfo"></div>
         </div>
-        <h2>Controls</h2>
-        <div class="help">
+        <h2 class="kbOnly">Controls</h2>
+        <div class="help kbOnly">
           <div><kbd>W</kbd><kbd>S</kbd> / <kbd>Z</kbd><kbd>S</kbd> / <kbd>↑</kbd><kbd>↓</kbd> forward, reverse · <kbd>A</kbd><kbd>D</kbd> / <kbd>Q</kbd><kbd>D</kbd> turn</div>
           <div>Mouse: aim in 3D, high or low on the target · click: lock the cursor</div>
           <div>Left click / <kbd>Space</kbd>: fire · <kbd>F</kbd> machine gun · <kbd>G</kbd> bullet type</div>
@@ -418,11 +448,13 @@
         <div class="opt"><span>X-ray impact camera</span><input type="checkbox" id="oHitcam"></div>
         <div class="btns" style="justify-content:flex-start"><button class="btn alt small" id="oReset">Erase progress</button></div>
       </section>
+      <div id="bannerMenu" class="banner"></div>
     </div>
   </div>
   <div class="cta">
     <div class="sum"><b id="sumTank">Panzer IV</b><span id="sumInfo"></span></div>
     <button id="startBtn">⚔ Deploy</button>
+    <div id="touchNote"><b>⌨ Keyboard &amp; mouse required</b>Steel Front is played with a keyboard and a mouse. Open it on a computer to roll out.</div>
   </div>
 </div>
 
@@ -435,6 +467,7 @@
     <div class="lvup" id="lvUp"></div>
     <div class="btns" id="resBtns"></div>
   </div>
+  <div id="bannerRes" class="banner"></div>
 </div>
 
 <div id="pause" class="screen center">

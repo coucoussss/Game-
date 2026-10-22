@@ -3461,8 +3461,9 @@ Meta.whenReady(() => {
 
     // journal des dégâts subis (en bas à gauche)
     ctx.textAlign = 'left'; ctx.font = '600 12px system-ui, sans-serif';
+    const logY = player && W / 2 - 280 * panelK() < 300 ? H - 104 * panelK() - 12 : H - 20;
     logs.forEach((l, i) => {
-      const y = H - 20 - i * 18;
+      const y = logY - i * 18;
       ctx.globalAlpha = Math.min(1, l.life);
       const w = ctx.measureText(l.text).width;
       ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(10, y - 13, w + 14, 17);
@@ -3489,10 +3490,13 @@ Meta.whenReady(() => {
       ctx.moveTo(mouse.x - 10, mouse.y); ctx.lineTo(mouse.x - 3, mouse.y); ctx.moveTo(mouse.x + 3, mouse.y); ctx.lineTo(mouse.x + 10, mouse.y);
       ctx.moveTo(mouse.x, mouse.y - 10); ctx.lineTo(mouse.x, mouse.y - 3); ctx.moveTo(mouse.x, mouse.y + 3); ctx.lineTo(mouse.x, mouse.y + 10);
       ctx.stroke();
-      // pénétration estimée à cette distance
-      ctx.font = '600 11px system-ui, sans-serif'; ctx.textAlign = 'left';
+      // pénétration estimée à cette distance ; la lecture passe au-dessus du curseur près du panneau
+      // du char, et à sa gauche près du bord droit
+      const rdUp = mouse.y + 40 > H - 100 * panelK(), rdL = mouse.x > W - 230;
+      const rdX = rdL ? mouse.x - 14 : mouse.x + 14, rdY = rdUp ? mouse.y - 32 : mouse.y + 18;
+      ctx.font = '600 11px system-ui, sans-serif'; ctx.textAlign = rdL ? 'right' : 'left';
       ctx.fillStyle = 'rgba(255,255,255,0.8)';
-      ctx.fillText(`${Math.round(d * RK)} m · ${Math.round(penAt(player.T, player.shell, d))} mm`, mouse.x + 14, mouse.y + 18);
+      ctx.fillText(`${Math.round(d * RK)} m · ${Math.round(penAt(player.T, player.shell, d))} mm`, rdX, rdY);
       // char visé : plaque, blindage effectif et verdict, comme à la lunette
       if (W3D && m.tank && !m.tank.dead) {
         player.probeT = (player.probeT || 0) - 1 / 60;
@@ -3505,7 +3509,7 @@ Meta.whenReady(() => {
         if (pr && pr.kind === 'tank' && pr.tank === m.tank && pr.plate) {
           const { col, verdict } = verdictOf(pr);
           ctx.font = '700 11px system-ui, sans-serif'; ctx.fillStyle = col;
-          ctx.fillText(`${pr.plate} · ${Math.round(pr.eff)} mm eff. · ${verdict}`, mouse.x + 14, mouse.y + 32);
+          ctx.fillText(`${pr.plate} · ${Math.round(pr.eff)} mm eff. · ${verdict}`, rdX, rdY + 14);
         }
       }
     } else if (state !== 'menu') {
@@ -3587,8 +3591,16 @@ Meta.whenReady(() => {
     c.restore();
   }
 
-  // Panneau du char : équipage, modules, obus
+  // Panneau du char : équipage, modules, obus. Réduit autour du bas de l'écran sur les petites
+  // fenêtres (iframe 640×360 du portail), où il couvrirait sinon toute la largeur.
+  const panelK = () => clamp(Math.min((W - 24) / 560, H / 560), 0.6, 1);
   function drawTankPanel() {
+    const k = panelK();
+    ctx.save(); ctx.translate(W / 2 * (1 - k), H * (1 - k)); ctx.scale(k, k);
+    drawTankPanelBody();
+    ctx.restore();
+  }
+  function drawTankPanelBody() {
     const T = player.T, pw = 560, bx = W / 2 - pw / 2, by = H - 98;
     ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(bx, by, pw, 90);
     ctx.textAlign = 'left'; ctx.font = '700 13px system-ui, sans-serif'; ctx.fillStyle = '#f0e6c8';
@@ -3816,8 +3828,18 @@ Meta.whenReady(() => {
     R3.onLost = () => $('showcase').classList.add('no3d');
     R3.onRestored = () => { $('showcase').classList.remove('no3d'); if (state === 'menu') buildMenu(); };
   }
+  // Appareil tactile sans souris ni clavier (téléphone, tablette) : aucune commande tactile en bataille,
+  // le bouton de départ laisse place à un avertissement (jeu publié pour ordinateur seulement)
+  function touchOnly() {
+    try {
+      if (matchMedia('(any-pointer: fine)').matches) return false; // souris ou pavé tactile branché
+      const d = Meta.sdk.device;
+      return d ? d !== 'desktop' : matchMedia('(pointer: coarse)').matches;
+    } catch (e) { return false; }
+  }
   function buildMenu() {
     const P = Meta.P;
+    document.body.classList.toggle('touch', touchOnly());
     const tc = $('tankCards'); tc.innerHTML = '';
     for (const T of Object.values(TYPES)) {
       const d = document.createElement('div'), own = P.tanks.includes(T.id), inf = Meta.TANKS[T.id];
@@ -4258,7 +4280,7 @@ Meta.whenReady(() => {
       if (!lastLevel) add('Next sector', () => { levelIdx++; waveIdx = 0; startLevel(); });
     }
     add('Main menu', toMenu, true);
-    show('result');
+    show('result'); Meta.banner('bannerRes');
   }
 
   // Gains de la bataille (crédits, expérience, grade), bouton « doubler » par publicité, et boutons
@@ -4325,7 +4347,7 @@ Meta.whenReady(() => {
       else add('Next round', () => spawnWave());
     }
     add('Main menu', toMenu, true);
-    show('result');
+    show('result'); Meta.banner('bannerRes');
   }
 
   function show(id) { $(id).classList.add('on'); }
@@ -4338,6 +4360,7 @@ Meta.whenReady(() => {
     Meta.sdk.gameplayStop();
     freeBattle();
     buildMenu(); show('menu'); playMusic(); newDay();
+    Meta.banner('bannerMenu');
   }
   // nouveau jour pendant la session : missions renouvelées et prime de présence annoncée
   function newDay() {
@@ -4432,7 +4455,7 @@ Meta.whenReady(() => {
   }
 
   $('startBtn').onclick = () => {
-    if (!Meta.P.tanks.includes(chosenType)) return;
+    if (!Meta.P.tanks.includes(chosenType) || touchOnly()) return;
     Sfx.init(); stopMusic(); hide('menu'); waveIdx = 0; campaignScore = 0; duelScore = [0, 0];
     if (mode === 'campagne') levelIdx = Math.min(levelIdx, unlockedIdx());
     startLevel();
@@ -4568,7 +4591,8 @@ Meta.whenReady(() => {
     } catch (e) { console.error(e); }
     hide('loading');
     Meta.sdk.loadingStop();
-    if (DEV_START) startLevel(); else show('menu');
+    document.body.classList.toggle('cg', Meta.sdk.banners);
+    if (DEV_START) startLevel(); else { show('menu'); Meta.banner('bannerMenu'); }
     if (DEV_RUN) setTimeout(() => toast('Debug run: progress is not saved'), 300);
     else if (bonus) setTimeout(() => toast(`Daily login · day ${Meta.P.streak}: +✪ ${fmt(bonus)}`), 600);
   }

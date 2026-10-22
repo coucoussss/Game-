@@ -37,11 +37,14 @@ const Meta = (() => {
   const call = (fn) => { try { if (SDK) fn(SDK); } catch (e) { console.warn(e); } };
   const sdk = {
     get env() { return env; },
+    // type d'appareil annoncé par le portail ('desktop', 'tablet', 'mobile'), ou null hors CrazyGames
+    get device() { try { return (SDK && SDK.user && SDK.user.systemInfo && SDK.user.systemInfo.device && SDK.user.systemInfo.device.type) || null; } catch (e) { return null; } },
     loadingStart: () => call(s => s.game.loadingStart()),
     loadingStop: () => call(s => s.game.loadingStop()),
-    gameplayStart() { if (adBusy) { wantPlay = true; return; } if (playing) return; playing = true; call(s => s.game.gameplayStart()); },
+    gameplayStart() { if (adBusy) { wantPlay = true; return; } if (playing) return; playing = true; clearBanners(); call(s => s.game.gameplayStart()); },
     gameplayStop() { wantPlay = false; if (!playing) return; playing = false; call(s => s.game.gameplayStop()); },
     get playing() { return playing; },
+    get banners() { return !!(SDK && SDK.banner); },
     // moments de joie : au plus un toutes les 45 s, pour ne pas en abuser
     happytime() { const n = Date.now(); if (n - lastHappy < 45000) return; lastHappy = n; call(s => s.game.happytime()); },
   };
@@ -95,6 +98,28 @@ const Meta = (() => {
   // Une publicité récompensée vue jusqu'au bout repousse aussi la prochaine publicité de mi-partie
   function rewarded(onReward, onFail) {
     requestAd('rewarded', ok => { if (ok) { lastMidgame = Date.now(); onReward(); } else if (onFail) onFail(); });
+  }
+
+  // Bannières : seulement sur le menu et l'écran de résultats, jamais en bataille (gameplayStart les
+  // retire). Un emplacement ne se recharge qu'une fois par minute : une demande trop tôt est reportée,
+  // et abandonnée si l'emplacement n'est plus affiché d'ici là.
+  const bannerAt = {}, bannerWait = {};
+  function banner(id) {
+    if (!SDK || !SDK.banner) return;
+    clearTimeout(bannerWait[id]);
+    const wait = 61000 - (Date.now() - (bannerAt[id] || -1e9));
+    if (wait > 0) { bannerWait[id] = setTimeout(() => banner(id), wait); return; }
+    const el = document.getElementById(id);
+    if (!el || !el.offsetWidth || playing || adBusy) return;
+    bannerAt[id] = Date.now();
+    try {
+      const r = SDK.banner.requestResponsiveBanner(id);
+      if (r && r.catch) r.catch(e => console.warn('Banner unavailable', e));
+    } catch (e) { console.warn('Banner unavailable', e); }
+  }
+  function clearBanners() {
+    for (const id in bannerWait) clearTimeout(bannerWait[id]);
+    call(s => { if (s.banner) s.banner.clearAllBanners(); });
   }
 
   // ===================== Contenu =====================
@@ -398,7 +423,7 @@ const Meta = (() => {
   }
 
   return {
-    sdk, midgame, rewarded, hooks, adActive: () => adBusy, get platformMute() { return platformMute; }, RANKS, RARITY, MK, TANKS, SKINS, PARTS, WHEEL, MISSIONS, STREAK, xpFor, rankName,
+    sdk, midgame, rewarded, banner, clearBanners, hooks, adActive: () => adBusy, get platformMute() { return platformMute; }, RANKS, RARITY, MK, TANKS, SKINS, PARTS, WHEEL, MISSIONS, STREAK, xpFor, rankName,
     get P() { return P; }, save, reset, parse, addXP,
     devProfile, devUse(p) { if (devMode) P = p; },
     get dev() { return devMode; }, buyTank, canBuyTank, buySkin, grantSkin, selectSkin, skinOf,
