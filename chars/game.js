@@ -703,6 +703,14 @@
     if (o.type === 'rock') return Math.min(o.w, o.h) / PX * 0.45;
     return o.type === 'tree' ? 14 : 9;
   }
+  // Blindage équivalent (mm d'acier) d'une paroi d'obstacle traversée de face : brique 0,13 mm par mm,
+  // bois 0,04 ; la roche arrête tout
+  function obsEq(o) {
+    if (o.type === 'wall') return 45;              // muret de briques de 35 cm
+    if (o.type === 'building') return 65;          // mur de maison de 50 cm (chaque paroi)
+    if (o.type === 'tree') return 16 * o.size;     // tronc d'environ 40 cm
+    return Infinity;
+  }
   function losClear(x0, y0, x1, y1, vision, blast) {
     const dx = x1 - x0, dy = y1 - y0;
     const minx = Math.min(x0, x1), maxx = Math.max(x0, x1), miny = Math.min(y0, y1), maxy = Math.max(y0, y1);
@@ -1531,6 +1539,11 @@
         const tg = s.z / Math.max(1e-6, s.z - zNext);
         if (!best || tg < best.t) best = { t: tg, ground: true };
       }
+      // fusée de culot armée par un obstacle traversé : l'APHE éclate au bout du délai, là où il est
+      if (s.fuzeAt) {
+        const tf = Math.max(0, (s.fuzeAt - s.dist * RK) / dX);
+        if (tf <= 1 && (!best || tf < best.t)) best = { t: tf, burst: true };
+      }
       if (player && !player.dead && s.by !== player && !s.whiz) {
         const rx = player.x - s.x, ry = player.y - s.y, l2 = dx * dx + dy * dy || 1;
         const k = clamp((rx * dx + ry * dy) / l2, 0, 1);
@@ -1543,7 +1556,7 @@
         const hx = s.x + dx * best.t, hy = s.y + dy * best.t;
         s.dist += s.sp * dt * best.t;
         s.x = hx; s.y = hy; s.z = Math.max(0, s.z + (zNext - s.z) * best.t);
-        const res = best.ground ? hitGround(s, hx, hy) : best.tank ? hitTank(s, best.tank, best, hx, hy) : hitObstacle(s, best.o, best, hx, hy);
+        const res = best.burst ? apheBurst(s) : best.ground ? hitGround(s, hx, hy) : best.tank ? hitTank(s, best.tank, best, hx, hy) : hitObstacle(s, best.o, best, hx, hy);
         if (res === 'stop') remove = true;
       } else {
         s.x += dx; s.y += dy;
@@ -1557,7 +1570,17 @@
         s.V *= Math.exp(-kd);
         s.z = zNext; s.slope -= gk * dX;
         shellAim(s, s.vx / s.sp, s.vy / s.sp);
-        s.skipObs = null;
+        const so = s.skipObs;
+        if (so && !(s.x >= so.x - 1 && s.x <= so.x + so.w + 1 && s.y >= so.y - 1 && s.y <= so.y + so.h + 1)) {
+          s.skipObs = null;
+          // sortie d'une maison : le mur opposé à traverser à son tour
+          if (s.exitWall && s.exitWall.o === so && !so.dead && s.z <= obsH(so)) {
+            const vl = Ballistics.vLimit(s.sb, s.exitWall.los);
+            if (!(Ballistics.penVel(s.sb, s.V) > s.exitWall.los)) { remove = true; Fx.chips(s.x, s.y, Math.min(obsH(so), s.z || 1), false); Sfx.impact(listenerDist(s.x, s.y)); damageObstacle(so, s.by.T.obs * 0.5); }
+            else { s.V = Math.sqrt(Math.max(1, s.V * s.V - vl * vl)); s.wallLoss += s.exitWall.los; shellAim(s, s.vx / s.sp, s.vy / s.sp); }
+          }
+          s.exitWall = null;
+        }
       }
       // l'obus vole jusqu'au sol (traité plus haut), hors de la carte ou très haut après un ricochet ;
       // un compteur de sécurité borne son trajet
@@ -1920,6 +1943,7 @@
       if (trap) ev.data.push({ t: `SHOT TRAP: deflected off the ${trap.toLowerCase()} into the ${plate.toLowerCase()}`, c: '#ffb070' });
       else ev.data.push({ t: `Trajectory: ${fall >= 0 ? 'dropping' : 'rising'} ${f(Math.abs(fall), 2)}° under gravity · impact ${f(h.z, 2)} m above ground${s.ric ? ' · after ricochet' : ''}`, c: '#d8d4c6' });
       if (yaw) ev.data.push({ t: 'Deformed and yawing after the ricochet: −50% penetration, +10° obliquity', c: '#ffcf7a' });
+      if (s.wallLoss) ev.data.push({ t: `Fired through cover: ${Math.round(s.wallLoss)} mm of steel equivalent (brick, timber) on the way`, c: '#ffcf7a' });
       ev.data.push({ t: `${plate}: ${mm} mm at ${slope}° · incidence ${Math.round(angle)}°${!sb.heat && !sb.he ? ` → normalized ${Math.round(ef.angN)}°` : ''}`, c: '#d8d4c6' });
       if (mm < mm0) ev.data.push({ t: scw.hole ? `Into the hole of an earlier penetration: only ${mm} of ${mm0} mm left` : `Plate already scarred by a hit ${Math.round(scw.near * 100)} cm away: ${mm} mm effective instead of ${mm0} mm (work-hardened, cracked steel)`, c: '#ffcf7a' });
       ev.data.push({ t: `Effective armor ${Math.round(eff)} mm${extra ? ` (incl. ${extra} mm of ${extraOf})` : ''} · penetration ${Math.round(pen)} mm${heatK < 1 ? ` (jet disrupted by the ${extraOf || 'running gear'}: × ${heatK.toFixed(2)})` : ''}`, c: '#d8d4c6' });
@@ -2200,19 +2224,69 @@
     checkKnock(t, by);
   }
 
+  // Obus contre un obstacle. Les fusées de nez (explosif, charge creuse) fonctionnent au contact, arbres
+  // compris (souvent sur un tronc, moins dans le feuillage). Un perforant traverse une paroi qu'il perce
+  // (brique, bois) en y laissant de la vitesse (Lambert-Jonas), dévié de quelques degrés ; la fusée de
+  // culot de l'APHE s'y arme et le fait éclater un mètre plus loin, dans la maison ou derrière le muret.
+  // La roche arrête tout.
   function hitObstacle(s, o, h, hx, hy) {
     if (s.key === 'SMOKE') return smokeShell(s, hx, hy);
+    const sb = s.sb, ux = s.vx / s.sp, uy = s.vy / s.sp, ang = Math.atan2(uy, ux);
+    let eq = obsEq(o), cosI = Math.max(0.2, Math.abs(ux * (h.nx || 0) + uy * (h.ny || 0)));
     if (o.type === 'tree') {
-      knockTree(o, Math.atan2(s.vy, s.vx));
-      if (s.key === 'HE') { explode(hx, hy, s, null); return 'stop'; }
-      s.skipObs = o;
-      return 'continue';
+      // tronc (sous le houppier, s'il est sur la ligne de tir) ou feuillage
+      const cx = o.x + 8, cy = o.y + 8, miss = Math.abs((cx - hx) * -uy + (cy - hy) * ux) / PX, r = 0.3 * o.size + sb.cal / 2000;
+      const trunk = s.z < 3 * o.size && miss < r, crown = s.z >= 2.2 * o.size;
+      if (!trunk && !crown) { s.skipObs = o; return 'continue'; }
+      if (sb.he || sb.heat) {
+        if (Math.random() < (trunk ? (sb.he ? 0.9 : 0.7) : (sb.he ? 0.5 : 0.3))) {
+          if (trunk) knockTree(o, ang);
+          if (sb.he) explode(hx, hy, s, null); else { Fx.blast(hx, hy, s.z, 0.3); Sfx.explosion(listenerDist(hx, hy), false); }
+          return 'stop';
+        }
+        s.skipObs = o; return 'continue';
+      }
+      if (!trunk) { s.skipObs = o; return 'continue'; }
+      knockTree(o, ang);
+      eq *= Math.sqrt(Math.max(0.05, 1 - Math.pow(miss / r, 2))); cosI = 1; // corde du tronc
     }
-    if (s.key === 'HE') { explode(hx, hy, s, null); return 'stop'; }
-    for (let k = 0; k < 5; k++) Fx.chips(hx, hy, Math.min(obsH(o), s.z || 1), o.type === 'tree');
-    Fx.groundHit(hx, hy, -s.vx / s.sp, -s.vy / s.sp, 0.5, true);
-    if (o.hp !== Infinity) damageObstacle(o, s.by.T.obs * 0.5);
+    const chips = () => { for (let k = 0; k < 5; k++) Fx.chips(hx, hy, Math.min(obsH(o), s.z || 1), o.type === 'tree'); };
+    if (sb.he) { explode(hx, hy, s, null); return 'stop'; }
+    if (sb.heat) {
+      chips(); Fx.blast(hx, hy, s.z, 0.3); Sfx.explosion(listenerDist(hx, hy), false);
+      if (o.hp !== Infinity) damageObstacle(o, s.by.T.obs * 0.5);
+      return 'stop';
+    }
+    // perforant : il passe si la paroi (vue sous son incidence) ne l'arrête pas
+    const los = eq / cosI, V = s.V;
+    if (o.type !== 'tree') chips();
+    if (!(Ballistics.penVel(sb, V) > los)) {
+      Fx.groundHit(hx, hy, -ux, -uy, 0.5, true);
+      if (o.hp !== Infinity && o.type !== 'tree') damageObstacle(o, s.by.T.obs * 0.5);
+      Sfx.impact(listenerDist(hx, hy));
+      return 'stop';
+    }
+    const vl = Ballistics.vLimit(sb, los);
+    s.V = Math.sqrt(Math.max(1, V * V - vl * vl));
+    if (o.type === 'tree') s.yaw = true; // un tronc touché hors axe fait basculer l'obus
+    const a2 = ang + gauss() * 2 * D2R;
+    shellAim(s, Math.cos(a2), Math.sin(a2));
+    s.skipObs = o;
+    s.exitWall = o.type === 'building' ? { o, los } : null;
+    if (o.hp !== Infinity && o.type !== 'tree') damageObstacle(o, s.by.T.obs * 0.25);
     Sfx.impact(listenerDist(hx, hy));
+    // fusée de culot armée par la paroi (6 % de ratés) : éclatement après le délai, à la vitesse restante
+    if (s.key === 'APHE' && sb.filler && !s.fuzeAt && los >= sb.sens && Math.random() > 0.06) s.fuzeAt = s.dist * RK + rnd(1.1e-3, 1.5e-3) * s.V;
+    if (s.wallLoss == null) s.wallLoss = 0;
+    s.wallLoss += los;
+    return 'continue';
+  }
+  // Éclatement en vol de l'APHE dont la fusée s'est armée sur un obstacle : petite charge, éclats ;
+  // dans une maison, il en souffle l'intérieur
+  function apheBurst(s) {
+    const o = s.skipObs;
+    Fx.blast(s.x, s.y, s.z, 0.3); Sfx.explosion(listenerDist(s.x, s.y), false); stampCrater(s.x, s.y, 4);
+    if (o && o.type === 'building' && !o.dead && s.x >= o.x && s.x <= o.x + o.w && s.y >= o.y && s.y <= o.y + o.h) damageObstacle(o, s.by.T.obs);
     return 'stop';
   }
 
@@ -2791,10 +2865,30 @@
     const kin = !sb.heat && !sb.he;
     let best = { t: 1, kind: 'sky' };
     if (sv < 0) { const tg = (z0 / -sv) / L0; if (tg < 1) best = { t: tg, kind: 'ground' }; }
+    // obstacles sur la ligne : le premier qui arrête l'obus la termine ; un perforant traverse les murs et
+    // les troncs qu'il perce, en y perdant de la vitesse (comme hitObstacle)
+    const hits = [];
     for (const o of obstacles) {
       if (o.dead) continue;
       const h = segAABB(pv.x, pv.y, ux * L0, uy * L0, o.x, o.y, o.x + o.w, o.y + o.h);
-      if (h && h.t < best.t && z0 + sv * h.t * L0 <= obsH(o)) best = { t: h.t, kind: 'obstacle', o };
+      if (h && h.t < best.t && z0 + sv * h.t * L0 <= obsH(o)) hits.push({ t: h.t, o, h });
+    }
+    hits.sort((p, q) => p.t - q.t);
+    let V = null, walls = [];
+    for (const { t: k, o, h } of hits) {
+      let eq = obsEq(o), cosI = Math.max(0.2, Math.abs(ux * h.nx + uy * h.ny));
+      if (o.type === 'tree') {
+        const z = z0 + sv * k * L0, miss = Math.abs((o.x + 8 - pv.x) * -uy + (o.y + 8 - pv.y) * ux) / PX, r = 0.3 * o.size + sb.cal / 2000;
+        // un perforant ne s'arrête que sur le tronc ; la fusée d'un explosif fonctionne aussi dans le feuillage
+        const trunk = z < 3 * o.size && miss < r;
+        if (!trunk && (kin || z < 2.2 * o.size)) continue;
+        eq *= Math.sqrt(Math.max(0.05, 1 - Math.pow(miss / r, 2))); cosI = 1;
+      }
+      const los = eq / cosI * (o.type === 'building' ? 2 : 1);
+      if (V == null) V = Ballistics.velAt(sb, k * L0 * RK);
+      if (!kin || !(Ballistics.penVel(sb, V) > los)) { best = { t: k, kind: 'obstacle', o }; break; }
+      const vl = Ballistics.vLimit(sb, los);
+      V = Math.sqrt(Math.max(1, V * V - vl * vl)); walls.push({ t: k, los });
     }
     for (const t of tanks) {
       if (t === player || (!t.dead && !visibleToPlayer(t))) continue;
@@ -2809,9 +2903,12 @@
       const pp = platePick(t, h, norm3([h.ldx / ll, -h.ldy / ll, -desc]), key, sb.cal, true);
       const cosI = Math.max(0.03, -dot3(pp.dd, pp.n)), angle = Math.acos(Math.min(1, cosI)) / D2R;
       const eff = Ballistics.effective(sb, pp.mm, angle).eff + pp.extra;
-      const pen = penAt(player.T, key, dist) * pp.heatK * (kin ? player.up.pen : 1), Vt = Ballistics.velAt(sb, dist * RK);
+      // vitesse à l'impact, réduite par les murs traversés en chemin
+      let Vt = Ballistics.velAt(sb, dist * RK);
+      for (const w of walls) if (w.t < best.t) { const vl = Ballistics.vLimit(sb, w.los); Vt = Math.sqrt(Math.max(1, Vt * Vt - vl * vl)); }
+      const k = pp.heatK * (kin ? player.up.pen : 1), pen0 = penAt(player.T, key, dist) * k, pen = Ballistics.penVel(sb, Vt) * k;
       best.fall = Math.atan(desc) / D2R;
-      Object.assign(best, { plate: pp.plate, mm: pp.mm, angle, eff, pen, ric: kin ? Ballistics.ricochetChance(sb, pp.mm, angle) : 0, shat: kin ? Ballistics.shatterChance(sb, pp.mm, angle, Vt) : 0 });
+      Object.assign(best, { plate: pp.plate, mm: pp.mm, angle, eff, pen, wall: Math.round(pen0 - pen), ric: kin ? Ballistics.ricochetChance(sb, pp.mm, angle) : 0, shat: kin ? Ballistics.shatterChance(sb, pp.mm, angle, Vt) : 0 });
     }
     return best;
   }
@@ -3433,7 +3530,7 @@
     if (pr && pr.kind === 'tank') {
       const t = pr.tank, ally = t.team === 0, { col, verdict } = verdictOf(pr);
       const l1 = `${t.T.name}${ally ? ' (ally)' : ''} · ${verdict}`;
-      const l2 = t.dead ? '' : `${pr.plate}: ${pr.mm} mm at ${Math.round(pr.angle)}° → ${Math.round(pr.eff)} mm effective · penetration ${Math.round(pr.pen)} mm`;
+      const l2 = t.dead ? '' : `${pr.plate}: ${pr.mm} mm at ${Math.round(pr.angle)}° → ${Math.round(pr.eff)} mm effective · penetration ${Math.round(pr.pen)} mm${pr.wall > 0 ? ` (through wall: −${pr.wall} mm)` : ''}`;
       ctx.font = '700 14px system-ui, sans-serif';
       ctx.fillStyle = 'rgba(0,0,0,0.65)'; ctx.fillText(l1, cx + 1, cy + R * 0.55 + 1);
       ctx.fillStyle = col; ctx.fillText(l1, cx, cy + R * 0.55);
