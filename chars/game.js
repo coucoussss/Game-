@@ -3769,8 +3769,8 @@ Meta.whenReady(() => {
   }
   function updateTopbar() {
     const P = Meta.P, need = Meta.xpFor(P.level);
-    $('credN').textContent = fmt(P.credits);
-    $('kitsN').textContent = P.kits;
+    $('credN').textContent = fmt(wheelHold ? wheelHold.credits : P.credits);
+    $('kitsN').textContent = wheelHold ? wheelHold.kits : P.kits;
     $('rkLv').querySelector('span').textContent = P.level;
     $('rkLv').style.setProperty('--p', Math.round(P.xp / need * 100) + '%');
     $('rkName').textContent = Meta.rankName();
@@ -4008,7 +4008,7 @@ Meta.whenReady(() => {
     return `<div class="specLine" style="margin-top:8px;color:var(--gold)">Upgrades: power ${pc(m.hp)} · penetration ${pc(m.pen)} · armor ${pc(m.armor)} · grip ${pc(m.grip)} · vision ${pc(m.optic)} · reload ${pc(m.reload)}${m.ready ? ` · ready rack +${m.ready}` : ''}</div>`;
   }
   // ----- roue -----
-  let wheelRot = 0, wheelSpin = false;
+  let wheelRot = 0, wheelSpin = false, wheelHold = null;
   function drawWheel(rot) {
     const c = $('wheel'); if (!c) return;
     const g = c.getContext('2d'), W2 = c.width, R = W2 / 2 - 18, cx = W2 / 2, cy = W2 / 2, segs = Meta.WHEEL, n = segs.length;
@@ -4043,6 +4043,12 @@ Meta.whenReady(() => {
     // le segment gagnant s'arrête sous l'aiguille (en haut), après 6 tours et un peu de hasard
     const target = -idx / n * TAU + (Math.random() - 0.5) * (TAU / n) * 0.7;
     const start = wheelRot, end = start - ((start - target) % TAU + TAU) % TAU + TAU * 6, t0 = performance.now(), dur = 5200;
+    // le lot est acquis et sauvegardé dès le lancer : recharger la page ne relance pas le tirage du
+    // jour, et fermer l'onglet pendant un tirage payé d'une publicité ne le perd pas. L'animation ne
+    // fait que le révéler (crédits et kits affichés figés jusque-là).
+    wheelHold = { credits: Meta.P.credits, kits: Meta.P.kits };
+    const had = Meta.P.skins.slice(), txt = Meta.applyPrize(idx, free);
+    const won = Meta.SKINS.find(k => !had.includes(k.id) && Meta.P.skins.includes(k.id));
     wheelSpin = true; $('wheelPrize').textContent = ''; buildMenu();
     const anim = now => {
       const k = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - k, 4);
@@ -4050,13 +4056,12 @@ Meta.whenReady(() => {
       drawWheel(wheelRot);
       if (k < 1) requestAnimationFrame(anim);
       else {
-        wheelSpin = false;
-        const had = Meta.P.skins.slice(), txt = Meta.applyPrize(idx, free);
+        wheelSpin = false; wheelHold = null;
         $('wheelPrize').textContent = `You won: ${txt}!`;
         buildMenu();
-        const won = Meta.SKINS.find(k => !had.includes(k.id) && Meta.P.skins.includes(k.id));
+        if (state !== 'menu') return; // parti au combat pendant le tirage : pas de fête par-dessus la bataille
         if (won) celebrateSkin(won, 'Wheel prize');
-        else { toast(`🎁 ${txt}`); Sfx.reload(); }
+        else { toast(`🎁 ${txt}`); Sfx.reload(); if (Meta.WHEEL[idx].c >= 2500) Meta.sdk.happytime(); }
       }
     };
     requestAnimationFrame(anim);

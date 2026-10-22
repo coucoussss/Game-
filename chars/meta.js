@@ -374,7 +374,6 @@ const Meta = (() => {
       if (left.length) { const s = left[Math.floor(Math.random() * left.length)]; P.skins.push(s.id); txt = `Camo: ${s.name}`; }
       else { P.credits += 3000; txt = '3,000 ✪ (all camos owned)'; }
     }
-    if (p.c >= 2500 || p.skin) sdk.happytime();
     save();
     return txt;
   }
