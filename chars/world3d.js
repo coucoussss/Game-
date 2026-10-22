@@ -260,32 +260,49 @@ void main(){
       for (let i = 0; i < nu; i++) { const u = gl.getActiveUniform(p, i); const nm = u.name.replace(/\[0\]$/, ''); U[nm] = gl.getUniformLocation(p, u.name); }
       return { p, A, U };
     };
-    const main = compile(VS, FS), shadow = compile(SVS, SFS), part = compile(PVS, PFS);
-    gl.enable(gl.DEPTH_TEST);
-    gl.disable(gl.CULL_FACE);
-
-    // carte d'ombre (profondeur encodée en RGBA)
-    const SM = 2048;
-    const shTex = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, shTex);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, SM, SM, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-    for (const [k, v] of [[gl.TEXTURE_MIN_FILTER, gl.NEAREST], [gl.TEXTURE_MAG_FILTER, gl.NEAREST], [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D, k, v);
-    const shFB = gl.createFramebuffer(), shRB = gl.createRenderbuffer();
-    gl.bindFramebuffer(gl.FRAMEBUFFER, shFB);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, shTex, 0);
-    gl.bindRenderbuffer(gl.RENDERBUFFER, shRB);
-    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, SM, SM);
-    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, shRB);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-
-    const upload = b => {
-      const data = b instanceof Float32Array ? b : new Float32Array(b.v);
+    // Ressources du GPU, toutes recréées après une perte du contexte WebGL (pilote réinitialisé,
+    // mémoire saturée, changement d'application sur mobile)
+    let main, shadow, part, shTex, shFB, shRB, gTex, sky, pBuf, lost = false;
+    const SM = 2048; // carte d'ombre (profondeur encodée en RGBA)
+    const mkBuf = data => {
       const buf = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, buf);
       gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
-      return { buf, count: data.length / 10 };
+      return buf;
     };
-    const free = m => { if (m) gl.deleteBuffer(m.buf); };
+    const skyB = new Builder(); skyB.sphere([0, 0, 0], 900, 900, 900, 18, [1, 1, 1], 11);
+    const skyData = new Float32Array(skyB.v);
+    function initGL() {
+      main = compile(VS, FS); shadow = compile(SVS, SFS); part = compile(PVS, PFS);
+      gl.enable(gl.DEPTH_TEST);
+      gl.disable(gl.CULL_FACE);
+      shTex = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, shTex);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, SM, SM, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+      for (const [k, v] of [[gl.TEXTURE_MIN_FILTER, gl.NEAREST], [gl.TEXTURE_MAG_FILTER, gl.NEAREST], [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D, k, v);
+      shFB = gl.createFramebuffer(); shRB = gl.createRenderbuffer();
+      gl.bindFramebuffer(gl.FRAMEBUFFER, shFB);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, shTex, 0);
+      gl.bindRenderbuffer(gl.RENDERBUFFER, shRB);
+      gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, SM, SM);
+      gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, shRB);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gTex = gl.createTexture(); // texture du sol, renvoyée par le jeu (setGround)
+      sky = { buf: mkBuf(skyData), count: skyData.length / 10 };
+      pBuf = gl.createBuffer();
+    }
+    initGL();
+
+    // Maillages vivants. Par défaut leurs sommets sont gardés pour être renvoyés tels quels après
+    // une perte du contexte ; keep = false pour les gros décors, que le jeu reconstruit (onRestored).
+    const meshes = new Set();
+    const upload = (b, keep = true) => {
+      const data = b instanceof Float32Array ? b : new Float32Array(b.v);
+      const m = { buf: mkBuf(data), count: data.length / 10, data: keep ? data : null };
+      meshes.add(m);
+      return m;
+    };
+    const free = m => { if (!m) return; meshes.delete(m); if (m.buf && !lost) gl.deleteBuffer(m.buf); m.buf = null; };
     const bindMesh = (prog, m) => {
       gl.bindBuffer(gl.ARRAY_BUFFER, m.buf);
       const A = prog.A, st = 40;
@@ -293,7 +310,6 @@ void main(){
       at('aPos', 3, 0); at('aNor', 3, 12); at('aCol', 3, 24); at('aMat', 1, 36);
     };
     // texture du sol (mise à jour par tuiles quand des traces s'y impriment)
-    const gTex = gl.createTexture();
     let mapW = 1, mapH = 1;
     function setGround(cv, wm, hm) {
       gl.bindTexture(gl.TEXTURE_2D, gTex);
@@ -306,12 +322,9 @@ void main(){
       gl.bindTexture(gl.TEXTURE_2D, gTex);
       gl.texSubImage2D(gl.TEXTURE_2D, 0, x, y, gl.RGBA, gl.UNSIGNED_BYTE, img);
     }
-    // ciel
-    const skyB = new Builder(); skyB.sphere([0, 0, 0], 900, 900, 900, 18, [1, 1, 1], 11);
-    const sky = upload(skyB);
     // particules
     const PCAP = 4000;
-    const pData = new Float32Array(PCAP * 6 * 9), pBuf = gl.createBuffer();
+    const pData = new Float32Array(PCAP * 6 * 9);
     let env = null;
 
     function setEnv(e) { env = e; }
@@ -336,6 +349,7 @@ void main(){
       gl.uniform4fv(U.uLP, lp); gl.uniform3fv(U.uLC, lc);
     }
     function drawMain(m, model, o = {}) {
+      if (!m.buf) return; // décor pas encore renvoyé après une perte du contexte
       const U = main.U;
       bindMesh(main, m);
       gl.uniformMatrix4fv(U.uModel, false, model);
@@ -349,6 +363,7 @@ void main(){
       gl.drawArrays(gl.TRIANGLES, 0, m.count);
     }
     function drawShadow(m, model) {
+      if (!m.buf) return;
       bindMesh(shadow, m);
       gl.uniformMatrix4fv(shadow.U.uModel, false, model);
       gl.drawArrays(gl.TRIANGLES, 0, m.count);
@@ -356,6 +371,7 @@ void main(){
 
     // scène : { cam: {eye, target, vp, time, lights}, items: [{mesh, model, o, noShadow}], parts: {soft:[], glow:[]} }
     function render(scene, w, h) {
+      if (lost) return;
       if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
       const cam = scene.cam;
       // passe d'ombre, centrée sur la zone regardée
@@ -447,7 +463,18 @@ void main(){
       draw(parts.glow, true);
     }
 
-    return { gl, canvas, upload, free, render, setEnv, setGround, updateGround };
+    const api = { gl, canvas, upload, free, render, setEnv, setGround, updateGround, get lost() { return lost; }, onLost: null, onRestored: null };
+    // sans preventDefault, le navigateur refuse de rendre le contexte
+    canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); lost = true; if (api.onLost) api.onLost(); });
+    canvas.addEventListener('webglcontextrestored', () => {
+      try {
+        initGL();
+        for (const m of meshes) m.buf = m.data ? mkBuf(m.data) : null;
+        lost = false;
+      } catch (e) { console.warn('WebGL restore failed', e); return; }
+      if (api.onRestored) api.onRestored();
+    });
+    return api;
   }
   const norm = a => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
   const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];

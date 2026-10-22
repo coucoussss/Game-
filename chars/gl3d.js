@@ -310,25 +310,42 @@ void main(){
       if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error('Shader : ' + gl.getShaderInfoLog(s));
       return s;
     };
-    const prog = gl.createProgram();
-    gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS));
-    gl.linkProgram(prog);
-    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error('Programme : ' + gl.getProgramInfoLog(prog));
-    gl.useProgram(prog);
-    const A = {}, U = {};
-    for (const n of ['aPos', 'aNor', 'aCol', 'aMat']) A[n] = gl.getAttribLocation(prog, n);
-    for (const n of ['uVP', 'uModel', 'uLight', 'uEye', 'uCamo0', 'uCamo1', 'uCamo2', 'uPat', 'uBurnt', 'uXray', 'uAlpha', 'uColOv', 'uTint', 'uShadow', 'uGround', 'uSeed', 'uTop']) U[n] = gl.getUniformLocation(prog, n);
-    gl.enable(gl.DEPTH_TEST);
-    gl.disable(gl.CULL_FACE);
+    // Programme et tampons recréés après une perte du contexte WebGL : les sommets de chaque
+    // maillage (petits : chars, modules, sol de la vitrine) sont gardés pour être renvoyés tels quels.
+    let prog = null, lost = false;
+    const A = {}, U = {}, meshes = [];
+    function initGL() {
+      prog = gl.createProgram();
+      gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS));
+      gl.linkProgram(prog);
+      if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error('Programme : ' + gl.getProgramInfoLog(prog));
+      gl.useProgram(prog);
+      for (const n of ['aPos', 'aNor', 'aCol', 'aMat']) A[n] = gl.getAttribLocation(prog, n);
+      for (const n of ['uVP', 'uModel', 'uLight', 'uEye', 'uCamo0', 'uCamo1', 'uCamo2', 'uPat', 'uBurnt', 'uXray', 'uAlpha', 'uColOv', 'uTint', 'uShadow', 'uGround', 'uSeed', 'uTop']) U[n] = gl.getUniformLocation(prog, n);
+      gl.enable(gl.DEPTH_TEST);
+      gl.disable(gl.CULL_FACE);
+    }
+    initGL();
+    const mkBuf = data => {
+      const buf = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+      return buf;
+    };
+    canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); lost = true; if (R.onLost) R.onLost(); });
+    canvas.addEventListener('webglcontextrestored', () => {
+      try { initGL(); for (const m of meshes) m.buf = mkBuf(m.data); lost = false; } catch (e) { console.warn('WebGL restore failed', e); return; }
+      if (R.onRestored) R.onRestored();
+    });
 
     const R = {
-      gl, canvas, view: null, proj: null, vp: null, eye: [0, 0, 10],
+      gl, canvas, view: null, proj: null, vp: null, eye: [0, 0, 10], onLost: null, onRestored: null,
+      get lost() { return lost; },
       upload(builder) {
         const data = new Float32Array(builder.v);
-        const buf = gl.createBuffer();
-        gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-        gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
-        return { buf, count: data.length / 10 };
+        const m = { buf: mkBuf(data), count: data.length / 10, data };
+        meshes.push(m);
+        return m;
       },
       begin(w, h, clear) {
         if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }

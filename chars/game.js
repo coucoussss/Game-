@@ -615,7 +615,7 @@ Meta.whenReady(() => {
   }
 
   function spawnWave() {
-    if (W3D) for (const t of tanks) if (t.scar3) { W3D.free(t.scar3.hull); W3D.free(t.scar3.turret); }
+    if (W3D0) for (const t of tanks) if (t.scar3) { W3D0.free(t.scar3.hull); W3D0.free(t.scar3.turret); }
     reviveT = 0; reviveUsed = false;
     tanks = []; shells = []; bullets = []; smokes = []; texts = []; feed = []; parts = []; logs = [];
     spotted[0].clear(); spotted[1].clear();
@@ -1710,7 +1710,7 @@ Meta.whenReady(() => {
     if (!t.scarDirty || t.scarT > 0 || !W3D) return;
     t.scarDirty = false; t.scarT = 0.25;
     if (t.scar3) { W3D.free(t.scar3.hull); W3D.free(t.scar3.turret); }
-    t.scar3 = { hull: W3D.upload(scarMesh(t, 'hull')), turret: W3D.upload(scarMesh(t, 'turret')) };
+    t.scar3 = { hull: W3D.upload(scarMesh(t, 'hull'), false), turret: W3D.upload(scarMesh(t, 'turret'), false) };
   }
   // traces pour la vue aux rayons X (repère de la caisse)
   function scarsForXray(t) {
@@ -2408,7 +2408,7 @@ Meta.whenReady(() => {
       if (hev && hev.metal && !hev.metal.st.done) hev.metal.run(9);
     }
     if (state === 'menu' && bench.sim && !bench.sim.st.done) bench.sim.run(14);
-    if (state === 'menu' && R3) { viewerT += dt; renderViewer(dt); }
+    if (state === 'menu' && R3 && !R3.lost) { viewerT += dt; renderViewer(dt); }
     if (state === 'menu') renderBench();
     // le champ de bataille n'est dessiné qu'en jeu : en pause, réparation, résultats ou pendant la
     // publicité de sortie, la dernière image reste affichée (redessinée une fois après un
@@ -2480,6 +2480,33 @@ Meta.whenReady(() => {
     }
   } catch (e) { console.warn('3D rendering unavailable, switching to 2D', e); W3D = null; }
   if (!W3D) { const c3 = document.getElementById('game3d'); if (c3) c3.style.display = 'none'; }
+  // Perte du contexte WebGL du champ de bataille : pause, puis tout est renvoyé au GPU à son retour ;
+  // s'il ne revient pas vite, la bataille continue en vue 2D (et repasse en 3D au retour)
+  const W3D0 = W3D;
+  let lostT = 0;
+  if (W3D0) {
+    W3D0.onLost = () => {
+      autoPause();
+      if (state !== 'menu') toast('Graphics reset, restoring the 3D view…');
+      clearTimeout(lostT);
+      lostT = setTimeout(() => { if (W3D0.lost && W3D) use2D(true); }, 4000);
+    };
+    W3D0.onRestored = () => { clearTimeout(lostT); if (!W3D) use2D(false); reupload3D(); if (state !== 'menu') toast('3D view restored'); };
+  }
+  function use2D(on) {
+    const c3 = document.getElementById('game3d');
+    if (on) { setSight(false); W3D = null; c3.style.display = 'none'; if (state !== 'menu') toast('3D unavailable: switching to the 2D view'); }
+    else { W3D = W3D0; c3.style.display = ''; cam3.init = false; }
+    redraw = true;
+  }
+  // après un retour du contexte : sol, décor et cicatrices de blindage renvoyés au GPU
+  function reupload3D() {
+    if (groundCv) W3D.setGround(groundCv, WW / PX, WH / PX);
+    dirtyTiles.clear();
+    if (groundCv && (scene3 || bush3)) build3DScene();
+    for (const t of tanks) if (t.scar3) { W3D.free(t.scar3.hull); W3D.free(t.scar3.turret); t.scar3 = null; t.scarDirty = true; t.scarT = 0; }
+    redraw = true;
+  }
   const to3 = (x, y, z = 0) => [x / PX, -y / PX, z];
   function markDirty(x, y, r) {
     const T = 256;
@@ -2493,14 +2520,18 @@ Meta.whenReady(() => {
     W3D.setEnv({ sun: [Math.cos(el) * Math.cos(az), Math.cos(el) * Math.sin(az), Math.sin(el)], sunCol: e.sunCol, skyCol: e.skyCol, bounce: e.bounce, fogCol: e.horizon, fogD: e.fogD * 0.6, horizon: e.horizon, zenith: e.zenith, snow: e.snow || 0 });
     W3D.setGround(groundCv, WW / PX, WH / PX);
     dirtyTiles.clear();
-    if (bush3) W3D.free(bush3);
-    bush3 = W3D.upload(World3D.buildBushes(L(), bushes, PX, 4242 + levelIdx * 131));
-    rebuildScene3();
+    build3DScene();
     cam3.init = false;
   }
+  // gros décors : sommets non gardés côté W3D (reconstruits ici après une perte du contexte)
+  function build3DScene() {
+    W3D.free(bush3);
+    bush3 = W3D.upload(World3D.buildBushes(L(), bushes, PX, 4242 + levelIdx * 131), false);
+    rebuildScene3();
+  }
   function rebuildScene3() {
-    if (scene3) W3D.free(scene3);
-    scene3 = W3D.upload(World3D.buildScene(L(), obstacles, bushes, PX, WW / PX, WH / PX, 1000 + levelIdx * 7919));
+    W3D.free(scene3);
+    scene3 = W3D.upload(World3D.buildScene(L(), obstacles, bushes, PX, WW / PX, WH / PX, 1000 + levelIdx * 7919), false);
     scene3Dirty = false; scene3T = 0;
   }
   // rayon depuis la caméra à travers un point de l'écran, coupé par le plan z = h
@@ -2711,7 +2742,7 @@ Meta.whenReady(() => {
     if (scene3Dirty && scene3T > 0.33) rebuildScene3();
     // traces et cratères : envoi des tuiles modifiées de la texture du sol
     let n = 0;
-    for (const k of dirtyTiles) {
+    if (!W3D.lost) for (const k of dirtyTiles) {
       if (n++ >= 6) break;
       dirtyTiles.delete(k);
       const tx = (k % 64) * 256, ty = Math.floor(k / 64) * 256, w = Math.min(256, WW - tx), h = Math.min(256, WH - ty);
@@ -3723,7 +3754,7 @@ Meta.whenReady(() => {
   }
   function tankThumb(id) {
     const sk = Meta.skinOf(id), key = id + ':' + sk.id;
-    if (!thumbCache[key] && R3) {
+    if (!thumbCache[key] && R3 && !R3.lost) {
       drawTank3D(id, 480, 260, 0.75, 0.3, false, 0.25, [0.07, 0.08, 0.07, 1], sk);
       const c = document.createElement('canvas'); c.width = 480; c.height = 260;
       c.getContext('2d').drawImage(R3.canvas, 0, 0);
@@ -3747,6 +3778,11 @@ Meta.whenReady(() => {
     $('startBtn').disabled = !owned;
   }
   const MODE_EM = { campagne: '🎖', survie: '☠', duel: '⚔' };
+  // vitrine : sans contexte WebGL, elle s'efface (et ses commandes avec) jusqu'à son retour
+  if (R3) {
+    R3.onLost = () => $('showcase').classList.add('no3d');
+    R3.onRestored = () => { $('showcase').classList.remove('no3d'); if (state === 'menu') buildMenu(); };
+  }
   function buildMenu() {
     const P = Meta.P;
     const tc = $('tankCards'); tc.innerHTML = '';
@@ -3819,7 +3855,7 @@ Meta.whenReady(() => {
     }
     $('skinHint').textContent = skinPreview ? `Previewing “${Meta.SKINS.find(k => k.id === skinPreview).name}”. Click again to go back to yours.` : 'Click a camo to try it on the showcase.';
     $('specs').innerHTML = specsHTML(TYPES[chosenType]) + partsLine(chosenType);
-    $('showcase').classList.toggle('no3d', !R3);
+    $('showcase').classList.toggle('no3d', !R3 || R3.lost);
     const mc = $('modeCards'); mc.innerHTML = '';
     for (const [id, M] of Object.entries(MODES)) {
       const d = document.createElement('div');
@@ -3872,7 +3908,7 @@ Meta.whenReady(() => {
   // camouflage débloqué : aperçu du char du garage avec ce camouflage
   function celebrateSkin(sk, kind) {
     let img = '';
-    if (R3) {
+    if (R3 && !R3.lost) {
       drawTank3D(chosenType, 480, 260, 0.75, 0.3, false, 0.25, [0.07, 0.08, 0.07, 1], sk);
       const c = document.createElement('canvas'); c.width = 480; c.height = 260;
       c.getContext('2d').drawImage(R3.canvas, 0, 0); img = c.toDataURL('image/jpeg', 0.85);
@@ -4269,9 +4305,9 @@ Meta.whenReady(() => {
   // tampons dans les Ardennes) ; la prochaine bataille les reconstruit (genMap, setup3D)
   function freeBattle() {
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height);
-    if (W3D) {
-      for (const t of tanks) if (t.scar3) { W3D.free(t.scar3.hull); W3D.free(t.scar3.turret); t.scar3 = null; }
-      W3D.free(scene3); W3D.free(bush3); scene3 = bush3 = null;
+    if (W3D0) {
+      for (const t of tanks) if (t.scar3) { W3D0.free(t.scar3.hull); W3D0.free(t.scar3.turret); t.scar3 = null; }
+      W3D0.free(scene3); W3D0.free(bush3); scene3 = bush3 = null;
     }
     groundCv = gctx = null; dirtyTiles.clear();
   }
