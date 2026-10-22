@@ -238,7 +238,7 @@ Le jeu est prêt pour CrazyGames : téléverser le contenu du dossier `chars/` (
 - **Publicités** : une publicité de mi-partie au plus toutes les 3 minutes, seulement entre deux
   batailles (jamais pendant le jeu ni avant la première partie). Publicités récompensées, toujours
   optionnelles : réparer son char détruit, doubler les gains d'une bataille, tirage bonus de la roue,
-  camouflages *Night Operation* et *Grand Parade*, pièces. Le son est coupé pendant les publicités. Hors de CrazyGames
+  camouflages *Night Operation* et *Victory Parade*, pièces. Le son est coupé pendant les publicités. Hors de CrazyGames
   (fichier local, page intégrée), elles sont simulées par un écran de 3 s.
 - **Progression** :
   - crédits et expérience à chaque bataille ; 16 grades, de *Private* à *Field Marshal*, avec 500 crédits par
@@ -264,10 +264,19 @@ Le jeu est prêt pour CrazyGames : téléverser le contenu du dossier `chars/` (
   requis. Les boutons publicité montrent la progression par pastilles. Chaque déblocage (char,
   camouflage, pièce, lot de la roue) ouvre un écran de célébration : rayons, confettis, aperçu en 3D,
   fanfare synthétisée et `happytime`.
+- **Polices** : Oswald et Inter sont livrées dans `fonts/` (variables 400 à 700, sous-ensemble latin,
+  70 Ko, licence SIL OFL jointe). Aucune requête vers Google Fonts : rien ne bloque le premier
+  affichage, rien ne part chez un tiers. `steel-front.html` les intègre en base64.
+- **Contenu sensible** : ni drapeau, ni runes SS, ni symbole de régime ; les seuls marquages admis sont
+  la croix des blindés (Balkenkreuz) et les numéros tactiques, et aucun camouflage ne reprend les
+  couleurs d'un drapeau (*Victory Parade* : olive, sable et laiton). Chaque bataille s'ouvre sur une
+  carte historique (lieu et date), sans glorification.
 - **Menu** : vitrine 3D plein écran du char choisi, avec son camouflage, et onglets Battle, Garage,
   Wheel, Missions, Workshop (banc d'essai, commandes) et Options (volumes, qualité graphique, caméra
-  d'impact, plein écran, remise à zéro).
-- **Musique** : `music/menu.mp3`, voir `music/README.md`.
+  d'impact, remise à zéro). Pas de bouton plein écran : le portail a le sien.
+- **Musique** : aucune piste n'est livrée (plus d'erreur 404 sur un fichier absent). `playMusic` et
+  `stopMusic` (game.js) décident quand la musique du menu joue ; une musique synthétisée s'y branche
+  en définissant `Sfx.playMusic(volume)` et `Sfx.stopMusic()` dans audio.js.
 
 ## Rendu 3D
 

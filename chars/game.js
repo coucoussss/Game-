@@ -1,6 +1,7 @@
 'use strict';
 // Steel Front : combat de chars 5 contre 5, vue de dessus.
-(() => {
+// Le jeu démarre une fois le SDK prêt (loadingStart déjà envoyé), puis construit modèles et menu.
+Meta.whenReady(() => {
   // ===================== Outils =====================
   const TAU = Math.PI * 2, D2R = Math.PI / 180;
   const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
@@ -150,35 +151,35 @@
   const W_ = (a, b, c, d, e) => [a, b, c, d, e];
   const LEVELS = [
     {
-      name: 'Kursk Plain', crr: 0.06, soil: 'dry grass', gRic: 1, atm: { T: 25, rho: 1.18, wind: 3 }, sub: 'Summer steppe, wide open spaces',
+      name: 'Kursk Plain', when: 'Prokhorovka · 12 July 1943', crr: 0.06, soil: 'dry grass', gRic: 1, atm: { T: 25, rho: 1.18, wind: 3 }, sub: 'Summer steppe, wide open spaces',
       ground: ['#7b8446', '#6c763b', '#8a9352'], road: '#8d7d58', dust: '#a59a6a', track: 'rgba(40,35,20,0.16)',
       trees: 45, treeCl: 6, bushes: 34, buildings: 6, walls: 9, rocks: 8,
       tree: ['#36521f', '#4a6a2b'], bush: '#4c6b2a', wall: '#a59a86', roof: ['#8a4f3a', '#73402f'],
       waves: [W_('light', 'light', 'medium', 'light', 'medium'), W_('pz4', 'light', 'medium', 'stug', 'light'), W_('pz4', 'medium', 'heavy', 'stug', 'medium')],
     },
     {
-      forest: true, name: 'Ardennes Forest', crr: 0.085, soil: 'muddy undergrowth', gRic: 0.5, atm: { T: 8, rho: 1.25, wind: 1.5 }, sub: 'Dense undergrowth, close-quarters fighting',
+      forest: true, name: 'Ardennes Forest', when: 'Ardennes · 16 December 1944', crr: 0.085, soil: 'muddy undergrowth', gRic: 0.5, atm: { T: 8, rho: 1.25, wind: 1.5 }, sub: 'Dense undergrowth, close-quarters fighting',
       ground: ['#4c5c30', '#425228', '#58693a'], road: '#6d5d3f', dust: '#6b6a48', track: 'rgba(25,25,10,0.2)',
       trees: 150, treeCl: 14, bushes: 70, buildings: 3, walls: 4, rocks: 10,
       tree: ['#24401a', '#335726'], bush: '#3a5a22', wall: '#8f8a7a', roof: ['#5a4a3a', '#4a3c30'],
       waves: [W_('medium', 'light', 'medium', 'light', 'medium'), W_('pz4', 'medium', 'heavy', 'stug', 'destroyer'), W_('heavy', 'medium', 'medium', 'destroyer', 'light')],
     },
     {
-      name: 'Stalingrad Ruins', crr: 0.07, soil: 'rubble', gRic: 1, atm: { T: -5, rho: 1.31, wind: 4 }, sub: 'Ruined streets, destructible buildings', city: true,
+      name: 'Stalingrad Ruins', when: 'Stalingrad · January 1943', crr: 0.07, soil: 'rubble', gRic: 1, atm: { T: -5, rho: 1.31, wind: 4 }, sub: 'Ruined streets, destructible buildings', city: true,
       ground: ['#6d665c', '#615a51', '#79726a'], road: '#55504a', dust: '#8a8378', track: 'rgba(20,18,15,0.18)',
       trees: 8, treeCl: 2, bushes: 10, buildings: 0, walls: 12, rocks: 4,
       tree: ['#3c4a2a', '#4a5a34'], bush: '#4a5530', wall: '#8f877b', roof: ['#7a7268', '#686057'],
       waves: [W_('medium', 'heavy', 'medium', 'light', 'medium'), W_('heavy', 'pz4', 'destroyer', 'medium', 'kingtiger'), W_('heavy', 'heavy', 'destroyer', 'medium', 'medium')],
     },
     {
-      desert: true, name: 'El Alamein Desert', crr: 0.08, soil: 'sand', gRic: 0.4, atm: { T: 35, rho: 1.15, wind: 5 }, sub: 'Open terrain, long-range shooting',
+      desert: true, name: 'El Alamein Desert', when: 'Tel el Aqqaqir · 2 November 1942', crr: 0.08, soil: 'sand', gRic: 0.4, atm: { T: 35, rho: 1.15, wind: 5 }, sub: 'Open terrain, long-range shooting',
       ground: ['#cdb27a', '#c1a46b', '#d9c08c'], road: '#b39463', dust: '#dcc391', track: 'rgba(90,60,30,0.16)',
       trees: 0, treeCl: 1, bushes: 16, buildings: 5, walls: 5, rocks: 36,
       tree: ['#5a6a2a', '#6a7a3a'], bush: '#8c8a4a', wall: '#d8c7a0', roof: ['#e0d2ad', '#cdbd96'],
       waves: [W_('destroyer', 'medium', 'light', 'destroyer', 'medium'), W_('heavy', 'destroyer', 'stug', 'destroyer', 'pz4'), W_('heavy', 'heavy', 'destroyer', 'destroyer', 'medium')],
     },
     {
-      name: 'Bastogne Night', crr: 0.09, soil: 'snow', gRic: 0.5, atm: { T: -10, rho: 1.34, wind: 2.5 }, sub: 'Snow and darkness, reduced vision', night: true,
+      name: 'Bastogne Night', when: 'Bastogne · 26 December 1944', crr: 0.09, soil: 'snow', gRic: 0.5, atm: { T: -10, rho: 1.34, wind: 2.5 }, sub: 'Snow and darkness, reduced vision', night: true,
       ground: ['#dfe4e8', '#cfd6dc', '#eaeef1'], road: '#b9b3a8', dust: '#ffffff', track: 'rgba(60,60,70,0.22)',
       trees: 95, treeCl: 10, bushes: 34, buildings: 8, walls: 6, rocks: 6,
       tree: ['#203828', '#2c4a36'], bush: '#3c5a46', wall: '#9a958c', roof: ['#eef3f6', '#d8e0e6'], snow: true,
@@ -188,10 +189,15 @@
   const WAVES = 3;
   const WW = 2600, WH = 1700, CELL = 20, STEP = 1 / 60;
 
-  // Réglages de développement : ?auto ?god ?speed=4 ?level=2 ?wave=1 ?type=heavy ?mode=survie|duel
+  // Réglages de développement, actifs seulement avec ?debug : ?auto ?god ?speed=4 ?level=2 ?wave=1
+  // ?type=heavy ?mode=survie|duel ?2d. Ceux qui touchent aux gains font jouer sur un profil jetable,
+  // jamais sauvegardé : l'adresse du jeu ouverte à la main ne débloque rien.
   const Q = new URLSearchParams(location.search);
-  const AUTO = Q.has('auto'), GOD = Q.has('god');
-  const timeScale = Number(Q.get('speed')) || 1;
+  const DEV = Q.has('debug'), dq = k => DEV && Q.has(k);
+  const AUTO = dq('auto'), GOD = dq('god');
+  const timeScale = DEV ? clamp(Number(Q.get('speed')) || 1, 0.1, 16) : 1;
+  const DEV_RUN = DEV && ['auto', 'god', 'speed', 'level', 'wave', 'type', 'mode'].some(k => Q.has(k));
+  const DEV_START = DEV && (Q.has('level') || AUTO);
 
   // ===================== État =====================
   const cv = document.getElementById('game');
@@ -199,19 +205,20 @@
   const dark = document.createElement('canvas');
   const dctx = dark.getContext('2d');
   let QDPR = 2, PCAP = 2600; // qualité graphique : résolution maximale et nombre de particules
-  let W = 0, H = 0, DPR = 1, S = 1;
+  let W = 0, H = 0, DPR = 1, S = 1, redraw = false;
   function resize() {
     DPR = Math.min(QDPR, window.devicePixelRatio || 1);
     W = innerWidth; H = innerHeight;
     cv.width = W * DPR; cv.height = H * DPR;
     cv.style.width = W + 'px'; cv.style.height = H + 'px';
-    dark.width = cv.width; dark.height = cv.height;
     S = clamp(Math.min(W / 1200, H / 740), 0.5, 1.6);
+    redraw = true; // canevas vidés : image figée à redessiner
   }
   addEventListener('resize', resize);
   resize();
 
-  let state = 'menu'; // menu, intro, play, ending, result, pause
+  let state = 'menu'; // menu, intro, play, ending, result, pause, revive, leaving (publicité avant de quitter)
+  const inBattle = () => state === 'intro' || state === 'play' || state === 'ending';
   let levelIdx = 0, waveIdx = 0, chosenType = 'medium';
   let bullets = [], mgCamT = -99;
   let tanks = [], shells = [], parts = [], texts = [], feed = [], smokes = [], logs = [];
@@ -230,17 +237,14 @@
     duel: { name: 'Duel', sub: '1 vs 1, identical tanks, best of 3' },
   };
   let mode = 'campagne', survWave = 0, nextWaveT = 0, duelScore = [0, 0], enemyN = 0;
-  let survBest = 0;
-  try { survBest = Number(localStorage.getItem('frontdacier.survie')) || 0; } catch (e) { /* stockage indisponible */ }
   // vue du tireur : lunette à grossissement fixe, la souris oriente la visée
   const MAGS = [2.5, 5, 8];
   const sight = { on: false, yaw: 0, pitch: 0, cx: 0, cy: 0, aimYaw: 0, aimPitch: 0, mag: 0, probe: null, probeT: 0, z0: 2, gunPitch: 0 };
   const mouse = { x: W / 2, y: H / 2, down: false };
   const keys = {};
 
-  let unlocked = 0;
-  try { unlocked = Number(localStorage.getItem('frontdacier.unlocked')) || 0; } catch (e) { /* stockage indisponible */ }
-  function saveUnlocked() { try { localStorage.setItem('frontdacier.unlocked', String(unlocked)); } catch (e) { /* ignoré */ } }
+  // secteurs de campagne ouverts (profil sauvegardé, borné au nombre de secteurs)
+  const unlockedIdx = () => Math.min(Meta.P.unlocked, LEVELS.length - 1);
 
   const L = () => LEVELS[levelIdx];
 
@@ -627,7 +631,7 @@
   }
 
   function spawnWave() {
-    if (W3D) for (const t of tanks) if (t.scar3) { W3D.free(t.scar3.hull); W3D.free(t.scar3.turret); }
+    if (W3D0) for (const t of tanks) if (t.scar3) { W3D0.free(t.scar3.hull); W3D0.free(t.scar3.turret); }
     reviveT = 0; reviveUsed = false;
     tanks = []; shells = []; bullets = []; smokes = []; texts = []; feed = []; parts = []; logs = [];
     spotted[0].clear(); spotted[1].clear();
@@ -1804,7 +1808,7 @@
     if (!t.scarDirty || t.scarT > 0 || !W3D) return;
     t.scarDirty = false; t.scarT = 0.25;
     if (t.scar3) { W3D.free(t.scar3.hull); W3D.free(t.scar3.turret); }
-    t.scar3 = { hull: W3D.upload(scarMesh(t, 'hull')), turret: W3D.upload(scarMesh(t, 'turret')) };
+    t.scar3 = { hull: W3D.upload(scarMesh(t, 'hull'), false), turret: W3D.upload(scarMesh(t, 'turret'), false) };
   }
   // traces pour la vue aux rayons X (repère de la caisse)
   function scarsForXray(t) {
@@ -1874,6 +1878,8 @@
     return { face, sideSign, plate, mm, slope, dd, low, extra, extraOf, heatK, gear, n: nm || plateNormal(face, slope, sideSign, low) };
   }
 
+  // arrêt du noyau dans la simulation terminale (codes de ballistics.js, sinon nom du module atteint)
+  const CORE_STOP = { sorti: 'exits the far side', paroi: 'stopped by the far wall', shattered: 'shattered' };
   function hitTank(s, t, h, hx, hy) {
     if (t === player) s.hitPlayer = true;
     if (s.key === 'SMOKE') { Fx.armorHit(hx, hy, h.z, 'mg', s.vx / s.sp, s.vy / s.sp); Sfx.clang(listenerDist(hx, hy)); return smokeShell(s, hx, hy); }
@@ -2095,7 +2101,7 @@
           ev.data.push({ t: `Charge: ${Math.round(sim.blast.raw * 1000)} g at +${f(sim.blast.t * 1000, 2)} ms · ${f(sim.blast.W * 1000, 0)} g TNT eq. · blast ${f(kpa / 1000, 1)} MPa at 0.5 m`, c: '#ffcf7a' });
         }
         const nf = sim.frags.length, mt = sim.frags.reduce((a, q) => a + q.m, 0);
-        ev.data.push({ t: `${nf} fragments · ${f(mt, 2)} kg${sim.coreStop ? ` · core: ${sim.coreStop === 'sorti' ? 'exits the far side' : sim.coreStop === 'shattered' ? 'shattered' : 'stopped (' + sim.coreStop + ')'}` : ''}`, c: '#ffcf7a' });
+        ev.data.push({ t: `${nf} fragments · ${f(mt, 2)} kg${sim.coreStop ? ` · core: ${CORE_STOP[sim.coreStop] || (sim.coreStop === true ? 'stopped' : 'stopped by the ' + String(sim.coreStop).toLowerCase())}` : ''}`, c: '#ffcf7a' });
       } else {
         ev.data.push({ t: `NOT PENETRATED: ${Math.round(pen)} mm < ${Math.round(eff)} mm${sim ? ' · spalling off the inner face' : ''}`, c: '#ff8a6a' });
       }
@@ -2168,7 +2174,7 @@
     }
     if (sim.fuel != null) { fire = true; lines.push({ t: 'Fuel ignited', c: '#ff9a3a', time: sim.fuel }); }
     if (!lines.length) lines.push({ t: 'No module hit', c: '#c8c8c8', time: 0 });
-    if (!detonate && fire && !(t.fireT > 0)) { t.fireT = 8; t.fireBy = by; lines.push({ t: 'Fire', c: '#ff9a3a', time: sim.tEnd * 0.8 }); }
+    if (!detonate && fire && !(t.fireT > 0)) { t.fireT = 8; t.fireBy = by; lines.push({ t: 'Fire!', c: '#ff9a3a', time: sim.tEnd * 0.8 }); }
     else if (detonate) fire = false;
     if (detonate) { sim.tEnd = Math.max(sim.tEnd, detT + 6e-3); lines.push({ t: 'AMMO RACK: DETONATION', c: '#ff4a2a', time: detT }); }
     const knocked = detonate || crewAlive(t) < 2;
@@ -2645,10 +2651,44 @@
     }
   }
 
-  let last = performance.now(), acc = 0, viewerT = 0, dbgFreeze = false;
+  let last = performance.now(), acc = 0, viewerT = 0, errRun = 0, errLogged = false, dbgFreeze = false;
+  // Résolution dynamique du champ de bataille 3D. Moyenne glissante de la durée des images : au-delà
+  // de 22 ms pendant 2 s, la scène est rendue plus petite (étirée par le CSS), par pas de 10 % jusqu'à
+  // 60 % ; à 60 images/s stables, elle remonte d'un pas. Une remontée suivie d'une rechute en moins de
+  // 4 s double l'attente avant la suivante, pour ne pas osciller. Si trois pas de baisse (deux fois
+  // moins de pixels) n'ont rien gagné, c'est le processeur qui limite : la résolution revient et y reste.
+  const dyn = { k: 1, ema: 16.7, slow: 0, fast: 0, upWait: 3, upAt: -1e9, floor: 0.6, ref: null };
+  function dynRes(ms, dt) {
+    dyn.ema += (ms - dyn.ema) * 0.08;
+    if (dyn.ema > 22) { dyn.slow += dt; dyn.fast = 0; } else if (dyn.ema < 18) { dyn.fast += dt; dyn.slow = 0; } else dyn.slow = dyn.fast = 0;
+    const now = performance.now();
+    if (dyn.slow > 2 && dyn.k > dyn.floor) {
+      if (!dyn.ref) dyn.ref = { k: dyn.k, ema: dyn.ema };
+      else if (dyn.ref.k - dyn.k > 0.25 && dyn.ema > dyn.ref.ema * 0.9) { dyn.k = dyn.floor = dyn.ref.k; dyn.ref = null; dyn.slow = 0; return; }
+      if (now - dyn.upAt < 4000) dyn.upWait = Math.min(60, dyn.upWait * 2);
+      dyn.k = Math.round(dyn.k * 10 - 1) / 10; dyn.slow = 0; dyn.ema = 20;
+    } else if (dyn.fast > dyn.upWait && dyn.k < 1) {
+      dyn.k = Math.round(dyn.k * 10 + 1) / 10; dyn.fast = 0; dyn.upAt = now; dyn.ref = null;
+    }
+  }
+  // nouvelle qualité ou nouvelle carte : la mesure repart de zéro (la résolution acquise est gardée)
+  function dynReset(full) { if (full) { dyn.k = 1; dyn.upWait = 3; } dyn.floor = 0.6; dyn.ref = null; dyn.slow = dyn.fast = 0; }
+  // Boucle principale : l'image suivante est demandée d'abord, et une exception n'arrête rien. Elle
+  // est journalisée une fois ; si elle se répète 30 images de suite, retour au QG.
   function frame(now) {
-    const dt = Math.min(0.1, (now - last) / 1000);
+    requestAnimationFrame(frame);
+    try { frameBody(now); errRun = 0; } catch (e) {
+      if (!errLogged) { errLogged = true; console.error(e); }
+      if (++errRun > 30) {
+        errRun = 0;
+        if (state !== 'menu') { console.error('Repeated errors, back to menu', e); toast('Something went wrong, back to HQ'); try { toMenu(); } catch (e2) { console.error(e2); } }
+      }
+    }
+  }
+  function frameBody(now) {
+    const ms = now - last, dt = Math.min(0.1, ms / 1000);
     last = now;
+    if (W3D && state === 'play' && ms > 0 && ms < 1000) dynRes(Math.min(ms, 100), ms / 1000);
     if ((state === 'intro' || state === 'play' || state === 'ending') && !dbgFreeze) {
       // ralenti pendant la caméra d'impact, sauf en jeu automatique (personne ne regarde, et les tests
       // tournent en rendu logiciel où la caméra d'impact se dessine à une image par seconde)
@@ -2662,17 +2702,18 @@
       if (hev && hev.metal && !hev.metal.st.done) hev.metal.run(9);
     }
     if (state === 'menu' && bench.sim && !bench.sim.st.done) bench.sim.run(14);
-    if (state === 'menu' && R3) { viewerT += dt; renderViewer(dt); }
+    if (state === 'menu' && R3 && !R3.lost) { viewerT += dt; renderViewer(dt); }
     if (state === 'menu') renderBench();
-    if (groundCv) render(dt);
-    else { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#0d0f0c'; ctx.fillRect(0, 0, cv.width, cv.height); }
-    const v = player && !player.dead && state !== 'menu' && state !== 'result' && state !== 'pause' ? Math.abs(player.speed) / player.T.speed : -1;
+    // le champ de bataille n'est dessiné qu'en jeu : en pause, réparation, résultats ou pendant la
+    // publicité de sortie, la dernière image reste affichée (redessinée une fois après un
+    // redimensionnement) ; dans le menu, rien n'est dessiné derrière la vitrine
+    if (groundCv && state !== 'menu' && (inBattle() || redraw)) { render(inBattle() ? dt : 0); redraw = false; }
+    const v = player && !player.dead && inBattle() ? Math.abs(player.speed) / player.T.speed : -1;
     Sfx.engine(v);
     // chenilles et moteur de tourelle du char du joueur
     const live = v >= 0 && player;
     Sfx.tracks(live ? Math.abs(player.speed) / PX : -1);
     Sfx.turret(live ? Math.abs(player.turretRate) / player.T.tturn : 0);
-    requestAnimationFrame(frame);
   }
 
   // ===================== Rendu =====================
@@ -2715,7 +2756,7 @@
   const dirtyTiles = new Set();
   try {
     const c3 = document.getElementById('game3d');
-    if (c3 && typeof World3D !== 'undefined' && !Q.has('2d')) {
+    if (c3 && typeof World3D !== 'undefined' && !dq('2d')) {
       W3D = World3D.create(c3);
       if (W3D) for (const id of Object.keys(TYPES)) { const b = TankModels.build(id, true); MESH3[id] = { wheel: W3D.upload(b.wheel), wheels: b.wheels, hull: W3D.upload(b.hull), turret: W3D.upload(b.turret), body: W3D.upload(b.turretBody), gun: W3D.upload(b.gun), gunPivot: b.gunPivot }; RAYTRI[id] = { hull: b.hull.v, turret: b.turret.v }; }
       if (W3D) {
@@ -2733,6 +2774,33 @@
     }
   } catch (e) { console.warn('3D rendering unavailable, switching to 2D', e); W3D = null; }
   if (!W3D) { const c3 = document.getElementById('game3d'); if (c3) c3.style.display = 'none'; }
+  // Perte du contexte WebGL du champ de bataille : pause, puis tout est renvoyé au GPU à son retour ;
+  // s'il ne revient pas vite, la bataille continue en vue 2D (et repasse en 3D au retour)
+  const W3D0 = W3D;
+  let lostT = 0;
+  if (W3D0) {
+    W3D0.onLost = () => {
+      autoPause();
+      if (state !== 'menu') toast('Graphics reset, restoring the 3D view…');
+      clearTimeout(lostT);
+      lostT = setTimeout(() => { if (W3D0.lost && W3D) use2D(true); }, 4000);
+    };
+    W3D0.onRestored = () => { clearTimeout(lostT); if (!W3D) use2D(false); reupload3D(); if (state !== 'menu') toast('3D view restored'); };
+  }
+  function use2D(on) {
+    const c3 = document.getElementById('game3d');
+    if (on) { setSight(false); W3D = null; c3.style.display = 'none'; if (state !== 'menu') toast('3D unavailable: switching to the 2D view'); }
+    else { W3D = W3D0; c3.style.display = ''; cam3.init = false; }
+    redraw = true;
+  }
+  // après un retour du contexte : sol, décor et cicatrices de blindage renvoyés au GPU
+  function reupload3D() {
+    if (groundCv) W3D.setGround(groundCv, WW / PX, WH / PX);
+    dirtyTiles.clear();
+    if (groundCv && (scene3 || bush3)) build3DScene();
+    for (const t of tanks) if (t.scar3) { W3D.free(t.scar3.hull); W3D.free(t.scar3.turret); t.scar3 = null; t.scarDirty = true; t.scarT = 0; }
+    redraw = true;
+  }
   const to3 = (x, y, z = 0) => [x / PX, -y / PX, z];
   function markDirty(x, y, r) {
     const T = 256;
@@ -2746,14 +2814,18 @@
     W3D.setEnv({ sun: [Math.cos(el) * Math.cos(az), Math.cos(el) * Math.sin(az), Math.sin(el)], sunCol: e.sunCol, skyCol: e.skyCol, bounce: e.bounce, fogCol: e.horizon, fogD: e.fogD * 0.6, horizon: e.horizon, zenith: e.zenith, snow: e.snow || 0 });
     W3D.setGround(groundCv, WW / PX, WH / PX);
     dirtyTiles.clear();
-    if (bush3) W3D.free(bush3);
-    bush3 = W3D.upload(World3D.buildBushes(L(), bushes, PX, 4242 + levelIdx * 131));
-    rebuildScene3();
+    build3DScene();
     cam3.init = false;
   }
+  // gros décors : sommets non gardés côté W3D (reconstruits ici après une perte du contexte)
+  function build3DScene() {
+    W3D.free(bush3);
+    bush3 = W3D.upload(World3D.buildBushes(L(), bushes, PX, 4242 + levelIdx * 131), false);
+    rebuildScene3();
+  }
   function rebuildScene3() {
-    if (scene3) W3D.free(scene3);
-    scene3 = W3D.upload(World3D.buildScene(L(), obstacles, bushes, PX, WW / PX, WH / PX, 1000 + levelIdx * 7919));
+    W3D.free(scene3);
+    scene3 = W3D.upload(World3D.buildScene(L(), obstacles, bushes, PX, WW / PX, WH / PX, 1000 + levelIdx * 7919), false);
     scene3Dirty = false; scene3T = 0;
   }
   // rayon depuis la caméra à travers un point de l'écran, coupé par le plan z = h
@@ -2825,7 +2897,7 @@
     sight.on = on;
     if (on) {
       sight.yaw = sight.aimYaw = player.angle + player.turret; sight.pitch = sight.aimPitch = -0.004; sight.cx = sight.cy = 0; sight.probe = null;
-      try { cv.requestPointerLock && cv.requestPointerLock(); } catch (e) { /* verrouillage refusé */ }
+      lockPointer();
       showMsg(`Gunner sight · ×${MAGS[sight.mag]}`, '#bcd8ff', 1);
     }
   }
@@ -2987,7 +3059,7 @@
     if (scene3Dirty && scene3T > 0.33) rebuildScene3();
     // traces et cratères : envoi des tuiles modifiées de la texture du sol
     let n = 0;
-    for (const k of dirtyTiles) {
+    if (!W3D.lost) for (const k of dirtyTiles) {
       if (n++ >= 6) break;
       dirtyTiles.delete(k);
       const tx = (k % 64) * 256, ty = Math.floor(k / 64) * 256, w = Math.min(256, WW - tx), h = Math.min(256, WH - ty);
@@ -3099,7 +3171,7 @@
     }
     const tg = cam3.target;
     lights.sort((a, b) => Math.hypot(a.p[0] - tg[0], a.p[1] - tg[1]) / a.r - Math.hypot(b.p[0] - tg[0], b.p[1] - tg[1]) / b.r);
-    W3D.render({ cam: { eye: cam3.eye, target: cam3.target, vp: cam3.vp, view: cam3.view, time: gameTime, lights }, items, parts: { soft, glow }, shadowExt: sight.on ? 110 : Math.max(60, cam3.dist * 1.6) }, Math.round(W * DPR), Math.round(H * DPR));
+    W3D.render({ cam: { eye: cam3.eye, target: cam3.target, vp: cam3.vp, view: cam3.view, time: gameTime, lights }, items, parts: { soft, glow }, shadowExt: sight.on ? 110 : Math.max(60, cam3.dist * 1.6) }, Math.round(W * DPR * dyn.k), Math.round(H * DPR * dyn.k));
     // interface par-dessus
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, cv.width, cv.height);
@@ -3415,6 +3487,8 @@
   }
 
   function drawNight() {
+    // voile de nuit de la vue 2D, alloué seulement quand il sert (20 Mo de moins en 3D à haute résolution)
+    if (dark.width !== cv.width || dark.height !== cv.height) { dark.width = cv.width; dark.height = cv.height; }
     dctx.setTransform(1, 0, 0, 1, 0, 0);
     dctx.globalCompositeOperation = 'source-over';
     dctx.clearRect(0, 0, dark.width, dark.height);
@@ -3664,6 +3738,11 @@
     ctx.fillText(mode === 'survie' ? `Survival · ${lv.name} · Wave ${survWave}${nextWaveT > 0 ? ` · next in ${Math.ceil(nextWaveT)} s` : ''}`
       : mode === 'duel' ? `Duel · ${lv.name} · Round ${duelScore[0] + duelScore[1] + 1} · ${duelScore[0]} – ${duelScore[1]}`
       : `Sector ${levelIdx + 1} · ${lv.name} · Wave ${waveIdx + 1}/${WAVES}`, W / 2, 26);
+    if (DEV) { // ?debug : cadence et résolution dynamique du rendu 3D
+      ctx.textAlign = 'left'; ctx.font = '600 11px system-ui, sans-serif'; ctx.fillStyle = '#9fd0ff';
+      ctx.fillText(`${Math.round(1000 / dyn.ema)} fps · 3D ${Math.round(dyn.k * 100)}% · DPR ${DPR}`, 8, H - 8);
+      ctx.textAlign = 'center'; ctx.font = '600 14px system-ui, sans-serif';
+    }
     for (let team = 0; team < 2; team++) {
       const list = tanks.filter(t => t.team === team);
       list.forEach((t, i) => {
@@ -3694,8 +3773,9 @@
 
     // journal des dégâts subis (en bas à gauche)
     ctx.textAlign = 'left'; ctx.font = '600 12px system-ui, sans-serif';
+    const logY = player && W / 2 - 280 * panelK() < 300 ? H - 104 * panelK() - 12 : H - 20;
     logs.forEach((l, i) => {
-      const y = H - 20 - i * 18;
+      const y = logY - i * 18;
       ctx.globalAlpha = Math.min(1, l.life);
       const w = ctx.measureText(l.text).width;
       ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(10, y - 13, w + 14, 17);
@@ -3722,10 +3802,13 @@
       ctx.moveTo(mouse.x - 10, mouse.y); ctx.lineTo(mouse.x - 3, mouse.y); ctx.moveTo(mouse.x + 3, mouse.y); ctx.lineTo(mouse.x + 10, mouse.y);
       ctx.moveTo(mouse.x, mouse.y - 10); ctx.lineTo(mouse.x, mouse.y - 3); ctx.moveTo(mouse.x, mouse.y + 3); ctx.lineTo(mouse.x, mouse.y + 10);
       ctx.stroke();
-      // pénétration estimée à cette distance
-      ctx.font = '600 11px system-ui, sans-serif'; ctx.textAlign = 'left';
+      // pénétration estimée à cette distance ; la lecture passe au-dessus du curseur près du panneau
+      // du char, et à sa gauche près du bord droit
+      const rdUp = mouse.y + 40 > H - 100 * panelK(), rdL = mouse.x > W - 230;
+      const rdX = rdL ? mouse.x - 14 : mouse.x + 14, rdY = rdUp ? mouse.y - 32 : mouse.y + 18;
+      ctx.font = '600 11px system-ui, sans-serif'; ctx.textAlign = rdL ? 'right' : 'left';
       ctx.fillStyle = 'rgba(255,255,255,0.8)';
-      ctx.fillText(`${Math.round(d * RK)} m · ${Math.round(penAt(player.T, player.shell, d))} mm`, mouse.x + 14, mouse.y + 18);
+      ctx.fillText(`${Math.round(d * RK)} m · ${Math.round(penAt(player.T, player.shell, d))} mm`, rdX, rdY);
       // char visé : plaque, blindage effectif et verdict, comme à la lunette
       if (W3D && m.tank && !m.tank.dead) {
         player.probeT = (player.probeT || 0) - 1 / 60;
@@ -3738,7 +3821,7 @@
         if (pr && pr.kind === 'tank' && pr.tank === m.tank && pr.plate) {
           const { col, verdict } = verdictOf(pr);
           ctx.font = '700 11px system-ui, sans-serif'; ctx.fillStyle = col;
-          ctx.fillText(`${pr.plate} · ${Math.round(pr.eff)} mm eff. · ${verdict}`, mouse.x + 14, mouse.y + 32);
+          ctx.fillText(`${pr.plate} · ${Math.round(pr.eff)} mm eff. · ${verdict}`, rdX, rdY + 14);
         }
       }
     } else if (state !== 'menu') {
@@ -3761,6 +3844,9 @@
     ctx.textAlign = 'center';
     if (state === 'intro') {
       ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(0, H / 2 - 90, W, 150);
+      // carte historique : lieu et date de la bataille
+      ctx.fillStyle = '#a39d88'; ctx.font = '600 13px system-ui, sans-serif';
+      ctx.fillText(lv.when.toUpperCase(), W / 2, H / 2 - 74);
       ctx.fillStyle = '#e9d9a6'; ctx.font = '800 34px system-ui, sans-serif';
       ctx.fillText(`${lv.name.toUpperCase()}`, W / 2, H / 2 - 45);
       ctx.font = '600 16px system-ui, sans-serif'; ctx.fillStyle = '#bdb7a2';
@@ -3806,7 +3892,7 @@
       c.fillStyle = '#8cc8ff';
       c.fillText(`${waiting ? 'Computing' : 'Computed'}: ${Math.min(99, Math.round(st.t / sim.tMax * 100))}% · ${st.step.toLocaleString('en-US')} steps · ${st.broken.toLocaleString('en-US')} broken bonds`, X + 8, Y + h - fH + 14 * fs);
     } else {
-      const res = inf.sb.heat ? (st.perforated ? 'jet traversant' : 'jet stopped') : inf.sb.he ? (st.ejected > 3 ? 'plate torn' : 'plate bulged') : (st.perforated ? 'penetrated' : 'not penetrated');
+      const res = inf.sb.heat ? (st.perforated ? 'jet passes through' : 'jet stopped') : inf.sb.he ? (st.ejected > 3 ? 'plate torn' : 'plate bulged') : (st.perforated ? 'penetrated' : 'not penetrated');
       c.fillStyle = st.perforated || (inf.sb.he && st.ejected > 3) ? '#a6f08a' : '#ff9a7a';
       c.fillText(`Plate ${res} · ${st.broken.toLocaleString('en-US')} broken bonds · T max ${Math.round(st.maxTemp)} K`, X + 8, Y + h - fH + 14 * fs);
       c.font = `600 ${10 * fs}px system-ui, sans-serif`; c.fillStyle = '#cfc8b0';
@@ -3817,8 +3903,16 @@
     c.restore();
   }
 
-  // Panneau du char : équipage, modules, obus
+  // Panneau du char : équipage, modules, obus. Réduit autour du bas de l'écran sur les petites
+  // fenêtres (iframe 640×360 du portail), où il couvrirait sinon toute la largeur.
+  const panelK = () => clamp(Math.min((W - 24) / 560, H / 560), 0.6, 1);
   function drawTankPanel() {
+    const k = panelK();
+    ctx.save(); ctx.translate(W / 2 * (1 - k), H * (1 - k)); ctx.scale(k, k);
+    drawTankPanelBody();
+    ctx.restore();
+  }
+  function drawTankPanelBody() {
     const T = player.T, pw = 560, bx = W / 2 - pw / 2, by = H - 98;
     ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(bx, by, pw, 90);
     ctx.textAlign = 'left'; ctx.font = '700 13px system-ui, sans-serif'; ctx.fillStyle = '#f0e6c8';
@@ -3847,7 +3941,7 @@
       if (r <= 0) { ctx.strokeStyle = '#ff6a5a'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x + 4, by + 27); ctx.lineTo(x + 26, by + 41); ctx.stroke(); }
       x += 34;
     }
-    if (player.swap) { ctx.textAlign = 'left'; ctx.fillStyle = '#8cc8ff'; ctx.font = '600 10px system-ui, sans-serif'; ctx.fillText(`remplacement ${player.swap.t.toFixed(0)} s`, x + 2, by + 38); }
+    if (player.swap) { ctx.textAlign = 'left'; ctx.fillStyle = '#8cc8ff'; ctx.font = '600 10px system-ui, sans-serif'; ctx.fillText(`Crew swap ${player.swap.t.toFixed(0)} s`, x + 2, by + 38); }
     // modules
     const MODS = [['engine', 'Engine'], ['trans', 'Transm.'], ['breech', 'Breech'], ['fuel', 'Fuel'], ['ammo', 'Ammo']];
     x = bx + 200;
@@ -3919,14 +4013,17 @@
   }
 
   // ===================== Vitrine 3D du menu =====================
-  const viewer = { ang: 0.8, elev: 0.33, drag: null, xray: false, dist: 1 };
+  const viewer = { ang: 0.8, elev: 0.33, drag: null, xray: false, dist: 1, labels: false };
+  // La vitrine affiche directement le canevas WebGL de R3 (aucune recopie par image, donc aucune
+  // relecture du GPU) ; #viewer, transparent par-dessus, reçoit les gestes et les étiquettes.
+  if (R3) { R3.canvas.id = 'viewer3d'; document.getElementById('showcase').prepend(R3.canvas); }
   const groundMesh = R3 ? (() => { const g = new G3.Builder(); g.ground(16, 64); return R3.upload(g); })() : null;
   function drawTank3D(id, w, h, ang, elev, xray, turretAng, clear, sk, hero, armorLv) {
     const camo = sk ? sk.camo : TEAM[0].camo, pat = sk ? sk.pat : 0;
     const M4 = G3.M4, I = TYPES[id].I, Sd = I.S;
     R3.begin(w, h, clear);
     // vitrine plein écran : plus de recul (même taille apparente pour tous les chars), char à droite
-    const d = (6.2 + Sd.L * 0.75) * (xray ? 0.72 : 1) * (hero ? 1.5 * Math.max(1, (h / w) * 1.6) : 1);
+    const d = (6.2 + Sd.L * 0.75) * (xray ? 0.72 : 1) * (hero ? 1.5 * Math.max(1, (h / w) * 1.6) * viewer.dist : 1);
     const eye = [Math.cos(ang) * Math.cos(elev) * d, Math.sin(ang) * Math.cos(elev) * d, Math.sin(elev) * d + 1.0];
     let tgt = [0, 0, Sd.ht * 0.6];
     if (hero && w > h) { const k = d * 0.17; tgt = [tgt[0] + Math.sin(ang) * k, tgt[1] - Math.cos(ang) * k, tgt[2] + d * 0.03]; }
@@ -3951,43 +4048,42 @@
     const vc = $('viewer');
     if (!vc || !vc.clientWidth) return;
     const vd = Math.min(DPR, 1.25), w = Math.round(vc.clientWidth * vd), h = Math.round(vc.clientHeight * vd);
-    if (vc.width !== w || vc.height !== h) { vc.width = w; vc.height = h; }
     if (!viewer.drag) viewer.ang += dt * 0.22;
     const ta = Math.sin(viewerT * 0.4) * 0.35;
     drawTank3D(chosenType, w, h, viewer.ang, viewer.elev, viewer.xray, ta, [0.05, 0.055, 0.045, 1], skinPreview ? Meta.SKINS.find(k => k.id === skinPreview) : Meta.skinOf(chosenType), true, Meta.partLv(chosenType, 'armor'));
     const c2 = vc.getContext('2d');
-    c2.drawImage(R3.canvas, 0, 0);
-    if (viewer.xray) {
-      // noms des modules, reliés à leur position
-      const I = TYPES[chosenType].I, tm = G3.M4.trs(I.pivotX, I.pivotY, 0, ta);
-      const seen = new Set(), labels = [];
-      c2.font = `600 ${Math.round(11 * DPR)}px system-ui, sans-serif`;
-      c2.textAlign = 'center';
-      for (const m of TankModels.makeModules(chosenType)) {
-        if (seen.has(m.name)) continue;
-        seen.add(m.name);
-        const top = [m.c[0], m.c[1], m.c[2] + m.s[2] / 2];
-        const q = R3.project(m.frame === 'turret' ? G3.M4.apply(tm, top) : top, w, h);
-        labels.push({ m, q, tw: c2.measureText(m.name).width + 10 * DPR });
-      }
-      // répartition sur plusieurs lignes pour éviter les chevauchements
-      labels.sort((a, b) => a.q.y - b.q.y);
-      const rows = [];
-      for (const L of labels) {
-        let r = 0;
-        while ((rows[r] || []).some(o => Math.abs(o.q.x - L.q.x) < (o.tw + L.tw) / 2 + 4 * DPR)) r++;
-        (rows[r] = rows[r] || []).push(L);
-        L.row = r;
-      }
-      for (const L of labels) {
-        const ly = (18 + L.row * 18) * DPR;
-        c2.strokeStyle = 'rgba(255,255,255,0.4)'; c2.lineWidth = DPR;
-        c2.beginPath(); c2.moveTo(L.q.x, L.q.y); c2.lineTo(L.q.x, ly + 4 * DPR); c2.stroke();
-        c2.fillStyle = 'rgba(0,0,0,0.65)'; c2.fillRect(L.q.x - L.tw / 2, ly - 12 * DPR, L.tw, 16 * DPR);
-        const k = L.m.kind;
-        c2.fillStyle = k === 'crew' ? '#9fe0a8' : k === 'ammo' ? '#f0d27a' : k === 'fuel' ? '#ffb45a' : '#cfd6e0';
-        c2.fillText(L.m.name, L.q.x, ly);
-      }
+    if (!viewer.xray) { if (viewer.labels) { c2.clearRect(0, 0, vc.width, vc.height); viewer.labels = false; } return; }
+    if (vc.width !== w || vc.height !== h) { vc.width = w; vc.height = h; }
+    c2.clearRect(0, 0, w, h); viewer.labels = true;
+    // noms des modules, reliés à leur position
+    const I = TYPES[chosenType].I, tm = G3.M4.trs(I.pivotX, I.pivotY, 0, ta);
+    const seen = new Set(), labels = [];
+    c2.font = `600 ${Math.round(11 * DPR)}px system-ui, sans-serif`;
+    c2.textAlign = 'center';
+    for (const m of TankModels.makeModules(chosenType)) {
+      if (seen.has(m.name)) continue;
+      seen.add(m.name);
+      const top = [m.c[0], m.c[1], m.c[2] + m.s[2] / 2];
+      const q = R3.project(m.frame === 'turret' ? G3.M4.apply(tm, top) : top, w, h);
+      labels.push({ m, q, tw: c2.measureText(m.name).width + 10 * DPR });
+    }
+    // répartition sur plusieurs lignes pour éviter les chevauchements
+    labels.sort((a, b) => a.q.y - b.q.y);
+    const rows = [];
+    for (const L of labels) {
+      let r = 0;
+      while ((rows[r] || []).some(o => Math.abs(o.q.x - L.q.x) < (o.tw + L.tw) / 2 + 4 * DPR)) r++;
+      (rows[r] = rows[r] || []).push(L);
+      L.row = r;
+    }
+    for (const L of labels) {
+      const ly = (18 + L.row * 18) * DPR;
+      c2.strokeStyle = 'rgba(255,255,255,0.4)'; c2.lineWidth = DPR;
+      c2.beginPath(); c2.moveTo(L.q.x, L.q.y); c2.lineTo(L.q.x, ly + 4 * DPR); c2.stroke();
+      c2.fillStyle = 'rgba(0,0,0,0.65)'; c2.fillRect(L.q.x - L.tw / 2, ly - 12 * DPR, L.tw, 16 * DPR);
+      const k = L.m.kind;
+      c2.fillStyle = k === 'crew' ? '#9fe0a8' : k === 'ammo' ? '#f0d27a' : k === 'fuel' ? '#ffb45a' : '#cfd6e0';
+      c2.fillText(L.m.name, L.q.x, ly);
     }
   }
 
@@ -4020,7 +4116,7 @@
   }
   function tankThumb(id) {
     const sk = Meta.skinOf(id), key = id + ':' + sk.id;
-    if (!thumbCache[key] && R3) {
+    if (!thumbCache[key] && R3 && !R3.lost) {
       drawTank3D(id, 480, 260, 0.75, 0.3, false, 0.25, [0.07, 0.08, 0.07, 1], sk);
       const c = document.createElement('canvas'); c.width = 480; c.height = 260;
       c.getContext('2d').drawImage(R3.canvas, 0, 0);
@@ -4030,8 +4126,8 @@
   }
   function updateTopbar() {
     const P = Meta.P, need = Meta.xpFor(P.level);
-    $('credN').textContent = fmt(P.credits);
-    $('kitsN').textContent = P.kits;
+    $('credN').textContent = fmt(wheelHold ? wheelHold.credits : P.credits);
+    $('kitsN').textContent = wheelHold ? wheelHold.kits : P.kits;
     $('rkLv').querySelector('span').textContent = P.level;
     $('rkLv').style.setProperty('--p', Math.round(P.xp / need * 100) + '%');
     $('rkName').textContent = Meta.rankName();
@@ -4044,8 +4140,23 @@
     $('startBtn').disabled = !owned;
   }
   const MODE_EM = { campagne: '🎖', survie: '☠', duel: '⚔' };
+  // vitrine : sans contexte WebGL, elle s'efface (et ses commandes avec) jusqu'à son retour
+  if (R3) {
+    R3.onLost = () => $('showcase').classList.add('no3d');
+    R3.onRestored = () => { $('showcase').classList.remove('no3d'); if (state === 'menu') buildMenu(); };
+  }
+  // Appareil tactile sans souris ni clavier (téléphone, tablette) : aucune commande tactile en bataille,
+  // le bouton de départ laisse place à un avertissement (jeu publié pour ordinateur seulement)
+  function touchOnly() {
+    try {
+      if (matchMedia('(any-pointer: fine)').matches) return false; // souris ou pavé tactile branché
+      const d = Meta.sdk.device;
+      return d ? d !== 'desktop' : matchMedia('(pointer: coarse)').matches;
+    } catch (e) { return false; }
+  }
   function buildMenu() {
     const P = Meta.P;
+    document.body.classList.toggle('touch', touchOnly());
     const tc = $('tankCards'); tc.innerHTML = '';
     for (const T of Object.values(TYPES)) {
       const d = document.createElement('div'), own = P.tanks.includes(T.id), inf = Meta.TANKS[T.id];
@@ -4116,19 +4227,20 @@
     }
     $('skinHint').textContent = skinPreview ? `Previewing “${Meta.SKINS.find(k => k.id === skinPreview).name}”. Click again to go back to yours.` : 'Click a camo to try it on the showcase.';
     $('specs').innerHTML = specsHTML(TYPES[chosenType]) + partsLine(chosenType);
-    $('showcase').classList.toggle('no3d', !R3);
+    $('showcase').classList.toggle('no3d', !R3 || R3.lost);
     const mc = $('modeCards'); mc.innerHTML = '';
     for (const [id, M] of Object.entries(MODES)) {
       const d = document.createElement('div');
       d.className = 'card mode' + (id === mode ? ' sel' : '');
-      d.innerHTML = `<div class="em">${MODE_EM[id]}</div><div><b>${M.name}</b><small>${M.sub}${id === 'survie' && survBest ? ` · best: wave ${survBest}` : ''}</small></div>`;
-      d.onclick = () => { mode = id; buildMenu(); };
+      d.innerHTML = `<div class="em">${MODE_EM[id]}</div><div><b>${M.name}</b><small>${M.sub}${id === 'survie' && P.survBest ? ` · best: wave ${P.survBest}` : ''}</small></div>`;
+      // retour en campagne : un secteur verrouillé choisi dans un autre mode n'y reste pas sélectionné
+      d.onclick = () => { mode = id; if (id === 'campagne') levelIdx = Math.min(levelIdx, unlockedIdx()); buildMenu(); };
       mc.appendChild(d);
     }
     const lc = $('levelCards'); lc.innerHTML = '';
     LEVELS.forEach((lv, i) => {
       const d = document.createElement('div');
-      const locked = mode === 'campagne' && i > unlocked;
+      const locked = mode === 'campagne' && i > unlockedIdx();
       d.className = 'card' + (i === levelIdx ? ' sel' : '') + (locked ? ' locked' : '');
       d.innerHTML = `<b>${i + 1}. ${lv.name}</b><small>${locked ? '🔒 Conquer the previous sector' : lv.sub}</small>`;
       d.onclick = () => { if (!locked) { levelIdx = i; buildMenu(); } };
@@ -4169,7 +4281,7 @@
   // camouflage débloqué : aperçu du char du garage avec ce camouflage
   function celebrateSkin(sk, kind) {
     let img = '';
-    if (R3) {
+    if (R3 && !R3.lost) {
       drawTank3D(chosenType, 480, 260, 0.75, 0.3, false, 0.25, [0.07, 0.08, 0.07, 1], sk);
       const c = document.createElement('canvas'); c.width = 480; c.height = 260;
       c.getContext('2d').drawImage(R3.canvas, 0, 0); img = c.toDataURL('image/jpeg', 0.85);
@@ -4264,7 +4376,7 @@
     return `<div class="specLine" style="margin-top:8px;color:var(--gold)">Upgrades: power ${pc(m.hp)} · penetration ${pc(m.pen)} · armor ${pc(m.armor)} · grip ${pc(m.grip)} · vision ${pc(m.optic)} · reload ${pc(m.reload)}${m.ready ? ` · ready rack +${m.ready}` : ''}</div>`;
   }
   // ----- roue -----
-  let wheelRot = 0, wheelSpin = false;
+  let wheelRot = 0, wheelSpin = false, wheelHold = null;
   function drawWheel(rot) {
     const c = $('wheel'); if (!c) return;
     const g = c.getContext('2d'), W2 = c.width, R = W2 / 2 - 18, cx = W2 / 2, cy = W2 / 2, segs = Meta.WHEEL, n = segs.length;
@@ -4299,6 +4411,12 @@
     // le segment gagnant s'arrête sous l'aiguille (en haut), après 6 tours et un peu de hasard
     const target = -idx / n * TAU + (Math.random() - 0.5) * (TAU / n) * 0.7;
     const start = wheelRot, end = start - ((start - target) % TAU + TAU) % TAU + TAU * 6, t0 = performance.now(), dur = 5200;
+    // le lot est acquis et sauvegardé dès le lancer : recharger la page ne relance pas le tirage du
+    // jour, et fermer l'onglet pendant un tirage payé d'une publicité ne le perd pas. L'animation ne
+    // fait que le révéler (crédits et kits affichés figés jusque-là).
+    wheelHold = { credits: Meta.P.credits, kits: Meta.P.kits };
+    const had = Meta.P.skins.slice(), txt = Meta.applyPrize(idx, free);
+    const won = Meta.SKINS.find(k => !had.includes(k.id) && Meta.P.skins.includes(k.id));
     wheelSpin = true; $('wheelPrize').textContent = ''; buildMenu();
     const anim = now => {
       const k = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - k, 4);
@@ -4306,13 +4424,12 @@
       drawWheel(wheelRot);
       if (k < 1) requestAnimationFrame(anim);
       else {
-        wheelSpin = false;
-        const had = Meta.P.skins.slice(), txt = Meta.applyPrize(idx, free);
+        wheelSpin = false; wheelHold = null;
         $('wheelPrize').textContent = `You won: ${txt}!`;
         buildMenu();
-        const won = Meta.SKINS.find(k => !had.includes(k.id) && Meta.P.skins.includes(k.id));
+        if (state !== 'menu') return; // parti au combat pendant le tirage : pas de fête par-dessus la bataille
         if (won) celebrateSkin(won, 'Wheel prize');
-        else { toast(`🎁 ${txt}`); Sfx.reload(); }
+        else { toast(`🎁 ${txt}`); Sfx.reload(); if (Meta.WHEEL[idx].c >= 2500) Meta.sdk.happytime(); }
       }
     };
     requestAnimationFrame(anim);
@@ -4321,41 +4438,56 @@
   document.querySelectorAll('.tab').forEach(b => b.onclick = () => {
     document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === b));
     document.querySelectorAll('.panel').forEach(x => x.classList.toggle('on', x.id === 'tab-' + b.dataset.tab));
-    Sfx.init(); playMusic();
+    Sfx.init(); playMusic(); newDay();
   });
   $('spinFree').onclick = () => { if (Meta.canSpinFree()) spinWheel(true); };
   $('spinAd').onclick = () => Meta.rewarded(() => spinWheel(false), () => toast('Ad unavailable right now'));
-  const music = $('menuMusic');
+  // Musique du menu : aucune piste n'est livrée. Ces deux crochets décident seuls quand elle joue
+  // (menu, volume non nul, son non coupé, onglet visible) ; une musique de audio.js s'y branche en
+  // définissant Sfx.playMusic(volume) et Sfx.stopMusic().
   function playMusic() {
-    if (!music) return;
-    music.volume = Meta.P.opts.music * 0.7;
-    if (state === 'menu' && music.paused && Meta.P.opts.music > 0) music.play().catch(() => {});
+    if (!Sfx.playMusic) return;
+    if (state === 'menu' && Meta.P.opts.music > 0 && !Sfx.silenced && !document.hidden) Sfx.playMusic(Meta.P.opts.music);
+    else stopMusic();
   }
-  function stopMusic() { if (music && !music.paused) music.pause(); }
+  function stopMusic() { if (Sfx.stopMusic) Sfx.stopMusic(); }
   function applyOptions() {
     const o = Meta.P.opts;
-    Sfx.setVolume(o.sfx); hitcamOn = o.hitcam;
+    Sfx.setVolume(o.sfx); Sfx.setUserMute(o.mute); Sfx.setPortalMute(Meta.platformMute); hitcamOn = o.hitcam;
     QDPR = o.quality === 'basse' ? 1 : o.quality === 'moyenne' ? 1.25 : 2;
     PCAP = o.quality === 'basse' ? 900 : o.quality === 'moyenne' ? 1700 : 2600;
     resize();
-    if (music) music.volume = o.music * 0.7;
     TOF = o.ballistics === 'arcade' ? 0.6 : 1;
     $('oSfx').value = o.sfx; $('oMusic').value = o.music; $('oQuality').value = o.quality; $('oHitcam').checked = o.hitcam; $('oBallistics').value = o.ballistics || 'real';
   }
   $('oSfx').oninput = e => { Meta.P.opts.sfx = +e.target.value; Meta.save(); applyOptions(); };
   $('oMusic').oninput = e => { Meta.P.opts.music = +e.target.value; Meta.save(); applyOptions(); playMusic(); };
-  $('oQuality').onchange = e => { Meta.P.opts.quality = e.target.value; Meta.save(); applyOptions(); };
+  $('oQuality').onchange = e => { Meta.P.opts.quality = e.target.value; Meta.save(); dynReset(true); applyOptions(); };
   $('oHitcam').onchange = e => { Meta.P.opts.hitcam = e.target.checked; Meta.save(); applyOptions(); };
   $('oBallistics').onchange = e => { Meta.P.opts.ballistics = e.target.value; Meta.save(); applyOptions(); };
-  $('oFull').onclick = () => { try { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen(); } catch (e) { /* refusé */ } };
-  $('oReset').onclick = () => {
-    if (!confirm('Erase all progress (credits, tanks, camos)?')) return;
-    try { localStorage.removeItem('frontdacier.profil'); } catch (e) { /* */ }
-    location.reload();
-  };
+  // Fenêtre de confirmation du jeu (les fenêtres natives sont bloquées dans l'iframe du portail
+  // et font sortir du plein écran)
+  function askConfirm(title, text, okLabel, onOk) {
+    $('cfTitle').textContent = title; $('cfText').textContent = text; $('cfOk').textContent = okLabel;
+    const close = ok => { hide('confirm'); removeEventListener('keydown', key, true); if (ok) onOk(); };
+    const key = e => { if (e.code === 'Escape') { e.stopPropagation(); close(false); } };
+    $('cfOk').onclick = () => close(true);
+    $('cfNo').onclick = () => close(false);
+    addEventListener('keydown', key, true);
+    show('confirm');
+  }
+  $('oReset').onclick = () => askConfirm('Erase everything?', 'Credits, tanks, camos, upgrades, campaign progress and records will be lost for good. Settings are kept.', 'Erase', () => {
+    Meta.reset();
+    levelIdx = 0; mode = 'campagne'; chosenType = 'pz4'; skinPreview = null;
+    applyOptions(); buildMenu();
+    toast('Progress erased');
+    setTimeout(newDay, 600);
+  });
   Meta.hooks.change = () => { if (state === 'menu') updateTopbar(); };
-  Meta.hooks.adStart = () => { Sfx.setMuted(true); stopMusic(); Meta.sdk.gameplayStop(); };
-  Meta.hooks.adEnd = () => { Sfx.setMuted(false); if (state === 'menu') playMusic(); };
+  Meta.hooks.adStart = () => { Sfx.setMuted(true); stopMusic(); releaseInput(); Meta.sdk.gameplayStop(); };
+  // fin de publicité : seule la coupure de la publicité est levée (touche M, onglet et portail restent)
+  Meta.hooks.adEnd = () => { Sfx.setMuted(false); playMusic(); };
+  Meta.hooks.mute = m => { Sfx.setPortalMute(m); if (m) stopMusic(); else playMusic(); };
 
   // Air du champ de bataille : température, densité et vent (direction tirée à chaque bataille) ;
   // le menu et son banc d'essai restent dans l'atmosphère type (15 °C, 1,225 kg/m³, sans vent)
@@ -4364,38 +4496,57 @@
     const w = a ? a.wind * rnd(0.7, 1.15) : 0, wa = rnd(0, TAU);
     WIND.x = Math.cos(wa) * w; WIND.y = Math.sin(wa) * w;
   }
-  function startLevel() { setAir(L().atm); genMap(); setup3D(); spawnWave(); }
+  function startLevel() { setAir(L().atm); genMap(); setup3D(); dynReset(false); spawnWave(); }
   // ===================== Réparation (publicité récompensée ou kit) =====================
-  let reviveT = 0, reviveUsed = false, reviveIt = null;
-  const revivePending = () => reviveT > 0 || state === 'revive';
+  // Le compte à rebours de 8 s est figé pendant la publicité de réparation (15 à 30 s sur CrazyGames)
+  // et quand l'onglet est masqué ; la réparation n'est appliquée que si l'écran est encore ouvert.
+  let reviveT = 0, reviveUsed = false, reviveIt = null, reviveAd = false, reviveLeft = 0;
+  const REVIVE_S = 8;
+  const revivePending = () => reviveT > 0 || state === 'revive' || reviveAd;
   function openRevive() {
     if (!player || !player.dead || state !== 'play') return;
     state = 'revive'; freePointer(); setSight(false);
     Meta.sdk.gameplayStop();
     show('revive');
+    reviveAd = false; reviveButtons(true);
+    reviveCountdown(REVIVE_S);
+  }
+  function reviveButtons(on) {
     $('revKit').textContent = `Repair kit (${Meta.P.kits})`;
-    $('revKit').disabled = Meta.P.kits <= 0;
-    let n = 8, t0 = performance.now();
-    $('revN').textContent = n;
+    $('revKit').disabled = !on || Meta.P.kits <= 0;
+    $('revAd').disabled = !on; $('revNo').disabled = !on;
+  }
+  function reviveCountdown(sec) {
     clearInterval(reviveIt);
+    reviveLeft = sec;
+    let prev = performance.now();
+    const draw = () => {
+      $('revRing').style.setProperty('--p', clamp(reviveLeft / REVIVE_S * 100, 0, 100) + '%');
+      $('revN').textContent = Math.max(0, Math.ceil(reviveLeft));
+    };
+    draw();
     reviveIt = setInterval(() => {
-      const el = (performance.now() - t0) / 1000;
-      $('revRing').style.setProperty('--p', Math.max(0, 100 - el / 8 * 100) + '%');
-      $('revN').textContent = Math.max(0, Math.ceil(8 - el));
-      if (el >= 8) closeRevive(false);
+      const now = performance.now(), d = Math.min(0.5, (now - prev) / 1000);
+      prev = now;
+      if (reviveAd || Meta.adActive() || document.hidden) return;
+      reviveLeft -= d; draw();
+      if (reviveLeft <= 0) closeRevive(false);
     }, 100);
   }
   function closeRevive(ok) {
+    if (reviveAd) return;
     clearInterval(reviveIt); reviveIt = null;
     hide('revive');
     reviveUsed = true;
-    if (state === 'revive') { state = 'play'; last = performance.now(); Meta.sdk.gameplayStart(); }
+    if (state !== 'revive') return;
+    state = 'play'; last = performance.now(); Meta.sdk.gameplayStart();
     if (ok) revivePlayer();
   }
   // Le char est remis en état sur place : équipage soigné, modules réparés, tourelle remontée,
   // un peu de munitions, 3 s d'invulnérabilité pour se remettre à couvert
   function revivePlayer() {
     const t = player;
+    if (!t || !t.dead || state !== 'play') return;
     t.dead = false; t.deadT = 0; t.turretGone = false; t.fireT = 0; t.trackT = 0; t.wheelK = 1; t.speed = 0;
     for (const m of t.mods) m.hp = m.max0;
     for (const k of SHELL_KEYS) t.ammo[k] = Math.min(t.T.ammo[k], t.ammo[k] + Math.ceil(t.T.ammo[k] * 0.3));
@@ -4406,9 +4557,18 @@
     addLog('Field repair: crew and modules restored', '#8fd46a');
     Sfx.reload();
   }
-  $('revAd').onclick = () => Meta.rewarded(() => closeRevive(true), () => toast('Ad unavailable right now'));
-  $('revKit').onclick = () => { if (Meta.P.kits > 0) { Meta.P.kits--; Meta.save(); closeRevive(true); } };
-  $('revNo').onclick = () => closeRevive(false);
+  $('revAd').onclick = () => {
+    if (reviveAd || state !== 'revive') return;
+    reviveAd = true; reviveButtons(false);
+    Meta.rewarded(() => { reviveAd = false; closeRevive(true); }, () => {
+      // publicité indisponible : on rend la main avec au moins 3 s pour choisir
+      reviveAd = false; reviveButtons(true);
+      reviveLeft = clamp(reviveLeft + 2, 3, REVIVE_S);
+      toast('Ad unavailable right now');
+    });
+  };
+  $('revKit').onclick = () => { if (!reviveAd && state === 'revive' && Meta.P.kits > 0) { Meta.P.kits--; Meta.save(); closeRevive(true); } };
+  $('revNo').onclick = () => { if (!reviveAd) closeRevive(false); };
 
 
   function showResult() {
@@ -4442,11 +4602,11 @@
     if (!win) add('Retry wave', () => spawnWave());
     else if (!lastWave) add('Next wave', () => { waveIdx++; spawnWave(); });
     else {
-      if (levelIdx + 1 > unlocked && !lastLevel) { unlocked = levelIdx + 1; saveUnlocked(); }
+      if (levelIdx + 1 > Meta.P.unlocked && !lastLevel) { Meta.P.unlocked = levelIdx + 1; Meta.save(); }
       if (!lastLevel) add('Next sector', () => { levelIdx++; waveIdx = 0; startLevel(); });
     }
     add('Main menu', toMenu, true);
-    show('result');
+    show('result'); Meta.banner('bannerRes');
   }
 
   // Gains de la bataille (crédits, expérience, grade), bouton « doubler » par publicité, et boutons
@@ -4474,7 +4634,7 @@
       add(label, fn, alt) {
         const b = document.createElement('button');
         b.className = 'btn' + (alt ? ' alt' : ''); b.textContent = label;
-        b.onclick = () => { Sfx.init(); hide('result'); Meta.midgame(fn); };
+        b.onclick = () => { if (state !== 'result') return; Sfx.init(); hide('result'); state = 'leaving'; Meta.midgame(fn); };
         btns.appendChild(b); shown++;
       },
     };
@@ -4495,11 +4655,11 @@
     if (mode === 'survie') Meta.track('wave', survWave);
     const add = resultButtons({ win: mode === 'survie' ? survWave > 3 : win, kills: ws.kills, pens: ws.pens, crew: ws.crew, waves: mode === 'survie' ? survWave - 1 : 0 }).add;
     if (mode === 'survie') {
-      const held = survWave - 1, rec = held > survBest;
-      if (rec) { survBest = held; try { localStorage.setItem('frontdacier.survie', String(held)); } catch (e) { /* stockage indisponible */ } }
+      const held = survWave - 1, rec = held > Meta.P.survBest;
+      if (rec) { Meta.P.survBest = held; Meta.save(); }
       $('resTitle').className = held > 0 ? 'win' : 'lose';
       $('resTitle').textContent = rec && held > 0 ? 'NEW RECORD' : 'SURVIVAL OVER';
-      $('resSub').textContent = `${L().name} · ${held} wave${held > 1 ? 's' : ''} repelled · best: ${survBest}`;
+      $('resSub').textContent = `${L().name} · ${held} wave${held > 1 ? 's' : ''} repelled · best: ${Meta.P.survBest}`;
       $('resTable').innerHTML = `<tr><td>Wave reached</td><td>${survWave}</td></tr>` + statRows(ws);
       add('Play again', () => startLevel());
     } else {
@@ -4513,7 +4673,7 @@
       else add('Next round', () => spawnWave());
     }
     add('Main menu', toMenu, true);
-    show('result');
+    show('result'); Meta.banner('bannerRes');
   }
 
   function show(id) { $(id).classList.add('on'); }
@@ -4524,15 +4684,53 @@
     state = 'menu'; campaignScore = 0;
     HitCam.stop(); setSight(false); setAir(null);
     Meta.sdk.gameplayStop();
-    buildMenu(); show('menu'); playMusic();
+    freeBattle();
+    buildMenu(); show('menu'); playMusic(); newDay();
+    Meta.banner('bannerMenu');
+  }
+  // nouveau jour pendant la session : missions renouvelées et prime de présence annoncée
+  function newDay() {
+    const b = Meta.dailyRoll();
+    if (b) { buildMenu(); toast(`Daily login · day ${Meta.P.streak}: +✪ ${fmt(b)}`); }
+  }
+  // Retour au menu : interface effacée, décor 3D et texture du sol libérés (des dizaines de Mo de
+  // tampons dans les Ardennes) ; la prochaine bataille les reconstruit (genMap, setup3D)
+  function freeBattle() {
+    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height);
+    if (W3D0) {
+      for (const t of tanks) if (t.scar3) { W3D0.free(t.scar3.hull); W3D0.free(t.scar3.turret); t.scar3 = null; }
+      W3D0.free(scene3); W3D0.free(bush3); scene3 = bush3 = null;
+    }
+    groundCv = gctx = null; dirtyTiles.clear();
   }
   let pausedFrom = 'play';
-  function freePointer() { if (document.pointerLockElement === cv) document.exitPointerLock(); }
+  // Curseur verrouillé en 3D. Les deux appels renvoient une promesse qui peut être rejetée (par
+  // exemple si l'on reverrouille moins d'une seconde après Échap) : l'erreur est absorbée.
+  let lockedBefore = false, intentionalUnlock = false, pausedAt = -1e9;
+  function lockPointer() {
+    if (!W3D || !cv.requestPointerLock || document.pointerLockElement === cv) return;
+    try { const r = cv.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch (e) { /* verrouillage refusé */ }
+  }
+  function freePointer() { if (document.pointerLockElement === cv) { intentionalUnlock = true; document.exitPointerLock(); } }
   function togglePause() {
     freePointer();
     if (state === 'pause') { state = pausedFrom; hide('pause'); last = performance.now(); Meta.sdk.gameplayStart(); }
-    else if (state === 'play' || state === 'intro' || state === 'ending') { pausedFrom = state; state = 'pause'; show('pause'); Meta.sdk.gameplayStop(); }
+    else if (inBattle()) { pausedFrom = state; state = 'pause'; pausedAt = performance.now(); show('pause'); Meta.sdk.gameplayStop(); }
   }
+  // Pause automatique (onglet masqué, fenêtre quittée, curseur libéré par le navigateur), sauf en
+  // partie automatique de test où personne ne joue
+  function autoPause() { if (inBattle() && !AUTO) togglePause(); }
+  document.addEventListener('pointerlockchange', () => {
+    const locked = document.pointerLockElement === cv;
+    // Échap libère le curseur sans toujours transmettre la touche à la page : on met en pause
+    if (!locked && lockedBefore && !intentionalUnlock) autoPause();
+    lockedBefore = locked; intentionalUnlock = false;
+  });
+  document.addEventListener('pointerlockerror', () => { lockedBefore = false; });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { autoPause(); releaseInput(); Sfx.setBgMute(true); stopMusic(); }
+    else { Sfx.setBgMute(false); last = performance.now(); playMusic(); }
+  });
 
   // Banc d'essai : un tir sur une plaque, prédiction empirique et simulation du métal
   const bench = { sim: null, t0: 0, pred: null };
@@ -4584,30 +4782,48 @@
   }
 
   $('startBtn').onclick = () => {
-    if (!Meta.P.tanks.includes(chosenType)) return;
+    if (!Meta.P.tanks.includes(chosenType) || touchOnly()) return;
     Sfx.init(); stopMusic(); hide('menu'); waveIdx = 0; campaignScore = 0; duelScore = [0, 0];
-    if (mode === 'campagne') levelIdx = Math.min(levelIdx, unlocked);
+    if (mode === 'campagne') levelIdx = Math.min(levelIdx, unlockedIdx());
     startLevel();
   };
-  $('resumeBtn').onclick = togglePause;
-  $('quitBtn').onclick = () => { hide('pause'); Meta.midgame(toMenu); };
+  // reprendre reverrouille le curseur dans le geste du clic (sinon la vue tourne seule en 3D)
+  $('resumeBtn').onclick = () => { if (state !== 'pause') return; togglePause(); if (state === 'play' || state === 'intro') lockPointer(); };
+  $('quitBtn').onclick = () => { if (state !== 'pause') return; hide('pause'); state = 'leaving'; Meta.sdk.gameplayStop(); Meta.midgame(toMenu); };
   $('xrayBtn').onclick = () => { viewer.xray = !viewer.xray; $('xrayBtn').classList.toggle('on', viewer.xray); };
   const vc = $('viewer');
-  vc.addEventListener('pointerdown', e => { viewer.drag = { x: e.clientX, y: e.clientY, a: viewer.ang, e: viewer.elev }; vc.setPointerCapture(e.pointerId); });
+  vc.addEventListener('pointerdown', e => { if (adOn()) return; viewer.drag = { x: e.clientX, y: e.clientY, a: viewer.ang, e: viewer.elev }; vc.setPointerCapture(e.pointerId); });
   vc.addEventListener('pointermove', e => {
     if (!viewer.drag) return;
     viewer.ang = viewer.drag.a - (e.clientX - viewer.drag.x) * 0.01;
     viewer.elev = clamp(viewer.drag.e + (e.clientY - viewer.drag.y) * 0.006, 0.05, 1.3);
   });
   vc.addEventListener('pointerup', () => { viewer.drag = null; });
+  // molette sur la vitrine : rapproche ou éloigne la caméra du char
+  vc.addEventListener('wheel', e => { e.preventDefault(); if (!adOn()) viewer.dist = clamp(viewer.dist * Math.exp(e.deltaY * 0.001), 0.62, 1.5); }, { passive: false });
+  // ailleurs, la molette ne fait jamais défiler la page du portail : seuls les panneaux du menu et les
+  // écrans centrés défilent (sans entraîner la page quand ils arrivent au bout, voir overscroll-behavior)
+  addEventListener('wheel', e => { if (!(e.target && e.target.closest && e.target.closest('.side, .center'))) e.preventDefault(); }, { passive: false });
 
   // ===================== Entrées =====================
+  // Pendant une publicité, le SDK l'affiche dans la page du jeu : nos gestionnaires de clavier et de
+  // souris l'ignorent (sans bloquer l'interface de la publicité elle-même)
+  const adOn = () => Meta.adActive();
+  function releaseInput() { for (const k in keys) keys[k] = false; mouse.down = false; mouse.right = false; cam3.drag = null; }
+  const SCROLL_KEYS = ['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab', 'PageUp', 'PageDown', 'Home', 'End'];
   addEventListener('keydown', e => {
+    // ces touches ne doivent jamais faire défiler la page du portail
+    if (SCROLL_KEYS.includes(e.code) && !(e.target && e.target.closest && e.target.closest('input, select'))) e.preventDefault();
+    if (adOn()) return;
     if (e.repeat && keys[e.code]) return;
     keys[e.code] = true;
-    if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.code)) e.preventDefault();
-    if (e.code === 'Escape' || e.code === 'KeyP') togglePause();
-    if (e.code === 'KeyM') Sfx.toggle();
+    // la même pression d'Échap peut libérer le curseur (pause automatique) puis arriver ici
+    if ((e.code === 'Escape' || e.code === 'KeyP') && !(state === 'pause' && performance.now() - pausedAt < 400)) togglePause();
+    if (e.code === 'KeyM') {
+      Meta.P.opts.mute = Sfx.toggle(); Meta.save();
+      if (Meta.P.opts.mute) stopMusic(); else playMusic();
+      if (state !== 'menu') showMsg(Meta.P.opts.mute ? 'Sound off' : 'Sound on', '#bcd8ff', 1);
+    }
     if (e.code === 'KeyH' && state !== 'menu') { hitcamOn = !hitcamOn; if (!hitcamOn) HitCam.stop(); showMsg(hitcamOn ? 'Impact camera on' : 'Impact camera off', '#bcd8ff', 1.4); }
     if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyV') && state !== 'menu') setSight(!sight.on);
     if (e.code === 'KeyC' && W3D && state !== 'menu') {
@@ -4616,7 +4832,7 @@
       cam3.dist = CAM_MODES[cam3.mode].dist; cam3.off = 0;
       showMsg(CAM_MODES[cam3.mode].name, '#bcd8ff', 1.2);
     }
-    if (!player || player.dead || player.ai || state === 'menu' || state === 'pause' || state === 'result') return;
+    if (!player || player.dead || player.ai || !inBattle()) return;
     const dm = e.code.match(/^(?:Digit|Numpad)([1-7])$/);
     if (dm) {
       const key = SHELL_KEYS[Number(dm[1]) - 1];
@@ -4641,7 +4857,7 @@
     }
   });
   addEventListener('keyup', e => { keys[e.code] = false; });
-  addEventListener('blur', () => { for (const k in keys) keys[k] = false; mouse.down = false; });
+  addEventListener('blur', () => { releaseInput(); autoPause(); });
   // position de la souris dans le repère du canvas (décalage et mise à l'échelle éventuels de la page)
   function trackMouse(e) {
     const r = cv.getBoundingClientRect();
@@ -4662,52 +4878,60 @@
   });
   addEventListener('pointerdown', trackMouse);
   cv.addEventListener('mousedown', e => {
+    if (adOn()) return;
     Sfx.init();
     if (e.button === 0) {
       mouse.down = true;
-      if (W3D && (state === 'play' || state === 'intro') && document.pointerLockElement !== cv) { try { cv.requestPointerLock && cv.requestPointerLock(); } catch (er) { /* refusé */ } }
+      if (state === 'play' || state === 'intro') lockPointer();
       if (player && player.dead) specIdx++;
     }
   });
   addEventListener('mouseup', e => { if (e.button === 0) mouse.down = false; if (e.button === 2) mouse.right = false; });
-  cv.addEventListener('mousedown', e => { if (e.button === 2) mouse.right = true; });
+  cv.addEventListener('mousedown', e => { if (e.button === 2 && !adOn()) mouse.right = true; });
   cv.addEventListener('contextmenu', e => e.preventDefault());
   cv.addEventListener('wheel', e => {
-    if (!W3D) return; e.preventDefault();
+    e.preventDefault();
+    if (!W3D || adOn()) return;
     if (sight.on) { sight.mag = clamp(sight.mag + (e.deltaY < 0 ? 1 : -1), 0, MAGS.length - 1); return; }
     cam3.dist = clamp(cam3.dist * Math.exp(e.deltaY * 0.0012), 14, 160); }, { passive: false });
-  cv.addEventListener('mousedown', e => { if (e.button === 2) cam3.drag = { x: e.clientX, off: cam3.off }; });
+  cv.addEventListener('mousedown', e => { if (e.button === 2 && !adOn()) cam3.drag = { x: e.clientX, off: cam3.off }; });
   addEventListener('mousemove', e => { if (cam3.drag) cam3.off = cam3.drag.off - (e.clientX - cam3.drag.x) * 0.006; });
   addEventListener('mouseup', e => { if (e.button === 2) cam3.drag = null; });
-  cv.addEventListener('dblclick', () => { cam3.off = 0; });
+  cv.addEventListener('dblclick', () => { if (!adOn()) cam3.off = 0; });
 
-  // Démarrage direct en développement
-  if (Q.has('level')) levelIdx = clamp(Number(Q.get('level')) - 1, 0, LEVELS.length - 1);
-  if (Q.has('type') && TYPES[Q.get('type')]) chosenType = Q.get('type');
-  if (MODES[Q.get('mode')]) mode = Q.get('mode');
+  // Démarrage direct en développement (?debug seulement)
+  if (dq('level')) levelIdx = clamp(Number(Q.get('level')) - 1, 0, LEVELS.length - 1);
+  if (dq('type') && TYPES[Q.get('type')]) chosenType = Q.get('type');
+  if (DEV && MODES[Q.get('mode')]) mode = Q.get('mode');
+  if (DEV_START) waveIdx = clamp(Number(Q.get('wave') || 1) - 1, 0, WAVES - 1);
   buildMenu();
   initBench();
-  if (Q.has('level') || AUTO) {
-    waveIdx = clamp(Number(Q.get('wave') || 1) - 1, 0, WAVES - 1);
-    if (!Meta.P.tanks.includes(chosenType)) Meta.P.tanks.push(chosenType); // essais : char débloqué
-    hide('menu'); startLevel();
-  }
-  // profil, SDK et prime de présence ; puis le menu remplace l'écran de chargement
-  Meta.init().then(bonus => {
-    if ((Q.has('level') || AUTO) && !Meta.P.tanks.includes(chosenType)) Meta.P.tanks.push(chosenType);
-    applyOptions();
-    if (!Meta.P.tanks.includes(chosenType)) chosenType = Meta.P.tanks.includes('pz4') ? 'pz4' : Meta.P.tanks[0];
-    buildMenu();
+  // profil et prime de présence ; puis le menu remplace l'écran de chargement. Une erreur ou une
+  // attente trop longue n'empêche jamais le menu d'apparaître.
+  let booted = false;
+  function boot(bonus) {
+    if (booted) { if (state === 'menu') { applyOptions(); buildMenu(); } return; }
+    booted = true;
+    try {
+      if (DEV_RUN && !Meta.dev) Meta.devProfile();
+      applyOptions();
+      if (!Meta.P.tanks.includes(chosenType)) chosenType = Meta.P.tanks.includes('pz4') ? 'pz4' : Meta.P.tanks[0];
+      buildMenu();
+    } catch (e) { console.error(e); }
     hide('loading');
-    if (state === 'menu') show('menu');
     Meta.sdk.loadingStop();
-    if (bonus) setTimeout(() => toast(`Daily login · day ${Meta.P.streak}: +✪ ${fmt(bonus)}`), 600);
-  });
+    document.body.classList.toggle('cg', Meta.sdk.banners);
+    if (DEV_START) startLevel(); else { show('menu'); Meta.banner('bannerMenu'); }
+    if (DEV_RUN) setTimeout(() => toast('Debug run: progress is not saved'), 300);
+    else if (bonus) setTimeout(() => toast(`Daily login · day ${Meta.P.streak}: +✪ ${fmt(bonus)}`), 600);
+  }
+  const bootT = setTimeout(() => { console.warn('Profile loading timed out'); boot(0); }, 12000);
+  Meta.init({ dev: DEV_RUN }).then(b => { clearTimeout(bootT); boot(b); }, e => { console.error(e); clearTimeout(bootT); boot(0); });
   addEventListener('pointerdown', () => { if (state === 'menu') playMusic(); }, { once: false });
   if (Q.has('debug')) {
     window.__fa = {
       get tanks() { return tanks; }, get state() { return state; }, get stats() { return waveStats; }, get shells() { return shells; },
-      get time() { return gameTime; }, get player() { return player; }, get bushes() { return bushes; }, get obstacles() { return obstacles; }, barrelHit, cam3, sight, setSight, sightProbe, get mode() { return mode; }, get survWave() { return survWave; }, hitcam: HitCam, TYPES, SHELLS, bench, benchFire,
+      get time() { return gameTime; }, get player() { return player; }, get bushes() { return bushes; }, get obstacles() { return obstacles; }, barrelHit, cam3, sight, setSight, sightProbe, get mode() { return mode; }, get survWave() { return survWave; }, dyn, hitcam: HitCam, TYPES, SHELLS, bench, benchFire,
       // test : tir forcé du joueur sur la cible la plus proche
       fireAt(i, key) {
         const e = tanks.filter(t => t.team === 1 && !t.dead)[i || 0];
@@ -4736,7 +4960,30 @@
       kill(i, det) { const e = tanks.filter(t => t.team === 1 && !t.dead)[i || 0]; if (e) destroyTank(e, player, !!det); return !!e; },
       get bullets() { return bullets; }, get parts() { return parts; },
       w2s: (x, y, z) => worldToScreen(x, y, z), hatchPos, viewer, pick(id) { chosenType = id; buildMenu(); },
+      // autotest : des profils anciens ou abîmés doivent toujours donner un menu (profil jetable)
+      profileSelfTest() {
+        Meta.devProfile();
+        const cases = {
+          v1: JSON.stringify({ v: 1, credits: 5000, tanks: ['light', 'pz4', 'kingtiger'], skins: ['std', 'tigre'], skinSel: { pz4: 'tigre' }, opts: { sfx: 0.5 } }),
+          corrupt: '{"credits":',
+          nulls: JSON.stringify({ tanks: null, skins: 7, missions: 'x', opts: null, stats: null, parts: { pz4: null, ghost: { engine: 9 } }, skinSel: { pz4: 'nope' } }),
+          unknown: JSON.stringify({ v: 2, tanks: ['tiger3', 'kingtiger'], feat: 'nope', level: 'abc', credits: -50, unlocked: 1e9 }),
+          array: '[1,2,3]', nul: 'null',
+        };
+        const out = {}, ct = chosenType;
+        for (const [k, raw] of Object.entries(cases)) {
+          try { const p = Meta.parse(raw); Meta.devUse(p); chosenType = 'kingtiger'; buildMenu(); chosenType = 'pz4'; buildMenu(); out[k] = p.tanks.includes('pz4') && Number.isFinite(p.credits) ? 'ok' : 'bad'; } catch (e) { out[k] = String(e); }
+        }
+        chosenType = ct; Meta.devUse(Meta.parse('')); buildMenu();
+        return out;
+      },
     };
   }
   requestAnimationFrame(frame);
-})();
+}).catch(e => {
+  // démarrage impossible : message lisible plutôt qu'un écran de chargement sans fin
+  console.error(e);
+  const t = document.querySelector('#loading .loadtip');
+  if (t) t.textContent = 'Something went wrong while loading. Please reload the page.';
+  Meta.sdk.loadingStop();
+});

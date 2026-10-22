@@ -1,16 +1,30 @@
 'use strict';
 // Sons générés en temps réel avec la Web Audio API (aucun fichier).
 const Sfx = (() => {
-  let ac = null, master = null, noiseBuf = null, eng = null, trk = null, muted = false, adMute = false, vol = 0.8;
+  let ac = null, master = null, noiseBuf = null, eng = null, trk = null, vol = 0.8;
+  // quatre coupures indépendantes : touche M (muted), publicité (adMute), onglet masqué (bgMute)
+  // et réglage « muet » du portail CrazyGames (portalMute)
+  let muted = false, adMute = false, bgMute = false, portalMute = false;
   const VOL = 0.55;
+  const hold = () => adMute || bgMute || portalMute;
+  // Applique les coupures : gain nul, et contexte suspendu tant qu'une coupure extérieure dure,
+  // pour que moteur et chenilles ne bourdonnent pas derrière une publicité ou dans un onglet masqué
+  function apply() {
+    if (!ac) return;
+    master.gain.value = muted || hold() ? 0 : VOL * vol;
+    try {
+      if (hold() && ac.state === 'running') ac.suspend().catch(() => {});
+      else if (!hold() && ac.state === 'suspended') ac.resume().catch(() => {});
+    } catch (e) { /* contexte audio fermé */ }
+  }
 
   function init() {
-    if (ac) { if (ac.state === 'suspended') ac.resume(); return; }
+    if (ac) { apply(); return; }
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     ac = new AC();
     master = ac.createGain();
-    master.gain.value = muted || adMute ? 0 : VOL * vol;
+    master.gain.value = muted || hold() ? 0 : VOL * vol;
     const comp = ac.createDynamicsCompressor();
     comp.threshold.value = -16; comp.ratio.value = 6;
     master.connect(comp); comp.connect(ac.destination);
@@ -43,6 +57,7 @@ const Sfx = (() => {
     const tgg = ac.createGain(); tgg.gain.value = 0;
     to.connect(tlp); tlp.connect(tgg); tgg.connect(master); to.start();
     trk = { tg, lfo, tf, tgg, to };
+    apply();
   }
 
   // Atténuation avec la distance à l'auditeur (la caméra)
@@ -72,7 +87,7 @@ const Sfx = (() => {
   }
 
   function play(d, fn) {
-    if (!ac || muted) return;
+    if (!ac || muted || hold()) return;
     const a = att(d);
     if (a < 0.02) return;
     fn(ac.currentTime, a);
@@ -80,10 +95,16 @@ const Sfx = (() => {
 
   return {
     init,
-    toggle() { muted = !muted; if (master) master.gain.value = muted || adMute ? 0 : VOL * vol; return muted; },
-    // volume des effets (options) et coupure pendant les publicités
-    setVolume(v) { vol = v; if (master) master.gain.value = muted || adMute ? 0 : VOL * vol; },
-    setMuted(m) { adMute = m; if (master) master.gain.value = muted || adMute ? 0 : VOL * vol; if (ac) { if (m) ac.suspend(); else ac.resume(); } },
+    toggle() { muted = !muted; apply(); return muted; },
+    setUserMute(m) { muted = !!m; apply(); },
+    // volume des effets (options) et coupures : publicité, onglet masqué, portail
+    setVolume(v) { vol = v; apply(); },
+    setMuted(m) { adMute = !!m; apply(); },
+    setBgMute(m) { bgMute = !!m; apply(); },
+    setPortalMute(m) { portalMute = !!m; apply(); },
+    // vrai si une coupure empêche d'entendre quoi que ce soit (musique comprise)
+    get silenced() { return muted || hold(); },
+    get state() { return ac ? ac.state : 'none'; },
     fire(d, big) {
       play(d, (t, a) => {
         const k = big ? 1.15 : 1;

@@ -3,7 +3,7 @@
 #  - steel-front.html : tout le jeu dans un seul fichier (scripts locaux intégrés) ;
 #  - dist/steel-front-crazygames.zip : index.html, scripts et ressources pour CrazyGames.
 # Usage : python3 tools/build.py
-import os, re, zipfile
+import base64, os, re, zipfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(ROOT)
@@ -18,7 +18,14 @@ def inline(m):
     code = open(src, encoding='utf-8').read().replace('</script', '<\\/script')
     return '<script>\n' + code + '\n</script>'
 
-open('steel-front.html', 'w', encoding='utf-8').write(re.sub(r'<script src="([^"]+)"></script>', inline, html))
+# polices intégrées en base64 : le fichier unique n'a besoin de rien à côté de lui
+def font(m):
+    data = base64.b64encode(open(m.group(1), 'rb').read()).decode()
+    return 'url(data:font/woff2;base64,' + data + ')'
+
+single = re.sub(r'<script src="([^"]+)"></script>', inline, html)
+single = re.sub(r'url\((fonts/[^)]+\.woff2)\)', font, single)
+open('steel-front.html', 'w', encoding='utf-8').write(single)
 
 # ressources servies à côté de la page (polices, musique, images) : tout ce que index.html référence
 assets = set(local)

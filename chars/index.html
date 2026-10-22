@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Steel Front – WWII Tank Battles</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>
 <style>
+  /* polices livrées avec le jeu (fonts/, licence SIL OFL) : variables 400 à 700, sous-ensemble latin */
+  @font-face { font-family: 'Oswald'; font-style: normal; font-weight: 400 700; font-display: swap; src: url(fonts/oswald-latin.woff2) format('woff2'); }
+  @font-face { font-family: 'Inter'; font-style: normal; font-weight: 400 700; font-display: swap; src: url(fonts/inter-latin.woff2) format('woff2'); }
   :root {
     --bg: #0a0b09; --ink: #ece6d3; --mute: #a39d88; --dim: #6f6a5a;
     --gold: #e9c46a; --gold2: #b8913a; --amber: #ffb070; --red: #ff6a50; --green: #8fd46a; --blue: #7fc2ff;
@@ -18,13 +18,13 @@
     color-scheme: dark;
   }
   * { box-sizing: border-box; }
-  html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; font-family: var(--body); color: var(--ink); -webkit-user-select: none; user-select: none; touch-action: none; }
+  html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; overscroll-behavior: none; font-family: var(--body); color: var(--ink); -webkit-user-select: none; user-select: none; touch-action: none; }
   #game { display: block; position: fixed; left: 0; top: 0; cursor: none; z-index: 1; }
   #game3d { display: block; position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; z-index: 0; }
   button { font-family: var(--head); cursor: pointer; }
   .screen { position: fixed; inset: 0; display: none; z-index: 10; }
   .screen.on { display: flex; }
-  .center { align-items: center; justify-content: center; background: radial-gradient(ellipse at center, rgba(10, 12, 9, 0.6), rgba(5, 6, 4, 0.92)); overflow-y: auto; padding: 24px 16px; }
+  .center { align-items: center; justify-content: center; background: radial-gradient(ellipse at center, rgba(10, 12, 9, 0.6), rgba(5, 6, 4, 0.92)); overflow-y: auto; overscroll-behavior: contain; padding: 24px 16px; }
 
   /* ---------- chargement ---------- */
   #loading { z-index: 40; flex-direction: column; align-items: center; justify-content: center; background: radial-gradient(ellipse at 50% 40%, #1d2016, #070806 70%); }
@@ -39,7 +39,8 @@
   /* ---------- menu ---------- */
   #menu { flex-direction: column; background: #080907; }
   #showcase { position: absolute; inset: 0; }
-  #viewer { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
+  #viewer, #viewer3d { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #viewer { cursor: grab; touch-action: none; }
   #menu::after { content: ''; position: absolute; inset: 0; pointer-events: none; background:
     radial-gradient(ellipse at 62% 55%, rgba(0, 0, 0, 0) 30%, rgba(0, 0, 0, 0.7) 85%),
     linear-gradient(90deg, rgba(6, 7, 5, 0.92) 0%, rgba(6, 7, 5, 0.55) 34%, rgba(6, 7, 5, 0) 55%),
@@ -67,8 +68,10 @@
   .rank small { color: var(--mute); font-size: 11px; }
   .iconbtn { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); background: var(--glass); color: var(--ink); font-size: 18px; }
   .iconbtn:hover { border-color: var(--gold); }
-  .content { flex: 1; min-height: 0; display: flex; padding: 6px 22px 0; }
-  .side { width: min(500px, 100%); min-height: 0; overflow-y: auto; padding: 4px 6px 140px 0; scrollbar-width: thin; scrollbar-color: #3a3a2e transparent; }
+  /* la zone de contenu laisse passer souris et molette vers la vitrine, sauf sur le panneau */
+  .content { flex: 1; min-height: 0; display: flex; padding: 6px 22px 0; pointer-events: none; }
+  .content .side { pointer-events: auto; }
+  .side { width: min(500px, 100%); min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 4px 6px 140px 0; scrollbar-width: thin; scrollbar-color: #3a3a2e transparent; }
   .panel { display: none; animation: rise .25s ease; }
   .panel.on { display: block; }
   @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
@@ -110,9 +113,15 @@
   .cta .sum b { display: block; font-family: var(--head); font-size: clamp(30px, 4vw, 54px); font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; line-height: 1; }
   .cta .sum span { color: var(--mute); font-size: 14px; }
   #startBtn { font-size: 26px; padding: 18px 46px; letter-spacing: 0.18em; border-radius: 14px; border: 0; color: #2a1d05; background: linear-gradient(180deg, #ffe39a, #e9c46a 45%, #b8913a); box-shadow: 0 10px 40px rgba(233, 180, 80, 0.35), inset 0 -3px 0 rgba(0, 0, 0, 0.25); animation: glow 2.4s ease-in-out infinite; }
+  /* écran tactile sans souris : le jeu se joue au clavier et à la souris, on le dit au lieu de lancer */
+  #touchNote { display: none; max-width: 340px; padding: 14px 18px; border-radius: var(--r); background: var(--glass2); border: 1px solid var(--line); text-align: left; font-size: 13px; color: var(--mute); }
+  #touchNote b { display: block; font-family: var(--head); font-size: 20px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gold); margin-bottom: 4px; }
+  body.touch #touchNote { display: block; }
+  body.touch #startBtn, body.touch .kbOnly { display: none; }
   #startBtn:disabled { animation: none; background: #3a372c; color: #8a836c; box-shadow: none; }
   @keyframes glow { 50% { box-shadow: 0 10px 60px rgba(233, 180, 80, 0.6), inset 0 -3px 0 rgba(0, 0, 0, 0.25); } }
   .vbar { position: absolute; z-index: 3; right: 28px; top: 84px; display: flex; gap: 10px; align-items: center; font-size: 12px; color: var(--mute); }
+  #showcase.no3d ~ .vbar, #showcase.no3d #viewer3d { display: none; }
   #specs { background: var(--glass); border: 1px solid var(--line2); border-radius: var(--r); padding: 12px 14px; font-size: 12px; color: #c9c4b2; margin-top: 12px; backdrop-filter: blur(10px); }
   .specTitle { font-family: var(--head); font-size: 22px; font-weight: 600; color: #f6eed6; }
   .specTitle small { font-size: 13px; color: var(--mute); font-weight: 500; }
@@ -191,10 +200,19 @@
   .rw.xp b { color: var(--blue); }
   .lvup { margin-top: 14px; font-family: var(--head); font-size: 20px; letter-spacing: 0.1em; color: var(--green); display: none; }
   .lvup.on { display: block; animation: pop .4s; }
+  /* emplacements de bannières CrazyGames (menu, résultats), absents hors du portail */
+  .banner { display: none; }
+  body.cg .banner { display: block; }
+  #bannerMenu { width: 300px; height: 250px; margin-top: 22px; }
+  #result { flex-direction: column; }
+  body.cg #result .box { margin: auto auto 0; }
+  #bannerRes { flex: none; width: min(728px, 100%); height: 90px; margin: 14px auto auto; }
   #revive { z-index: 30; }
   .ring { width: 120px; height: 120px; margin: 14px auto; border-radius: 50%; display: grid; place-items: center; font-family: var(--head); font-size: 44px; background: conic-gradient(var(--red) var(--p, 100%), rgba(255, 255, 255, 0.08) 0); position: relative; }
   .ring::before { content: ''; position: absolute; inset: 8px; border-radius: 50%; background: #15170f; }
   .ring span { position: relative; }
+  #confirm { z-index: 45; }
+  .btn.danger { border-color: rgba(255, 106, 80, 0.6); background: linear-gradient(180deg, #6a2418, #3a120c); color: #ffd9cf; }
   #adSim { z-index: 60; background: #000; align-items: center; justify-content: center; flex-direction: column; color: #888; font-family: var(--head); letter-spacing: 0.2em; }
   #adSim b { font-size: 60px; color: #fff; margin-top: 10px; }
   #toasts { position: fixed; z-index: 50; left: 50%; top: 18px; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: none; }
@@ -293,11 +311,29 @@
   @keyframes conf { to { transform: translate3d(var(--dx), 110vh, 0) rotate(var(--rot)); } }
 
   @media (max-width: 900px) {
-    .tabs { order: 3; width: 100%; margin-left: 0; overflow-x: auto; flex-wrap: nowrap; }
-    .topbar { flex-wrap: wrap; padding: 10px 14px; }
+    /* onglets sur une ligne à part, repliés sur deux lignes plutôt que coupés (la molette ne fait pas défiler en largeur) */
+    .tabs { order: 3; width: 100%; margin-left: 0; flex-wrap: wrap; }
+    .tab { padding: 8px 11px; font-size: 13px; letter-spacing: 0.08em; }
+    .tab.on::after { left: 11px; right: 11px; }
+    .topbar { flex-wrap: wrap; padding: 10px 14px; gap: 10px; }
     .content { padding: 0 14px; }
     .cta { right: 16px; bottom: 16px; }
     .vbar { display: none; }
+  }
+  /* iframe basse (640×360, 800×450) : bouton de départ plus compact, panneau qui défile sous lui,
+     annonces en bas pour ne pas couvrir le grade et les crédits */
+  @media (max-height: 520px) {
+    .topbar { padding-top: 8px; padding-bottom: 6px; }
+    .topbar .logo .l1 { font-size: 24px; }
+    .ptitle { font-size: 26px; }
+    .psub { margin-bottom: 10px; }
+    .cta { gap: 6px; }
+    .cta .sum b { font-size: 26px; }
+    .cta .sum span { display: none; }
+    #startBtn { font-size: 18px; padding: 12px 28px; }
+    .side { padding-bottom: 104px; }
+    #toasts { top: auto; bottom: 90px; }
+    .toast { font-size: 15px; padding: 9px 18px; }
   }
 </style>
 </head>
@@ -384,8 +420,8 @@
           <canvas id="bench"></canvas>
           <div id="benchInfo"></div>
         </div>
-        <h2>Controls</h2>
-        <div class="help">
+        <h2 class="kbOnly">Controls</h2>
+        <div class="help kbOnly">
           <div><kbd>W</kbd><kbd>S</kbd> / <kbd>Z</kbd><kbd>S</kbd> / <kbd>↑</kbd><kbd>↓</kbd> forward, reverse · <kbd>A</kbd><kbd>D</kbd> / <kbd>Q</kbd><kbd>D</kbd> turn</div>
           <div>Mouse: aim in 3D, high or low on the target · click: lock the cursor</div>
           <div>Left click / <kbd>Space</kbd>: fire · <kbd>F</kbd> machine gun · <kbd>G</kbd> bullet type</div>
@@ -411,14 +447,15 @@
         <div class="opt"><span>Graphics quality</span><select id="oQuality"><option value="haute">High</option><option value="moyenne">Medium</option><option value="basse">Low</option></select></div>
         <div class="opt"><span>X-ray impact camera</span><input type="checkbox" id="oHitcam"></div>
         <div class="opt"><span>Ballistics</span><select id="oBallistics"><option value="real">Realistic: true shell velocities</option><option value="arcade">Arcade: slower shells</option></select></div>
-        <div class="opt"><span>Fullscreen</span><button class="btn small alt" id="oFull">Toggle</button></div>
         <div class="btns" style="justify-content:flex-start"><button class="btn alt small" id="oReset">Erase progress</button></div>
       </section>
+      <div id="bannerMenu" class="banner"></div>
     </div>
   </div>
   <div class="cta">
     <div class="sum"><b id="sumTank">Panzer IV</b><span id="sumInfo"></span></div>
     <button id="startBtn">⚔ Deploy</button>
+    <div id="touchNote"><b>⌨ Keyboard &amp; mouse required</b>Steel Front is played with a keyboard and a mouse. Open it on a computer to roll out.</div>
   </div>
 </div>
 
@@ -431,6 +468,7 @@
     <div class="lvup" id="lvUp"></div>
     <div class="btns" id="resBtns"></div>
   </div>
+  <div id="bannerRes" class="banner"></div>
 </div>
 
 <div id="pause" class="screen center">
@@ -456,10 +494,17 @@
   </div>
 </div>
 
+<div id="confirm" class="screen center">
+  <div class="box">
+    <h1 id="cfTitle" style="color:var(--red)"></h1>
+    <div class="sub" id="cfText"></div>
+    <div class="btns"><button class="btn alt" id="cfNo">Cancel</button><button class="btn danger" id="cfOk">OK</button></div>
+  </div>
+</div>
+
 <div id="adSim" class="screen"><span>ADVERTISEMENT</span><b>3</b></div>
 <div id="unlock" class="screen"><div class="rays"></div><div class="ub"><div class="uk" id="uKind"></div><div class="ui" id="uImg"></div><div class="un" id="uName"></div><span class="rib" id="uRar"></span><div class="uf" id="uFlav"></div><div><button class="btn buy" id="uOk">Awesome!</button></div></div></div>
 <div id="toasts"></div>
-<audio id="menuMusic" src="music/menu.mp3" loop preload="none"></audio>
 
 <script src="audio.js"></script>
 <script src="gl3d.js"></script>

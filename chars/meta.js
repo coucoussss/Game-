@@ -7,28 +7,50 @@ const Meta = (() => {
   // Le SDK v3 est chargé par index.html. Hors de CrazyGames (fichier local, page intégrée), il est
   // absent ou en mode « disabled » : les publicités récompensées sont alors simulées par un court écran.
   let SDK = null, env = 'none', adBusy = false, lastMidgame = Date.now();
-  const hooks = { adStart: () => {}, adEnd: () => {}, change: () => {} };
+  // partie en cours côté SDK : gameplayStart et gameplayStop ne partent que sur un vrai changement,
+  // et jamais pendant une publicité (le départ est alors reporté à la fin de celle-ci)
+  let playing = false, wantPlay = false, lastHappy = -1e9;
+  const hooks = { adStart: () => {}, adEnd: () => {}, change: () => {}, mute: () => {} };
+  let platformMute = false; // réglage « son coupé » du portail (SDK.game.settings.muteAudio)
   const MIDGAME_GAP = 180000; // au plus une publicité entre deux parties toutes les 3 minutes
 
+  // Initialisation bornée à 8 s : un SDK qui ne répond pas est traité comme absent
   async function initSDK() {
+    const S = window.CrazyGames && window.CrazyGames.SDK;
+    if (!S) return;
+    let late = false;
     try {
-      if (window.CrazyGames && window.CrazyGames.SDK) {
-        SDK = window.CrazyGames.SDK;
-        await SDK.init();
-        env = SDK.environment || 'crazygames';
-        if (env === 'disabled') SDK = null;
+      await Promise.race([S.init(), new Promise(r => setTimeout(() => { late = true; r(); }, 8000))]);
+      if (late) { console.warn('CrazyGames SDK init timed out'); return; }
+      env = S.environment || 'crazygames';
+      if (env === 'disabled') return;
+      SDK = S;
+      // le portail a son propre bouton « muet » : on le suit, et on écoute ses changements
+      const g = SDK.game;
+      if (g) {
+        platformMute = !!(g.settings && g.settings.muteAudio);
+        if (g.addSettingsChangeListener) g.addSettingsChangeListener(st => { platformMute = !!(st && st.muteAudio); hooks.mute(platformMute); });
       }
+      if (playing) call(s => s.game.gameplayStart());
     } catch (e) { console.warn('CrazyGames SDK unavailable', e); SDK = null; env = 'none'; }
   }
   const call = (fn) => { try { if (SDK) fn(SDK); } catch (e) { console.warn(e); } };
   const sdk = {
     get env() { return env; },
+    // type d'appareil annoncé par le portail ('desktop', 'tablet', 'mobile'), ou null hors CrazyGames
+    get device() { try { return (SDK && SDK.user && SDK.user.systemInfo && SDK.user.systemInfo.device && SDK.user.systemInfo.device.type) || null; } catch (e) { return null; } },
     loadingStart: () => call(s => s.game.loadingStart()),
     loadingStop: () => call(s => s.game.loadingStop()),
-    gameplayStart: () => call(s => s.game.gameplayStart()),
-    gameplayStop: () => call(s => s.game.gameplayStop()),
-    happytime: () => call(s => s.game.happytime()),
+    gameplayStart() { if (adBusy) { wantPlay = true; return; } if (playing) return; playing = true; clearBanners(); call(s => s.game.gameplayStart()); },
+    gameplayStop() { wantPlay = false; if (!playing) return; playing = false; call(s => s.game.gameplayStop()); },
+    get playing() { return playing; },
+    get banners() { return !!(SDK && SDK.banner); },
+    // moments de joie : au plus un toutes les 45 s, pour ne pas en abuser
+    happytime() { const n = Date.now(); if (n - lastHappy < 45000) return; lastHappy = n; call(s => s.game.happytime()); },
   };
+  // Le SDK est lancé dès le chargement de meta.js ; loadingStart part dès qu'il est prêt, avant la
+  // construction (lourde) des modèles 3D : game.js ne démarre qu'ensuite (Meta.whenReady)
+  const sdkReady = initSDK().catch(e => console.warn(e)).then(() => sdk.loadingStart());
 
   // écran de publicité simulée (hors CrazyGames) : 3 secondes, puis récompense
   function simAd(done) {
@@ -46,7 +68,13 @@ const Meta = (() => {
   function requestAd(type, done) {
     if (adBusy) { done(false); return; }
     adBusy = true;
-    const fin = ok => { adBusy = false; hooks.adEnd(); done(ok); };
+    let ended = false;
+    const fin = ok => {
+      if (ended) return; // le SDK peut signaler deux fois la fin (erreur puis fin)
+      ended = true; adBusy = false; hooks.adEnd();
+      if (wantPlay) { wantPlay = false; sdk.gameplayStart(); }
+      done(ok);
+    };
     hooks.adStart();
     if (!SDK) {
       if (type === 'rewarded') simAd(fin); else fin(true);
@@ -67,8 +95,31 @@ const Meta = (() => {
     requestAd('midgame', () => then());
   }
   // Publicité récompensée : la récompense n'est donnée que si la publicité est allée au bout
+  // Une publicité récompensée vue jusqu'au bout repousse aussi la prochaine publicité de mi-partie
   function rewarded(onReward, onFail) {
-    requestAd('rewarded', ok => { if (ok) onReward(); else if (onFail) onFail(); });
+    requestAd('rewarded', ok => { if (ok) { lastMidgame = Date.now(); onReward(); } else if (onFail) onFail(); });
+  }
+
+  // Bannières : seulement sur le menu et l'écran de résultats, jamais en bataille (gameplayStart les
+  // retire). Un emplacement ne se recharge qu'une fois par minute : une demande trop tôt est reportée,
+  // et abandonnée si l'emplacement n'est plus affiché d'ici là.
+  const bannerAt = {}, bannerWait = {};
+  function banner(id) {
+    if (!SDK || !SDK.banner) return;
+    clearTimeout(bannerWait[id]);
+    const wait = 61000 - (Date.now() - (bannerAt[id] || -1e9));
+    if (wait > 0) { bannerWait[id] = setTimeout(() => banner(id), wait); return; }
+    const el = document.getElementById(id);
+    if (!el || !el.offsetWidth || playing || adBusy) return;
+    bannerAt[id] = Date.now();
+    try {
+      const r = SDK.banner.requestResponsiveBanner(id);
+      if (r && r.catch) r.catch(e => console.warn('Banner unavailable', e));
+    } catch (e) { console.warn('Banner unavailable', e); }
+  }
+  function clearBanners() {
+    for (const id in bannerWait) clearTimeout(bannerWait[id]);
+    call(s => { if (s.banner) s.banner.clearAllBanners(); });
   }
 
   // ===================== Contenu =====================
@@ -97,7 +148,7 @@ const Meta = (() => {
     { id: 'foret', name: 'Snowbound Ardennes', flav: 'Winter 1944. The last offensive.', rar: 'epic', price: 5200, ads: 4, pat: 4, camo: [[0.86, 0.88, 0.88], [0.18, 0.24, 0.12], [0.33, 0.22, 0.14]] },
     { id: 'rouille', name: 'Rust Revenant', flav: 'Pulled from the river, back for revenge.', rar: 'legendary', price: 9000, ads: 5, pat: 0, camo: [[0.36, 0.17, 0.08], [0.2, 0.1, 0.05], [0.48, 0.3, 0.14]] },
     { id: 'or', name: 'Field Marshal Gold', flav: 'Solid gold plating. Fear is the point.', rar: 'legendary', price: 25000, pat: 1, camo: [[0.75, 0.55, 0.16], [0.6, 0.42, 0.1], [0.85, 0.68, 0.25]] },
-    { id: 'parade', name: 'Grand Parade', flav: 'Black, crimson and bone. Made to be seen.', rar: 'legendary', price: 0, ads: 6, adOnly: true, pat: 2, camo: [[0.1, 0.1, 0.1], [0.55, 0.06, 0.05], [0.8, 0.78, 0.74]] },
+    { id: 'parade', name: 'Victory Parade', flav: 'Olive, sand and polished brass. Made to be seen.', rar: 'legendary', price: 0, ads: 6, adOnly: true, pat: 2, camo: [[0.2, 0.24, 0.12], [0.56, 0.47, 0.3], [0.62, 0.46, 0.17]] },
   ];
   // Pièces : trois niveaux par char (Mk I à III). Effet par niveau ; coût en crédits, ou niveau + 1 publicités.
   const PARTS = [
@@ -132,26 +183,105 @@ const Meta = (() => {
   const STREAK = [200, 300, 450, 600, 800, 1000, 2000]; // récompenses de connexion, jours 1 à 7
 
   // ===================== Profil =====================
-  const KEY = 'frontdacier.profil';
+  // Tout ce qui est conservé tient dans ce profil, sauvegardé dans le nuage par SDK.data (compte
+  // CrazyGames) et en local. Version 2 : progression de la campagne et record de survie inclus.
+  const KEY = 'frontdacier.profil', VERSION = 2;
+  const LEGACY = { unlocked: 'frontdacier.unlocked', survBest: 'frontdacier.survie' }; // clés de la version 1
   const today = () => { const d = new Date(); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; };
   const dayNum = s => { const [y, m, d] = s.split('-').map(Number); return Math.floor(Date.UTC(y, m - 1, d) / 864e5); };
+  // qualité par défaut : moyenne sur écran très dense ou petit processeur (portables, Chromebooks)
+  const defQuality = () => { try { return (window.devicePixelRatio || 1) > 1.5 || (navigator.hardwareConcurrency || 8) <= 4 ? 'moyenne' : 'haute'; } catch (e) { return 'haute'; } };
   const fresh = () => ({
-    v: 1, credits: 600, xp: 0, level: 1, tanks: ['light', 'pz4'], skins: ['std'], skinSel: {}, kits: 1, x2: 0,
+    v: VERSION, credits: 600, xp: 0, level: 1, tanks: ['light', 'pz4'], skins: ['std'], skinSel: {}, kits: 1, x2: 0,
     wheelDay: '', streakDay: '', streak: 0, missionsDay: '', missions: [], stats: { battles: 0, kills: 0, wins: 0 },
-    opts: { sfx: 0.8, music: 0.6, quality: 'haute', hitcam: true }, parts: {}, adProg: {}, featDay: '', feat: '',
+    opts: { sfx: 0.8, music: 0.6, quality: defQuality(), hitcam: true, mute: false }, parts: {}, adProg: {}, featDay: '', feat: '',
+    unlocked: 0, survBest: 0,
   });
-  let P = fresh();
+  // ready : aucune sauvegarde avant la lecture du profil (sinon le profil neuf du démarrage
+  // écraserait la vraie sauvegarde, en local comme dans le nuage)
+  let P = fresh(), devMode = false, ready = false;
+  // Remise en état d'un profil lu (ancien, corrompu ou modifié à la main) : chaque champ est vérifié,
+  // les identifiants inconnus sont écartés, et les deux premiers chars sont toujours possédés.
+  const isObj = o => !!o && typeof o === 'object' && !Array.isArray(o);
+  const int = (v, d, lo, hi) => { const n = Math.floor(Number(v)); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : d; };
+  const unit = (v, d) => { const n = Number(v); return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : d; };
+  const str = (v, d) => typeof v === 'string' ? v : d;
+  const ids = (a, ok) => Array.isArray(a) ? [...new Set(a.filter(x => typeof x === 'string' && ok(x)))] : [];
+  function sanitize(o) {
+    const f = fresh(), p = fresh();
+    if (!isObj(o)) return p;
+    p.v = int(o.v, 1, 1, VERSION);
+    p.credits = int(o.credits, f.credits, 0, 1e9); p.xp = int(o.xp, 0, 0, 1e9); p.level = int(o.level, 1, 1, 999);
+    p.kits = int(o.kits, f.kits, 0, 999); p.x2 = int(o.x2, 0, 0, 999); p.streak = int(o.streak, 0, 0, STREAK.length);
+    p.unlocked = int(o.unlocked, 0, 0, 99); p.survBest = int(o.survBest, 0, 0, 9999);
+    for (const k of ['wheelDay', 'streakDay', 'missionsDay', 'featDay']) p[k] = str(o[k], '');
+    p.feat = SKINS.some(k => k.id === o.feat) ? o.feat : '';
+    p.tanks = ids(o.tanks, id => id in TANKS);
+    for (const id of ['pz4', 'light']) if (!p.tanks.includes(id)) p.tanks.unshift(id);
+    p.skins = ids(o.skins, id => SKINS.some(k => k.id === id));
+    if (!p.skins.includes('std')) p.skins.unshift('std');
+    if (isObj(o.skinSel)) for (const [t, k] of Object.entries(o.skinSel)) if (t in TANKS && p.skins.includes(k)) p.skinSel[t] = k;
+    if (isObj(o.parts)) for (const [t, ps] of Object.entries(o.parts)) {
+      if (!(t in TANKS) || !isObj(ps)) continue;
+      for (const d of PARTS) { const lv = int(ps[d.id], 0, 0, 3); if (lv) (p.parts[t] = p.parts[t] || {})[d.id] = lv; }
+    }
+    if (isObj(o.adProg)) for (const [k, n] of Object.entries(o.adProg)) { const v = int(n, 0, 0, 99); if (v) p.adProg[k] = v; }
+    if (Array.isArray(o.missions)) p.missions = o.missions.filter(m => isObj(m) && MISSIONS.some(d => d.id === m.id)).slice(0, 3)
+      .map(m => ({ id: m.id, prog: int(m.prog, 0, 0, 1e6), claimed: m.claimed === true }));
+    if (p.missions.length < 3) p.missionsDay = ''; // missions illisibles : nouveau tirage
+    if (isObj(o.stats)) for (const k of ['battles', 'kills', 'wins']) p.stats[k] = int(o.stats[k], 0, 0, 1e9);
+    if (isObj(o.opts)) {
+      const q = o.opts;
+      p.opts.sfx = unit(q.sfx, f.opts.sfx); p.opts.music = unit(q.music, f.opts.music);
+      p.opts.quality = ['haute', 'moyenne', 'basse'].includes(q.quality) ? q.quality : f.opts.quality;
+      p.opts.hitcam = q.hitcam !== false; p.opts.mute = q.mute === true;
+    }
+    return p;
+  }
+  // Passage d'une version à la suivante ; v1 : campagne et record de survie dans des clés à part
+  function migrate(p) {
+    if (p.v < 2) {
+      let ls = null;
+      try { ls = localStorage; } catch (e) { /* stockage indisponible */ }
+      if (ls) for (const [k, key] of Object.entries(LEGACY)) {
+        try { p[k] = Math.max(p[k], int(ls.getItem(key), 0, 0, 9999)); if (!devMode) ls.removeItem(key); } catch (e) { /* */ }
+      }
+      p.v = 2;
+    }
+    return p;
+  }
+  function parse(raw) {
+    let o = {}; // pas de profil : on part d'une « version 1 » vide, pour reprendre d'éventuelles anciennes clés
+    if (raw) try { o = JSON.parse(raw); } catch (e) { console.warn('Unreadable profile, starting fresh', e); o = { v: VERSION }; }
+    if (!isObj(o)) o = { v: VERSION };
+    return migrate(sanitize(o));
+  }
   async function load() {
     let raw = null;
     try { if (SDK && SDK.data) raw = SDK.data.getItem(KEY); } catch (e) { /* */ }
     if (!raw) try { raw = localStorage.getItem(KEY); } catch (e) { /* stockage indisponible */ }
-    if (raw) try { P = Object.assign(fresh(), JSON.parse(raw)); P.opts = Object.assign(fresh().opts, P.opts); } catch (e) { P = fresh(); }
+    P = parse(raw);
+    ready = true;
   }
   function save() {
+    if (devMode || !ready) { hooks.change(); return; } // profil jetable des réglages de développement
     const raw = JSON.stringify(P);
     try { if (SDK && SDK.data) SDK.data.setItem(KEY, raw); } catch (e) { /* */ }
     try { localStorage.setItem(KEY, raw); } catch (e) { /* */ }
     hooks.change();
+  }
+  // Réglages de développement : profil neuf (tous les chars, tous les secteurs) jamais sauvegardé,
+  // le vrai profil reste intact
+  function devProfile() { devMode = true; const o = P.opts; P = fresh(); P.opts = o; P.tanks = Object.keys(TANKS); P.unlocked = 99; }
+  // Effacement complet de la progression (nuage et local) ; seuls les réglages sont gardés
+  function reset() {
+    const opts = P.opts;
+    P = fresh(); P.opts = opts;
+    if (!devMode) {
+      try { if (SDK && SDK.data) SDK.data.removeItem(KEY); } catch (e) { /* */ }
+      try { for (const k of Object.keys(localStorage)) if (k.startsWith('frontdacier.')) localStorage.removeItem(k); } catch (e) { /* */ }
+    }
+    save();
   }
 
   // ===================== Économie =====================
@@ -214,8 +344,11 @@ const Meta = (() => {
   }
 
   // ===================== Missions et série =====================
+  // Passage au jour suivant : nouvelles missions et prime de présence. Appelée au démarrage, au retour
+  // au menu et à chaque changement d'onglet (une session peut passer minuit) ; sans effet le même jour.
   function dailyRoll() {
     const d = today();
+    if (P.missionsDay === d && P.streakDay === d) return 0;
     if (P.missionsDay !== d) {
       const pool = MISSIONS.slice(), pick = [];
       while (pick.length < 3) pick.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
@@ -271,7 +404,6 @@ const Meta = (() => {
       if (left.length) { const s = left[Math.floor(Math.random() * left.length)]; P.skins.push(s.id); txt = `Camo: ${s.name}`; }
       else { P.credits += 3000; txt = '3,000 ✪ (all camos owned)'; }
     }
-    if (p.c >= 2500 || p.skin) sdk.happytime();
     save();
     return txt;
   }
@@ -291,10 +423,14 @@ const Meta = (() => {
   }
 
   return {
-    sdk, midgame, rewarded, hooks, RANKS, RARITY, MK, TANKS, SKINS, PARTS, WHEEL, MISSIONS, STREAK, xpFor, rankName,
-    get P() { return P; }, save, addXP, buyTank, canBuyTank, buySkin, grantSkin, selectSkin, skinOf,
+    sdk, midgame, rewarded, banner, clearBanners, hooks, adActive: () => adBusy, get platformMute() { return platformMute; }, RANKS, RARITY, MK, TANKS, SKINS, PARTS, WHEEL, MISSIONS, STREAK, xpFor, rankName,
+    get P() { return P; }, save, reset, parse, addXP,
+    devProfile, devUse(p) { if (devMode) P = p; },
+    get dev() { return devMode; }, buyTank, canBuyTank, buySkin, grantSkin, selectSkin, skinOf,
     featured, skinPrice, skinAd, adsLeft, partLv, buyPart, partAd, mods,
     dailyRoll, track, claim, canSpinFree, spinResult, applyPrize, battleEnd,
-    async init() { await initSDK(); sdk.loadingStart(); await load(); return dailyRoll(); },
+    whenReady: fn => sdkReady.then(fn),
+    // dev : profil jetable (le vrai profil est lu pour ses réglages, puis laissé intact)
+    async init(o = {}) { await sdkReady; await load(); if (o.dev) devProfile(); return dailyRoll(); },
   };
 })();
