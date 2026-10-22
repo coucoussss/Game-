@@ -222,14 +222,15 @@ Meta.whenReady(() => {
   const ctx = cv.getContext('2d');
   const dark = document.createElement('canvas');
   const dctx = dark.getContext('2d');
-  // Niveaux de qualité : résolution maximale, plafond de particules, densité du feuillage, particules
-  // de météo, et rendu 3D (kr : texels du filtrage des ombres par axe, nl : lumières dynamiques, sms et
-  // smd : cartes d'ombre statique et dynamique, lod : échelle des distances de détail). Un préréglage
+  // Niveaux de qualité : résolution maximale, plafond de particules, densité du feuillage, et rendu 3D
+  // (kr : texels du filtrage des ombres par axe, nl : lumières dynamiques, sms et smd : cartes d'ombre
+  // statique et dynamique, lod : échelle des distances de détail, gt : texture du sol, aniso : filtrage
+  // anisotrope, wx : particules de météo). Un préréglage
   // (mobile par exemple) s'ajoute simplement ici et dans la liste du menu Options.
   const QUALITY = {
-    basse: { dpr: 1, pcap: 900, leaf: 0.35, wx: 0, r3: { kr: 2, nl: 3, sms: 2048, smd: 1024, lod: 0.6, gt: [2048, 1024], aniso: 2 } },
-    moyenne: { dpr: 1.25, pcap: 1700, leaf: 0.6, wx: 1200, r3: { kr: 3, nl: 5, sms: 2048, smd: 2048, lod: 0.8, gt: [4096, 2048], aniso: 4 } },
-    haute: { dpr: 2, pcap: 2600, leaf: 1, wx: 2500, r3: { kr: 4, nl: 8, sms: 4096, smd: 2048, lod: 1, gt: [4096, 2048], aniso: 8 } },
+    basse: { dpr: 1, pcap: 900, leaf: 0.35, r3: { kr: 2, nl: 3, sms: 2048, smd: 1024, lod: 0.6, gt: [2048, 1024], aniso: 2, wx: 500 } },
+    moyenne: { dpr: 1.25, pcap: 1700, leaf: 0.6, r3: { kr: 3, nl: 5, sms: 2048, smd: 2048, lod: 0.8, gt: [4096, 2048], aniso: 4, wx: 1200 } },
+    haute: { dpr: 2, pcap: 2600, leaf: 1, r3: { kr: 4, nl: 8, sms: 4096, smd: 2048, lod: 1, gt: [4096, 2048], aniso: 8, wx: 2500 } },
   };
   const QL = () => QUALITY[Meta.P.opts.quality] || QUALITY.haute;
   let QDPR = 2, PCAP = 2600; // qualité graphique : résolution maximale et nombre de particules
@@ -3892,11 +3893,18 @@ Meta.whenReady(() => {
   // fogH : nappe de brume basse (densité au sol par mètre, décroissance avec l'altitude) ; cloud : ciel couvert
   const ENV = [
     { az: 135, el: 36, sunCol: [1.9, 1.75, 1.5], skyCol: [0.2, 0.25, 0.34], bounce: [0.13, 0.12, 0.08], horizon: [0.5, 0.58, 0.68], zenith: [0.12, 0.24, 0.5], fogD: 0.0042, fogH: [0.0015, 0.1], cloud: 0.45 },
-    { az: 120, el: 28, sunCol: [1.5, 1.42, 1.2], skyCol: [0.18, 0.23, 0.27], bounce: [0.09, 0.12, 0.06], horizon: [0.4, 0.47, 0.47], zenith: [0.14, 0.22, 0.33], fogD: 0.0075, fogH: [0.006, 0.3], cloud: 0.8 },
-    { az: 150, el: 40, sunCol: [1.05, 1.0, 0.96], skyCol: [0.27, 0.28, 0.3], bounce: [0.12, 0.11, 0.1], horizon: [0.4, 0.4, 0.41], zenith: [0.24, 0.26, 0.3], fogD: 0.0065, fogH: [0.004, 0.08], cloud: 0.85 },
-    { az: 160, el: 55, sunCol: [2.3, 2.0, 1.6], skyCol: [0.24, 0.26, 0.32], bounce: [0.26, 0.2, 0.12], horizon: [0.72, 0.64, 0.5], zenith: [0.17, 0.32, 0.58], fogD: 0.0038, fogH: [0.002, 0.2], cloud: 0.12 },
-    { az: 210, el: 34, sunCol: [0.28, 0.33, 0.5], skyCol: [0.03, 0.045, 0.08], bounce: [0.04, 0.05, 0.07], horizon: [0.02, 0.03, 0.06], zenith: [0.004, 0.006, 0.016], fogD: 0.011, snow: 1, fogH: [0.008, 0.35], cloud: 0.5 },
+    { az: 120, el: 28, sunCol: [1.5, 1.42, 1.2], skyCol: [0.18, 0.23, 0.27], bounce: [0.09, 0.12, 0.06], horizon: [0.4, 0.47, 0.47], zenith: [0.14, 0.22, 0.33], fogD: 0.0075, fogH: [0.006, 0.3], cloud: 0.8, wx: { kind: 'rain', rate: 0.7, chance: 0.5 } },
+    { az: 150, el: 40, sunCol: [1.05, 1.0, 0.96], skyCol: [0.27, 0.28, 0.3], bounce: [0.12, 0.11, 0.1], horizon: [0.4, 0.4, 0.41], zenith: [0.24, 0.26, 0.3], fogD: 0.0065, fogH: [0.004, 0.08], cloud: 0.85, wx: { kind: 'ash', rate: 0.35 } },
+    { az: 160, el: 55, sunCol: [2.3, 2.0, 1.6], skyCol: [0.24, 0.26, 0.32], bounce: [0.26, 0.2, 0.12], horizon: [0.72, 0.64, 0.5], zenith: [0.17, 0.32, 0.58], fogD: 0.0038, fogH: [0.002, 0.2], cloud: 0.12, wx: { kind: 'sand', rate: 1, wave: 2 } },
+    { az: 210, el: 34, sunCol: [0.28, 0.33, 0.5], skyCol: [0.03, 0.045, 0.08], bounce: [0.04, 0.05, 0.07], horizon: [0.02, 0.03, 0.06], zenith: [0.004, 0.006, 0.016], fogD: 0.011, snow: 1, fogH: [0.008, 0.35], cloud: 0.5, wx: { kind: 'snow', rate: 0.8 } },
   ];
+  // Météo : vitesse de chute (m/s), couleur, taille (m), traînée (s), opacité. Le vent les pousse.
+  const WEATHER = {
+    rain: { fall: 9, drift: 0.5, col: [0.72, 0.76, 0.8], a: 0.3, size: 0.008, px: 0.9, len: 0.03, streak: true, wet: 0.7 },
+    snow: { fall: 1.1, drift: 0.4, col: [0.93, 0.95, 0.98], a: 0.9, size: 0.04, px: 2.2, lum: 1.8 },
+    sand: { fall: 0.4, drift: 0, gust: 8, col: null, a: 0.25, size: 0.01, px: 1, len: 0.05, streak: true },
+    ash: { fall: 0.5, drift: 0.3, col: [0.26, 0.25, 0.24], a: 0.75, size: 0.03, px: 1.6 },
+  };
   // Heure du jour selon la vague : matin (soleil bas à l'est, lumière chaude), milieu de journée, fin
   // d'après-midi (soleil rasant, orangé). La nuit, seule la lune tourne.
   const DAYTIME = [
@@ -3907,11 +3915,21 @@ Meta.whenReady(() => {
   function setEnv3() {
     const e = ENV[levelIdx], lv = L(), w = DAYTIME[(mode === 'survie' ? survWave : waveIdx) % 3], d = lv.night ? DAYTIME[1] : w;
     const el = (d.el ? Math.min(e.el, d.el) : e.el) * D2R, az = (e.az + w.az) * D2R, mul = (a, b) => a.map((v, i) => v * b[i]);
-    const hor = mul(e.horizon, d.hor);
+    let hor = mul(e.horizon, d.hor), sunCol = mul(e.sunCol, d.sun), fogD = e.fogD * 0.6, weather = null, wet = 0;
+    // météo de la vague : tirée au hasard (chance) ou réservée à une vague ; la tempête de sable
+    // épaissit la brume, la teinte de poussière et voile le soleil
+    const wx = e.wx, wi = (mode === 'survie' ? survWave : waveIdx) % 3;
+    if (wx && (wx.wave == null || wx.wave === wi) && (!wx.chance || Math.random() < wx.chance)) {
+      const k = WEATHER[wx.kind], wl = Math.hypot(WIND.x, WIND.y) || 1;
+      if (wx.kind === 'sand') { const dc = G3.hex(lv.dust); fogD *= 2.2; hor = hor.map((v, i) => v * 0.4 + dc[i] * 0.6); sunCol = sunCol.map(v => v * 0.6); }
+      const lit = (k.col || G3.hex(lv.dust)).map((c, i) => Math.min(1, Math.pow(c * c * (e.skyCol[i] * 1.3 + sunCol[i] * 0.4) * (k.lum || 1), 1 / 2.2)));
+      weather = { vel: [WIND.x * k.drift + (k.gust || 0) * WIND.x / wl, -WIND.y * k.drift - (k.gust || 0) * WIND.y / wl, -k.fall], col: [...lit, k.a], size: k.size, px: k.px, len: k.len, streak: !!k.streak, rate: wx.rate };
+      wet = k.wet || 0;
+    }
     W3D.setEnv({
-      sun: [Math.cos(el) * Math.cos(az), Math.cos(el) * Math.sin(az), Math.sin(el)], sunCol: mul(e.sunCol, d.sun), skyCol: e.skyCol.map(v => v * d.sky), bounce: e.bounce,
-      fogCol: hor, fogD: e.fogD * 0.6, horizon: hor, zenith: e.zenith, snow: e.snow || 0, fogH: e.fogH, cloud: clamp(e.cloud * w.cloud, 0, 1),
-      wind: [WIND.x, -WIND.y], night: lv.night ? 1 : 0, outer: G3.hex(lv.ground[0]),
+      sun: [Math.cos(el) * Math.cos(az), Math.cos(el) * Math.sin(az), Math.sin(el)], sunCol, skyCol: e.skyCol.map(v => v * d.sky), bounce: e.bounce,
+      fogCol: hor, fogD, horizon: hor, zenith: e.zenith, snow: e.snow || 0, fogH: e.fogH, cloud: clamp(e.cloud * w.cloud, 0, 1),
+      wind: [WIND.x, -WIND.y], night: lv.night ? 1 : 0, outer: G3.hex(lv.ground[0]), weather, wet,
     });
   }
 

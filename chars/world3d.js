@@ -57,7 +57,7 @@ uniform vec3 uCamo0; uniform vec3 uCamo1; uniform vec3 uCamo2; uniform float uPa
 uniform float uBurnt; uniform vec4 uTint; uniform float uTread; uniform float uSeed; uniform float uSnow;
 uniform sampler2D uShadow; uniform sampler2D uShadowS; uniform vec2 uShT; uniform vec2 uSR; uniform sampler2D uGround; uniform vec2 uMap;
 uniform vec4 uLP[NL]; uniform vec3 uLC[NL]; uniform vec4 uLD[NL]; uniform float uNL; uniform float uTime;
-uniform vec2 uFogH; uniform vec3 uOuter; uniform float uPix; uniform float uCloud; uniform vec2 uWind; uniform float uNight;
+uniform float uWet; uniform vec2 uFogH; uniform vec3 uOuter; uniform float uPix; uniform float uCloud; uniform vec2 uWind; uniform float uNight;
 uniform vec4 uTk[10]; uniform vec2 uTkH[10]; uniform float uNT;
 ` + FOG + `
 float h3(vec3 p){ p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
@@ -189,7 +189,8 @@ void main(){
       vec3 bump = vec3(fbm(vec3(vW.xy * 2.2 + vec2(e, 0.0), 7.0)) - g2, fbm(vec3(vW.xy * 2.2 + vec2(0.0, e), 7.0)) - g2, 0.0);
       N = normalize(N - bump * 1.8 * kb);
     }
-    ks = 0.04;
+    // sol détrempé par la pluie : plus sombre et luisant
+    ks = mix(0.04, 0.35, uWet); shin = mix(16.0, 60.0, uWet); base *= 1.0 - 0.25 * uWet;
   } else if (vM < 10.5) {
     // tuiles : rangées et irrégularités
     float r = fract(vO.z * 3.2 + vO.x * 0.0), c = fract(vO.x * 2.6 + vO.y * 2.6 + floor(vO.z * 3.2) * 0.5);
@@ -330,7 +331,35 @@ void main(){
   // Réglages du rendu selon la qualité : noyau de filtrage des ombres (KR texels par axe), lumières
   // dynamiques, cartes d'ombre statique (toute la carte, calculée une fois) et dynamique (chars, à
   // chaque image), échelle des distances de détail. Les niveaux eux-mêmes sont choisis par le jeu.
-  const QDEF = { kr: 4, nl: 8, sms: 4096, smd: 2048, lod: 1, gt: [4096, 2048], aniso: 8 };
+  const QDEF = { kr: 4, nl: 8, sms: 4096, smd: 2048, lod: 1, gt: [4096, 2048], aniso: 8, wx: 2500 };
+  // Météo : un volume de particules qui suit la caméra (enroulé autour d'un point entre l'œil et la
+  // zone regardée), entièrement animé sur le GPU, un seul appel de dessin. Pluie et sable en traits
+  // orientés selon leur vitesse, neige et cendres en flocons qui se balancent.
+  const WVS = `
+attribute vec3 aP; attribute vec3 aQ;
+uniform mat4 uVP; uniform vec3 uEye; uniform vec3 uC; uniform vec3 uVel; uniform float uTime; uniform vec3 uBox;
+uniform vec3 uRight; uniform vec3 uUp; uniform float uStreak; uniform float uSize; uniform float uLen; uniform float uPix; uniform float uMinPx;
+varying vec2 vQ; varying float vA;
+void main(){
+  vec3 p = mod(aP + uVel * uTime - uC + uBox * 0.5, uBox) - uBox * 0.5 + uC;
+  if (uStreak < 0.5) p.xy += 0.3 * vec2(sin(uTime * 1.3 + aQ.z * 6.283), cos(uTime * 1.1 + aQ.z * 4.1));
+  float d = length(p - uEye);
+  vA = smoothstep(uBox.x * 0.5, uBox.x * 0.36, length(p - uC)) * smoothstep(0.8, 2.5, d);
+  float w = max(uSize, d * uPix * uMinPx);
+  vec3 off;
+  if (uStreak > 0.5) { vec3 v = uVel * uLen; off = v * aQ.y * 0.5 + normalize(cross(v, p - uEye)) * w * aQ.x; }
+  else off = (uRight * aQ.x + uUp * aQ.y) * w;
+  vQ = aQ.xy;
+  gl_Position = uVP * vec4(p + off, 1.0);
+}`;
+  const WFS = `
+precision highp float;
+varying vec2 vQ; varying float vA;
+uniform vec4 uCol; uniform float uStreak;
+void main(){
+  float a = uStreak > 0.5 ? (1.0 - abs(vQ.x)) * smoothstep(1.0, 0.5, abs(vQ.y)) : smoothstep(1.0, 0.35, length(vQ));
+  gl_FragColor = vec4(uCol.rgb, uCol.a * a * vA);
+}`;
   function create(canvas, opt = {}) {
     const gl = canvas.getContext('webgl', { antialias: opt.msaa !== false, alpha: false, preserveDrawingBuffer: false });
     if (!gl) return null;
@@ -350,7 +379,7 @@ void main(){
     };
     // Ressources du GPU, toutes recréées après une perte du contexte WebGL (pilote réinitialisé,
     // mémoire saturée, changement d'application sur mobile)
-    let main, shadow, part, shS = null, shD = null, gTex, sky, pBuf, lost = false;
+    let main, shadow, part, wprog, shS = null, shD = null, gTex, sky, pBuf, wBuf, lost = false;
     const mkBuf = data => {
       const buf = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, buf);
@@ -403,7 +432,7 @@ void main(){
       shS = depthOK && mkTarget(Q.sms);
       if (!shS) { depthOK = false; Q.sms = Math.min(Q.sms, 2048); shS = mkTarget(Q.sms); }
       shD = mkTarget(Q.smd);
-      main = compile(VS, FS); shadow = compile(SVS, SFS); part = compile(PVS, PFS);
+      main = compile(VS, FS); shadow = compile(SVS, SFS); part = compile(PVS, PFS); wprog = compile(WVS, WFS);
       bakeAll = true;
     }
     function initGL() {
@@ -414,7 +443,13 @@ void main(){
       gTex = gl.createTexture(); // texture du sol, renvoyée par le jeu (setGround)
       sky = { buf: mkBuf(skyData), count: skyData.length / 20 };
       pBuf = gl.createBuffer();
+      wBuf = mkBuf(wData);
     }
+    // volume de météo : positions aléatoires dans la boîte, coins des quads et graine par flocon
+    const WMAX = 2500, WBOX = [50, 50, 30], wData = new Float32Array(WMAX * 36);
+    { let s = 7; const R = () => (s = (s * 16807) % 2147483647) / 2147483647;
+      for (let i = 0; i < WMAX; i++) { const x = R() * WBOX[0], y = R() * WBOX[1], z = R() * WBOX[2], sd = R();
+        QI.forEach((k, v) => wData.set([x, y, z, QU[v * 2] * 2 - 1, QU[v * 2 + 1] * 2 - 1, sd], (i * 6 + v) * 6)); } }
 
     // Maillages vivants. Par défaut leurs sommets sont gardés pour être renvoyés tels quels après
     // une perte du contexte ; keep = false pour les gros décors, que le jeu reconstruit (onRestored).
@@ -588,7 +623,7 @@ void main(){
       gl.uniform1f(U.uSnow, env.snow || 0); gl.uniform1f(U.uTime, cam.time);
       gl.uniform2f(U.uMap, mapW, mapH);
       gl.uniform2fv(U.uFogH, env.fogH || [0, 0.1]); gl.uniform3fv(U.uOuter, env.outer || [0.3, 0.3, 0.25]);
-      gl.uniform1f(U.uCloud, env.cloud || 0); gl.uniform2fv(U.uWind, env.wind || [1, 0]); gl.uniform1f(U.uNight, env.night || 0);
+      gl.uniform1f(U.uWet, env.wet || 0); gl.uniform1f(U.uCloud, env.cloud || 0); gl.uniform2fv(U.uWind, env.wind || [1, 0]); gl.uniform1f(U.uNight, env.night || 0);
       gl.uniform1f(U.uPix, 2 * Math.tan((cam.fov || 0.9) / 2) / Math.max(1, canvas.height));
       // contacts des chars avec le sol : [x, y, cap, demi-longueur, demi-largeur]
       const C = cam.contacts || [], nt = Math.min(10, C.length);
@@ -668,6 +703,26 @@ void main(){
       drawCells(cam);
       for (const it of scene.items) if (!it.cull || sphereIn(it.cull)) drawMain(it.mesh, it.model, it.o || {});
       drawParticles(scene.parts, cam);
+      drawWeather(cam, h);
+    }
+    // env.weather : { vel, col (couleur et opacité), size (m), px (taille minimale à l'écran), len (s, traits), streak, rate (0..1) }
+    function drawWeather(cam, h) {
+      const W = env.weather, n = W ? Math.round(Math.min(WMAX, Q.wx) * W.rate) : 0;
+      if (!n) return;
+      const P = wprog, U = P.U, e = cam.eye, t = cam.target, v = cam.view;
+      gl.useProgram(P.p);
+      gl.uniformMatrix4fv(U.uVP, false, cam.vp);
+      gl.uniform3fv(U.uEye, e); gl.uniform3f(U.uC, (e[0] + t[0]) / 2, (e[1] + t[1]) / 2, (e[2] + t[2]) / 2);
+      gl.uniform3fv(U.uVel, W.vel); gl.uniform1f(U.uTime, cam.time); gl.uniform3fv(U.uBox, WBOX);
+      gl.uniform3f(U.uRight, v[0], v[4], v[8]); gl.uniform3f(U.uUp, v[1], v[5], v[9]);
+      gl.uniform1f(U.uStreak, W.streak ? 1 : 0); gl.uniform1f(U.uSize, W.size); gl.uniform1f(U.uLen, W.len || 0); gl.uniform1f(U.uMinPx, W.px || 0.7);
+      gl.uniform1f(U.uPix, 2 * Math.tan((cam.fov || 0.9) / 2) / Math.max(1, h)); gl.uniform4fv(U.uCol, W.col);
+      gl.bindBuffer(gl.ARRAY_BUFFER, wBuf);
+      gl.enableVertexAttribArray(P.A.aP); gl.vertexAttribPointer(P.A.aP, 3, gl.FLOAT, false, 24, 0);
+      gl.enableVertexAttribArray(P.A.aQ); gl.vertexAttribPointer(P.A.aQ, 3, gl.FLOAT, false, 24, 12);
+      gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false);
+      gl.drawArrays(gl.TRIANGLES, 0, n * 6);
+      gl.depthMask(true); gl.disable(gl.BLEND);
     }
 
     function drawParticles(parts, cam) {
