@@ -56,7 +56,7 @@ uniform vec3 uFogCol; uniform float uFogD; uniform vec3 uZenith; uniform vec3 uH
 uniform vec3 uCamo0; uniform vec3 uCamo1; uniform vec3 uCamo2; uniform float uPat;
 uniform float uBurnt; uniform vec4 uTint; uniform float uTread; uniform float uSeed; uniform float uSnow;
 uniform sampler2D uShadow; uniform sampler2D uShadowS; uniform vec2 uShT; uniform vec2 uSR; uniform sampler2D uGround; uniform vec2 uMap;
-uniform vec4 uLP[NL]; uniform vec3 uLC[NL]; uniform float uNL; uniform float uTime;
+uniform vec4 uLP[NL]; uniform vec3 uLC[NL]; uniform vec4 uLD[NL]; uniform float uNL; uniform float uTime;
 uniform vec2 uFogH; uniform vec3 uOuter; uniform float uPix; uniform float uCloud; uniform vec2 uWind; uniform float uNight;
 uniform vec4 uTk[10]; uniform vec2 uTkH[10]; uniform float uNT;
 ` + FOG + `
@@ -116,6 +116,7 @@ void main(){
   vec3 base = vC;
   vec3 P = vO + vec3(uSeed);
   float paint = 0.0, ks = 0.08, shin = 16.0, trans = 0.0;
+  vec3 emi = vec3(0.0);
   if (vM < 0.5) { paint = 1.0; }
   else if (vM < 1.5) {
     float a = fbm(P * 1.25 + 3.1), b = fbm(P * 1.3 + 17.3);
@@ -204,7 +205,11 @@ void main(){
     base *= (0.86 + 0.14 * mortar) * (0.88 + 0.24 * h3(floor(vec3(q.x, q.y, row))));
     base *= 0.85 + 0.25 * fbm(vW * 0.8);
     base *= 1.0 - 0.25 * smoothstep(0.5, 0.0, vW.z);
-  } else if (vM < 13.5) { ks = 0.8; shin = 120.0; }
+  } else if (vM < 13.5) {
+    ks = 0.8; shin = 120.0;
+    // la nuit, quelques fenêtres restent éclairées
+    if (uNight > 0.5 && h3(floor(vW * 0.4)) > 0.85) emi = vec3(1.0, 0.62, 0.3) * 0.5;
+  }
   else {
     // feuille : éclairée des deux faces, translucide, cireuse, parfois enneigée sur le dessus
     if (dot(N, V) < 0.0) N = -N;
@@ -251,8 +256,11 @@ void main(){
     float ld = length(lv);
     float att = clamp(1.0 - ld / max(uLP[i].w, 0.001), 0.0, 1.0);
     att *= att;
+    // projecteur (phare) : cône d'axe uLD.xyz, cosinus du demi-angle extérieur en uLD.w (-2 : omnidirectionnel)
+    if (uLD[i].w > -1.5) att *= smoothstep(uLD[i].w, mix(uLD[i].w, 1.0, 0.6), dot(-lv / max(ld, 0.001), uLD[i].xyz));
     col += base * uLC[i] * att * (max(dot(N, lv / max(ld, 0.001)), 0.0) * 0.85 + 0.15);
   }
+  col += emi;
   vec3 rd = -V;
   col = mix(col, fogCol(rd), fogAt(vW, rd, dist));
   gl_FragColor = vec4(tm(col), 1.0);
@@ -289,6 +297,7 @@ void main(){ vUV = aUV; vC = aC; vW = aP; vS = aS; gl_Position = uVP * vec4(aP, 
 precision highp float;
 varying vec2 vUV; varying vec4 vC; varying vec3 vW; varying float vS;
 uniform float uGlow; uniform vec3 uSunCol; uniform vec3 uSkyCol; uniform vec3 uFogCol; uniform float uFogD; uniform vec3 uEye; uniform vec3 uSun; uniform vec2 uFogH;
+uniform vec4 uLP[4]; uniform vec3 uLC[4]; uniform float uNL;
 ` + FOG + `
 float h(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 float n2(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(h(i), h(i + vec2(1, 0)), f.x), mix(h(i + vec2(0, 1)), h(i + vec2(1, 1)), f.x), f.y); }
@@ -308,6 +317,12 @@ void main(){
   // fondu au contact du sol : pas de coupure nette là où le sprite le traverse
   float a = smoothstep(1.0, 0.25, r) * nz * vC.a * smoothstep(0.0, 0.5 * vS, vW.z);
   vec3 c = vC.rgb * vC.rgb * (uSkyCol * 1.3 + uSunCol * (0.32 + 0.18 * q.y));
+  // fumée éclairée par les flammes, les éclairs et les fusées proches
+  for (int i = 0; i < 4; i++) {
+    if (float(i) >= uNL) break;
+    float att = clamp(1.0 - length(uLP[i].xyz - vW) / max(uLP[i].w, 0.001), 0.0, 1.0);
+    c += vC.rgb * uLC[i] * att * att * 0.6;
+  }
   c = mix(c, fogCol(rd), fog);
   gl_FragColor = vec4(tm(c), a);
 }`;
@@ -557,7 +572,7 @@ void main(){
     }
 
     // ---- dessin ----
-    const lp = new Float32Array(32), lc = new Float32Array(24), tk = new Float32Array(40), tkh = new Float32Array(20);
+    const lp = new Float32Array(32), lc = new Float32Array(24), ld = new Float32Array(32), tk = new Float32Array(40), tkh = new Float32Array(20);
     function uniformsMain(cam, lvp, dRange, dTexel) {
       const U = main.U;
       gl.useProgram(main.p);
@@ -584,8 +599,12 @@ void main(){
       gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, shS.tex); gl.uniform1i(U.uShadowS, 2);
       gl.activeTexture(gl.TEXTURE0);
       const L = cam.lights || [], n = Math.min(L.length, Q.nl);
-      for (let i = 0; i < n; i++) { const l = L[i]; lp[i * 4] = l.p[0]; lp[i * 4 + 1] = l.p[1]; lp[i * 4 + 2] = l.p[2]; lp[i * 4 + 3] = l.r; lc[i * 3] = l.c[0]; lc[i * 3 + 1] = l.c[1]; lc[i * 3 + 2] = l.c[2]; }
-      gl.uniform4fv(U.uLP, lp.subarray(0, Q.nl * 4)); gl.uniform3fv(U.uLC, lc.subarray(0, Q.nl * 3)); gl.uniform1f(U.uNL, n);
+      for (let i = 0; i < n; i++) {
+        const l = L[i], d = l.d;
+        lp[i * 4] = l.p[0]; lp[i * 4 + 1] = l.p[1]; lp[i * 4 + 2] = l.p[2]; lp[i * 4 + 3] = l.r; lc[i * 3] = l.c[0]; lc[i * 3 + 1] = l.c[1]; lc[i * 3 + 2] = l.c[2];
+        ld[i * 4] = d ? d[0] : 0; ld[i * 4 + 1] = d ? d[1] : 0; ld[i * 4 + 2] = d ? d[2] : 0; ld[i * 4 + 3] = d ? l.cone : -2;
+      }
+      gl.uniform4fv(U.uLP, lp.subarray(0, Q.nl * 4)); gl.uniform3fv(U.uLC, lc.subarray(0, Q.nl * 3)); gl.uniform4fv(U.uLD, ld.subarray(0, Q.nl * 4)); gl.uniform1f(U.uNL, n);
     }
     function drawMain(m, model, o = {}) {
       if (!m.buf) return; // décor pas encore renvoyé après une perte du contexte
@@ -659,6 +678,10 @@ void main(){
       gl.uniform3fv(P.U.uSunCol, env.sunCol); gl.uniform3fv(P.U.uSkyCol, env.skyCol);
       gl.uniform3fv(P.U.uFogCol, env.fogCol); gl.uniform1f(P.U.uFogD, env.fogD); gl.uniform3fv(P.U.uEye, cam.eye);
       gl.uniform3fv(P.U.uSun, env.sun); gl.uniform2fv(P.U.uFogH, env.fogH || [0, 0.1]);
+      // les quatre lumières omnidirectionnelles les plus importantes éclairent aussi la fumée
+      let n4 = 0;
+      for (const l of cam.lights || []) { if (n4 >= 4) break; if (l.d) continue; plp.set([l.p[0], l.p[1], l.p[2], l.r], n4 * 4); plc.set(l.c, n4 * 3); n4++; }
+      gl.uniform4fv(P.U.uLP, plp); gl.uniform3fv(P.U.uLC, plc); gl.uniform1f(P.U.uNL, n4);
       // quads écrits directement dans le tampon, sans tableaux temporaires
       const v = cam.view, R0 = v[0], R1 = v[4], R2 = v[8], U0 = v[1], U1 = v[5], U2 = v[9], e = cam.eye;
       const fill = list => {
@@ -731,7 +754,7 @@ void main(){
     return api;
   }
   // coins des quads de particules, ordre des sommets et coordonnées de texture
-  const QC = new Float32Array(12), QI = [0, 1, 2, 0, 2, 3], QU = [0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1];
+  const plp = new Float32Array(16), plc = new Float32Array(12), QC = new Float32Array(12), QI = [0, 1, 2, 0, 2, 3], QU = [0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1];
   const norm = a => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
   const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 

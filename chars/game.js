@@ -795,7 +795,7 @@ Meta.whenReady(() => {
   function spawnWave() {
     if (W3D0) for (const t of tanks) if (t.scar3) { W3D0.free(t.scar3.hull); W3D0.free(t.scar3.turret); }
     reviveT = 0; reviveUsed = false;
-    tanks = []; shells = []; bullets = []; smokes = []; texts = []; feed = []; parts = []; logs = []; runners = []; ribbons = [];
+    tanks = []; shells = []; bullets = []; smokes = []; texts = []; feed = []; parts = []; logs = []; runners = []; ribbons = []; flares = []; flareT = [rnd(15, 30), rnd(20, 40)];
     if (obstacles.some(o => o.type === 'wreck')) { obstacles = obstacles.filter(o => o.type !== 'wreck'); buildGrid(); }
     orders = { kind: 'free', pos: null, target: null, t: 0 }; reinf = []; veils = [];
     spotted[0].clear(); spotted[1].clear(); seenAt.clear(); artyMarks = []; contactT = [0, 0]; artyT = [0, 0];
@@ -992,7 +992,7 @@ Meta.whenReady(() => {
           // tout près, on entend et on voit le char, sauf derrière une maison
           if (d < 90 && losClear(a.x, a.y, e.x, e.y, false)) rate = 9;
           else {
-            let range = a.T.view * a.up.optic * (night ? 0.6 : 1) * (0.75 + 0.25 * eff(a, 'commander')) * (a.hatch ? 1.15 : 1) * (a.optic.cmd > 0 && !a.hatch ? 0.8 : 1);
+            let range = a.T.view * a.up.optic * (night && !flareLit(e) ? 0.6 : 1) * (0.75 + 0.25 * eff(a, 'commander')) * (a.hatch ? 1.15 : 1) * (a.optic.cmd > 0 && !a.hatch ? 0.8 : 1);
             if (e.revealT > 0) range *= 1.3;
             // un char qui roule vite soulève un panache de poussière qui se voit de loin
             if (!night && !L().snow && Math.abs(e.speed) > e.T.speed * 0.5) range *= 1.2;
@@ -1805,6 +1805,41 @@ Meta.whenReady(() => {
   // Char en feu : flammes au-dessus du foyer (m, compartiment moteur par défaut), colonne de fumée noire
   // d'huile et de caoutchouc qui monte (gaz chauds) puis s'étale et dérive avec le vent ; elle grisaille quand
   // le feu baisse. Feu de charges (jets) : longues flammes qui jaillissent des écoutilles.
+  // Fusées éclairantes (la nuit) : montée en 2 s à 70-90 m vers la zone visée, puis descente sous
+  // parachute à 2,5 m/s en se balançant, 20 à 25 s. Elles éclairent le terrain (rendu) et, à moins de
+  // 120 m de leur aplomb, la vue y redevient celle du jour (repérage). L'IA en tire une toutes les
+  // 40 s environ par camp ; le joueur avec la touche L.
+  let flares = [], flareT = [30, 40];
+  function launchFlare(t, tx, ty) {
+    if (flares.length >= 4) return;
+    const ux = tx - t.x, uy = ty - t.y, d = Math.hypot(ux, uy) || 1, r = clamp(d, 60 * PX, 260 * PX);
+    flares.push({ x0: t.x, y0: t.y, tx: t.x + ux / d * r, ty: t.y + uy / d * r, x: t.x, y: t.y, z: 2.5, top: rnd(70, 90), age: 0, life: rnd(22, 27), seed: rnd(0, 9) });
+    Sfx.smoke(listenerDist(t.x, t.y));
+  }
+  const flareLit = e => flares.some(f => f.age > 1.5 && (f.x - e.x) ** 2 + (f.y - e.y) ** 2 < (120 * PX) ** 2);
+  function updateFlares(dt) {
+    for (const f of flares) {
+      f.age += dt;
+      if (f.age < 2) {
+        const k = f.age / 2, e = 1 - (1 - k) * (1 - k);
+        f.x = f.x0 + (f.tx - f.x0) * k; f.y = f.y0 + (f.ty - f.y0) * k; f.z = 2.5 + (f.top - 2.5) * e;
+        P3({ x: f.x, y: f.y, z: f.z, vz: 0.3, drag: 0.6, wind: 1, size: 0.25, grow: 0.6, life: rnd(2, 3.5), c: [0.6, 0.6, 0.58, 0.35] });
+      } else {
+        f.z = f.top - 2.5 * (f.age - 2);
+        f.x = f.tx + Math.sin(f.age * 1.3 + f.seed) * 2 * PX + WIND.x * (f.age - 2) * PX * 0.5; f.y = f.ty + WIND.y * (f.age - 2) * PX * 0.5;
+      }
+    }
+    flares = flares.filter(f => f.z > 0.5 && f.age < f.life);
+    if (!L().night || state !== 'play') return;
+    for (let team = 0; team < 2; team++) {
+      if ((flareT[team] -= dt) > 0) continue;
+      flareT[team] = rnd(32, 48);
+      const own = tanks.filter(t => t.team === team && !t.dead && t !== player), foes = tanks.filter(t => t.team !== team && !t.dead);
+      if (!own.length || !foes.length) continue;
+      const a = own[Math.floor(Math.random() * own.length)], e = foes.reduce((b, t) => dist(a, t) < dist(a, b) ? t : b);
+      launchFlare(a, e.x, e.y);
+    }
+  }
   function burnFx(t, dt, k, m, jets) {
     const T = t.T, q = m ? hullC(t, m) : [-T.len * 0.3 / PX, 0, 0], w = worldOf(t, q), rx = w.x, ry = w.y, z = T.S.ht + 0.2;
     if (Math.random() < dt * 9 * k) {
@@ -3715,6 +3750,7 @@ Meta.whenReady(() => {
     updateBullets(dt);
     updateRunners(dt);
     updateParts(dt);
+    updateFlares(dt);
     if (state === 'play' && mode === 'survie') {
       // les épaves refroidies disparaissent (obstacles, fumées et calculs en moins)
       for (let i = tanks.length - 1; i >= 0; i--) {
@@ -4328,8 +4364,16 @@ Meta.whenReady(() => {
     }
     for (const t of tanks) {
       const P = to3(t.x, t.y);
-      if (t.dead ? t.wreck === 'burning' || (t.wreck === 'brewed' && t.deadT < 12) : t.fires.length) lights.push({ p: [P[0], P[1], 2], r: 11, c: [3.2 * (0.8 + 0.4 * Math.random()), 1.4, 0.35] });
-      if (night && !t.dead && t.team === 0) { const c = Math.cos(t.angle), sn = Math.sin(t.angle); lights.push({ p: [P[0] + c * 6, P[1] - sn * 6, 1.6], r: 20, c: [0.9, 0.85, 0.7], head: true }); }
+      // flammes : la lumière dure autant qu'elles (même intensité que burnFx), vacillement continu
+      const fk = t.dead ? (t.wreck === 'burning' || (t.wreck === 'brewed' && t.deadT < 12) ? 1.4 : t.wreck === 'brewed' && t.deadT < 45 ? 0.6 : 0) : t.fires.length ? 0.6 + 0.6 * Math.max(...t.fires.map(f => f.I)) : 0;
+      if (fk) { const fl = (0.85 + 0.1 * Math.sin(17 * gameTime + t.id) + 0.05 * Math.sin(41 * gameTime + 2 * t.id)) * (0.5 + 0.36 * fk); lights.push({ p: [P[0], P[1], 2], r: 8 + 3 * fk, c: [3.2 * fl, 1.4 * fl, 0.35 * fl] }); }
+      // phares des alliés la nuit : un projecteur à l'avant de la caisse, légèrement plongeant
+      if (night && !t.dead && t.team === 0) { const c = Math.cos(t.angle), sn = Math.sin(t.angle), hl = t.T.S.L / 2; lights.push({ p: [P[0] + c * hl, P[1] - sn * hl, 1.4], r: 45, c: [1.3, 1.2, 0.95], d: [c * 0.99, -sn * 0.99, -0.1], cone: 0.92 }); }
+    }
+    for (const f of flares) {
+      const P = to3(f.x, f.y), k = Math.min(1, f.age / 0.6) * Math.min(1, (f.life - f.age) / 2), fl = (0.9 + 0.07 * Math.sin(23 * gameTime + f.seed) + 0.04 * Math.sin(57 * gameTime)) * k;
+      glow.push({ p: [P[0], P[1], f.z], s: 0.8, c: [1, 1, 0.92, 1.6 * k] });
+      if (f.age > 1.5) lights.push({ p: [P[0], P[1], f.z], r: 220, c: [2.2 * fl, 2.3 * fl, 2.1 * fl] });
     }
     // ombre de contact des chars les plus proches de la zone regardée
     const tg = cam3.target, contacts = [];
@@ -6076,6 +6120,11 @@ Meta.whenReady(() => {
     }
     if (e.code === 'KeyH' && state !== 'menu') { hitcamOn = !hitcamOn; if (!hitcamOn) HitCam.stop(); showMsg(hitcamOn ? 'Impact camera on' : 'Impact camera off', '#bcd8ff', 1.4); }
     if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyV') && state !== 'menu') setSight(!sight.on);
+    if (e.code === 'KeyL' && state === 'play' && player && !player.dead && L().night && gameTime - (player.flareAt || -99) > 8) {
+      player.flareAt = gameTime;
+      const m = screenToWorld(mouse.x, mouse.y);
+      launchFlare(player, m.x, m.y);
+    }
     if (e.code === 'KeyC' && W3D && state !== 'menu') {
       setSight(false);
       cam3.mode = (cam3.mode + 1) % CAM_MODES.length;
@@ -6198,7 +6247,7 @@ Meta.whenReady(() => {
   if (Q.has('debug')) {
     window.__fa = {
       get tanks() { return tanks; }, get state() { return state; }, get stats() { return waveStats; }, get shells() { return shells; },
-      get time() { return gameTime; }, get player() { return player; }, get bushes() { return bushes; }, get w3d() { return W3D; }, get obstacles() { return obstacles; }, barrelHit, cam3, sight, setSight, sightProbe, get mode() { return mode; }, get survWave() { return survWave; }, dyn, hitcam: HitCam, TYPES, SHELLS, bench, benchFire,
+      get time() { return gameTime; }, get player() { return player; }, get bushes() { return bushes; }, get w3d() { return W3D; }, launchFlare, get flares() { return flares; }, get obstacles() { return obstacles; }, barrelHit, cam3, sight, setSight, sightProbe, get mode() { return mode; }, get survWave() { return survWave; }, dyn, hitcam: HitCam, TYPES, SHELLS, bench, benchFire,
       // test : tir forcé du joueur sur la cible la plus proche
       fireAt(i, key) {
         const e = tanks.filter(t => t.team === 1 && !t.dead)[i || 0];
