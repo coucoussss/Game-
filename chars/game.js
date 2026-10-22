@@ -67,43 +67,43 @@ Meta.whenReady(() => {
   const G = 9.81;  // pesanteur (m/s²)
   const TYPES = {
     light: {
-      id: 'light', hp: 180, ready: 10, mass: 12, name: 'Lynx', cls: 'Light tank', kmh: 60, speed: 150, rev: 70, accel: 230, turn: 2.3, tturn: 2.6,
+      id: 'light', hp: 180, ready: 10, mass: 12, name: 'Lynx', cls: 'Light tank',
       reload: 3.2, disp: 0.016, view: 760, range: 470,
       caliber: 50, obs: 60,
       ammo: { AP: 20, APHE: 30, APCR: 10, HEAT: 6, HE: 20, SMOKE: 4, CAN: 8 },
     },
     medium: {
-      id: 'medium', hp: 700, ready: 8, mass: 45, name: 'Panther', cls: 'Medium tank', kmh: 46, speed: 112, rev: 52, accel: 170, turn: 1.6, tturn: 1.4,
+      id: 'medium', hp: 700, ready: 8, mass: 45, name: 'Panther', cls: 'Medium tank',
       reload: 5.5, disp: 0.011, view: 680, range: 420,
       caliber: 75, obs: 110,
       ammo: { AP: 15, APHE: 35, APCR: 10, HEAT: 5, HE: 15, SMOKE: 4, CAN: 5 },
     },
     heavy: {
-      id: 'heavy', hp: 700, ready: 6, mass: 57, name: 'Tiger', cls: 'Heavy tank', kmh: 38, speed: 80, rev: 38, accel: 115, turn: 1.1, tturn: 1.0,
+      id: 'heavy', hp: 700, ready: 6, mass: 57, name: 'Tiger', cls: 'Heavy tank',
       reload: 7.0, disp: 0.010, view: 620, range: 330,
       caliber: 88, obs: 150,
       ammo: { AP: 12, APHE: 40, APCR: 8, HEAT: 10, HE: 22, SMOKE: 4, CAN: 4 },
     },
     pz4: {
-      id: 'pz4', hp: 300, ready: 8, mass: 25, name: 'Panzer IV', cls: 'Medium tank', kmh: 38, speed: 95, rev: 45, accel: 150, turn: 1.5, tturn: 1.0,
+      id: 'pz4', hp: 300, ready: 8, mass: 25, name: 'Panzer IV', cls: 'Medium tank',
       reload: 5.0, disp: 0.012, view: 680, range: 420,
       caliber: 75, obs: 100,
       ammo: { AP: 15, APHE: 40, APCR: 8, HEAT: 6, HE: 20, SMOKE: 4, CAN: 6 },
     },
     stug: {
-      id: 'stug', hp: 300, ready: 6, mass: 24, name: 'StuG', cls: 'Assault gun', kmh: 40, speed: 100, rev: 45, accel: 150, turn: 1.5, tturn: 0.9,
+      id: 'stug', hp: 300, ready: 6, mass: 24, name: 'StuG', cls: 'Assault gun',
       reload: 5.0, disp: 0.010, view: 650, range: 450, arc: 0.17,
       caliber: 75, obs: 100,
       ammo: { AP: 12, APHE: 30, APCR: 6, HEAT: 4, HE: 18, SMOKE: 4, CAN: 4 },
     },
     kingtiger: {
-      id: 'kingtiger', hp: 700, ready: 6, mass: 68, name: 'King Tiger', cls: 'Heavy tank', kmh: 35, speed: 70, rev: 33, accel: 95, turn: 0.9, tturn: 0.8,
+      id: 'kingtiger', hp: 700, ready: 6, mass: 68, name: 'King Tiger', cls: 'Heavy tank',
       reload: 8.0, disp: 0.008, view: 640, range: 520,
       caliber: 88, obs: 170,
       ammo: { AP: 10, APHE: 40, APCR: 8, HEAT: 4, HE: 20, SMOKE: 4, CAN: 4 },
     },
     destroyer: {
-      id: 'destroyer', hp: 700, ready: 6, mass: 46, name: 'Jagd', cls: 'Tank destroyer', kmh: 46, speed: 95, rev: 45, accel: 145, turn: 1.4, tturn: 0.9,
+      id: 'destroyer', hp: 700, ready: 6, mass: 46, name: 'Jagd', cls: 'Tank destroyer',
       reload: 7.5, disp: 0.007, view: 720, range: 600, arc: 0.21,
       caliber: 88, obs: 160,
       ammo: { AP: 12, APHE: 25, APCR: 10, HEAT: 5, HE: 5, SMOKE: 3, CAN: 2 },
@@ -123,6 +123,11 @@ Meta.whenReady(() => {
     // inertie en tangage et en roulis (parallélépipède plein), longueur de recul du canon
     T.Ip = T.mass * 1000 * (I.S.L * I.S.L + I.S.ht * I.S.ht) / 12; T.Ir = T.mass * 1000 * (I.S.W * I.S.W + I.S.ht * I.S.ht) / 12;
     T.recoilLen = 0.3 + (T.caliber - 50) / 38 * 0.28;
+    // conduite (vehicle.js) : boîte, direction, tourelle, pointage ; hp = puissance en ch. Vitesse de
+    // pointe régulée et marche arrière en px/s, lacet et traverse de référence en rad/s
+    T.D = Vehicle.prep(Object.assign({}, Vehicle.DATA[T.id]), I.S, T.mass, T.hp);
+    T.speed = T.D.top * PX; T.rev = T.D.revTop * PX; T.kmh = Math.round(T.D.top * 3.6);
+    T.turn = T.D.wRef; T.tturn = T.D.travMax;
   }
 
   const SHELLS = {
@@ -151,35 +156,35 @@ Meta.whenReady(() => {
   const W_ = (a, b, c, d, e) => [a, b, c, d, e];
   const LEVELS = [
     {
-      name: 'Kursk Plain', when: 'Prokhorovka · 12 July 1943', crr: 0.06, soil: 'dry grass', gRic: 1, atm: { T: 25, rho: 1.18, wind: 3 }, sub: 'Summer steppe, wide open spaces',
+      name: 'Kursk Plain', when: 'Prokhorovka · 12 July 1943', soils: ['steppe', 'track'], soil: 'dry grass', gRic: 1, atm: { T: 25, rho: 1.18, wind: 3 }, sub: 'Summer steppe, wide open spaces',
       ground: ['#7b8446', '#6c763b', '#8a9352'], road: '#8d7d58', dust: '#a59a6a', track: 'rgba(40,35,20,0.16)',
       trees: 45, treeCl: 6, bushes: 34, buildings: 6, walls: 9, rocks: 8,
       tree: ['#36521f', '#4a6a2b'], bush: '#4c6b2a', wall: '#a59a86', roof: ['#8a4f3a', '#73402f'],
       waves: [W_('light', 'light', 'medium', 'light', 'medium'), W_('pz4', 'light', 'medium', 'stug', 'light'), W_('pz4', 'medium', 'heavy', 'stug', 'medium')],
     },
     {
-      forest: true, name: 'Ardennes Forest', when: 'Ardennes · 16 December 1944', crr: 0.085, soil: 'muddy undergrowth', gRic: 0.5, atm: { T: 8, rho: 1.25, wind: 1.5 }, sub: 'Dense undergrowth, close-quarters fighting',
+      forest: true, name: 'Ardennes Forest', when: 'Ardennes · 16 December 1944', soils: ['forest', 'track'], mud: 14, soil: 'muddy undergrowth', gRic: 0.5, atm: { T: 8, rho: 1.25, wind: 1.5 }, sub: 'Dense undergrowth, close-quarters fighting',
       ground: ['#4c5c30', '#425228', '#58693a'], road: '#6d5d3f', dust: '#6b6a48', track: 'rgba(25,25,10,0.2)',
       trees: 150, treeCl: 14, bushes: 70, buildings: 3, walls: 4, rocks: 10,
       tree: ['#24401a', '#335726'], bush: '#3a5a22', wall: '#8f8a7a', roof: ['#5a4a3a', '#4a3c30'],
       waves: [W_('medium', 'light', 'medium', 'light', 'medium'), W_('pz4', 'medium', 'heavy', 'stug', 'destroyer'), W_('heavy', 'medium', 'medium', 'destroyer', 'light')],
     },
     {
-      name: 'Stalingrad Ruins', when: 'Stalingrad · January 1943', crr: 0.07, soil: 'rubble', gRic: 1, atm: { T: -5, rho: 1.31, wind: 4 }, sub: 'Ruined streets, destructible buildings', city: true,
+      name: 'Stalingrad Ruins', when: 'Stalingrad · January 1943', soils: ['rubble', 'road'], soil: 'rubble', gRic: 1, atm: { T: -5, rho: 1.31, wind: 4 }, sub: 'Ruined streets, destructible buildings', city: true,
       ground: ['#6d665c', '#615a51', '#79726a'], road: '#55504a', dust: '#8a8378', track: 'rgba(20,18,15,0.18)',
       trees: 8, treeCl: 2, bushes: 10, buildings: 0, walls: 12, rocks: 4,
       tree: ['#3c4a2a', '#4a5a34'], bush: '#4a5530', wall: '#8f877b', roof: ['#7a7268', '#686057'],
       waves: [W_('medium', 'heavy', 'medium', 'light', 'medium'), W_('heavy', 'pz4', 'destroyer', 'medium', 'kingtiger'), W_('heavy', 'heavy', 'destroyer', 'medium', 'medium')],
     },
     {
-      desert: true, name: 'El Alamein Desert', when: 'Tel el Aqqaqir · 2 November 1942', crr: 0.08, soil: 'sand', gRic: 0.4, atm: { T: 35, rho: 1.15, wind: 5 }, sub: 'Open terrain, long-range shooting',
+      desert: true, name: 'El Alamein Desert', when: 'Tel el Aqqaqir · 2 November 1942', soils: ['sand', 'track'], soil: 'sand', gRic: 0.4, atm: { T: 35, rho: 1.15, wind: 5 }, sub: 'Open terrain, long-range shooting',
       ground: ['#cdb27a', '#c1a46b', '#d9c08c'], road: '#b39463', dust: '#dcc391', track: 'rgba(90,60,30,0.16)',
       trees: 0, treeCl: 1, bushes: 16, buildings: 5, walls: 5, rocks: 36,
       tree: ['#5a6a2a', '#6a7a3a'], bush: '#8c8a4a', wall: '#d8c7a0', roof: ['#e0d2ad', '#cdbd96'],
       waves: [W_('destroyer', 'medium', 'light', 'destroyer', 'medium'), W_('heavy', 'destroyer', 'stug', 'destroyer', 'pz4'), W_('heavy', 'heavy', 'destroyer', 'destroyer', 'medium')],
     },
     {
-      name: 'Bastogne Night', when: 'Bastogne · 26 December 1944', crr: 0.09, soil: 'snow', gRic: 0.5, atm: { T: -10, rho: 1.34, wind: 2.5 }, sub: 'Snow and darkness, reduced vision', night: true,
+      name: 'Bastogne Night', when: 'Bastogne · 26 December 1944', soils: ['snow', 'packed'], soil: 'snow', gRic: 0.5, atm: { T: -10, rho: 1.34, wind: 2.5 }, sub: 'Snow and darkness, reduced vision', night: true,
       ground: ['#dfe4e8', '#cfd6dc', '#eaeef1'], road: '#b9b3a8', dust: '#ffffff', track: 'rgba(60,60,70,0.22)',
       trees: 95, treeCl: 10, bushes: 34, buildings: 8, walls: 6, rocks: 6,
       tree: ['#203828', '#2c4a36'], bush: '#3c5a46', wall: '#9a958c', roof: ['#eef3f6', '#d8e0e6'], snow: true,
@@ -406,20 +411,29 @@ Meta.whenReady(() => {
       gctx.fillStyle = R() < 0.5 ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.05)';
       gctx.fillRect(R() * WW, R() * WH, 2, 2);
     }
+    // sol de conduite maille par maille : fond de la carte, routes et pistes, flaques de boue
+    soil = new Uint8Array(Math.ceil(WW / CELL) * Math.ceil(WH / CELL)).fill(Vehicle.SOIL[lv.soils[0]].i);
+    const road = lv.soils[1];
+    for (let i = 0; i < (lv.mud || 0); i++) {
+      const x = R() * WW, y = R() * WH, r = 40 + R() * 50;
+      gctx.fillStyle = 'rgba(38,30,16,0.32)';
+      gctx.beginPath(); gctx.ellipse(x, y, r, r * 0.7, 0, 0, TAU); gctx.fill();
+      soilSeg(x, y, x, y, r * 0.75, 'mud');
+    }
     gctx.strokeStyle = lv.road; gctx.lineCap = 'round';
     if (lv.city) {
       gctx.globalAlpha = 0.7;
       gctx.lineWidth = 80;
-      for (let x = 480 - 50; x < WW; x += 330) { gctx.beginPath(); gctx.moveTo(x, 0); gctx.lineTo(x, WH); gctx.stroke(); }
-      for (let y = 60 - 50; y < WH; y += 330) { gctx.beginPath(); gctx.moveTo(0, y); gctx.lineTo(WW, y); gctx.stroke(); }
+      for (let x = 480 - 50; x < WW; x += 330) { gctx.beginPath(); gctx.moveTo(x, 0); gctx.lineTo(x, WH); gctx.stroke(); soilSeg(x, 0, x, WH, 40, road); }
+      for (let y = 60 - 50; y < WH; y += 330) { gctx.beginPath(); gctx.moveTo(0, y); gctx.lineTo(WW, y); gctx.stroke(); soilSeg(0, y, WW, y, 40, road); }
       gctx.globalAlpha = 1;
     } else {
       gctx.globalAlpha = 0.55; gctx.lineWidth = 46;
       for (let k = 0; k < 2; k++) {
         gctx.beginPath();
-        let y = WH * (0.3 + k * 0.4) + (R() - 0.5) * 200;
+        let y = WH * (0.3 + k * 0.4) + (R() - 0.5) * 200, px = -20, py = y;
         gctx.moveTo(-20, y);
-        for (let x = 0; x <= WW + 200; x += 200) { y += (R() - 0.5) * 160; y = clamp(y, 120, WH - 120); gctx.lineTo(x, y); }
+        for (let x = 0; x <= WW + 200; x += 200) { y += (R() - 0.5) * 160; y = clamp(y, 120, WH - 120); gctx.lineTo(x, y); soilSeg(px, py, x, y, 23, road); px = x; py = y; }
         gctx.stroke();
       }
       gctx.globalAlpha = 1;
@@ -446,6 +460,23 @@ Meta.whenReady(() => {
 
   // ===================== Grille de navigation =====================
   let grid = null, GC = 0, GR = 0;
+  // Sols de conduite (indices de Vehicle.SOILS) sur la grille de l'itinéraire
+  let soil = null;
+  // segment épaissi de hw px (un point pour un disque) : chaque maille dont le centre est assez proche
+  function soilSeg(x0, y0, x1, y1, hw, id) {
+    if (!soil) return;
+    const v = Vehicle.SOIL[id].i, nc = Math.ceil(WW / CELL), nr = Math.ceil(WH / CELL), dx = x1 - x0, dy = y1 - y0, l2 = dx * dx + dy * dy || 1;
+    const c0 = Math.max(0, Math.floor((Math.min(x0, x1) - hw) / CELL)), c1 = Math.min(nc - 1, Math.floor((Math.max(x0, x1) + hw) / CELL));
+    const r0 = Math.max(0, Math.floor((Math.min(y0, y1) - hw) / CELL)), r1 = Math.min(nr - 1, Math.floor((Math.max(y0, y1) + hw) / CELL));
+    for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
+      const px = (c + 0.5) * CELL, py = (r + 0.5) * CELL, u = clamp(((px - x0) * dx + (py - y0) * dy) / l2, 0, 1);
+      if (Math.hypot(px - x0 - dx * u, py - y0 - dy * u) <= hw) soil[r * nc + c] = v;
+    }
+  }
+  // Sol sous un point : hauteur, normale et nature. Terrain plat pour l'instant : un relief remplira z et
+  // la normale (nx, ny, nz) sans toucher à la conduite, qui en tire déjà la pente
+  const GND = { z: 0, nx: 0, ny: 0, nz: 1, type: Vehicle.SOIL.steppe };
+  function groundAt(x, y) { GND.type = soil ? Vehicle.SOILS[soil[cellOf(x, y)]] : Vehicle.SOIL.steppe; return GND; }
   function buildGrid() {
     GC = Math.ceil(WW / CELL); GR = Math.ceil(WH / CELL);
     grid = new Uint8Array(GC * GR);
@@ -530,7 +561,7 @@ Meta.whenReady(() => {
         const ni = nr * GC + nc;
         if (grid[ni] === 1 || closedId[ni] === searchId) continue;
         if (dx && dy && (grid[r * GC + nc] === 1 || grid[nr * GC + c] === 1)) continue;
-        const cost = (dx && dy ? 1.414 : 1) * (grid[ni] === 2 ? 2.5 : 1);
+        const cost = (dx && dy ? 1.414 : 1) * (grid[ni] === 2 ? 2.5 : 1) * (soil ? Vehicle.SOILS[soil[ni]].path : 1);
         const ng = gScore[cur] + cost;
         if (seenId[ni] !== searchId || ng < gScore[ni]) {
           seenId[ni] = searchId; gScore[ni] = ng; came[ni] = cur;
@@ -581,6 +612,9 @@ Meta.whenReady(() => {
     mods.forEach((m, i) => { if (m.kind === 'crew') roles[m.role] = i; });
     return {
       id: ++tankId, T, team, x, y, angle, turret: 0, speed: 0, turnRate: 0, turretRate: 0, vx: 0, vy: 0,
+      // conduite : glissement latéral (px/s), rapport (0 point mort, < 0 marche arrière), régime (tr/min, et
+      // 0..1 pour le son), charge du moteur, effort à la jante (N)
+      vl: 0, gear: 0, nextGear: 0, shiftT: 0, rpmA: Vehicle.IDLE, rpm: 0, load: 0, fDrive: 0, braking: false, slip: 0,
       dead: false, deadT: 0, isPlayer, name, r: (T.len + T.wid) / 4,
       mods, roles, swap: null, rep: {}, ammo: Object.assign({}, T.ammo), shell: 'APHE', nextShell: null,
       reloadT: rnd(0.8, 1.6), disp: T.disp * 3, smoke: 2, trackT: 0, fireT: 0, fireBy: null,
@@ -589,7 +623,7 @@ Meta.whenReady(() => {
       sus: { p: 0, vp: 0, r: 0, vr: 0, v0: 0 }, wd: [0, 0], trackSide: 1, up, ready: T.ready + up.ready, readyT: 0, reloadMax: T.reload, elev: 0, fireAge: 9, scars: [], scarDirty: false, scarT: 0, scar3: null,
       hatch: !isPlayer, underFire: 0, calm: 20, optic: { driver: 0, gunner: 0, cmd: 0 },
       revealT: 0, recoil: 0, flash: 0, trackAcc: 0, treadPhase: 0, hitFlash: 0, turretGone: false,
-      in: { throttle: 0, turn: 0, aim: angle, fire: false },
+      in: { throttle: 0, turn: 0, brake: false, aim: angle, fire: false },
       ai: (isPlayer && !AUTO) ? null : makeAI(skill),
     };
   }
@@ -875,6 +909,7 @@ Meta.whenReady(() => {
         const nx = -uy * sg, ny = ux * sg;
         const f = Math.cos(t.angle) * nx + Math.sin(t.angle) * ny;
         if (Math.abs(f) < 0.35) continue; // obus de face : on compte sur le blindage
+        if (f < 0 && T.rev < 6 / 3.6 * PX) continue; // marche arrière au pas : pas d'esquive en reculant
         ai.dodgeT = rnd(0.5, 0.8); ai.dodgeDir = f > 0 ? 1 : -1;
         break;
       }
@@ -909,10 +944,12 @@ Meta.whenReady(() => {
         thr = ai.wig * (T.id === 'light' ? 0.8 : 0.5);
       }
     }
-    if (Math.abs(thr) > 0.3 && Math.hypot(t.vx, t.vy) < 6 && ai.unstickT <= 0 && t.trackT <= 0 && roleOk(t, 'driver') && modOk(t, 'engine') && modOk(t, 'trans')) {
+    // bloqué : un rapport est engagé dans le bon sens et le char n'avance pas (le passage d'un rapport
+    // et l'engagement de la marche arrière prennent du temps)
+    if (Math.abs(thr) > 0.3 && Math.hypot(t.vx, t.vy) < 6 && !(t.shiftT > 0) && t.gear * thr > 0 && ai.unstickT <= 0 && t.trackT <= 0 && roleOk(t, 'driver') && modOk(t, 'engine') && modOk(t, 'trans')) {
       ai.stuckT += dt;
-      if (ai.stuckT > 0.8) {
-        ai.stuckT = 0; ai.unstickT = 0.9; ai.unstickDir = thr > 0 ? -1 : 1;
+      if (ai.stuckT > 1) {
+        ai.stuckT = 0; ai.unstickT = T.D.box.rs + 1.4; ai.unstickDir = thr > 0 ? -1 : 1;
         ai.unstickTurn = Math.random() < 0.5 ? -1 : 1; ai.pathT = 0;
       }
     } else ai.stuckT = Math.max(0, ai.stuckT - dt);
@@ -936,11 +973,14 @@ Meta.whenReady(() => {
         }
       }
     } else if (ai.path) aim = t.angle;
+    // le pilote freine pour s'arrêter ou ralentir à la vitesse demandée (lâcher l'accélérateur ne fait
+    // que rouler en roue libre)
+    t.in.brake = Math.abs(thr) < 0.05 || Math.abs(t.speed) > Math.abs(thr) * T.speed + 1.5 * PX;
     t.in.throttle = thr; t.in.turn = turn; t.in.aim = aim; t.in.fire = fire;
   }
 
   // ===================== Simulation des chars =====================
-  function collideObstacles(t) {
+  function collideObstacles(t, vPre = t.speed) {
     for (const o of obstacles) {
       if (o.dead) continue;
       if (t.x + t.r < o.x || t.x - t.r > o.x + o.w || t.y + t.r < o.y || t.y - t.r > o.y + o.h) continue;
@@ -949,7 +989,7 @@ Meta.whenReady(() => {
       if (d2 >= t.r * t.r) continue;
       // quantité de mouvement (t·m/s) : un char lourd couche un arbre au pas, un char léger doit
       // prendre de l'élan ; un muret cède sous un choc assez violent
-      const q = t.T.mass * Math.abs(t.speed) / PX;
+      const q = t.T.mass * Math.abs(vPre) / PX;
       if (o.type === 'tree' && q > 30) { knockTree(o, t.angle); t.speed *= 1 - Math.min(0.5, 12 / q); continue; }
       if (o.type === 'wall' && q > 140 && !t.dead) { damageObstacle(o, q * 2.5); t.speed *= 0.55; Sfx.impact(listenerDist(t.x, t.y)); if (o.dead) continue; }
       if (d2 < 1e-6) {
@@ -1057,7 +1097,7 @@ Meta.whenReady(() => {
     const T = t.T, u = t.sus, K = 57, C = 4.5;
     const acc = (t.speed - u.v0) / dt / PX; u.v0 = t.speed;
     const lat = (t.speed / PX) * t.turnRate, sp = Math.abs(t.speed) / T.speed, ph = t.treadPhase / PX;
-    const bump = sp * (Math.sin(ph * 2.3) * 0.6 + Math.sin(ph * 5.1 + 1.3) * 0.4 + Math.sin(ph * 9.7) * 0.25);
+    const bump = sp * (t.bumpK || 1) * (Math.sin(ph * 2.3) * 0.6 + Math.sin(ph * 5.1 + 1.3) * 0.4 + Math.sin(ph * 9.7) * 0.25);
     const fp = K * (0.005 * clamp(acc, -6, 6) + 0.004 * bump), fr = K * (0.006 * clamp(lat, -4, 4) + 0.003 * Math.sin(ph * 3.7 + 0.5) * sp);
     u.vp += (-K * u.p - C * u.vp + fp) * dt; u.p += u.vp * dt;
     u.vr += (-K * u.r - C * u.vr + fr) * dt; u.r += u.vr * dt;
@@ -1067,6 +1107,7 @@ Meta.whenReady(() => {
     t.sus.vp += J * h / t.T.Ip * dirX * 3;
     t.sus.vr += J * h / t.T.Ir * dirY * 3;
   }
+  const DRV = {};
   function updateTank(t, dt) {
     if (t.dead) {
       t.deadT += dt;
@@ -1083,61 +1124,64 @@ Meta.whenReady(() => {
     }
     crewLogic(t, dt);
     if (t.dead) return;
-    const T = t.T, inp = t.in;
-    let thr = clamp(inp.throttle, -1, 1), turn = clamp(inp.turn, -1, 1);
+    const T = t.T, D = T.D, inp = t.in;
     if (t.trackT > 0) t.trackT -= dt;
-    const canDrive = roleOk(t, 'driver') && modOk(t, 'engine') && modOk(t, 'trans');
-    if (!canDrive) { thr = 0; turn = 0; }
+    const driverOk = roleOk(t, 'driver'), engOn = modOk(t, 'engine'), canDrive = driverOk && engOn && modOk(t, 'trans');
     const eng = modOf(t, 'engine'), engK = eng.hp < eng.max0 * 0.5 ? 0.6 : 1;
-    // Puissance utile (rendement de transmission 0,6) contre résistance au roulement du sol :
-    // la vitesse de pointe dépend du terrain et du rapport poids/puissance, comme en vrai
-    const lv = L(), crr = lv.crr || 0.06, mkg = T.mass * 1000, Pw = T.hp * t.up.hp * 745.7 * 0.6 * engK;
-    const vTerrain = Pw / (mkg * G * crr) * PX;
-    const vmax = Math.min(T.speed * engK, Math.max(T.speed * 0.5, vTerrain)) * (t.wheelK || 1);
-    let target = (thr >= 0 ? thr * vmax : thr * Math.min(T.rev, vmax * 0.5)) * (t.optic.driver > 0 ? 0.7 : 1);
-    const broken = t.trackT > 0 && roleOk(t, 'driver') && modOk(t, 'engine') && modOk(t, 'trans');
-    if (broken) target = clamp(inp.throttle, -1, 1) * T.speed * 0.15; // chenille cassée : seule l'autre tire
     // optiques : l'équipage remplace la visière ou l'épiscope brisé ; le chef rentre sous le feu
     for (const k in t.optic) if (t.optic[k] > 0 && (t.optic[k] -= dt) <= 0 && t === player) addLog(`${OPTIC_NAMES[k]} replaced`, '#a6f08a');
     t.underFire -= dt;
     if (t.underFire > 0) { t.calm = 0; if (t.ai) t.hatch = false; }
     else if ((t.calm += dt) > 12 && t.ai && roleOk(t, 'commander')) t.hatch = true;
     if (!roleOk(t, 'commander')) t.hatch = false;
-    const braking = target === 0 || (t.speed !== 0 && Math.sign(target) !== Math.sign(t.speed));
-    // traction limitée par l'adhérence (0,5 g), effort moteur P / v, freinage des chenilles 0,6 g
-    const vm = Math.max(1.5, Math.abs(t.speed) / PX), aDrive = Math.min(0.5 * G, Pw / (mkg * vm)) * PX;
-    const maxd = (braking ? 0.6 * G * PX : aDrive) * dt;
-    t.speed += clamp(target - t.speed, -maxd, maxd);
-    // virage : les chenilles ripent sur le sol ; plus il colle (boue, sable), plus le pivot est lent
-    let tr = turn * T.turn * engK * (1 - 0.3 * Math.abs(t.speed) / T.speed) * clamp(Math.sqrt(0.06 / crr), 0.75, 1.05) * t.up.grip;
-    // chenille cassée : le char pivote autour d'elle, entraîné par la seule chenille intacte
-    if (broken) tr = -t.trackSide * (2 * t.speed) / T.wid;
-    t.turnRate = tr;
-    t.angle = angNorm(t.angle + tr * dt);
-    const ox = t.x, oy = t.y;
-    t.x += Math.cos(t.angle) * t.speed * dt;
-    t.y += Math.sin(t.angle) * t.speed * dt;
-    collideObstacles(t);
+    // Conduite (vehicle.js) : sol sous chaque chenille, pression au sol ; la chenille la plus freinée tire
+    // la caisse de son côté. Le moteur préparé (régulateur retiré) monte vers son régime nominal.
+    const ca = Math.cos(t.angle), sa = Math.sin(t.angle), hb = D.B / 2 * PX, gc = groundAt(t.x, t.y);
+    const slope = -(gc.nx * ca + gc.ny * sa) / gc.nz;
+    const gR = groundAt(t.x - sa * hb, t.y + ca * hb).type, gL = groundAt(t.x + sa * hb, t.y - ca * hb).type;
+    const crrR = Vehicle.crrOf(gR, D.press), crrL = Vehicle.crrOf(gL, D.press), broken = t.trackT > 0 && canDrive;
+    const c = DRV, gov = D.gov + (D.rated - D.gov) * clamp((t.up.hp - 1) / 0.24, 0, 1);
+    c.thr = canDrive ? clamp(inp.throttle, -1, 1) : 0; c.turn = canDrive && !broken ? clamp(inp.turn, -1, 1) : 0; c.brake = !!inp.brake;
+    c.P = T.hp * 735.5 * t.up.hp * engK; c.gov = gov;
+    c.crr = (crrR + crrL) / 2; c.crrD = crrR - crrL; c.mu = (gR.mu + gL.mu) / 2; c.lat = (gR.lat + gL.lat) / 2; c.slope = slope; c.grip = t.up.grip;
+    c.drive = canDrive; c.driver = driverOk; c.engine = engOn; c.broken = broken ? t.trackSide : 0;
+    c.vCap = D.top * gov / D.gov * (t.wheelK || 1) * (t.optic.driver > 0 ? 0.7 : 1) * 1.02;
+    // chenille cassée : la chenille intacte entraîne seule, ses roues labourent le sol
+    c.vBroken = clamp(1.6 - T.mass / 100, 0.9, 1.5) / 2;
+    c.maxGear = 9; c.stuck = false; c.rev = 0;
+    t.bumpK = 1 + ((gR.bump || 0) + (gL.bump || 0)) / 2;
+    const vPre = t.speed, ox = t.x, oy = t.y;
+    Vehicle.step(t, D, c, dt, PX);
+    t.angle = angNorm(t.angle + t.turnRate * dt);
+    const c2 = Math.cos(t.angle), s2 = Math.sin(t.angle);
+    t.x += (c2 * t.speed - s2 * t.vl) * dt;
+    t.y += (s2 * t.speed + c2 * t.vl) * dt;
+    collideObstacles(t, vPre);
     t.x = clamp(t.x, t.r, WW - t.r); t.y = clamp(t.y, t.r, WH - t.r);
+    // vitesse réelle : ce qu'un obstacle ou le bord de la carte a retenu est perdu, sans élan fantôme
+    const mvx = (t.x - ox) / dt, mvy = (t.y - oy) / dt, va = mvx * c2 + mvy * s2, la = mvy * c2 - mvx * s2;
+    t.spin = Math.abs(t.speed - va);
+    if (Math.abs(va) < Math.abs(t.speed)) t.speed = va;
+    if (Math.abs(la) < Math.abs(t.vl)) t.vl = la;
     const moved = Math.hypot(t.x - ox, t.y - oy);
-    t.vx = (t.x - ox) / dt; t.vy = (t.y - oy) / dt;
+    t.vx = mvx; t.vy = mvy;
     t.treadPhase += t.speed * dt;
-    // chaque chenille avance à sa vitesse : v ± ω·W/2 ; la chenille cassée ne tourne plus
+    // chaque chenille avance à sa vitesse : v ∓ ω·B/2 (droite, gauche) ; la chenille cassée ne tourne plus
     for (const k of [0, 1]) {
       const side = k === 0 ? 1 : -1;
-      if (t.trackT > 0 && side === t.trackSide) continue;
-      t.wd[k] += (t.speed + side * -t.turnRate * T.wid / 2) / PX * dt;
+      if (broken && side === t.trackSide) continue;
+      t.wd[k] += (t.speed / PX - side * t.turnRate * D.B / 2) * dt;
     }
-    t.trackAcc += moved + Math.abs(tr) * 40 * dt;
+    t.trackAcc += moved + Math.abs(t.turnRate) * 40 * dt;
     if (t.trackAcc > 9) { t.trackAcc = 0; stampTracks(t); }
-    if (moved > 0.6 && Math.random() < dt * Math.abs(t.speed) / 9) {
-      // poussière soulevée par les chenilles : dense par temps sec, rare sur la neige
+    if ((moved > 0.6 || t.slip > 0.5) && Math.random() < dt * (Math.abs(t.speed) / 9 + t.slip * 6)) {
+      // poussière soulevée par les chenilles : dense par temps sec, rare sur la neige ; nuage de dérapage
       const c = Math.cos(t.angle), s = Math.sin(t.angle), side = Math.random() < 0.5 ? -1 : 1, dc = Fx.dust();
       const bk = Math.sign(t.speed) || 1, k = L().snow ? 0.5 : L().trees > 100 ? 0.7 : 1;
       if (Math.random() < k) P3({ x: t.x - c * T.len * 0.5 * bk - s * side * T.wid * 0.4, y: t.y - s * T.len * 0.5 * bk + c * side * T.wid * 0.4, z: 0.25, vx: -c * bk * rnd(0.5, 2) - s * side * rnd(0, 1), vy: -s * bk * rnd(0.5, 2) + c * side * rnd(0, 1), vz: rnd(0.3, 1.1), drag: 1.4, wind: 1, size: rnd(0.4, 0.8), grow: rnd(0.8, 1.3), life: rnd(1.5, 3), c: [dc[0], dc[1], dc[2], 0.34] });
     }
-    // gaz d'échappement : bouffées bleutées à l'accélération
-    if (Math.abs(thr) > 0 && Math.random() < dt * (Math.abs(target - t.speed) > 4 ? 10 : 2)) {
+    // gaz d'échappement : bouffées bleutées sous forte charge
+    if (t.load > 0 && Math.random() < dt * (t.load > 0.6 ? 10 : 2)) {
       const c = Math.cos(t.angle), s = Math.sin(t.angle);
       P3({ x: t.x - c * T.len * 0.48, y: t.y - s * T.len * 0.48, z: T.S.ht * 0.75, vx: -c * rnd(1, 2.5), vy: -s * rnd(1, 2.5), vz: rnd(0.3, 0.9), drag: 1.5, wind: 1, size: rnd(0.15, 0.3), grow: 0.7, life: rnd(1.2, 2.2), c: [0.33, 0.34, 0.37, 0.35] });
     }
@@ -1158,7 +1202,7 @@ Meta.whenReady(() => {
     } else { t.turret = nt; t.turretRate = rot / dt; }
 
     // Dispersion : elle augmente en mouvement et se resserre à l'arrêt
-    const goal = T.disp / t.up.optic * (t.optic.gunner > 0 ? 2.5 : 1) * (1 + 2.6 * Math.abs(t.speed) / T.speed + 1.6 * Math.abs(tr) / T.turn + 1.1 * Math.abs(t.turretRate) / T.tturn);
+    const goal = T.disp / t.up.optic * (t.optic.gunner > 0 ? 2.5 : 1) * (1 + 2.6 * Math.abs(t.speed) / T.speed + 1.6 * Math.abs(t.turnRate) / T.turn + 1.1 * Math.abs(t.turretRate) / T.tturn);
     t.disp += (goal - t.disp) * Math.min(1, dt * (goal > t.disp ? 6 : 1.3));
 
     // hors du tir, le chargeur regarnit le râtelier : un obus toutes les 8 s
@@ -1271,7 +1315,9 @@ Meta.whenReady(() => {
     t.nextShell = null;
     t.disp += T.disp * 3;
     t.recoil = 1; t.flash = 0.09; t.revealT = 3;
-    t.speed -= 14 * Math.sign(Math.cos(t.turret)) * (T.caliber / 75);
+    // recul : quantité de mouvement de l'obus et des gaz, presque toute absorbée par le frein de tir et les
+    // chenilles ; rien sur un char freiné ou arrêté
+    if (!t.braking && (Math.abs(t.speed) > 0.3 * PX || t.in.throttle)) t.speed -= sb.m * sb.v0 * 1.5 / (T.mass * 1000) * Math.cos(t.turret) * 0.3 * PX;
     if (t.ammo[t.shell] <= 0) {
       t.shell = nextShell(t);
       if (t === player) showMsg(`Out of ${sh.name.toLowerCase()} rounds: ${SHELLS[t.shell].name.toLowerCase()} loaded`, '#e9d9a6', 1.6);
@@ -1961,7 +2007,7 @@ Meta.whenReady(() => {
     // les roues (qui se brisent) ; un coup au barbotin ou au réducteur immobilise le char
     let gearRes = null;
     if (gear && pen >= 20) {
-      const side = h.ny > 0 ? -1 : 1;
+      const side = h.ny > 0 ? 1 : -1; // côté touché (repère du char : y vers la droite)
       if (gear === 'track' && Math.random() < 0.9 || gear === 'wheels' && Math.random() < 0.2) {
         t.trackT = Math.max(t.trackT, 8); t.trackSide = side; gearRes = 'Track broken';
         if (t === player) addLog('Track broken: repairing (8 s)', '#ffb070');
@@ -2348,6 +2394,9 @@ Meta.whenReady(() => {
         gctx.fillRect(o.x - 8 + R() * (o.w + 16), o.y - 8 + R() * (o.h + 16), sz, sz * (0.5 + R()));
       }
       for (let i = 0; i < 20; i++) addSmoke(o.x + R() * o.w, o.y + R() * o.h, rnd(14, 26), 'rgba(150,140,125,', 3);
+      // gravats : un sol cahoteux qui freine
+      if (o.w >= o.h) soilSeg(o.x, o.y + o.h / 2, o.x + o.w, o.y + o.h / 2, o.h / 2 + 8, 'rubble');
+      else soilSeg(o.x + o.w / 2, o.y, o.x + o.w / 2, o.y + o.h, o.w / 2 + 8, 'rubble');
       Sfx.explosion(listenerDist(o.x + o.w / 2, o.y + o.h / 2), false);
       buildGrid();
     }
@@ -2369,13 +2418,14 @@ Meta.whenReady(() => {
     gctx.beginPath(); gctx.arc(cx, cy, 4, 0, TAU); gctx.fill();
     for (let i = 0; i < 6; i++) parts.push({ k: 'leaf', x: cx + rnd(-10, 10), y: cy + rnd(-10, 10), vx: rnd(-40, 40), vy: rnd(-40, 40), life: rnd(0.6, 1.2), max: 1.2, color: L().tree[1] });
     Sfx.tree(listenerDist(cx, cy));
+    soilSeg(cx, cy, cx + Math.cos(ang) * len, cy + Math.sin(ang) * len, 5, 'trunk'); // tronc couché : une marche de 40 cm
     const c0 = Math.floor(o.x / CELL), r0 = Math.floor(o.y / CELL);
     for (let r = r0 - 1; r <= r0 + 2; r++) for (let c = c0 - 1; c <= c0 + 2; c++) if (r >= 0 && c >= 0 && r < GR && c < GC && grid[r * GC + c] === 2) grid[r * GC + c] = 0;
   }
 
   function destroyTank(t, by, detonation) {
     if (t.dead) return;
-    t.dead = true; t.deadT = 0; t.fireT = 0; t.speed = 0; t.trackT = 0;
+    t.dead = true; t.deadT = 0; t.fireT = 0; t.speed = 0; t.trackT = 0; t.vx = t.vy = t.vl = t.turnRate = 0; t.gear = 0; t.load = 0;
     boom(t.x, t.y, detonation ? 2.2 : 1.4);
     stampCrater(t.x, t.y, detonation ? 40 : 28);
     if (detonation && t.T.tb) {
@@ -2540,6 +2590,7 @@ Meta.whenReady(() => {
   }
   function stampCrater(x, y, r) {
     markDirty(x, y, r);
+    soilSeg(x, y, x, y, r * 0.6, 'crater');
     const g = gctx.createRadialGradient(x, y, 0, x, y, r);
     g.addColorStop(0, 'rgba(20,16,12,0.55)'); g.addColorStop(0.7, 'rgba(30,24,18,0.3)'); g.addColorStop(1, 'rgba(30,24,18,0)');
     gctx.fillStyle = g;
@@ -2606,7 +2657,7 @@ Meta.whenReady(() => {
     const pv = pivot(player);
     const m = W3D && cam3.view && !sight.on ? (player.aim3 = aimRay3(mouse.x, mouse.y)) : screenToWorld(mouse.x, mouse.y);
     if (!(W3D && cam3.view && !sight.on)) player.aim3 = { x: m.x, y: m.y, z: 1.5 };
-    player.in.throttle = thr; player.in.turn = turn;
+    player.in.throttle = thr; player.in.turn = turn; player.in.brake = !!k.KeyX;
     player.in.aim = sight.on ? sight.aimYaw : Math.atan2(m.y - pv.y, m.x - pv.x);
     player.in.mg = !!k.KeyF || (sight.on && mouse.right);
     player.in.fire = mouse.down || !!k.Space;
@@ -2708,11 +2759,10 @@ Meta.whenReady(() => {
     // publicité de sortie, la dernière image reste affichée (redessinée une fois après un
     // redimensionnement) ; dans le menu, rien n'est dessiné derrière la vitrine
     if (groundCv && state !== 'menu' && (inBattle() || redraw)) { render(inBattle() ? dt : 0); redraw = false; }
-    const v = player && !player.dead && inBattle() ? Math.abs(player.speed) / player.T.speed : -1;
-    Sfx.engine(v);
-    // chenilles et moteur de tourelle du char du joueur
-    const live = v >= 0 && player;
-    Sfx.tracks(live ? Math.abs(player.speed) / PX : -1);
+    const live = player && !player.dead && inBattle();
+    // moteur au régime réel et selon sa charge ; chenilles à leur vitesse moyenne, pivot compris
+    Sfx.engine(live ? player.rpm : -1, live ? player.load : 0);
+    Sfx.tracks(live ? Math.abs(player.speed) / PX + Math.abs(player.turnRate) * player.T.D.B / 2 : -1);
     Sfx.turret(live ? Math.abs(player.turretRate) / player.T.tturn : 0);
   }
 
@@ -3079,7 +3129,8 @@ Meta.whenReady(() => {
       // roues porteuses : rotation selon le chemin parcouru par leur chenille, débattement sur les bosses
       const bk = t.dead ? 0 : Math.min(1, Math.abs(t.speed) / t.T.speed * 2);
       MS.wheels.forEach((w, i) => {
-        const d = t.wd[w.side === 1 ? 0 : 1], bz = 0.028 * bk * Math.sin(d * 3.1 + i * 1.9) * (t.trackT > 0 && w.side === t.trackSide ? 0 : 1);
+        // côté +1 du modèle = gauche du char = chenille 1 (t.wd[0] est la chenille droite)
+        const d = t.wd[w.side === 1 ? 1 : 0], bz = 0.028 * bk * Math.sin(d * 3.1 + i * 1.9) * (t.trackT > 0 && -w.side === t.trackSide ? 0 : 1);
         items.push({ mesh: MS.wheel, model: M4.mul(hm, M4.mul(M4.trs(w.x, w.y, w.z + bz, 0), M4.mul(rotYm(d / w.r), M4.trs(0, 0, 0, 0, w.r, w.w, w.r)))), o });
       });
       updateScarMeshes(t, 1 / 60);
@@ -3961,6 +4012,8 @@ Meta.whenReady(() => {
     // chenilles et feu
     ctx.textAlign = 'left'; ctx.font = '700 11px system-ui, sans-serif';
     const st = [];
+    const gr = player.shiftT > 0 ? '·' : player.gear > 0 ? String(player.gear) : player.gear < 0 ? 'R' + -player.gear : 'N';
+    st.push([`${Math.round(Math.abs(player.speed) / PX * 3.6)} km/h · ${gr} · ${Math.round(player.rpmA / 50) * 50} rpm`, '#d8d4c6']);
     if (player.trackT > 0) st.push(['Track ' + Math.ceil(player.trackT) + ' s', '#ffb070']);
     if ((player.wheelK || 1) < 1) st.push([`Wheels −${Math.round((1 - player.wheelK) * 100)}%`, '#ffb070']);
     if (player.fireT > 0) st.push(['ON FIRE', '#ff6a3a']);
@@ -4095,6 +4148,8 @@ Meta.whenReady(() => {
     const row = (l, a) => `<tr><td>${l}</td><td>${a[0]} mm at ${a[1]}°</td><td>≈ ${eff(a)} mm</td></tr>`;
     let h = `<div class="specTitle">${T.name} <small>${T.cls}</small></div><div class="specSub">${Sd.inspired} · ${Sd.real}</div>`;
     h += `<div class="specLine">Gun ${Sd.gun.name} · AP shell ${String(Ballistics.shell(T.id, 'APHE').m)} kg at ${Ballistics.shell(T.id, 'APHE').v0} m/s · reload ${T.reload.toFixed(1)} s · ${T.kmh} km/h</div>`;
+    const Dd = T.D, trav = Vehicle.traverse(Dd, Dd.gov, true) / D2R;
+    h += `<div class="specLine">${Dd.gears.length}+${Dd.rev.length} ${Dd.box.name} gearbox · reverse ${Math.round(Dd.revTop * 3.6)} km/h · ${Dd.steer.kind === 'regen' ? 'regenerative steering, neutral turn' : 'clutch-and-brake steering'} · ${T.arc ? `gun traverse ±${Math.round(T.arc / D2R)}° by hand` : `turret 360° in ${Math.round(360 / trav)} s (${Dd.trav.kind === 'hyd' ? 'hydraulic, engine-driven' : Dd.trav.kind === 'elec' ? 'electric' : 'hand-cranked'})`} · elevation ${Dd.elev[0]}° to +${Dd.elev[1]}°</div>`;
     h += `<div class="specLine">Crew: ${Sd.crew.map(r => TankModels.NAMES[r]).join(', ')}</div>`;
     h += '<table class="spec"><tr><th>Armor</th><th>Thickness</th><th>Effective</th></tr>';
     h += row('Upper front hull', A.hull.up) + row('Lower front hull', A.hull.low) + row('Hull sides', A.hull.side) + row('Lower sides (behind wheels)', A.hull.lowSide) + row('Rear hull', A.hull.rear);
@@ -4550,7 +4605,7 @@ Meta.whenReady(() => {
   function revivePlayer() {
     const t = player;
     if (!t || !t.dead || state !== 'play') return;
-    t.dead = false; t.deadT = 0; t.turretGone = false; t.fireT = 0; t.trackT = 0; t.wheelK = 1; t.speed = 0;
+    t.dead = false; t.deadT = 0; t.turretGone = false; t.fireT = 0; t.trackT = 0; t.wheelK = 1; t.speed = 0; t.vx = t.vy = t.vl = t.turnRate = 0; t.gear = 0;
     for (const m of t.mods) m.hp = m.max0;
     for (const k of SHELL_KEYS) t.ammo[k] = Math.min(t.T.ammo[k], t.ammo[k] + Math.ceil(t.T.ammo[k] * 0.3));
     t.smoke = Math.max(t.smoke, 2); t.invulnT = 3; t.reloadT = 0;

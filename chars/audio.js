@@ -186,15 +186,14 @@ const Sfx = (() => {
     alarm() {
       play(null, (t, a) => { tone(t, 0.12, 880, 870, 0.12 * a, 'square'); tone(t + 0.15, 0.12, 660, 650, 0.12 * a, 'square'); });
     },
-    engine(v) {
+    // régime moteur 0..1 (fraction du régime nominal, < 0 : coupé) et charge 0..1
+    engine(rpm, load = 0) {
       if (!eng) return;
-      const t = ac.currentTime;
-      // boîte à 7 rapports : le régime monte dans chaque rapport puis retombe au passage du suivant
-      const g7 = Math.max(0, v) * 7, rpm = v < 0 ? 0 : Math.min(1, g7 < 1 ? 0.35 + g7 * 0.55 : 0.55 + (g7 % 1) * 0.45);
-      eng.o.frequency.setTargetAtTime(34 + rpm * 52, t, 0.09);
-      eng.o2.frequency.setTargetAtTime(17 + rpm * 26, t, 0.09);
-      eng.f.frequency.setTargetAtTime(150 + rpm * 340, t, 0.12);
-      eng.g.gain.setTargetAtTime(v < 0 ? 0 : 0.06 + v * 0.1, t, 0.2);
+      const t = ac.currentTime, r = Math.max(0, rpm), on = rpm > 0.05;
+      eng.o.frequency.setTargetAtTime(26 + r * 64, t, 0.09);
+      eng.o2.frequency.setTargetAtTime(13 + r * 32, t, 0.09);
+      eng.f.frequency.setTargetAtTime(140 + r * 300 + load * 140, t, 0.12);
+      eng.g.gain.setTargetAtTime(on ? 0.04 + r * 0.07 + load * 0.05 : 0, t, 0.2);
     },
     tracks(vms) {
       if (!trk) return;
