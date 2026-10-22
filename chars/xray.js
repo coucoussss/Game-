@@ -225,7 +225,7 @@ const HitCam = (() => {
         drawHole(E, ev.n, d, ev.cosI, tp, 'dent');
         const gouge = add(E, mul(norm(sub(ev.ricDir, mul(ev.n, dot(ev.ricDir, ev.n)))), cal * 4));
         line(pE, P(gouge), 'rgba(255,190,90,0.9)', 2);
-        const v2 = ev.V * 0.72, H = add(E, mul(ev.ricDir, v2 * tp));
+        const v2 = ev.ricV || ev.V * 0.72, H = add(E, mul(ev.ricDir, v2 * tp));
         drawShell(H, ev.ricDir, v2, tp);
       }
       if (ev.extBlast && tp >= ev.extBlast.t) {

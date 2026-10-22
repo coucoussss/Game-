@@ -1795,7 +1795,7 @@
     const Sd = t.T.S, A = Sd.armor, tAng = -t.turret, rr = (a, b) => Math.round(probe ? (a + b) / 2 : rnd(a, b));
     const face = h.roof ? 'roof' : h.nx > 0.5 ? 'front' : h.nx < -0.5 ? 'rear' : 'side';
     const sideSign = h.ny > 0 ? -1 : 1;
-    let plate, mm, slope, dd = d, low = false, extra = 0, heatK = 1, gear = null, extraOf = '';
+    let plate, mm, slope, dd = d, low = false, extra = 0, heatK = 1, gear = null, extraOf = '', nm = null;
     if (face === 'roof') {
       // toit de caisse ou de tourelle (même tôle de pont) : un obus qui plonge dessus après un ricochet
       if (h.part === 'turret') dd = rotZ(d, -tAng);
@@ -1833,12 +1833,23 @@
       const ty = -h.ty / PX;
       if (face === 'front') {
         const M = Sd.turret.mantlet, mw = M.w || 0.3, mh = M.h || M.r;
-        if (Math.abs(ty) < mw + 0.05 && Math.abs(h.z - Sd.gun.z) < mh + 0.05) { mm = A.turret.mantlet[0]; slope = Math.round(rnd(0, 30)); plate = 'Gun mantlet'; }
-        else { [mm, slope] = A.turret.front; plate = 'Front turret'; }
+        if (Math.abs(ty) < mw + 0.05 && Math.abs(h.z - Sd.gun.z) < mh + 0.05) {
+          // normale tirée de la forme du masque, au point d'impact : plat (Tigre), cylindre d'axe horizontal
+          // (Panther : sous l'axe du canon, la normale regarde vers le bas) aux bords arrondis, ou cloche
+          // « Saukopf » (Tigre royal)
+          const dz = h.z - Sd.gun.z;
+          mm = A.turret.mantlet[0]; plate = 'Gun mantlet';
+          if (M.type === 'cyl') {
+            const ph = Math.asin(clamp(dz / M.r, -0.97, 0.97)), ex = clamp((Math.abs(ty) - 0.7 * mw) / (0.3 * mw), 0, 1) * 0.7;
+            nm = norm3([Math.cos(ph) * Math.cos(ex), Math.sign(ty) * Math.sin(ex), Math.sin(ph) * Math.cos(ex)]);
+          } else if (M.type === 'bell') nm = norm3([M.r, ty, dz]);
+          else nm = [1, 0, 0];
+          slope = Math.round(Math.acos(clamp(nm[0], -1, 1)) / D2R);
+        } else { [mm, slope] = A.turret.front; plate = 'Front turret'; }
       } else if (face === 'rear') { [mm, slope] = A.turret.rear; plate = 'Rear turret'; }
       else { [mm, slope] = A.turret.side; plate = 'Side turret'; }
     }
-    return { face, sideSign, plate, mm, slope, dd, low, extra, extraOf, heatK, gear, n: plateNormal(face, slope, sideSign, low) };
+    return { face, sideSign, plate, mm, slope, dd, low, extra, extraOf, heatK, gear, n: nm || plateNormal(face, slope, sideSign, low) };
   }
 
   function hitTank(s, t, h, hx, hy) {
@@ -1850,20 +1861,24 @@
       Sfx.clang(listenerDist(hx, hy));
       return 'stop';
     }
-    const T = t.T, Sd = T.S, A = Sd.armor, by = s.by;
-    const sb = Ballistics.shell(by.T.id, s.key);
-    const show = visibleToPlayer(t) || by === player;
+    const by = s.by;
     if (t.ai && by && by.team !== t.team && !t.ai.target) t.ai.lastKnown = { x: by.x, y: by.y };
     if (by === player) waveStats.hits++;
     if (by.team !== t.team) t.underFire = 8;
-
     // Géométrie 3D de l'impact (repère du modèle : y vers la gauche), avec la vraie pente balistique de
     // la trajectoire (la vue 3D écrase les distances, pas les angles d'incidence)
     const ll = Math.hypot(h.ldx, h.ldy) || 1;
     const d = norm3([h.ldx / ll, -h.ldy / ll, s.slope]);
-    const E = [h.lx / PX, -h.ly / PX, h.z];
+    return strike(s, t, h, hx, hy, d, [h.lx / PX, -h.ly / PX, h.z], null);
+  }
+
+  // Coup sur une plaque : d est la direction réelle de l'obus et E le point d'impact (repère de la caisse) ;
+  // trap nomme la plaque qui vient de dévier l'obus sur celle-ci (piège à obus), sinon null
+  function strike(s, t, h, hx, hy, d, E, trap) {
+    const T = t.T, Sd = T.S, A = Sd.armor, by = s.by, sb = s.sb;
+    const show = visibleToPlayer(t) || by === player;
     const tAng = -t.turret;
-    const { face, plate, mm: mm0, slope, dd, extra, extraOf, heatK, gear, n } = platePick(t, h, d, s.key, sb.cal);
+    const { face, plate, mm: mm0, slope, dd, low, extra, extraOf, heatK, gear, n } = platePick(t, h, d, s.key, sb.cal);
     const scf = scarFrame(t, h, E), scw = scarWeak(t, scf.frame, scf.p, plate);
     const mm = Math.round((scw.hole ? mm0 * 0.1 : mm0 * (1 - scw.w)) * t.up.armor);
     // vitesse d'impact réelle : traînée et pertes des ricochets comprises
@@ -1902,7 +1917,8 @@
       ev.data.push({ t: `${sb.name} · ${f(sb.m, 2)} kg · ${sb.cal} mm`, c: '#e9d9a6' });
       ev.data.push({ t: `Impact velocity ${Math.round(V)} m/s (muzzle: ${Math.round(s.v0)}) · energy ${f(Ek / 1e6, 2)} MJ · ${Math.round(Ballistics.spin(sb, V))} rev/s`, c: '#d8d4c6' });
       const fall = Math.atan(-s.slope) / D2R;
-      ev.data.push({ t: `Trajectory: ${fall >= 0 ? 'dropping' : 'rising'} ${f(Math.abs(fall), 2)}° under gravity · impact ${f(h.z, 2)} m above ground${s.ric ? ' · after ricochet' : ''}`, c: '#d8d4c6' });
+      if (trap) ev.data.push({ t: `SHOT TRAP: deflected off the ${trap.toLowerCase()} into the ${plate.toLowerCase()}`, c: '#ffb070' });
+      else ev.data.push({ t: `Trajectory: ${fall >= 0 ? 'dropping' : 'rising'} ${f(Math.abs(fall), 2)}° under gravity · impact ${f(h.z, 2)} m above ground${s.ric ? ' · after ricochet' : ''}`, c: '#d8d4c6' });
       if (yaw) ev.data.push({ t: 'Deformed and yawing after the ricochet: −50% penetration, +10° obliquity', c: '#ffcf7a' });
       ev.data.push({ t: `${plate}: ${mm} mm at ${slope}° · incidence ${Math.round(angle)}°${!sb.heat && !sb.he ? ` → normalized ${Math.round(ef.angN)}°` : ''}`, c: '#d8d4c6' });
       if (mm < mm0) ev.data.push({ t: scw.hole ? `Into the hole of an earlier penetration: only ${mm} of ${mm0} mm left` : `Plate already scarred by a hit ${Math.round(scw.near * 100)} cm away: ${mm} mm effective instead of ${mm0} mm (work-hardened, cracked steel)`, c: '#ffcf7a' });
@@ -1934,17 +1950,16 @@
     t.lastHit = { by, key: s.key, part: h.part, face, plate, gear, z: h.z, E, d, V, Ek, pen, eff, shattered, outcome: ric ? 'ricochet' : pen >= eff ? 'pen' : 'nopen', Vr: 0, time: gameTime };
     // Ricochet : probabilité croissante avec l'incidence, nulle en cas de surcalibrage
     if (ric) {
-      const ra = h.part === 'turret' ? t.angle + t.turret : t.angle;
-      const c = Math.cos(ra), sn = Math.sin(ra);
-      const nx = h.nx * c - h.ny * sn, ny = h.nx * sn + h.ny * c;
-      const ux = s.vx / s.sp, uy = s.vy / s.sp, vd = ux * nx + uy * ny;
-      s.x += nx * 2; s.y += ny * 2;
-      // une plaque inclinée renvoie l'obus vers le haut : réflexion de la direction 3D sur la normale
-      const dn3 = dot3(dd, n), rz = dd[2] - 2 * dn3 * n[2];
-      s.slope = rz / Math.sqrt(Math.max(0.05, 1 - rz * rz)); s.z = h.z;
+      // réflexion 3D de la direction sur la normale de la plaque (un glacis à 55° renvoie l'obus presque
+      // à la verticale), ramenée dans le repère de la caisse puis dans le monde (y du jeu vers le bas)
+      const dn3 = dot3(dd, n), R0 = [dd[0] - 2 * dn3 * n[0], dd[1] - 2 * dn3 * n[1], dd[2] - 2 * dn3 * n[2]];
+      const Rh = norm3(h.part === 'turret' ? rotZ(R0, tAng) : R0);
+      const c = Math.cos(t.angle), sn = Math.sin(t.angle), wx = Rh[0] * c + Rh[1] * sn, wy = Rh[0] * sn - Rh[1] * c, wl = Math.hypot(wx, wy);
+      const ux = wl > 1e-6 ? wx / wl : s.vx / s.sp, uy = wl > 1e-6 ? wy / wl : s.vy / s.sp;
+      s.slope = Rh[2] / Math.max(0.05, wl); s.z = h.z;
       s.V *= 0.72; s.ric++; s.yaw = true;
-      const rx = ux - 2 * vd * nx, ry = uy - 2 * vd * ny, rl = Math.hypot(rx, ry) || 1;
-      shellAim(s, rx / rl, ry / rl);
+      s.x += ux * 2; s.y += uy * 2;
+      shellAim(s, ux, uy);
       // l'APHE qui a ricoché sur une plaque assez épaisse a pu armer sa fusée : une fois sur deux,
       // il éclate dehors, juste après le rebond
       const burst = s.key === 'APHE' && sb.filler && mm / cosI >= sb.sens && Math.random() < 0.5;
@@ -1956,9 +1971,34 @@
       if (show) floatText(hx, hy - 10, 'Ricochet', '#cfe3ff');
       if (by === player) waveStats.ric++;
       if (t === player) { addLog(`Ricochet off ${plate.toLowerCase()}`, '#cfe3ff'); if (Meta.track('ricself')) missionToast(); }
+      // piège à obus : la moitié basse d'un masque arrondi renvoie l'obus vers le bas, à travers le toit de
+      // caisse mince au-dessus du pilote et du radio (d'où le masque « à menton » du Panther G) ; à
+      // l'inverse, un ricochet qui remonte du glacis peut frapper la face avant de la tourelle
+      if (!trap && !burst) {
+        let h2 = null, E2 = null;
+        if (h.part === 'turret' && Rh[2] < -0.15) {
+          // départ de la vraie surface du masque, en avant de la boîte de collision de la tourelle
+          const M = Sd.turret.mantlet, fx = Math.max(...Sd.turret.poly.map(q => q[0]));
+          const front = M.type === 'cyl' ? fx - 0.05 + M.r * Math.cos(Math.asin(clamp((E[2] - Sd.gun.z) / M.r, -0.97, 0.97))) : M.type === 'bell' ? fx + M.len * 0.3 : fx;
+          const off = rotZ([Math.max(0, front - T.I.turretBox.x1), 0, 0], tAng), Em = [E[0] + off[0], E[1] + off[1], E[2]];
+          const k = (Sd.ht - Em[2]) / Rh[2], P = [Em[0] + Rh[0] * k, Em[1] + Rh[1] * k, Sd.ht];
+          if (k > 0 && P[0] < T.I.xUp(Sd.ht) && P[0] > Sd.rearX && Math.abs(P[1]) < Sd.W / 2 - Sd.tw * 0.5) { h2 = { part: 'hull', roof: true, nx: 0, ny: 0, z: Sd.ht, lx: P[0] * PX, ly: -P[1] * PX }; E2 = P; }
+        } else if (h.part === 'hull' && face === 'front' && !low && Rh[2] > 0.15 && T.I.turretBox && !t.turretGone) {
+          const I = T.I, B = I.turretBox, Et = rotZ([E[0] - I.pivotX, E[1] - I.pivotY, E[2]], t.turret), Rt = rotZ(Rh, t.turret);
+          const k = slab(Et, Rt, [B.x0, B.y0, Sd.ht], [B.x1, B.y1, I.totalH]);
+          if (k > 0 && k < 4 && Math.abs(Et[0] + Rt[0] * k - B.x1) < 1e-3) {
+            const Pt = [Et[0] + Rt[0] * k, Et[1] + Rt[1] * k, Et[2] + Rt[2] * k];
+            h2 = { part: 'turret', nx: 1, ny: 0, z: Pt[2], ty: -Pt[1] * PX }; E2 = [E[0] + Rh[0] * k, E[1] + Rh[1] * k, E[2] + Rh[2] * k];
+          }
+        }
+        if (h2) {
+          if (show) floatText(hx, hy - 24, 'SHOT TRAP', '#ffb070');
+          if (t === player || by === player) addLog(`SHOT TRAP: deflected into the ${h2.part === 'hull' ? 'hull roof' : 'turret front'}`, '#ffb070');
+          return strike(s, t, h2, hx, hy, Rh, E2, plate);
+        }
+      }
       if (ev) {
-        const dn = dot3(d, nHull);
-        ev.ricDir = norm3([d[0] - 2 * dn * nHull[0], d[1] - 2 * dn * nHull[1], d[2] - 2 * dn * nHull[2] + 0.1]);
+        ev.ricDir = Rh; ev.ricV = s.V;
         ev.outcome = 'ricochet'; ev.after = ev.before.slice();
         ev.metal = metalFor(sb, mm, angle, pen, eff, false);
         ev.data.push({ t: `RICOCHET: incidence ${Math.round(angle)}° > critical angle (probability ${Math.round(ricP * 100)}%)`, c: '#9fd0ff' });
