@@ -765,7 +765,7 @@ Meta.whenReady(() => {
     reviveT = 0; reviveUsed = false;
     tanks = []; shells = []; bullets = []; smokes = []; texts = []; feed = []; parts = []; logs = []; runners = []; ribbons = [];
     if (obstacles.some(o => o.type === 'wreck')) { obstacles = obstacles.filter(o => o.type !== 'wreck'); buildGrid(); }
-    spotted[0].clear(); spotted[1].clear();
+    spotted[0].clear(); spotted[1].clear(); seenAt.clear(); artyMarks = []; contactT = [0, 0]; artyT = [0, 0];
     HitCam.stop();
     const lv = L();
     const allyTypes = levelIdx < 2 ? ['pz4', 'light', 'medium', 'stug'] : levelIdx < 4 ? ['medium', 'heavy', 'destroyer', 'pz4'] : ['kingtiger', 'medium', 'stug', 'heavy'];
@@ -804,19 +804,28 @@ Meta.whenReady(() => {
     msg = null;
   }
 
-  // Survie : la vague n arrive du côté opposé au joueur, plus nombreuse, plus lourde et plus habile
+  // Survie : la vague n arrive d'un bord ou d'un coin éloigné du joueur, tiré au sort, plus nombreuse,
+  // plus lourde et plus habile ; toutes les 5 vagues un Tigre royal et son escorte, et entre-temps des
+  // reconnaissances rapides de Lynx. Les chars visent la position du joueur à leur arrivée.
+  const SURV_SIDES = [[1, 0.5], [1, 0.12], [1, 0.88], [0.5, 0.1], [0.5, 0.9], [0, 0.5], [0, 0.12], [0, 0.88]];
   function survivalEnemies(n) {
-    const count = Math.min(5, Math.ceil(n * 0.7));
     const pool = ['light', 'pz4', 'light', 'stug', 'medium', 'pz4', 'destroyer', 'heavy', 'kingtiger'];
-    const skill = Math.min(0.95, 0.3 + n * 0.06);
-    const right = !player || player.x < WW / 2, x0 = right ? WW - 200 : 200;
-    for (let i = 0; i < count; i++) {
-      const type = pool[clamp(Math.floor(Math.random() * (1.5 + n * 0.8)), 0, pool.length - 1)];
-      const t = makeTank(type, 1, x0 + (right ? -1 : 1) * (i % 2) * 60, WH / 2 + (i - (count - 1) / 2) * 150 + rnd(-40, 40), right ? Math.PI : 0, false, 'Enemy ' + (++enemyN), skill);
-      t.ai.laneY = clamp(t.y + rnd(-200, 200), 150, WH - 150);
+    const skill = Math.min(0.95, 0.3 + n * 0.06), px = player ? player.x : 200, py = player ? player.y : WH / 2;
+    let types;
+    if (n % 5 === 0) types = ['kingtiger', 'pz4', 'pz4', 'heavy'].slice(0, 3 + (n >= 10));
+    else if (n % 5 === 3) types = Array(Math.min(5, Math.ceil(n * 0.7) + 1)).fill('light');
+    else types = Array.from({ length: Math.min(5, Math.ceil(n * 0.7)) }, () => pool[clamp(Math.floor(Math.random() * (1.5 + n * 0.8)), 0, pool.length - 1)]);
+    const far = SURV_SIDES.map(q => ({ x: clamp(q[0] * WW, 200, WW - 200), y: clamp(q[1] * WH, 150, WH - 150) })).sort((a, b) => Math.hypot(b.x - px, b.y - py) - Math.hypot(a.x - px, a.y - py));
+    const o = far[Math.floor(Math.random() * 3)], ang = Math.atan2(py - o.y, px - o.x), ux = Math.cos(ang), uy = Math.sin(ang);
+    types.forEach((type, i) => {
+      // colonne double tournée vers le joueur
+      const back = (i >> 1) * 70, lat = types.length > 1 ? (i % 2 ? 1 : -1) * 55 : 0;
+      const t = makeTank(type, 1, clamp(o.x - ux * back - uy * lat, 120, WW - 120), clamp(o.y - uy * back + ux * lat, 120, WH - 120), ang, false, 'Enemy ' + (++enemyN), skill);
+      t.ai.homeX = t.x; t.ai.goalX = px; t.ai.laneY = clamp(py + rnd(-200, 200), 150, WH - 150);
       tanks.push(t);
-    }
-    return count;
+    });
+    contactT = [waveTime, waveTime];
+    return types.length;
   }
   // Entre deux vagues de survie : munitions complétées de moitié, réparations de campagne ; les blessés
   // sont soignés en partie, les morts remplacés par des recrues (80 %), chacun reprend son poste
@@ -885,35 +894,61 @@ Meta.whenReady(() => {
     return false;
   }
   const wreckTop = w => w.turretGone ? w.T.S.ht : w.T.I.totalH;
-  // Détection : chaque char voit par lui-même (t.sees) ; ce que voient les chars dont la radio marche est
-  // partagé entre eux (t.knows). Un char sans radio ne connaît que ce qu'il voit.
-  function updateSpotting() {
+  // Détection progressive : chaque observateur accumule sur chaque ennemi (a.det) selon la distance, la
+  // taille de la silhouette (Panther de référence), le mouvement ou l'immobilité, le buisson et le coup de
+  // feu ; repéré à 1, l'acquis s'efface de 0,5 par seconde hors de vue. Chaque char voit par lui-même
+  // (t.sees) ; ce que voient les chars dont la radio marche est partagé entre eux (t.knows).
+  const REF_AREA = 6.9 * 3.42;
+  let contactT = [0, 0], artyT = [0, 0], artyMarks = [];
+  const seenAt = new Map();
+  function updateSpotting(dt) {
     const night = !!L().night;
-    for (const a of tanks) (a.sees || (a.sees = new Set())).clear();
+    for (const a of tanks) { (a.sees || (a.sees = new Set())).clear(); if (!a.det) a.det = new Map(); }
     for (let team = 0; team < 2; team++) {
       const set = spotted[team], net = new Set();
       set.clear();
       for (const e of tanks) {
         if (e.dead || e.team === team) continue;
         const bush = e.revealT <= 0 && inBush(e);
+        const vis = Math.sqrt(e.T.S.L * e.T.S.W / REF_AREA) * (Math.abs(e.speed) > 1.5 * PX ? 1.3 : e.stillT > 3 ? 0.7 : 1) * (bush ? 0.35 : 1);
         for (const a of tanks) {
           if (a.dead || a.team !== team) continue;
           const d = dist(a, e);
-          if (d < 90) { a.sees.add(e); continue; }
-          let range = a.T.view * a.up.optic * (night ? 0.6 : 1) * (0.75 + 0.25 * eff(a, 'commander')) * (a.hatch ? 1.15 : 1) * (a.optic.cmd > 0 && !a.hatch ? 0.8 : 1);
-          if (bush) range = Math.min(range, 210);
-          if (e.revealT > 0) range *= 1.3;
-          // un char qui roule vite soulève un panache de poussière qui se voit de loin
-          if (!night && !L().snow && Math.abs(e.speed) > e.T.speed * 0.5) range *= 1.2;
-          if (d < range && wreckCover(a, e)) range *= 0.5;
-          if (d < range && losClear(a.x, a.y, e.x, e.y, true)) a.sees.add(e);
+          let rate = -0.5;
+          // tout près, on entend et on voit le char, sauf derrière une maison
+          if (d < 90 && losClear(a.x, a.y, e.x, e.y, false)) rate = 9;
+          else {
+            let range = a.T.view * a.up.optic * (night ? 0.6 : 1) * (0.75 + 0.25 * eff(a, 'commander')) * (a.hatch ? 1.15 : 1) * (a.optic.cmd > 0 && !a.hatch ? 0.8 : 1);
+            if (e.revealT > 0) range *= 1.3;
+            // un char qui roule vite soulève un panache de poussière qui se voit de loin
+            if (!night && !L().snow && Math.abs(e.speed) > e.T.speed * 0.5) range *= 1.2;
+            if (d < range && wreckCover(a, e)) range *= 0.5;
+            // la lueur et la poussière d'un coup de feu se voient même à travers la poussière soulevée
+            if (d < range && e.revealT > 0 && losClear(a.x, a.y, e.x, e.y, false)) rate = 9;
+            else if (d < range && losClear(a.x, a.y, e.x, e.y, true)) rate = clamp(1.6 * (1 - d / range), 0.05, 1.6) * vis;
+          }
+          const v = clamp((a.det.get(e) || 0) + rate * dt, 0, 1.5);
+          if (v > 0) a.det.set(e, v); else a.det.delete(e);
+          if (rate > 0 && v >= 1) a.sees.add(e);
         }
       }
       for (const a of tanks) if (!a.dead && a.team === team) for (const e of a.sees) { set.add(e); if (radioOk(a)) net.add(e); }
-      // après 2 min, l'artillerie trahit les positions (par radio)
-      if (waveTime > 120) for (const e of tanks) if (!e.dead && e.team !== team) { set.add(e); net.add(e); }
       for (const a of tanks) if (a.team === team) a.knows = radioOk(a) ? net : a.sees;
+      // Sans contact depuis 90 s, l'artillerie signale toutes les 20 s la position approximative (± 80 px)
+      // d'un ennemi caché : l'IA va voir, le joueur la voit 4 s sur la carte ; ce n'est jamais un repérage
+      if (set.size) contactT[team] = waveTime;
+      else if (state === 'play' && waveTime - contactT[team] > 90 && (artyT[team] -= dt) <= 0) {
+        artyT[team] = 20;
+        const foes = tanks.filter(e => !e.dead && e.team !== team);
+        if (foes.length) {
+          const e = foes[Math.floor(Math.random() * foes.length)], p = { x: clamp(e.x + rnd(-80, 80), 60, WW - 60), y: clamp(e.y + rnd(-80, 80), 60, WH - 60) };
+          for (const a of tanks) if (!a.dead && a.team === team && a.ai && radioOk(a) && !a.ai.target) a.ai.lastKnown = p;
+          if (team === 0) { artyMarks.push({ x: p.x, y: p.y, life: 4 }); addLog('Artillery observer: enemy armour reported', '#e9d9a6'); }
+        }
+      }
     }
+    // dernière position vue de chaque ennemi (repère fantôme 6 s pour le joueur)
+    for (const e of (player && player.knows) || spotted[0]) seenAt.set(e, { x: e.x, y: e.y, t: gameTime });
   }
 
   // ===================== IA =====================
@@ -978,7 +1013,7 @@ Meta.whenReady(() => {
       for (const e of seen) {
         if (e.dead) continue;
         const d = dist(t, e);
-        const lo = losClear(t.x, t.y, e.x, e.y, false), los = lo && wreckClear(t, e);
+        const lo = losClear(t.x, t.y, e.x, e.y, true), los = lo && wreckClear(t, e);
         const sc = d * (los ? 1 : 1.7) * (crewFrac(e) < 0.5 ? 0.8 : 1);
         if (sc < bs) { bs = sc; best = e; bestLos = los; bestSide = lo && !los; }
       }
@@ -995,19 +1030,12 @@ Meta.whenReady(() => {
       if (best) { ai.lastKnown = { x: best.x, y: best.y }; ai.noContactT = 0; }
       else {
         ai.noContactT += 0.35;
-        if (ai.noContactT > 20) {
-          ai.noContactT = 0;
-          const foes = tanks.filter(e => !e.dead && e.team !== t.team);
-          if (foes.length) {
-            const e = foes[Math.floor(Math.random() * foes.length)];
-            ai.lastKnown = { x: clamp(e.x + rnd(-150, 150), 60, WW - 60), y: clamp(e.y + rnd(-150, 150), 60, WH - 60) };
-          }
-        }
       }
 
       let dest = null;
       const range = T.range * (crewFrac(t) < 0.6 ? 1.3 : 1);
-      if (ai.retreatT > 0) dest = { x: t.team === 0 ? 160 : WW - 160, y: t.y };
+      const homeX = ai.homeX != null ? ai.homeX : t.team === 0 ? 160 : WW - 160, goalX = ai.goalX != null ? ai.goalX : t.team === 0 ? WW - 260 : 260;
+      if (ai.retreatT > 0) dest = { x: homeX, y: t.y };
       else if (best && ai.side) dest = ai.side;
       else if (best && ai.pushT > 0) dest = { x: best.x, y: best.y };
       else if (best) {
@@ -1021,8 +1049,8 @@ Meta.whenReady(() => {
         dest = ai.lastKnown;
         if (dist(t, dest) < 90) ai.lastKnown = null;
       } else {
-        dest = { x: t.team === 0 ? WW - 260 : 260, y: ai.laneY };
-        if (Math.abs(t.x - dest.x) < 200) ai.laneY = rnd(150, WH - 150);
+        dest = { x: goalX, y: ai.laneY };
+        if (Math.hypot(t.x - dest.x, t.y - dest.y) < 150) { ai.laneY = rnd(150, WH - 150); ai.goalX = clamp(goalX + rnd(-500, 500), 200, WW - 200); }
       }
       ai.dest = dest;
       if (dest) {
@@ -3320,7 +3348,8 @@ Meta.whenReady(() => {
     if (state === 'intro') { introT -= dt; if (introT <= 0) { state = 'play'; showMsg('ADVANCE!', '#ffe27a', 1.2); } }
     if (player && !player.dead && !player.ai) playerInput();
     spotTimer -= dt;
-    if (spotTimer <= 0) { spotTimer = 0.2; updateSpotting(); }
+    if (spotTimer <= 0) { spotTimer = 0.2; updateSpotting(0.2); }
+    for (let i = artyMarks.length - 1; i >= 0; i--) if ((artyMarks[i].life -= dt) <= 0) artyMarks.splice(i, 1);
     if ((navT -= dt) <= 0) { navT = 0.5; buildWGrid(0.5); }
     for (const t of tanks) if (!t.dead && t.ai) aiThink(t, dt);
     if (state === 'intro') for (const t of tanks) { t.in.throttle = 0; t.in.turn = 0; t.in.fire = false; }
@@ -3331,6 +3360,15 @@ Meta.whenReady(() => {
     updateRunners(dt);
     updateParts(dt);
     if (state === 'play' && mode === 'survie') {
+      // les épaves refroidies disparaissent (obstacles, fumées et calculs en moins)
+      for (let i = tanks.length - 1; i >= 0; i--) {
+        const w = tanks[i];
+        if (!w.dead || w === player || w.deadT < 45) continue;
+        if (W3D0 && w.scar3) { W3D0.free(w.scar3.hull); W3D0.free(w.scar3.turret); }
+        tanks.splice(i, 1); seenAt.delete(w);
+        for (const a of tanks) if (a.det) a.det.delete(w);
+        navT = 0;
+      }
       const e = tanks.some(t => t.team === 1 && !t.dead);
       if (player.dead && !revivePending()) { state = 'ending'; endT = 3.5; waveResult = 'lose'; showMsg('TANK DESTROYED', '#ff7a5c', 3); }
       else if (!e) {
@@ -4395,6 +4433,17 @@ Meta.whenReady(() => {
       ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillText(d + ' m', ex - Math.cos(a) * 20 + 1, ey - Math.sin(a) * 20 + 5);
       ctx.fillStyle = '#ffb0a8'; ctx.fillText(d + ' m', ex - Math.cos(a) * 20, ey - Math.sin(a) * 20 + 4);
     }
+    // repère fantôme : dernière position où l'ennemi a été vu, qui s'efface en 6 s
+    ctx.strokeStyle = '#ff8a7d'; ctx.lineWidth = 1.5;
+    for (const [e, g] of seenAt) {
+      const age = gameTime - g.t;
+      if (e.dead || age > 6 || visibleToPlayer(e)) continue;
+      const p = worldToScreen(g.x, g.y, e.T.I.totalH + 2.6);
+      if (p.behind || p.x < mx0 || p.y < my0 || p.x > W - mx0 || p.y > my1) continue;
+      ctx.globalAlpha = 0.75 * (1 - age / 6);
+      ctx.beginPath(); ctx.moveTo(p.x - 7, p.y - 18); ctx.lineTo(p.x + 7, p.y - 18); ctx.lineTo(p.x, p.y - 9); ctx.closePath(); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
   }
 
   function drawWorldLabels() {
@@ -4751,6 +4800,11 @@ Meta.whenReady(() => {
       const s = t === player ? 4 : 3;
       ctx.fillRect(x0 + t.x * k - s / 2, y0 + t.y * k - s / 2, s, s);
     }
+    // fantômes (dernière position vue, 6 s) et signalements de l'artillerie (4 s)
+    ctx.strokeStyle = 'rgba(255,130,110,0.85)'; ctx.lineWidth = 1;
+    for (const [e, g] of seenAt) if (!e.dead && !visibleToPlayer(e) && gameTime - g.t < 6) ctx.strokeRect(x0 + g.x * k - 2, y0 + g.y * k - 2, 4, 4);
+    for (const m of artyMarks) { ctx.globalAlpha = Math.min(1, m.life); ctx.beginPath(); ctx.arc(x0 + m.x * k, y0 + m.y * k, Math.max(3, 80 * k), 0, TAU); ctx.stroke(); }
+    ctx.globalAlpha = 1;
     ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1;
     if (W3D && cam3.vp) {
       ctx.beginPath();
