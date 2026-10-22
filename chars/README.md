@@ -264,6 +264,9 @@ Le jeu est prêt pour CrazyGames : téléverser le contenu du dossier `chars/` (
   requis. Les boutons publicité montrent la progression par pastilles. Chaque déblocage (char,
   camouflage, pièce, lot de la roue) ouvre un écran de célébration : rayons, confettis, aperçu en 3D,
   fanfare synthétisée et `happytime`.
+- **Polices** : Oswald et Inter sont livrées dans `fonts/` (variables 400 à 700, sous-ensemble latin,
+  70 Ko, licence SIL OFL jointe). Aucune requête vers Google Fonts : rien ne bloque le premier
+  affichage, rien ne part chez un tiers. `steel-front.html` les intègre en base64.
 - **Contenu sensible** : ni drapeau, ni runes SS, ni symbole de régime ; les seuls marquages admis sont
   la croix des blindés (Balkenkreuz) et les numéros tactiques, et aucun camouflage ne reprend les
   couleurs d'un drapeau (*Victory Parade* : olive, sable et laiton). Chaque bataille s'ouvre sur une
