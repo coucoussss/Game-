@@ -1749,6 +1749,8 @@ Meta.whenReady(() => {
     return { face, sideSign, plate, mm, slope, dd, low, extra, heatK, trackHit, n: plateNormal(face, slope, sideSign, low) };
   }
 
+  // arrêt du noyau dans la simulation terminale (codes de ballistics.js, sinon nom du module atteint)
+  const CORE_STOP = { sorti: 'exits the far side', paroi: 'stopped by the far wall' };
   function hitTank(s, t, h, hx, hy) {
     if (t === player) s.hitPlayer = true;
     if (s.key === 'SMOKE') { Fx.armorHit(hx, hy, h.z, 'mg', s.vx / s.sp, s.vy / s.sp); Sfx.clang(listenerDist(hx, hy)); return smokeShell(s, hx, hy); }
@@ -1900,7 +1902,7 @@ Meta.whenReady(() => {
           ev.data.push({ t: `Charge: ${Math.round(sim.blast.W / 1.3 * 1000)} g at +${f(sim.blast.t * 1000, 2)} ms · ${f(sim.blast.W * 1000, 0)} g TNT eq. · blast ${f(kpa / 1000, 1)} MPa at 0.5 m`, c: '#ffcf7a' });
         }
         const nf = sim.frags.length, mt = sim.frags.reduce((a, q) => a + q.m, 0);
-        ev.data.push({ t: `${nf} fragments · ${f(mt, 2)} kg${sim.coreStop ? ` · core: ${sim.coreStop === 'sorti' ? 'exits the far side' : 'stopped (' + sim.coreStop + ')'}` : ''}`, c: '#ffcf7a' });
+        ev.data.push({ t: `${nf} fragments · ${f(mt, 2)} kg${sim.coreStop ? ` · core: ${CORE_STOP[sim.coreStop] || (sim.coreStop === true ? 'stopped' : 'stopped by the ' + String(sim.coreStop).toLowerCase())}` : ''}`, c: '#ffcf7a' });
       } else {
         ev.data.push({ t: `NOT PENETRATED: ${Math.round(pen)} mm < ${Math.round(eff)} mm${sim ? ' · spalling off the inner face' : ''}`, c: '#ff8a6a' });
       }
@@ -1968,7 +1970,7 @@ Meta.whenReady(() => {
     }
     if (sim.fuel != null) { fire = true; lines.push({ t: 'Fuel ignited', c: '#ff9a3a', time: sim.fuel }); }
     if (!lines.length) lines.push({ t: 'No module hit', c: '#c8c8c8', time: 0 });
-    if (!detonate && fire && !(t.fireT > 0)) { t.fireT = 8; t.fireBy = by; lines.push({ t: 'Incendie', c: '#ff9a3a', time: sim.tEnd * 0.8 }); }
+    if (!detonate && fire && !(t.fireT > 0)) { t.fireT = 8; t.fireBy = by; lines.push({ t: 'Fire!', c: '#ff9a3a', time: sim.tEnd * 0.8 }); }
     else if (detonate) fire = false;
     if (detonate) { sim.tEnd = Math.max(sim.tEnd, detT + 6e-3); lines.push({ t: 'AMMO RACK: DETONATION', c: '#ff4a2a', time: detT }); }
     const knocked = detonate || crewAlive(t) < 2;
@@ -3543,7 +3545,7 @@ Meta.whenReady(() => {
       c.fillStyle = '#8cc8ff';
       c.fillText(`${waiting ? 'Computing' : 'Computed'}: ${Math.min(99, Math.round(st.t / sim.tMax * 100))}% · ${st.step.toLocaleString('en-US')} steps · ${st.broken.toLocaleString('en-US')} broken bonds`, X + 8, Y + h - fH + 14 * fs);
     } else {
-      const res = inf.sb.heat ? (st.perforated ? 'jet traversant' : 'jet stopped') : inf.sb.he ? (st.ejected > 3 ? 'plate torn' : 'plate bulged') : (st.perforated ? 'penetrated' : 'not penetrated');
+      const res = inf.sb.heat ? (st.perforated ? 'jet passes through' : 'jet stopped') : inf.sb.he ? (st.ejected > 3 ? 'plate torn' : 'plate bulged') : (st.perforated ? 'penetrated' : 'not penetrated');
       c.fillStyle = st.perforated || (inf.sb.he && st.ejected > 3) ? '#a6f08a' : '#ff9a7a';
       c.fillText(`Plate ${res} · ${st.broken.toLocaleString('en-US')} broken bonds · T max ${Math.round(st.maxTemp)} K`, X + 8, Y + h - fH + 14 * fs);
       c.font = `600 ${10 * fs}px system-ui, sans-serif`; c.fillStyle = '#cfc8b0';
@@ -3581,7 +3583,7 @@ Meta.whenReady(() => {
       if (r <= 0) { ctx.strokeStyle = '#ff6a5a'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x + 4, by + 27); ctx.lineTo(x + 26, by + 41); ctx.stroke(); }
       x += 34;
     }
-    if (player.swap) { ctx.textAlign = 'left'; ctx.fillStyle = '#8cc8ff'; ctx.font = '600 10px system-ui, sans-serif'; ctx.fillText(`remplacement ${player.swap.t.toFixed(0)} s`, x + 2, by + 38); }
+    if (player.swap) { ctx.textAlign = 'left'; ctx.fillStyle = '#8cc8ff'; ctx.font = '600 10px system-ui, sans-serif'; ctx.fillText(`Crew swap ${player.swap.t.toFixed(0)} s`, x + 2, by + 38); }
     // modules
     const MODS = [['engine', 'Engine'], ['trans', 'Transm.'], ['breech', 'Breech'], ['fuel', 'Fuel'], ['ammo', 'Ammo']];
     x = bx + 200;
