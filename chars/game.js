@@ -687,7 +687,7 @@
   function resupply(t) {
     for (const k of SHELL_KEYS) t.ammo[k] = Math.min(t.T.ammo[k], t.ammo[k] + Math.ceil(t.T.ammo[k] * 0.5));
     for (const m of t.mods) if (m.kind !== 'crew') m.hp = m.max0;
-    t.rep = {}; t.trackT = 0; t.fireT = 0; t.smoke = Math.min(2, t.smoke + 1);
+    t.rep = {}; t.trackT = 0; t.fireT = 0; t.wheelK = 1; t.smoke = Math.min(2, t.smoke + 1);
     if (t.ammo[t.shell] <= 0) t.shell = nextShell(t);
   }
 
@@ -1080,7 +1080,7 @@
     // la vitesse de pointe dépend du terrain et du rapport poids/puissance, comme en vrai
     const lv = L(), crr = lv.crr || 0.06, mkg = T.mass * 1000, Pw = T.hp * t.up.hp * 745.7 * 0.6 * engK;
     const vTerrain = Pw / (mkg * G * crr) * PX;
-    const vmax = Math.min(T.speed * engK, Math.max(T.speed * 0.5, vTerrain));
+    const vmax = Math.min(T.speed * engK, Math.max(T.speed * 0.5, vTerrain)) * (t.wheelK || 1);
     let target = (thr >= 0 ? thr * vmax : thr * Math.min(T.rev, vmax * 0.5)) * (t.optic.driver > 0 ? 0.7 : 1);
     const broken = t.trackT > 0 && roleOk(t, 'driver') && modOk(t, 'engine') && modOk(t, 'trans');
     if (broken) target = clamp(inp.throttle, -1, 1) * T.speed * 0.15; // chenille cassée : seule l'autre tire
@@ -1397,7 +1397,7 @@
       Fx.armorHit(hx, hy, best.z, 'mg', ux, uy);
       checkKnock(t, by);
     } else {
-      const h = best.h, pp = platePick(t, h, d, 'MG');
+      const h = best.h, pp = platePick(t, h, d, 'MG', 7.92);
       const cosI = Math.max(0.03, -dot3(pp.dd, pp.n)), angle = Math.acos(Math.min(1, cosI)) / D2R;
       const scf = scarFrame(t, h, E), scw = scarWeak(t, scf.frame, scf.p, pp.plate);
       mm = Math.round((scw.hole ? pp.mm * 0.1 : pp.mm * (1 - scw.w)) * t.up.armor); plate = pp.plate; eff = mm / cosI + pp.extra;
@@ -1790,11 +1790,12 @@
   }
 
   // Plaque touchée : épaisseur, inclinaison, normale extérieure et protections annexes
-  function platePick(t, h, d, key) {
-    const Sd = t.T.S, A = Sd.armor, tAng = -t.turret;
+  // probe : visée seulement (lunette), épaisseurs moyennes au lieu d'un tirage
+  function platePick(t, h, d, key, cal = 75, probe = false) {
+    const Sd = t.T.S, A = Sd.armor, tAng = -t.turret, rr = (a, b) => Math.round(probe ? (a + b) / 2 : rnd(a, b));
     const face = h.roof ? 'roof' : h.nx > 0.5 ? 'front' : h.nx < -0.5 ? 'rear' : 'side';
     const sideSign = h.ny > 0 ? -1 : 1;
-    let plate, mm, slope, dd = d, low = false, extra = 0, heatK = 1, trackHit = false;
+    let plate, mm, slope, dd = d, low = false, extra = 0, heatK = 1, gear = null, extraOf = '';
     if (face === 'roof') {
       // toit de caisse ou de tourelle (même tôle de pont) : un obus qui plonge dessus après un ricochet
       if (h.part === 'turret') dd = rotZ(d, -tAng);
@@ -1806,11 +1807,26 @@
         plate = low ? 'Lower front hull' : 'Upper front hull';
       } else if (face === 'rear') { [mm, slope] = A.hull.rear; plate = 'Rear hull'; }
       else {
-        [mm, slope] = A.hull.side; plate = 'Side hull';
-        if (h.z < Sd.tt) {
-          if (Sd.skirts && h.z > Sd.tt - 0.5) { plate = 'Skirt + side'; if (key === 'HEAT') heatK = 0.5; else extra = 5; }
-          else { plate = 'Track + side'; extra = 20; trackHit = true; }
+        // flanc : couches successives traversées par l'obus. D'abord la jupe (Schürzen) si l'impact tombe sur
+        // un panneau ; puis, sous le brin supérieur de chenille, le train de roulement : chenille (brins haut
+        // et bas), roues porteuses (entrelacées et pleines d'acier, ou petites et ajourées) ou barbotin et
+        // réducteur à l'avant ; enfin la caisse, dont le bas de flanc derrière les roues est une autre plaque
+        const mx = h.lx / PX, K = t.T.I.skirt, Wh = Sd.wheels, under = h.z < Sd.tt, layers = [];
+        const inSkirt = !!K && h.z >= K.z0 && h.z <= K.z1 && mx >= K.x0 && mx <= K.x1 && !K.missing.some(m => m.side === sideSign && m.k === Math.floor((mx - K.x0) / K.pw));
+        [mm, slope] = under ? A.hull.lowSide : A.hull.side;
+        if (inSkirt) {
+          layers.push('Skirt');
+          // le jet de la charge creuse se forme sur la tôle et s'étire jusqu'à la caisse
+          if (key === 'HEAT') heatK = Ballistics.standoffK(K.off + Sd.tw, cal); else extra += 5;
         }
+        if (under) {
+          if (mx > Wh.x0 + Wh.r * 0.8) { gear = 'sprocket'; extra += rr(20, 35); layers.push('Sprocket'); }
+          else if (h.z >= Sd.tt - 0.12 || h.z < 0.25) { gear = 'track'; extra += rr(15, 25); layers.push('Track'); }
+          else { gear = 'wheels'; extra += Wh.inter ? rr(20, 40) : rr(0, 15); layers.push('Road wheels'); }
+          if (key === 'HEAT' && !inSkirt) heatK = 0.8; // jet perturbé par l'acier du train de roulement
+        }
+        plate = layers.length ? `${layers.join(' + ')} + ${under ? 'lower side' : 'side'}` : 'Side hull';
+        if (layers.length) extraOf = layers.join(' and ').toLowerCase();
       }
     } else {
       dd = rotZ(d, -tAng);
@@ -1822,7 +1838,7 @@
       } else if (face === 'rear') { [mm, slope] = A.turret.rear; plate = 'Rear turret'; }
       else { [mm, slope] = A.turret.side; plate = 'Side turret'; }
     }
-    return { face, sideSign, plate, mm, slope, dd, low, extra, heatK, trackHit, n: plateNormal(face, slope, sideSign, low) };
+    return { face, sideSign, plate, mm, slope, dd, low, extra, extraOf, heatK, gear, n: plateNormal(face, slope, sideSign, low) };
   }
 
   function hitTank(s, t, h, hx, hy) {
@@ -1847,7 +1863,7 @@
     const d = norm3([h.ldx / ll, -h.ldy / ll, s.slope]);
     const E = [h.lx / PX, -h.ly / PX, h.z];
     const tAng = -t.turret;
-    const { face, plate, mm: mm0, slope, dd, extra, heatK, trackHit, n } = platePick(t, h, d, s.key);
+    const { face, plate, mm: mm0, slope, dd, extra, extraOf, heatK, gear, n } = platePick(t, h, d, s.key, sb.cal);
     const scf = scarFrame(t, h, E), scw = scarWeak(t, scf.frame, scf.p, plate);
     const mm = Math.round((scw.hole ? mm0 * 0.1 : mm0 * (1 - scw.w)) * t.up.armor);
     // vitesse d'impact réelle : traînée et pertes des ricochets comprises
@@ -1890,17 +1906,32 @@
       if (yaw) ev.data.push({ t: 'Deformed and yawing after the ricochet: −50% penetration, +10° obliquity', c: '#ffcf7a' });
       ev.data.push({ t: `${plate}: ${mm} mm at ${slope}° · incidence ${Math.round(angle)}°${!sb.heat && !sb.he ? ` → normalized ${Math.round(ef.angN)}°` : ''}`, c: '#d8d4c6' });
       if (mm < mm0) ev.data.push({ t: scw.hole ? `Into the hole of an earlier penetration: only ${mm} of ${mm0} mm left` : `Plate already scarred by a hit ${Math.round(scw.near * 100)} cm away: ${mm} mm effective instead of ${mm0} mm (work-hardened, cracked steel)`, c: '#ffcf7a' });
-      ev.data.push({ t: `Effective armor ${Math.round(eff)} mm${extra ? ` (incl. ${extra} mm of ${trackHit ? 'track' : 'skirt'})` : ''} · penetration ${Math.round(pen)} mm${heatK < 1 ? ' (jet disrupted by the skirt)' : ''}`, c: '#d8d4c6' });
+      ev.data.push({ t: `Effective armor ${Math.round(eff)} mm${extra ? ` (incl. ${extra} mm of ${extraOf})` : ''} · penetration ${Math.round(pen)} mm${heatK < 1 ? ` (jet disrupted by the ${extraOf || 'running gear'}: × ${heatK.toFixed(2)})` : ''}`, c: '#d8d4c6' });
       if (shattered) ev.data.push({ t: `SHATTERED on impact (risk ${Math.round(shP * 100)}%): penetration × ${Ballistics.SHATTER_PEN[s.key] || 0.7}`, c: '#ffcf7a' });
       if (graze) ev.data.push({ t: fuzed ? `Grazing impact (${Math.round(angle)}°): the nose fuze functions, the jet skims the plate` : `Grazing impact (${Math.round(angle)}°): the fuze fails and the round breaks up`, c: '#ffcf7a' });
     }
     t.hitFlash = 0.15;
-    if (trackHit && pen >= 20) {
-      t.trackT = Math.max(t.trackT, 8); t.trackSide = h.ny > 0 ? -1 : 1;
-      if (show) floatText(hx, hy + 8, 'Track broken', '#ffb070');
-      if (t === player) addLog('Track broken: repairing (8 s)', '#ffb070');
+    // train de roulement touché : la chenille casse presque toujours sur un coup franc, rarement à travers
+    // les roues (qui se brisent) ; un coup au barbotin ou au réducteur immobilise le char
+    let gearRes = null;
+    if (gear && pen >= 20) {
+      const side = h.ny > 0 ? -1 : 1;
+      if (gear === 'track' && Math.random() < 0.9 || gear === 'wheels' && Math.random() < 0.2) {
+        t.trackT = Math.max(t.trackT, 8); t.trackSide = side; gearRes = 'Track broken';
+        if (t === player) addLog('Track broken: repairing (8 s)', '#ffb070');
+      } else if (gear === 'wheels') {
+        t.wheelK = Math.max(0.6, (t.wheelK || 1) * 0.92); gearRes = 'Road wheel destroyed';
+        if (t === player) addLog('Road wheel destroyed: top speed −8%', '#ffb070');
+      } else if (gear === 'sprocket' && Math.random() < 0.8) {
+        t.trackT = Math.max(t.trackT, 15); t.trackSide = side; gearRes = 'Final drive hit';
+        if (t === player) addLog('Sprocket and final drive hit: immobilised (15 s)', '#ffb070');
+      }
+      if (gearRes && show) floatText(hx, hy + 8, gearRes, '#ffb070');
     }
 
+    // trace du coup pour les effets de dégâts (points faibles, conséquences sans perforation, souffle) :
+    // zone touchée, plaque, énergie à l'impact et issue ; Vr, vitesse résiduelle derrière la plaque
+    t.lastHit = { by, key: s.key, part: h.part, face, plate, gear, z: h.z, E, d, V, Ek, pen, eff, shattered, outcome: ric ? 'ricochet' : pen >= eff ? 'pen' : 'nopen', Vr: 0, time: gameTime };
     // Ricochet : probabilité croissante avec l'incidence, nulle en cas de surcalibrage
     if (ric) {
       const ra = h.part === 'turret' ? t.angle + t.turret : t.angle;
@@ -1956,7 +1987,8 @@
     else if (sb.he && pen * 1.4 >= mm) sim = Ballistics.simulate(Object.assign(ctxSim, { mode: 'heout' }));
 
     let out = null;
-    if (sim) out = applySim(t, sim, by, ev);
+    if (sim) { t.lastHit.Vr = sim.Vr; out = applySim(t, sim, by, ev); }
+    if (sim && ev && gearRes) ev.results.unshift({ t: gearRes, c: '#ffb070', time: 0.1e-3 });
     addScar(t, h, E, d, plate, penetrated ? (sb.heat ? 'heatpen' : sb.he ? 'hepen' : 'pen') : (sb.heat ? 'heat' : sb.he ? 'he' : 'dent'), sb.cal,
       sb.he ? (mm0 < 30 ? 0.2 : 0.06) : Math.min(1, pen / eff));
     if (penetrated) {
@@ -2029,7 +2061,7 @@
           ev.touch[i] = 0.3e-3;
           ev.results.push({ t: `${m.name}: ${ev.after[i] <= 0 ? (m.kind === 'crew' ? 'knocked out' : 'destroyed') : (m.kind === 'crew' ? 'wounded (shock wave)' : 'damaged')}`, c: ev.after[i] <= 0 ? '#ff6a5a' : '#ffb070', time: 0.3e-3 });
         });
-        if (trackHit && pen >= 20 || t.trackT > 7.9) ev.results.push({ t: 'Track broken', c: '#ffb070', time: 0.1e-3 });
+        if (gearRes) ev.results.push({ t: gearRes, c: '#ffb070', time: 0.1e-3 });
         if (!ev.results.length) ev.results.push({ t: 'No internal damage', c: '#c8c8c8', time: 0.2e-3 });
       }
       if (t.dead && !ev.results.some(r => /DESTROYED/.test(r.t))) ev.results.push({ t: 'TANK DESTROYED', c: '#ff4a2a', time: ev.tEnd || 0 });
@@ -2734,7 +2766,7 @@
     if (best.kind === 'tank' && !best.tank.dead) {
       const t = best.tank, h = best.h;
       const ll = Math.hypot(h.ldx, h.ldy) || 1, desc = Ballistics.descent(sb, dist * RK);
-      const pp = platePick(t, h, norm3([h.ldx / ll, -h.ldy / ll, -desc]), key);
+      const pp = platePick(t, h, norm3([h.ldx / ll, -h.ldy / ll, -desc]), key, sb.cal, true);
       const cosI = Math.max(0.03, -dot3(pp.dd, pp.n)), angle = Math.acos(Math.min(1, cosI)) / D2R;
       const eff = Ballistics.effective(sb, pp.mm, angle).eff + pp.extra;
       const pen = penAt(player.T, key, dist) * pp.heatK * (kin ? player.up.pen : 1), Vt = Ballistics.velAt(sb, dist * RK);
@@ -3684,6 +3716,7 @@
     ctx.textAlign = 'left'; ctx.font = '700 11px system-ui, sans-serif';
     const st = [];
     if (player.trackT > 0) st.push(['Track ' + Math.ceil(player.trackT) + ' s', '#ffb070']);
+    if ((player.wheelK || 1) < 1) st.push([`Wheels −${Math.round((1 - player.wheelK) * 100)}%`, '#ffb070']);
     if (player.fireT > 0) st.push(['ON FIRE', '#ff6a3a']);
     if (!player.dead && player.revealT <= 0 && inBush(player)) st.push(['Concealed', '#a6f08a']);
     let sx2 = bx + 230;
@@ -3816,7 +3849,7 @@
     h += `<div class="specLine">Gun ${Sd.gun.name} · AP shell ${String(Ballistics.shell(T.id, 'APHE').m)} kg at ${Ballistics.shell(T.id, 'APHE').v0} m/s · reload ${T.reload.toFixed(1)} s · ${T.kmh} km/h</div>`;
     h += `<div class="specLine">Crew: ${Sd.crew.map(r => TankModels.NAMES[r]).join(', ')}</div>`;
     h += '<table class="spec"><tr><th>Armor</th><th>Thickness</th><th>Effective</th></tr>';
-    h += row('Upper front hull', A.hull.up) + row('Lower front hull', A.hull.low) + row('Hull sides', A.hull.side) + row('Rear hull', A.hull.rear);
+    h += row('Upper front hull', A.hull.up) + row('Lower front hull', A.hull.low) + row('Hull sides', A.hull.side) + row('Lower sides (behind wheels)', A.hull.lowSide) + row('Rear hull', A.hull.rear);
     if (A.turret) h += row('Front turret', A.turret.front) + row('Gun mantlet', A.turret.mantlet) + row('Turret sides', A.turret.side) + row('Rear turret', A.turret.rear);
     h += `<tr><td>Roof</td><td>${A.hull.roof} mm</td><td></td></tr></table>`;
     h += '<table class="spec"><tr><th>Shell</th><th>100 m</th><th>500 m</th><th>Rounds</th></tr>';
@@ -4211,7 +4244,7 @@
   // un peu de munitions, 3 s d'invulnérabilité pour se remettre à couvert
   function revivePlayer() {
     const t = player;
-    t.dead = false; t.deadT = 0; t.turretGone = false; t.fireT = 0; t.trackT = 0; t.speed = 0;
+    t.dead = false; t.deadT = 0; t.turretGone = false; t.fireT = 0; t.trackT = 0; t.wheelK = 1; t.speed = 0;
     for (const m of t.mods) m.hp = m.max0;
     for (const k of SHELL_KEYS) t.ammo[k] = Math.min(t.T.ammo[k], t.ammo[k] + Math.ceil(t.T.ammo[k] * 0.3));
     t.smoke = Math.max(t.smoke, 2); t.invulnT = 3; t.reloadT = 0;

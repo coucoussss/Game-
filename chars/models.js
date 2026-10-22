@@ -20,7 +20,7 @@ const TankModels = (() => {
       gun: { z: 1.75, fx: 0.78, len: 2.9, r: 0.035, sleeve: [0.065, 0.5], brake: null, name: '5 cm KwK 39 L/60' },
       exhaust: [[-2.12, 0.45], [-2.12, -0.45]], jerry: true,
       armor: {
-        hull: { up: [30, 22], low: [30, 45], side: [20, 0], rear: [15, 12], roof: 10 },
+        hull: { up: [30, 22], low: [30, 45], side: [20, 0], lowSide: [20, 0], rear: [15, 12], roof: 10 },
         turret: { front: [30, 10], side: [20, 20], rear: [20, 15], mantlet: [40, 0] },
       },
       crew: ['driver', 'radio', 'gunner', 'commander'],
@@ -52,7 +52,7 @@ const TankModels = (() => {
       gun: { z: 2.37, fx: 1.2, len: 5.25, r: 0.045, sleeve: [0.085, 0.9], brake: { r: 0.085, len: 0.36 }, name: '7.5 cm KwK 42 L/70' },
       exhaust: [[-3.22, 0.42], [-3.22, -0.42]], skirts: true, mg: true, zim: true, fans: true, rearBins: true, dampers: true,
       armor: {
-        hull: { up: [80, 55], low: [60, 55], side: [40, 40], rear: [40, 30], roof: 16 },
+        hull: { up: [80, 55], low: [60, 55], side: [40, 40], lowSide: [40, 0], rear: [40, 30], roof: 16 },
         turret: { front: [100, 11], side: [45, 25], rear: [45, 25], mantlet: [110, 0] },
       },
       crew: ['driver', 'radio', 'gunner', 'commander', 'loader'],
@@ -84,7 +84,7 @@ const TankModels = (() => {
       gun: { z: 2.26, fx: 1.25, len: 4.9, r: 0.055, sleeve: [0.095, 0.6], brake: { r: 0.13, len: 0.42 }, name: '8.8 cm KwK 36 L/56' },
       exhaust: [[-3.0, 0.55], [-3.0, -0.55]], tallExhaust: true, mg: true, zim: true, smines: true, grilles: true,
       armor: {
-        hull: { up: [100, 10], low: [100, 45], side: [80, 0], rear: [80, 9], roof: 25 },
+        hull: { up: [100, 10], low: [100, 45], side: [80, 0], lowSide: [60, 0], rear: [80, 9], roof: 25 },
         turret: { front: [100, 0], side: [80, 0], rear: [80, 0], mantlet: [150, 0] },
       },
       crew: ['driver', 'radio', 'gunner', 'commander', 'loader'],
@@ -114,7 +114,7 @@ const TankModels = (() => {
       gun: { z: 1.86, fx: 0.35, len: 6.3, r: 0.055, sleeve: null, brake: { r: 0.12, len: 0.45 }, name: '8.8 cm PaK 43 L/71' },
       exhaust: [[-3.22, 0.42], [-3.22, -0.42]], skirts: true, zim: true, fans: true, dampers: true, rearBins: true,
       armor: {
-        hull: { up: [80, 55], low: [60, 55], side: [50, 30], rear: [40, 35], roof: 25 },
+        hull: { up: [80, 55], low: [60, 55], side: [50, 30], lowSide: [40, 0], rear: [40, 35], roof: 25 },
         turret: null,
       },
       crew: ['driver', 'radio', 'gunner', 'commander', 'loader'],
@@ -147,7 +147,7 @@ const TankModels = (() => {
       gun: { z: 2.1, fx: 0.98, len: 3.6, r: 0.045, sleeve: [0.075, 0.55], brake: { r: 0.09, len: 0.32 }, name: '7.5 cm KwK 40 L/48' },
       exhaust: [[-2.88, 0.45]], skirts: { off: 0.2, z0: 0.38, z1: 1.18 }, mg: true, zim: true, muffler: true, links: 'front',
       armor: {
-        hull: { up: [80, 10], low: [80, 12], side: [30, 0], rear: [20, 10], roof: 12 },
+        hull: { up: [80, 10], low: [80, 12], side: [30, 0], lowSide: [30, 0], rear: [20, 10], roof: 12 },
         turret: { front: [50, 10], side: [30, 25], rear: [30, 25], mantlet: [50, 0] },
       },
       crew: ['driver', 'radio', 'gunner', 'commander', 'loader'],
@@ -180,7 +180,7 @@ const TankModels = (() => {
       gun: { z: 2.55, fx: 1.25, len: 6.3, r: 0.055, sleeve: [0.1, 0.8], brake: { r: 0.12, len: 0.45 }, name: '8.8 cm KwK 43 L/71' },
       exhaust: [[-3.5, 0.4], [-3.5, -0.4]], tallExhaust: true, mg: true, zim: true, fans: true, dampers: true,
       armor: {
-        hull: { up: [150, 50], low: [100, 50], side: [80, 25], rear: [80, 30], roof: 40 },
+        hull: { up: [150, 50], low: [100, 50], side: [80, 25], lowSide: [80, 0], rear: [80, 30], roof: 40 },
         turret: { front: [180, 9], side: [80, 21], rear: [80, 21], mantlet: [150, 0] },
       },
       crew: ['driver', 'radio', 'gunner', 'commander', 'loader'],
@@ -210,7 +210,7 @@ const TankModels = (() => {
       gun: { z: 1.62, fx: 0.35, len: 3.6, r: 0.045, sleeve: null, brake: { r: 0.09, len: 0.32 }, name: '7.5 cm StuK 40 L/48' },
       exhaust: [[-2.6, 0.45]], skirts: { off: 0.2, z0: 0.38, z1: 1.15 }, zim: true, muffler: true, hullCupola: [0.0, 0.55, 0.28, 0.18, 7], mgShield: true, links: 'front',
       armor: {
-        hull: { up: [80, 10], low: [80, 21], side: [30, 11], rear: [30, 10], roof: 17 },
+        hull: { up: [80, 10], low: [80, 21], side: [30, 11], lowSide: [30, 0], rear: [30, 10], roof: 17 },
         turret: null,
       },
       crew: ['driver', 'gunner', 'commander', 'loader'],
@@ -267,7 +267,16 @@ const TankModels = (() => {
       tb = { x0: x0 * k, x1: x1 * k, y0: y0 * k, y1: y1 * k };
     } else { pivotX = S.mount.x; pivotY = S.mount.y; }
     const totalH = T ? S.ht + T.h + (T.cupola ? T.cupola[3] : 0) : S.ht + 0.1;
+    // jupes latérales (Schürzen) : 5 panneaux entre le galet tendeur et le barbotin, à l'écart off de la
+    // caisse, de z0 à z1 ; un panneau manque d'un côté (côté droit, y < 0)
+    let skirt = null;
+    if (S.skirts) {
+      const sk = typeof S.skirts === 'object' ? S.skirts : { off: 0.02, z0: S.tt - 0.52, z1: S.tt - 0.02 };
+      const n = 5, x0 = S.idl.x + 0.1, x1 = S.spr.x - 0.15;
+      skirt = { off: sk.off, z0: sk.z0, z1: sk.z1, x0, x1, n, pw: (x1 - x0) / n, missing: [{ side: -1, k: 3 }] };
+    }
     return {
+      skirt,
       S, pivotX, pivotY, turretBox: tb, hasTurret: !!T, totalH,
       gunZ: S.gun.z, gunEnd: S.gun.fx + S.gun.len + (S.gun.brake ? S.gun.brake.len * 0.5 : 0),
       xUp: z => S.xn - (z - S.zn) * tanU,
@@ -348,11 +357,10 @@ const TankModels = (() => {
       const rr = rearAt(tt);
       if (rr > S.idl.x - S.idl.r * 0.9) hb.box((rr + S.idl.x - S.idl.r * 0.9) / 2, yc, tt + 0.01, rr - (S.idl.x - S.idl.r * 0.9), tw + 0.04, 0.03, CAMO, 1);
       // jupes latérales (Schürzen), un panneau manque d'un côté
-      if (S.skirts) {
-        const sk = typeof S.skirts === 'object' ? S.skirts : { off: 0.02, z0: tt - 0.52, z1: tt - 0.02 };
-        const n = 5, x0 = S.idl.x + 0.1, x1 = S.spr.x - 0.15, pw = (x1 - x0) / n, ys = side * (W / 2 + sk.off);
+      if (I.skirt) {
+        const sk = I.skirt, { n, x0, x1, pw } = sk, ys = side * (W / 2 + sk.off);
         for (let k = 0; k < n; k++) {
-          if (side === -1 && k === 3) continue;
+          if (sk.missing.some(m => m.side === side && m.k === k)) continue;
           hb.box(x0 + pw * (k + 0.5), ys, (sk.z0 + sk.z1) / 2, pw - 0.03, 0.02, sk.z1 - sk.z0, CAMO, 1);
         }
         if (sk.off > 0.05) {
