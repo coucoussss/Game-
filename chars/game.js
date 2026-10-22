@@ -208,7 +208,7 @@ Meta.whenReady(() => {
   const WW = 2600, WH = 1700, CELL = 20, STEP = 1 / 60;
 
   // Réglages de développement, actifs seulement avec ?debug : ?auto ?god ?speed=4 ?level=2 ?wave=1
-  // ?type=heavy ?mode=survie|duel ?2d. Ceux qui touchent aux gains font jouer sur un profil jetable,
+  // ?type=heavy ?mode=survie|duel ?form=late (dispositif de la vague) ?2d. Ceux qui touchent aux gains font jouer sur un profil jetable,
   // jamais sauvegardé : l'adresse du jeu ouverte à la main ne débloque rien.
   const Q = new URLSearchParams(location.search);
   const DEV = Q.has('debug'), dq = k => DEV && Q.has(k);
@@ -817,7 +817,7 @@ Meta.whenReady(() => {
     if (mode === 'campagne') {
       // dispositif tiré au sort parmi ceux de la vague, retourné une fois sur deux ; les plus lourds aux
       // premières places
-      const fl = (lv.forms && lv.forms[waveIdx]) || ['line'], f = waveForm = fl[Math.floor(Math.random() * fl.length)], F = FORMS[f], sg = Math.random() < 0.5 ? 1 : -1, used = [];
+      const fl = (lv.forms && lv.forms[waveIdx]) || ['line'], f = waveForm = FORMS[dq('form') && Q.get('form')] ? Q.get('form') : fl[Math.floor(Math.random() * fl.length)], F = FORMS[f], sg = Math.random() < 0.5 ? 1 : -1, used = [];
       enemyTypes.slice().sort((a, b) => HEAVY.indexOf(a) - HEAVY.indexOf(b)).forEach((type, i) => {
         const q = F[i], name = 'Enemy ' + (i + 1);
         let x = WW - 200 - q[0], y = WH / 2 + sg * q[1], post = null;
@@ -1381,12 +1381,13 @@ Meta.whenReady(() => {
         thr = ai.wig * 0.6;
       }
     }
-    // bloqué : un rapport est engagé dans le bon sens et le char n'avance pas (le passage d'un rapport
-    // et l'engagement de la marche arrière prennent du temps) ; rien pendant l'introduction
+    // bloqué : un rapport est engagé dans le bon sens et le char n'avance ni ne tourne (le passage d'un
+    // rapport et l'engagement de la marche arrière prennent du temps ; un lourd qui démarre dans le sable
+    // en braquant avance au pas sans être bloqué) ; rien pendant l'introduction
     if (state !== 'play') ai.stuckT = ai.unstickT = 0;
-    else if (Math.abs(thr) > 0.3 && Math.hypot(t.vx, t.vy) < 6 && !(t.shiftT > 0) && t.gear * thr > 0 && ai.unstickT <= 0 && t.trackT <= 0 && roleOk(t, 'driver') && modOk(t, 'engine') && modOk(t, 'trans')) {
+    else if (Math.abs(thr) > 0.3 && Math.hypot(t.vx, t.vy) < 6 && Math.abs(t.turnRate) < 0.1 && !(t.shiftT > 0) && t.gear * thr > 0 && ai.unstickT <= 0 && t.trackT <= 0 && roleOk(t, 'driver') && modOk(t, 'engine') && modOk(t, 'trans')) {
       ai.stuckT += dt;
-      if (ai.stuckT > 1) {
+      if (ai.stuckT > 1.5) {
         ai.stuckT = 0; ai.unstickT = T.D.box.rs + 1.4; ai.unstickDir = thr > 0 ? -1 : 1;
         ai.unstickTurn = Math.random() < 0.5 ? -1 : 1; ai.pathT = 0;
         // deuxième blocage au même endroit en 6 s : le passage devant la caisse est interdit 10 s
