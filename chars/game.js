@@ -796,6 +796,7 @@ Meta.whenReady(() => {
   function spawnWave() {
     if (W3D0) for (const t of tanks) if (t.scar3) { W3D0.free(t.scar3.hull); W3D0.free(t.scar3.turret); }
     reviveT = 0; reviveUsed = false;
+    clearFalls3();
     tanks = []; shells = []; bullets = []; smokes = []; texts = []; feed = []; parts = []; logs = []; runners = []; ribbons = []; flares = []; flareT = [rnd(15, 30), rnd(20, 40)];
     if (obstacles.some(o => o.type === 'wreck')) { obstacles = obstacles.filter(o => o.type !== 'wreck'); buildGrid(); }
     orders = { kind: 'free', pos: null, target: null, t: 0 }; reinf = []; veils = [];
@@ -3410,7 +3411,7 @@ Meta.whenReady(() => {
         gctx.fillStyle = R() < 0.5 ? L().wall : R() < 0.5 ? L().roof[0] : '#4a4540';
         gctx.fillRect(o.x - 8 + R() * (o.w + 16), o.y - 8 + R() * (o.h + 16), sz, sz * (0.5 + R()));
       }
-      for (let i = 0; i < 20; i++) addSmoke(o.x + R() * o.w, o.y + R() * o.h, rnd(14, 26), 'rgba(150,140,125,', 3);
+      if (!collapse3(o)) for (let i = 0; i < 20; i++) addSmoke(o.x + R() * o.w, o.y + R() * o.h, rnd(14, 26), 'rgba(150,140,125,', 3);
       // gravats : un sol cahoteux qui freine
       if (o.w >= o.h) soilSeg(o.x, o.y + o.h / 2, o.x + o.w, o.y + o.h / 2, o.h / 2 + 8, 'rubble');
       else soilSeg(o.x + o.w / 2, o.y, o.x + o.w / 2, o.y + o.h, o.w / 2 + 8, 'rubble');
@@ -3422,8 +3423,11 @@ Meta.whenReady(() => {
   function knockTree(o, ang) {
     if (o.dead) return;
     o.dead = true; o.fall = ang;
+    fallTree(o);
     dirty3Obs(o); markDirty(o.x + 8, o.y + 8, 40);
     const cx = o.x + 8, cy = o.y + 8, len = 34 * o.size;
+    // en 3D, le tronc couché est un vrai modèle : seule la souche marque le sol
+    if (!W3D) {
     gctx.save();
     gctx.translate(cx, cy); gctx.rotate(ang);
     gctx.fillStyle = '#4a3622'; gctx.fillRect(0, -3, len, 6);
@@ -3431,6 +3435,7 @@ Meta.whenReady(() => {
     gctx.globalAlpha = 0.9;
     gctx.beginPath(); gctx.arc(len, 0, 11 * o.size, 0, TAU); gctx.fill();
     gctx.restore();
+    }
     gctx.fillStyle = '#5a4630';
     gctx.beginPath(); gctx.arc(cx, cy, 4, 0, TAU); gctx.fill();
     for (let i = 0; i < 6; i++) parts.push({ k: 'leaf', x: cx + rnd(-10, 10), y: cy + rnd(-10, 10), vx: rnd(-40, 40), vy: rnd(-40, 40), life: rnd(0.6, 1.2), max: 1.2, color: L().tree[1] });
@@ -3476,7 +3481,9 @@ Meta.whenReady(() => {
     if (t.T.tb && !t.turretGone) {
       t.turretGone = true;
       const a = Math.random() * TAU, v = rnd(40, 110), pv = pivot(t);
-      parts.push({ k: 'turret', x: pv.x, y: pv.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, rot: t.angle + t.turret, vr: rnd(-6, 6), life: 1.1, max: 1.1, tank: t });
+      // vol balistique (z du centre de la tourelle, en m) avec culbute sur les trois axes
+      const I = t.T.I, zc = (t.T.S.ht + I.totalH) / 2;
+      parts.push({ k: 'turret', x: pv.x, y: pv.y, vx: Math.cos(a) * v * 0.6, vy: Math.sin(a) * v * 0.6, z: zc, vz: rnd(10, 16), zc, rest: (I.totalH - t.T.S.ht) / 2, rot: t.angle + t.turret, vr: rnd(-6, 6), ax: 0, ay: 0, wx: rnd(-4, 4), wy: rnd(-4, 4), life: 9, max: 9, tank: t });
     } else if (!t.T.tb) for (let i = 0; i < 3; i++) {
       const a = Math.random() * TAU;
       P3({ x: t.x, y: t.y, z: t.T.S.ht, vx: Math.cos(a) * rnd(2, 6), vy: Math.sin(a) * rnd(2, 6), vz: rnd(8, 15), g: G, drag: 0.2, bounce: 0.15, size: rnd(0.5, 0.9), life: rnd(4, 6), c: [0.12, 0.11, 0.1, 1] });
@@ -3485,7 +3492,9 @@ Meta.whenReady(() => {
   // Tourelle arrachée retombée : une épave basse qui reste sur le terrain (couvert et obstacle)
   function turretWreck(p) {
     const T = p.tank.T, B = T.tb, sz = Math.max(B.x1 - B.x0, B.y1 - B.y0) * 0.8;
-    const o = { type: 'wreck', x: p.x - sz / 2, y: p.y - sz / 2, w: sz, h: sz, hp: Infinity, maxHp: Infinity, ht: T.I.totalH - T.S.ht + 0.1, rot: p.rot, tid: T.id };
+    // au repos : à l'endroit, un peu de travers, ou retournée (deux fois sur cinq)
+    const flip = Math.random() < 0.4 ? Math.PI + rnd(-0.3, 0.3) : rnd(-0.12, 0.12);
+    const o = { type: 'wreck', x: p.x - sz / 2, y: p.y - sz / 2, w: sz, h: sz, hp: Infinity, maxHp: Infinity, ht: T.I.totalH - T.S.ht + 0.1, rot: p.rot, tid: T.id, flip, zc: p.zc, rest: p.rest, smokeT: 20 };
     obstacles.push(o); markGrid(o);
   }
 
@@ -3693,7 +3702,10 @@ Meta.whenReady(() => {
       p.x += (p.vx || 0) * dt; p.y += (p.vy || 0) * dt;
       if (p.k === 'smoke' || p.k === 'dust') { p.vx *= 0.96; p.vy *= 0.96; p.size += p.grow * dt; }
       else if (p.k === 'spark' || p.k === 'debris' || p.k === 'leaf') { p.vx *= 0.92; p.vy *= 0.92; }
-      else if (p.k === 'turret') { p.rot += p.vr * dt; p.vr *= 0.98; if (p.life <= dt * 1.5) { stampCrater(p.x, p.y, 14); addDust(p.x, p.y); turretWreck(p); p.life = 0; } }
+      else if (p.k === 'turret') {
+        p.rot += p.vr * dt; p.vr *= 0.98; p.ax += p.wx * dt; p.ay += p.wy * dt; p.vz -= G * dt; p.z += p.vz * dt;
+        if (p.z <= p.rest && p.vz < 0) { stampCrater(p.x, p.y, 14); addDust(p.x, p.y); turretWreck(p); p.life = 0; }
+      }
     }
     for (let i = veils.length - 1; i >= 0; i--) if ((veils[i].life -= dt) <= 0) veils.splice(i, 1);
     for (let i = smokes.length - 1; i >= 0; i--) {
@@ -3752,6 +3764,7 @@ Meta.whenReady(() => {
     updateRunners(dt);
     updateParts(dt);
     updateFlares(dt);
+    updateFalls3(dt);
     if (state === 'play' && mode === 'survie') {
       // les épaves refroidies disparaissent (obstacles, fumées et calculs en moins)
       for (let i = tanks.length - 1; i >= 0; i--) {
@@ -3795,6 +3808,95 @@ Meta.whenReady(() => {
   }
 
   let last = performance.now(), acc = 0, viewerT = 0, errRun = 0, errLogged = false, dbgFreeze = false;
+  // ===================== Destruction animée (3D) =====================
+  // Arbres qui tombent (tige pivotant sur sa souche), maisons qui s'affaissent et leurs éclats de
+  // maçonnerie. Purement visuel : l'état du jeu a déjà changé. Un arbre est ôté de sa cellule de décor
+  // pendant sa chute puis y revient couché ; sous une maison qui s'enfonce, les gravats sont déjà là.
+  let falls3 = [], debris3 = [], cube3 = null;
+  function rotAxis(kx, ky, kz, a) {
+    const c = Math.cos(a), s = Math.sin(a), t = 1 - c;
+    return new Float32Array([c + kx * kx * t, ky * kx * t + kz * s, kz * kx * t - ky * s, 0, kx * ky * t - kz * s, c + ky * ky * t, kz * ky * t + kx * s, 0, kx * kz * t + ky * s, ky * kz * t - kx * s, c + kz * kz * t, 0, 0, 0, 0, 1]);
+  }
+  // maillage d'un obstacle seul, intact (proche et commun à toutes les distances)
+  function soloMesh(o) {
+    const B = World3D.buildScene(L(), [Object.assign({}, o, { dead: false, falling: false, hp: Math.max(0, o.hp) })], PX, WW / PX, WH / PX, 0, World3D.obstacleCell(o, PX)).b;
+    return [B[0], B[3]].filter(b => b && b.n);
+  }
+  function fallTree(o) {
+    if (!W3D || !scene3On) return;
+    const a = -(o.fall || 0);
+    falls3.push({ o, mm: soloMesh(o).map(b => W3D.upload(b, false)), x: (o.x + 8) / PX, y: -(o.y + 8) / PX, k: [-Math.sin(a), Math.cos(a), 0], th: 0.04, w: 0, L: 8 * o.size, t: 0 });
+    o.falling = true;
+  }
+  // La maison s'enfonce de 70 % de sa hauteur en 1,2 s en penchant de 3° vers le souffle ; 25 à 40
+  // éclats rebondissent puis s'immobilisent ; un nuage de poussière roule au ras du sol.
+  function collapse3(o) {
+    if (!W3D || !scene3On) return false;
+    const bs = soloMesh(o), cx = (o.x + o.w / 2) / PX, cy = -(o.y + o.h / 2) / PX, lv = L();
+    let H = 3;
+    for (const b of bs) for (let i = 2; i < b.n; i += 10) H = Math.max(H, b.a[i]);
+    const a = Math.random() * TAU;
+    falls3.push({ house: true, mm: bs.map(b => W3D.upload(b, false)), x: cx, y: cy, k: [-Math.sin(a), Math.cos(a), 0], H, t: 0 });
+    if (!cube3) { const g = new G3.Builder(); g.box(0, 0, 0, 1, 1, 1, [1, 1, 1], 12); cube3 = W3D.upload(g); }
+    const wc = G3.hex(lv.wall), rc = G3.hex(lv.roof[0]), hw = o.w / PX / 2, hh = o.h / PX / 2;
+    for (let i = 0, n = 25 + Math.floor(Math.random() * 16); i < n; i++) {
+      const x = cx + rnd(-hw, hw), y = cy + rnd(-hh, hh), dx = x - cx, dy = y - cy, l = Math.hypot(dx, dy) || 1, v = rnd(1, 5), c = Math.random() < 0.7 ? wc : rc, k = rnd(0.6, 1);
+      debris3.push({ x, y, z: rnd(0.3, 0.9) * H, vx: dx / l * v, vy: dy / l * v, vz: rnd(2, 6), ax: 0, ay: 0, az: rnd(0, TAU), wx: rnd(-5, 5), wy: rnd(-5, 5), wz: rnd(-3, 3), s: rnd(0.3, 1.2), c: [c[0] * k, c[1] * k, c[2] * k, 0.85], rest: 0 });
+    }
+    if (debris3.length > 140) debris3.splice(0, debris3.length - 140);
+    const dc = G3.hex(lv.dust);
+    for (let i = 0; i < 30; i++) { const b = rnd(0, TAU), v = rnd(3, 8); P3({ x: o.x + o.w / 2, y: o.y + o.h / 2, z: rnd(0.3, 1.5), vx: Math.cos(b) * v, vy: Math.sin(b) * v, vz: rnd(0, 0.8), drag: 0.7, wind: 0.6, size: rnd(1, 2), grow: 2.5, life: rnd(4, 7), c: [dc[0], dc[1], dc[2], 0.5] }); }
+    return true;
+  }
+  function fallModel(f) {
+    const T = M4.trs(f.x, f.y, 0, 0), Ti = M4.trs(-f.x, -f.y, 0, 0);
+    if (!f.house) return M4.mul(T, M4.mul(rotAxis(f.k[0], f.k[1], 0, f.th), Ti));
+    const e = Math.min(1, f.t / 1.2) ** 2;
+    return M4.mul(T, M4.mul(rotAxis(f.k[0], f.k[1], 0, 0.052 * e), M4.mul(M4.trs(0, 0, -0.7 * f.H * e, 0), Ti)));
+  }
+  function updateFalls3(dt) {
+    for (const f of falls3) {
+      f.t += dt;
+      if (f.house) { if (f.t > 1.5) f.done = true; continue; }
+      // tige qui pivote sur sa base : θ'' = 3g / (2L) · sin θ, petit rebond à l'impact
+      f.w += 1.5 * G / f.L * Math.sin(f.th) * dt; f.th += f.w * dt;
+      if (f.th >= Math.PI / 2 - 0.03) {
+        f.th = Math.PI / 2 - 0.03;
+        if (!f.hit) {
+          f.hit = true;
+          const o = f.o, cx = o.x + 8 + Math.cos(o.fall) * f.L * 0.75 * PX, cy = o.y + 8 + Math.sin(o.fall) * f.L * 0.75 * PX, tc = G3.hex(L().tree[1]), dc = G3.hex(L().dust);
+          for (let i = 0; i < 24; i++) P3({ x: cx + rnd(-3, 3) * PX, y: cy + rnd(-3, 3) * PX, z: rnd(0.5, 3), vx: rnd(-2, 2), vy: rnd(-2, 2), vz: rnd(1, 4), g: 2.5, drag: 1.6, wind: 1, size: rnd(0.06, 0.12), life: rnd(1.5, 3), c: [tc[0], tc[1], tc[2], 1] });
+          for (let i = 0; i < 12; i++) { const b = i / 12 * TAU; P3({ x: cx, y: cy, z: 0.3, vx: Math.cos(b) * 3, vy: Math.sin(b) * 3, drag: 0.9, size: 0.7, grow: 1.2, life: rnd(2, 3.5), c: [dc[0], dc[1], dc[2], 0.35] }); }
+        }
+        f.w = -0.18 * f.w;
+        if (Math.abs(f.w) < 0.12 || f.t > 6) f.done = true;
+      }
+    }
+    for (const f of falls3) if (f.done) endFall3(f);
+    falls3 = falls3.filter(f => !f.done);
+    // tourelle arrachée : elle fume encore une vingtaine de secondes là où elle est tombée
+    for (const o of obstacles) if (o.type === 'wreck' && o.smokeT > 0) {
+      o.smokeT -= dt;
+      if (Math.random() < dt * 4) P3({ x: o.x + o.w / 2, y: o.y + o.h / 2, z: 0.6, vz: rnd(1, 2), drag: 0.4, g: -0.3, wind: 1.4, size: rnd(0.4, 0.7), grow: 0.7, life: rnd(4, 7), c: [0.12, 0.115, 0.11, 0.5 * Math.min(1, o.smokeT / 5)] });
+    }
+    // éclats : pesanteur, rebonds amortis, frottement au sol, puis immobiles
+    for (const d of debris3) {
+      if (d.rest > 1) continue;
+      d.vz -= G * dt; d.x += d.vx * dt; d.y += d.vy * dt; d.z += d.vz * dt;
+      d.ax += d.wx * dt; d.ay += d.wy * dt; d.az += d.wz * dt;
+      if (d.z < d.s * 0.4) {
+        d.z = d.s * 0.4; d.vz = Math.abs(d.vz) > 1 ? -d.vz * 0.2 : 0;
+        const fr = Math.exp(-6 * dt); d.vx *= fr; d.vy *= fr; d.wx *= fr; d.wy *= fr; d.wz *= fr;
+        if (Math.hypot(d.vx, d.vy, d.vz) < 0.2) d.rest += dt;
+      }
+    }
+  }
+  function endFall3(f) {
+    for (const m of f.mm) W3D0.free(m);
+    if (f.o) { f.o.falling = false; dirty3Obs(f.o); }
+  }
+  function clearFalls3() { for (const f of falls3) endFall3(f); falls3 = []; debris3 = []; }
+
   // Résolution dynamique du champ de bataille 3D. Moyenne glissante de la durée des images : au-delà
   // de 22 ms pendant 2 s, la scène est rendue plus petite (étirée par le CSS), par pas de 10 % jusqu'à
   // 60 % ; à 60 images/s stables, elle remonte d'un pas. Une remontée suivie d'une rechute en moins de
@@ -4312,7 +4414,16 @@ Meta.whenReady(() => {
         items.push({ mesh: MS.gun, model: gm, o });
       }
     }
-    for (const o of obstacles) if (o.type === 'wreck') { const P = to3(o.x + o.w / 2, o.y + o.h / 2); items.push({ mesh: MESH3[o.tid].turret, model: M4.trs(P[0], P[1], -TYPES[o.tid].S.ht + 0.05, -o.rot), o: { burnt: 1 } }); }
+    // tourelles arrachées, au sol (retournées ou non)
+    for (const o of obstacles) if (o.type === 'wreck') {
+      const P = to3(o.x + o.w / 2, o.y + o.h / 2), up = Math.abs(o.flip || 0) < 1;
+      const model = o.zc == null ? M4.trs(P[0], P[1], -TYPES[o.tid].S.ht + 0.05, -o.rot)
+        : M4.mul(M4.trs(P[0], P[1], up ? o.zc - TYPES[o.tid].S.ht + 0.05 : o.rest + 0.05, -o.rot), M4.mul(rotXm(o.flip), M4.trs(0, 0, -o.zc, 0)));
+      items.push({ mesh: MESH3[o.tid].turret, model, o: { burnt: 1 }, cull: [P[0], P[1], 1, 4] });
+    }
+    // arbres qui tombent, maisons qui s'affaissent, éclats
+    for (const f of falls3) { const m = fallModel(f); for (const mm of f.mm) items.push({ mesh: mm, model: m, o: {} }); }
+    for (const d of debris3) items.push({ mesh: cube3, model: M4.mul(M4.trs(d.x, d.y, d.z, d.az, d.s), M4.mul(rotXm(d.ax), rotYm(d.ay))), o: { tint: d.c }, cull: [d.x, d.y, d.z, d.s] });
     if (CMDR3) for (const r of runners) {
       const P = to3(r.x, r.y), dir = Math.sign(r.tx - r.x) || 1;
       items.push({ mesh: CMDR3, model: M4.trs(P[0], P[1], 0.84 + Math.abs(Math.sin(r.ph)) * 0.05, -Math.atan2(Math.sin(r.a), dir * Math.cos(r.a))), o: {} });
@@ -4355,9 +4466,8 @@ Meta.whenReady(() => {
           break;
         }
         case 'turret': {
-          // la tourelle est modélisée à la hauteur du toit de caisse : elle retombe au sol
-          const up = Math.sin(age * Math.PI) * 9 - p.tank.T.S.ht * age;
-          items.push({ mesh: MESH3[p.tank.T.id].turret, model: M4.trs(P[0], P[1], up, -p.rot), o: { burnt: 1 } });
+          // modèle à la hauteur du toit de caisse : recentré sur son milieu pour culbuter
+          items.push({ mesh: MESH3[p.tank.T.id].turret, model: M4.mul(M4.trs(P[0], P[1], p.z, -p.rot), M4.mul(rotXm(p.ax), M4.mul(rotYm(p.ay), M4.trs(0, 0, -p.zc, 0)))), o: { burnt: 1 } });
           break;
         }
       }
@@ -6011,7 +6121,7 @@ Meta.whenReady(() => {
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height);
     if (W3D0) {
       for (const t of tanks) if (t.scar3) { W3D0.free(t.scar3.hull); W3D0.free(t.scar3.turret); t.scar3 = null; }
-      W3D0.clearCells(); scene3On = false; dirty3.clear();
+      clearFalls3(); W3D0.clearCells(); scene3On = false; dirty3.clear();
     }
     groundCv = gctx = null; dirtyTiles.clear();
   }
@@ -6265,7 +6375,7 @@ Meta.whenReady(() => {
   if (Q.has('debug')) {
     window.__fa = {
       get tanks() { return tanks; }, get state() { return state; }, get stats() { return waveStats; }, get shells() { return shells; },
-      get time() { return gameTime; }, get player() { return player; }, get bushes() { return bushes; }, get w3d() { return W3D; }, launchFlare, get flares() { return flares; }, get obstacles() { return obstacles; }, barrelHit, cam3, sight, setSight, sightProbe, get mode() { return mode; }, get survWave() { return survWave; }, dyn, hitcam: HitCam, TYPES, SHELLS, bench, benchFire,
+      get time() { return gameTime; }, get player() { return player; }, get bushes() { return bushes; }, get w3d() { return W3D; }, get falls3() { return falls3; }, damageObstacle, knockTree, get debris3() { return debris3; }, launchFlare, get flares() { return flares; }, get obstacles() { return obstacles; }, barrelHit, cam3, sight, setSight, sightProbe, get mode() { return mode; }, get survWave() { return survWave; }, dyn, hitcam: HitCam, TYPES, SHELLS, bench, benchFire,
       // test : tir forcé du joueur sur la cible la plus proche
       fireAt(i, key) {
         const e = tanks.filter(t => t.team === 1 && !t.dead)[i || 0];

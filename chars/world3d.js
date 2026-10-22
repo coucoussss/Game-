@@ -973,6 +973,7 @@ void main(){
     if (!extras) for (const o of obstacles) {
       if (o.type === 'wreck') continue; // tourelle arrachée : dessinée par le jeu avec son modèle
       if (only != null && obstacleCell(o, px) !== only) continue;
+      if (o.falling) continue; // arbre en train de tomber : dessiné à part par le jeu
       s = ((Math.round(o.x) * 73856093) ^ (Math.round(o.y) * 19349663)) >>> 0 || 1;
       if (o.type === 'tree') cellAt(M(o.x + 8), Yv(o.y + 8)); else cellAt(M(o.x + o.w / 2), Yv(o.y + o.h / 2));
       if (o.type === 'tree') tree(M(o.x + 8), Yv(o.y + 8), o.size, o.dead, -(o.fall || 0));
