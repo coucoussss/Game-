@@ -169,13 +169,15 @@ Meta.whenReady(() => {
       trees: 45, treeCl: 6, bushes: 34, buildings: 6, walls: 9, rocks: 8,
       tree: ['#36521f', '#4a6a2b'], bush: '#4c6b2a', wall: '#a59a86', roof: ['#8a4f3a', '#73402f'],
       waves: [W_('light', 'light', 'medium', 'light', 'medium'), W_('pz4', 'light', 'medium', 'stug', 'light'), W_('pz4', 'medium', 'heavy', 'stug', 'medium')],
+      forms: [['line', 'wedge'], ['late', 'pincer'], ['wedge', 'ambush', 'late']],
     },
     {
       forest: true, name: 'Ardennes Forest', when: 'Ardennes · 16 December 1944', soils: ['forest', 'track'], mud: 14, soil: 'muddy undergrowth', gRic: 0.5, atm: { T: 8, rho: 1.25, wind: 1.5 }, sub: 'Dense undergrowth, close-quarters fighting',
       ground: ['#4c5c30', '#425228', '#58693a'], road: '#6d5d3f', dust: '#6b6a48', track: 'rgba(25,25,10,0.2)',
       trees: 150, treeCl: 14, bushes: 70, buildings: 3, walls: 4, rocks: 10,
       tree: ['#24401a', '#335726'], bush: '#3a5a22', wall: '#8f8a7a', roof: ['#5a4a3a', '#4a3c30'],
-      waves: [W_('medium', 'light', 'medium', 'light', 'medium'), W_('pz4', 'medium', 'heavy', 'stug', 'destroyer'), W_('heavy', 'medium', 'medium', 'destroyer', 'light')],
+      waves: [W_('medium', 'light', 'medium', 'light', 'medium'), W_('pz4', 'medium', 'heavy', 'stug', 'destroyer'), W_('heavy', 'medium', 'medium', 'destroyer', 'stug')],
+      forms: [['line', 'pincer'], ['ambush', 'late'], ['ambush', 'wedge']],
     },
     {
       name: 'Stalingrad Ruins', when: 'Stalingrad · January 1943', soils: ['rubble', 'road'], soil: 'rubble', gRic: 1, atm: { T: -5, rho: 1.31, wind: 4 }, sub: 'Ruined streets, destructible buildings', city: true,
@@ -183,6 +185,7 @@ Meta.whenReady(() => {
       trees: 8, treeCl: 2, bushes: 10, buildings: 0, walls: 12, rocks: 4,
       tree: ['#3c4a2a', '#4a5a34'], bush: '#4a5530', wall: '#8f877b', roof: ['#7a7268', '#686057'],
       waves: [W_('medium', 'heavy', 'medium', 'light', 'medium'), W_('heavy', 'pz4', 'destroyer', 'medium', 'kingtiger'), W_('heavy', 'heavy', 'destroyer', 'medium', 'medium')],
+      forms: [['line', 'pincer'], ['wedge', 'late'], ['pincer', 'ambush']],
     },
     {
       desert: true, name: 'El Alamein Desert', when: 'Tel el Aqqaqir · 2 November 1942', soils: ['sand', 'track'], soil: 'sand', gRic: 0.4, atm: { T: 35, rho: 1.15, wind: 5 }, sub: 'Open terrain, long-range shooting',
@@ -190,6 +193,7 @@ Meta.whenReady(() => {
       trees: 0, treeCl: 1, bushes: 16, buildings: 5, walls: 5, rocks: 36,
       tree: ['#5a6a2a', '#6a7a3a'], bush: '#8c8a4a', wall: '#d8c7a0', roof: ['#e0d2ad', '#cdbd96'],
       waves: [W_('destroyer', 'medium', 'light', 'destroyer', 'medium'), W_('heavy', 'destroyer', 'stug', 'destroyer', 'pz4'), W_('heavy', 'heavy', 'destroyer', 'destroyer', 'medium')],
+      forms: [['ambush', 'line'], ['ambush', 'late'], ['wedge', 'pincer']],
     },
     {
       name: 'Bastogne Night', when: 'Bastogne · 26 December 1944', soils: ['snow', 'packed'], soil: 'snow', gRic: 0.5, atm: { T: -10, rho: 1.34, wind: 2.5 }, sub: 'Snow and darkness, reduced vision', night: true,
@@ -197,6 +201,7 @@ Meta.whenReady(() => {
       trees: 95, treeCl: 10, bushes: 34, buildings: 8, walls: 6, rocks: 6,
       tree: ['#203828', '#2c4a36'], bush: '#3c5a46', wall: '#9a958c', roof: ['#eef3f6', '#d8e0e6'], snow: true,
       waves: [W_('medium', 'heavy', 'medium', 'light', 'heavy'), W_('heavy', 'heavy', 'destroyer', 'medium', 'medium'), W_('kingtiger', 'heavy', 'kingtiger', 'destroyer', 'destroyer')],
+      forms: [['wedge', 'line'], ['late', 'ambush'], ['wedge', 'ambush']],
     },
   ];
   const WAVES = 3;
@@ -761,18 +766,34 @@ Meta.whenReady(() => {
     return 'queued';
   }
 
+  // Habileté de l'IA ennemie : un seul multiplicateur (futur réglage de difficulté), appliqué à chaque
+  // apparition ; 1 = réglage d'origine
+  let aiSkillK = 1;
+  const aiSkill = s => clamp(s * aiSkillK, 0.1, 0.98);
+  // Dispositifs d'attaque de la campagne : places [recul depuis le bord est, décalage vertical, délai
+  // d'entrée en s], du plus lourd au plus léger. « late » : deux chars débouchent du coin nord-est
+  // 40 s plus tard ; « ambush » : les chasseurs de chars attendent dans des buissons à mi-terrain.
+  const FORMS = {
+    line: [[0, 0], [60, -150], [60, 150], [0, -300], [0, 300]],
+    wedge: [[0, 0], [80, -100], [80, 100], [160, -200], [160, 200]],
+    pincer: [[120, 0], [0, -480], [0, 480], [60, -560], [60, 560]],
+    late: [[0, 0], [60, -150], [60, 150], [0, -650, 40], [60, -590, 40]],
+    ambush: [[0, 0], [60, -150], [60, 150], [0, -300], [0, 300]],
+  };
+  const HEAVY = ['kingtiger', 'heavy', 'destroyer', 'medium', 'stug', 'pz4', 'light'];
+  let reinf = [];
   function spawnWave() {
     if (W3D0) for (const t of tanks) if (t.scar3) { W3D0.free(t.scar3.hull); W3D0.free(t.scar3.turret); }
     reviveT = 0; reviveUsed = false;
     tanks = []; shells = []; bullets = []; smokes = []; texts = []; feed = []; parts = []; logs = []; runners = []; ribbons = [];
     if (obstacles.some(o => o.type === 'wreck')) { obstacles = obstacles.filter(o => o.type !== 'wreck'); buildGrid(); }
-    orders = { kind: 'free', pos: null, target: null, t: 0 };
+    orders = { kind: 'free', pos: null, target: null, t: 0 }; reinf = [];
     spotted[0].clear(); spotted[1].clear(); seenAt.clear(); artyMarks = []; contactT = [0, 0]; artyT = [0, 0];
     HitCam.stop();
     const lv = L();
     const allyTypes = levelIdx < 2 ? ['pz4', 'light', 'medium', 'stug'] : levelIdx < 4 ? ['medium', 'heavy', 'destroyer', 'pz4'] : ['kingtiger', 'medium', 'stug', 'heavy'];
     const enemyTypes = lv.waves[waveIdx];
-    const eSkill = Math.min(0.95, 0.3 + levelIdx * 0.14 + waveIdx * 0.04);
+    const eSkill = aiSkill(Math.min(0.95, 0.3 + levelIdx * 0.14 + waveIdx * 0.04));
     const aSkill = Math.min(0.7, 0.5 + levelIdx * 0.05);
     const slots = [-300, -150, 0, 150, 300];
     const aT = [allyTypes[0], allyTypes[1], chosenType, allyTypes[2], allyTypes[3]];
@@ -782,7 +803,7 @@ Meta.whenReady(() => {
       player = makeTank(chosenType, 0, 200, WH / 2, 0, true, 'You', aSkill);
       tanks.push(player);
       if (mode === 'duel') {
-        const t = makeTank(chosenType, 1, WW - 200, WH / 2 + rnd(-300, 300), Math.PI, false, 'Enemy 1', 0.85);
+        const t = makeTank(chosenType, 1, WW - 200, WH / 2 + rnd(-300, 300), Math.PI, false, 'Enemy 1', aiSkill(0.85));
         t.ai.laneY = clamp(t.y + rnd(-200, 200), 150, WH - 150);
         tanks.push(t); enemyN = 1;
       } else { survWave = 1; nextWaveT = 0; survivalEnemies(survWave); }
@@ -793,15 +814,30 @@ Meta.whenReady(() => {
       tanks.push(t);
       if (isP) player = t;
     }
-    if (mode === 'campagne') for (let i = 0; i < 5; i++) {
-      const t = makeTank(enemyTypes[i], 1, WW - 200 - (i % 2) * 60, WH / 2 + slots[i], Math.PI, false, 'Enemy ' + (i + 1), eSkill);
-      t.ai.laneY = clamp(t.y + rnd(-200, 200), 150, WH - 150);
-      tanks.push(t);
+    if (mode === 'campagne') {
+      // dispositif tiré au sort parmi ceux de la vague, retourné une fois sur deux ; les plus lourds aux
+      // premières places
+      const fl = (lv.forms && lv.forms[waveIdx]) || ['line'], f = fl[Math.floor(Math.random() * fl.length)], F = FORMS[f], sg = Math.random() < 0.5 ? 1 : -1, used = [];
+      enemyTypes.slice().sort((a, b) => HEAVY.indexOf(a) - HEAVY.indexOf(b)).forEach((type, i) => {
+        const q = F[i], name = 'Enemy ' + (i + 1);
+        let x = WW - 200 - q[0], y = WH / 2 + sg * q[1], post = null;
+        if (f === 'ambush' && ROLES[type] === 'ambush') {
+          // chasseur de chars posté d'avance dans un buisson à mi-terrain, loin des autres postes
+          const bs = bushes.filter(b => b.x > WW * 0.45 && b.x < WW * 0.62 && !blocked(cellOf(b.x, b.y)) && used.every(u => Math.abs(u.y - b.y) > 250)), b = bs[Math.floor(Math.random() * bs.length)];
+          if (b) { used.push(b); x = b.x; y = b.y; post = { x: b.x, y: b.y }; }
+        }
+        if (q[2]) { reinf.push({ type, x, y, at: q[2], name, skill: eSkill }); return; }
+        const t = makeTank(type, 1, x, clamp(y, 120, WH - 120), Math.PI, false, name, eSkill);
+        t.ai.laneY = clamp(t.y + rnd(-200, 200), 150, WH - 150);
+        if (post) { t.ai.post = post; t.ai.mode = 'ambush'; }
+        tanks.push(t);
+      });
     }
     camX = player.x + 300; camY = player.y;
     specIdx = 0;
     waveStats = { kills: 0, pens: 0, crew: 0, mods: 0, ffCrew: 0, tk: 0, hits: 0, shots: 0, ric: 0, dodged: 0, crits: 0, fires: 0, bailed: 0, saved: 0 };
     state = 'intro'; introT = 3.2; waveTime = 0;
+    if (mode === 'campagne' && waveIdx === 0) addLog('Radio orders: 8 attack my target · 9 follow me · 0 hold · N move there', '#bcd8ff');
     Meta.sdk.gameplayStart();
     msg = null;
   }
@@ -812,7 +848,7 @@ Meta.whenReady(() => {
   const SURV_SIDES = [[1, 0.5], [1, 0.12], [1, 0.88], [0.5, 0.1], [0.5, 0.9], [0, 0.5], [0, 0.12], [0, 0.88]];
   function survivalEnemies(n) {
     const pool = ['light', 'pz4', 'light', 'stug', 'medium', 'pz4', 'destroyer', 'heavy', 'kingtiger'];
-    const skill = Math.min(0.95, 0.3 + n * 0.06), px = player ? player.x : 200, py = player ? player.y : WH / 2;
+    const skill = aiSkill(Math.min(0.95, 0.3 + n * 0.06)), px = player ? player.x : 200, py = player ? player.y : WH / 2;
     let types;
     if (n % 5 === 0) types = ['kingtiger', 'pz4', 'pz4', 'heavy'].slice(0, 3 + (n >= 10));
     else if (n % 5 === 3) types = Array(Math.min(5, Math.ceil(n * 0.7) + 1)).fill('light');
@@ -1123,21 +1159,19 @@ Meta.whenReady(() => {
   }
 
   // Ordres radio (campagne) : 8 attaquer ma cible (20 s), 9 me suivre, 0 tenir la position, N aller au point
-  // visé ; la même touche une seconde fois rend la liberté de manœuvre. Seuls les chars dont la radio
-  // marche les reçoivent.
+  // visé ; le même ordre une seconde fois (même cible, même point) rend la liberté de manœuvre. Seuls les
+  // chars dont la radio marche les reçoivent.
   const ORDER_TXT = { free: 'As you were: free engagement', follow: 'Follow me', hold: 'Hold position', attack: 'Attack my target', move: 'Move to the marked point' };
   const ACK = ['Wilco', 'Roger', 'Understood', 'On my way'];
   function giveOrder(kind) {
     if (mode !== 'campagne' || state !== 'play') return;
     if (!radioOk(player)) { showMsg('Radio out: you cannot give orders', '#ff9a7a', 1.4); return; }
-    if (orders.kind === kind && kind !== 'attack' && kind !== 'move') kind = 'free';
     // point visé : sous le réticule, ou au bout de la ligne de visée à la lunette
     const pv = pivot(player), a = sight.on && sight.probe ? { x: pv.x + Math.cos(sight.aimYaw) * sight.probe.dist, y: pv.y + Math.sin(sight.aimYaw) * sight.probe.dist } : player.aim3 || player;
     let target = null, bd = 90;
-    if (kind === 'attack') {
-      for (const e of player.knows || spotted[0]) if (!e.dead) { const d = Math.hypot(e.x - a.x, e.y - a.y); if (d < bd) { bd = d; target = e; } }
-      if (!target) { showMsg('No spotted enemy under the reticle', '#ff9a7a', 1.2); return; }
-    }
+    if (kind === 'attack') for (const e of player.knows || spotted[0]) if (!e.dead) { const d = Math.hypot(e.x - a.x, e.y - a.y); if (d < bd) { bd = d; target = e; } }
+    if (orders.kind === kind && (kind === 'follow' || kind === 'hold' || kind === 'attack' && (!target || target === orders.target) || kind === 'move' && Math.hypot(a.x - orders.pos.x, a.y - orders.pos.y) < 80)) kind = 'free';
+    else if (kind === 'attack' && !target) { showMsg('No spotted enemy under the reticle', '#ff9a7a', 1.2); return; }
     orders = { kind, pos: kind === 'move' ? { x: clamp(a.x, 60, WW - 60), y: clamp(a.y, 60, WH - 60) } : null, target, t: kind === 'attack' ? 20 : 0 };
     showMsg(ORDER_TXT[kind], '#bcd8ff', 1.4);
     let n = 0;
@@ -1292,7 +1326,11 @@ Meta.whenReady(() => {
       }
       // ordres du joueur : place dans la formation, position tenue ou point désigné (il tire sur ce qu'il
       // voit sans s'en éloigner) ; un repli reste prioritaire
-      if (ordered && ai.state !== 'withdraw') { const od = orderDest(t); if (od) dest = dist(t, od) > 45 ? od : null; }
+      if (ordered && ai.state !== 'withdraw') {
+        const od = orderDest(t);
+        if (od) dest = dist(t, od) > 45 ? od : null;
+        if (od && !dest && orders.kind === 'move' && !orders.done) { orders.done = true; addLog(`${t.name}: in position`, '#9fd0ff'); }
+      }
       if (orders.kind !== 'hold') ai.holdPt = null;
       ai.dest = dest;
       if (dest) {
@@ -3651,7 +3689,17 @@ Meta.whenReady(() => {
         }
       }
     } else if (state === 'play') {
-      const a = tanks.some(t => t.team === 0 && !t.dead) || revivePending(), e = tanks.some(t => t.team === 1 && !t.dead);
+      // renforts ennemis : ils débouchent à l'heure prévue
+      for (let i = reinf.length - 1; i >= 0; i--) {
+        const r = reinf[i];
+        if (waveTime < r.at) continue;
+        reinf.splice(i, 1);
+        const t = makeTank(r.type, 1, r.x, clamp(r.y, 120, WH - 120), Math.PI, false, r.name, r.skill);
+        t.ai.laneY = clamp(t.y + rnd(-200, 200), 150, WH - 150);
+        tanks.push(t);
+        if (!i) addLog(`Radio: enemy reinforcements to the ${r.y < WH / 2 ? 'north' : 'south'}-east`, '#ff9a7a');
+      }
+      const a = tanks.some(t => t.team === 0 && !t.dead) || revivePending(), e = reinf.length || tanks.some(t => t.team === 1 && !t.dead);
       if (!a || !e) { state = 'ending'; endT = 3.5; waveResult = a ? 'win' : 'lose'; showMsg(a ? 'WAVE WON' : 'WAVE LOST', a ? '#b8e07a' : '#ff7a5c', 3); }
     } else if (state === 'ending') {
       endT -= dt;
@@ -6068,7 +6116,7 @@ Meta.whenReady(() => {
         shells.push(s);
         return s;
       },
-      giveOrder, get orders() { return orders; },
+      giveOrder, get orders() { return orders; }, get aiSkillK() { return aiSkillK; }, set aiSkillK(k) { aiSkillK = k; },
       place(t, x, y, angle, turret) { t.x = x; t.y = y; t.angle = angle; if (turret != null) t.turret = turret; t.vx = t.vy = t.speed = 0; },
       get meta() { return Meta.P; },
       kill(i, det) { const e = tanks.filter(t => t.team === 1 && !t.dead)[i || 0]; if (e) destroyTank(e, player, !!det); return !!e; },
