@@ -3866,7 +3866,8 @@ Meta.whenReady(() => {
       const d = document.createElement('div');
       d.className = 'card mode' + (id === mode ? ' sel' : '');
       d.innerHTML = `<div class="em">${MODE_EM[id]}</div><div><b>${M.name}</b><small>${M.sub}${id === 'survie' && P.survBest ? ` · best: wave ${P.survBest}` : ''}</small></div>`;
-      d.onclick = () => { mode = id; buildMenu(); };
+      // retour en campagne : un secteur verrouillé choisi dans un autre mode n'y reste pas sélectionné
+      d.onclick = () => { mode = id; if (id === 'campagne') levelIdx = Math.min(levelIdx, unlockedIdx()); buildMenu(); };
       mc.appendChild(d);
     }
     const lc = $('levelCards'); lc.innerHTML = '';
@@ -4070,7 +4071,7 @@ Meta.whenReady(() => {
   document.querySelectorAll('.tab').forEach(b => b.onclick = () => {
     document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === b));
     document.querySelectorAll('.panel').forEach(x => x.classList.toggle('on', x.id === 'tab-' + b.dataset.tab));
-    Sfx.init(); playMusic();
+    Sfx.init(); playMusic(); newDay();
   });
   $('spinFree').onclick = () => { if (Meta.canSpinFree()) spinWheel(true); };
   $('spinAd').onclick = () => Meta.rewarded(() => spinWheel(false), () => toast('Ad unavailable right now'));
@@ -4111,8 +4112,7 @@ Meta.whenReady(() => {
     levelIdx = 0; mode = 'campagne'; chosenType = 'pz4'; skinPreview = null;
     applyOptions(); buildMenu();
     toast('Progress erased');
-    const b = Meta.dailyRoll();
-    if (b) setTimeout(() => toast(`Daily login · day ${Meta.P.streak}: +✪ ${fmt(b)}`), 600);
+    setTimeout(newDay, 600);
   });
   Meta.hooks.change = () => { if (state === 'menu') updateTopbar(); };
   Meta.hooks.adStart = () => { Sfx.setMuted(true); stopMusic(); releaseInput(); Meta.sdk.gameplayStop(); };
@@ -4309,7 +4309,12 @@ Meta.whenReady(() => {
     HitCam.stop(); setSight(false);
     Meta.sdk.gameplayStop();
     freeBattle();
-    buildMenu(); show('menu'); playMusic();
+    buildMenu(); show('menu'); playMusic(); newDay();
+  }
+  // nouveau jour pendant la session : missions renouvelées et prime de présence annoncée
+  function newDay() {
+    const b = Meta.dailyRoll();
+    if (b) { buildMenu(); toast(`Daily login · day ${Meta.P.streak}: +✪ ${fmt(b)}`); }
   }
   // Retour au menu : interface effacée, décor 3D et texture du sol libérés (des dizaines de Mo de
   // tampons dans les Ardennes) ; la prochaine bataille les reconstruit (genMap, setup3D)

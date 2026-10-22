@@ -317,8 +317,11 @@ const Meta = (() => {
   }
 
   // ===================== Missions et série =====================
+  // Passage au jour suivant : nouvelles missions et prime de présence. Appelée au démarrage, au retour
+  // au menu et à chaque changement d'onglet (une session peut passer minuit) ; sans effet le même jour.
   function dailyRoll() {
     const d = today();
+    if (P.missionsDay === d && P.streakDay === d) return 0;
     if (P.missionsDay !== d) {
       const pool = MISSIONS.slice(), pick = [];
       while (pick.length < 3) pick.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
