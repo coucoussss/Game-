@@ -725,7 +725,7 @@ Meta.whenReady(() => {
   function resupply(t) {
     for (const k of SHELL_KEYS) t.ammo[k] = Math.min(t.T.ammo[k], t.ammo[k] + Math.ceil(t.T.ammo[k] * 0.5));
     for (const m of t.mods) if (m.kind !== 'crew') m.hp = m.max0;
-    t.rep = {}; t.trackT = 0; t.fireT = 0; t.wheelK = 1; t.smoke = Math.min(2, t.smoke + 1);
+    t.rep = {}; t.trackT = 0; t.fireT = 0; t.wheelK = 1; t.smoke = Math.min(2, t.smoke + 1); t.noFuel = false; t.fuelOutT = null; t.bentT = 0;
     if (t.ammo[t.shell] <= 0) t.shell = nextShell(t);
   }
 
@@ -1145,18 +1145,31 @@ Meta.whenReady(() => {
     }
     if (t.fireT > 0) {
       t.fireT -= dt;
-      const crew = t.mods.filter(m => m.kind === 'crew' && m.hp > 0);
-      if (crew.length) modDamage(t, crew[Math.floor(Math.random() * crew.length)], 11 * dt, t.fireBy);
+      // extincteur automatique du compartiment moteur (Tiger, Panther, Tigre royal) : une seule décharge
+      t.burnT += dt;
+      if (t.fireBay && t.T.D.ext && !t.extAuto && t.burnT > 1) { t.extAuto = true; quench(t, 'Automatic extinguisher discharged'); }
+      const sev = t.fireSev || 1, crew = t.mods.filter(m => m.kind === 'crew' && m.hp > 0);
+      if (crew.length) modDamage(t, crew[Math.floor(Math.random() * crew.length)], 11 * sev * dt, t.fireBy);
       const eng = modOf(t, 'engine');
-      if (eng.hp > 0) modDamage(t, eng, 5 * dt, t.fireBy);
-      if (Math.random() < 30 * dt) addFire(t.x + rnd(-10, 10), t.y + rnd(-8, 8));
-      burnFx(t, dt, 1);
-      if (Math.random() < dt * 0.012) { if (t === player) addLog('The ammunition cooks off in the fire!', '#ff6a5a'); destroyTank(t, t.fireBy, true); return; }
+      if (eng.hp > 0) modDamage(t, eng, 5 * sev * dt, t.fireBy);
+      if (Math.random() < 30 * sev * dt) addFire(t.x + rnd(-10, 10), t.y + rnd(-8, 8));
+      burnFx(t, dt, 0.4 + 0.6 * sev);
+      if (Math.random() < dt * 0.012 * sev) { if (t === player) addLog('The ammunition cooks off in the fire!', '#ff6a5a'); destroyTank(t, t.fireBy, true); return; }
       if (t.fireT <= 0 && t === player) addLog('Fire extinguished', '#bcd8ff');
       checkKnock(t, t.fireBy);
     }
   }
 
+  // Incendie de gravité sev (0..1 : moteur 0,5, essence 0,8, charges propulsives 1), de 6 à 20 s ; un feu
+  // du compartiment moteur (bay) arrête le moteur tant qu'il brûle
+  function startFire(t, sev, bay, by) {
+    t.fireSev = sev; t.fireT = 6 + 14 * sev; t.fireBay = bay; t.fireBy = by; t.burnT = 0;
+  }
+  // extincteur : la gravité et la durée restantes tombent de 70 %
+  function quench(t, msg) {
+    t.fireSev *= 0.3; t.fireT *= 0.3;
+    if (t === player) addLog(msg, '#bcd8ff');
+  }
   // Char en feu : flammes sur le compartiment moteur, colonne de fumée noire d'huile et de caoutchouc,
   // qui monte (gaz chauds) puis s'étale et dérive avec le vent ; elle grisaille quand le feu baisse
   function burnFx(t, dt, k) {
@@ -1185,6 +1198,19 @@ Meta.whenReady(() => {
     t.sus.vr += J * h / t.T.Ir * dirY * 3;
   }
   const DRV = {};
+  // Organes de mobilité : boîte bloquée qui finit par casser (1 % par seconde), réservoirs tous percés
+  // (le moteur s'arrête 20 à 40 s plus tard)
+  function mobility(t, dt) {
+    const tf = modOf(t, 'trans'), fuel = t.mods.filter(m => m.kind === 'fuel');
+    if (tf.hp > 0 && tf.hp < tf.max0 * 0.3) {
+      if (!t.grind) { t.grind = true; if (t === player) { addLog('Gearbox damaged: stuck in gear', '#ffb070'); Sfx.clang(0); } }
+      if (Math.random() < 0.01 * dt) { modDamage(t, tf, tf.hp, null); if (t === player) addLog('The gearbox has failed', '#ff6a5a'); }
+    } else t.grind = false;
+    if (!t.noFuel && fuel.length && fuel.every(m => m.hp <= 0)) {
+      if (t.fuelOutT == null) { t.fuelOutT = rnd(20, 40); if (t === player) addLog('Fuel tanks holed: the engine will stop soon', '#ffb070'); }
+      else if ((t.fuelOutT -= dt) <= 0) { t.noFuel = true; if (t === player) addLog('Out of fuel: engine stopped', '#ff6a5a'); }
+    }
+  }
   // Tourelles : vitesses réelles (TRAV_K = 1) ; TRAV_K est le réglage arcade si les essais le demandent.
   // TRAV_ACC : accélération angulaire de la tourelle (rad/s²)
   const TRAV_K = 1, TRAV_ACC = 30 * D2R;
@@ -1211,8 +1237,13 @@ Meta.whenReady(() => {
     if (t.dead) return;
     const T = t.T, D = T.D, inp = t.in;
     if (t.trackT > 0) t.trackT -= dt;
-    const driverOk = roleOk(t, 'driver'), engOn = modOk(t, 'engine'), canDrive = driverOk && engOn && modOk(t, 'trans');
-    const eng = modOf(t, 'engine'), engK = eng.hp < eng.max0 * 0.5 ? 0.6 : 1;
+    mobility(t, dt);
+    const driverOk = roleOk(t, 'driver'), engOn = modOk(t, 'engine') && !t.noFuel && !(t.fireT > 0 && t.fireBay), canDrive = driverOk && engOn && modOk(t, 'trans');
+    // puissance selon l'état du moteur ; en dessous de 40 %, des ratés coupent la puissance un instant
+    const eng = modOf(t, 'engine'), ef = Math.max(0, eng.hp) / eng.max0;
+    t.misT = (t.misT || 0) - dt;
+    if (ef < 0.4 && t.misT < -1 && Math.random() < dt * 1.5 * (1 - ef)) t.misT = 0.3;
+    const engK = (0.35 + 0.65 * ef) * (t.misT > 0 ? 0.3 : 1);
     // optiques : l'équipage remplace la visière ou l'épiscope brisé ; le chef rentre sous le feu
     for (const k in t.optic) if (t.optic[k] > 0 && (t.optic[k] -= dt) <= 0 && t === player) addLog(`${OPTIC_NAMES[k]} replaced`, '#a6f08a');
     t.underFire -= dt;
@@ -1233,7 +1264,9 @@ Meta.whenReady(() => {
     c.vCap = D.top * gov / D.gov * (t.wheelK || 1) * (t.optic.driver > 0 ? 0.7 : 1) * 1.02;
     // chenille cassée : la chenille intacte entraîne seule, ses roues labourent le sol
     c.vBroken = clamp(1.6 - T.mass / 100, 0.9, 1.5) / 2;
-    c.maxGear = 9; c.stuck = false;
+    // boîte abîmée : le dernier rapport est perdu sous 60 %, la boîte se bloque sur un rapport sous 30 %
+    const tf = modOf(t, 'trans'), tq = tf.hp / tf.max0;
+    c.maxGear = tq < 0.6 ? D.gears.length - 1 : 9; c.stuck = tq < 0.3;
     // tourelle hydraulique à l'arrêt : le pilote fait monter le régime pour que la pompe la tourne vite
     c.rev = D.trav.kind === 'hyd' && t.travWant && Math.abs(t.speed) < 0.5 * PX ? 0.9 : 0;
     t.bumpK = 1 + ((gR.bump || 0) + (gL.bump || 0)) / 2;
@@ -1322,10 +1355,10 @@ Meta.whenReady(() => {
       const pv = pivot(t), ta = t.angle + t.turret;
       P3({ x: pv.x + Math.cos(ta) * T.gunEnd, y: pv.y + Math.sin(ta) * T.gunEnd, z: T.S.gun.z, vz: rnd(0.3, 0.8), drag: 1, g: -0.15, wind: 1, size: rnd(0.08, 0.15), grow: 0.35, life: rnd(1.5, 2.5), c: [0.7, 0.7, 0.68, 0.3] });
     }
-    // moteur endommagé : fumée grise qui sort des grilles
+    // moteur endommagé : fumée grise qui sort des grilles, noire quand il rate
     if (eng.hp < eng.max0 * 0.5 && Math.random() < dt * 5) {
-      const c = Math.cos(t.angle), sn = Math.sin(t.angle);
-      P3({ x: t.x - c * T.len * 0.32 + rnd(-4, 4), y: t.y - sn * T.len * 0.32 + rnd(-4, 4), z: T.S.ht, vz: rnd(0.8, 1.6), drag: 0.8, g: -0.25, wind: 1.2, size: rnd(0.25, 0.4), grow: 0.6, life: rnd(2, 3.5), c: [0.3, 0.3, 0.3, 0.45] });
+      const c = Math.cos(t.angle), sn = Math.sin(t.angle), g = ef < 0.4 ? 0.1 : 0.3;
+      P3({ x: t.x - c * T.len * 0.32 + rnd(-4, 4), y: t.y - sn * T.len * 0.32 + rnd(-4, 4), z: T.S.ht, vz: rnd(0.8, 1.6), drag: 0.8, g: -0.25, wind: 1.2, size: rnd(0.25, 0.4), grow: 0.6, life: rnd(2, 3.5), c: [g, g, g, 0.45] });
     }
     t.flash = Math.max(0, t.flash - dt);
     t.hitFlash = Math.max(0, t.hitFlash - dt);
@@ -2293,7 +2326,7 @@ Meta.whenReady(() => {
   function applySim(t, sim, by, ev) {
     const before = new Map(t.mods.map(m => [m, m.hp]));
     for (const [m, h] of sim.hits) modDamage(t, m, h.dmg, by, true);
-    let detonate = false, fire = false, crewKilled = 0, crewHurt = false, detT = null;
+    let detonate = false, fire = 0, crewKilled = 0, crewHurt = false, detT = null;
     const lines = [];
     const timeOf = m => { const h = sim.hits.get(m); return h ? h.time : 0; };
     for (const m of t.mods) {
@@ -2303,25 +2336,28 @@ Meta.whenReady(() => {
       if (m.hp <= 0) { crewKilled++; lines.push({ t: `${m.name}: knocked out`, c: '#ff6a5a', time: timeOf(m) }); }
       else lines.push({ t: `${m.name}: wounded`, c: '#ffb070', time: timeOf(m) });
     }
+    // un réservoir déjà percé fuit : les coups suivants allument deux fois plus souvent le feu
+    const leakK = t.mods.some(m => m.kind === 'fuel' && before.get(m) <= 0) ? 2 : 1;
+    let bay = false; // feu dans le compartiment moteur (moteur, réservoirs)
     for (const m of t.mods) {
       const b = before.get(m);
       if (m.hp === b || m.kind === 'crew') continue;
       if (m.hp <= 0) {
         lines.push({ t: `${m.name}: destroyed`, c: '#ff6a5a', time: timeOf(m) });
-        if (m.kind === 'fuel' && Math.random() < 0.3) fire = true;
-        if (m.kind === 'engine' && Math.random() < 0.2) fire = true;
+        if (m.kind === 'fuel' && Math.random() < 0.3 * leakK) { fire = Math.max(fire, 0.8); bay = true; }
+        if (m.kind === 'engine' && Math.random() < 0.2 * leakK) { fire = Math.max(fire, 0.5); bay = true; }
       } else lines.push({ t: `${m.name}: damaged`, c: '#ffb070', time: timeOf(m) });
     }
     // charges propulsives enflammées : explosion des munitions (plus probable si les soutes sont pleines)
     if (sim.ignite.length) {
       const ig = sim.ignite.reduce((a, b) => (a.t < b.t ? a : b));
       if (Math.random() < 0.45 + 0.4 * ammoFrac(t)) { detonate = true; detT = ig.t + rnd(1.5e-3, 4e-3); }
-      else { fire = true; lines.push({ t: 'Propellant charges ignited', c: '#ff9a3a', time: ig.t }); }
+      else { fire = 1; lines.push({ t: 'Propellant charges ignited', c: '#ff9a3a', time: ig.t }); }
     }
-    if (sim.fuel != null) { fire = true; lines.push({ t: 'Fuel ignited', c: '#ff9a3a', time: sim.fuel }); }
+    if (sim.fuel != null) { fire = Math.max(fire, 0.8); bay = true; lines.push({ t: 'Fuel ignited', c: '#ff9a3a', time: sim.fuel }); }
     if (!lines.length) lines.push({ t: 'No module hit', c: '#c8c8c8', time: 0 });
-    if (!detonate && fire && !(t.fireT > 0)) { t.fireT = 8; t.fireBy = by; lines.push({ t: 'Fire!', c: '#ff9a3a', time: sim.tEnd * 0.8 }); }
-    else if (detonate) fire = false;
+    if (!detonate && fire && !(t.fireT > 0)) { startFire(t, fire, bay, by); lines.push({ t: 'Fire!', c: '#ff9a3a', time: sim.tEnd * 0.8 }); }
+    else if (detonate) fire = 0;
     if (detonate) { sim.tEnd = Math.max(sim.tEnd, detT + 6e-3); lines.push({ t: 'AMMO RACK: DETONATION', c: '#ff4a2a', time: detT }); }
     const knocked = detonate || crewAlive(t) < 2;
     if (knocked) lines.push({ t: 'TANK DESTROYED', c: '#ff4a2a', time: detonate ? detT : sim.tEnd * 0.9 });
@@ -4117,7 +4153,9 @@ Meta.whenReady(() => {
     if (player.trackT > 0) st.push(['Track ' + Math.ceil(player.trackT) + ' s', '#ffb070']);
     if ((player.wheelK || 1) < 1) st.push([`Wheels −${Math.round((1 - player.wheelK) * 100)}%`, '#ffb070']);
     if (player.bentT > 0) st.push(['Barrel bent', '#ffb070']);
-    if (player.fireT > 0) st.push(['ON FIRE', '#ff6a3a']);
+    if (player.fireT > 0) st.push([player.extUsed ? 'ON FIRE' : 'ON FIRE · T: extinguisher', '#ff6a3a']);
+    if (player.noFuel) st.push(['Out of fuel', '#ff6a5a']); else if (player.fuelOutT != null) st.push(['Fuel leak', '#ffb070']);
+    if (player.grind) st.push(['Gear stuck', '#ffb070']);
     if (!player.dead && player.revealT <= 0 && inBush(player)) st.push(['Concealed', '#a6f08a']);
     let sx2 = bx + 230;
     for (const [s, c] of st) { ctx.fillStyle = c; ctx.fillText(s, sx2, by + 15); sx2 += ctx.measureText(s).width + 12; }
@@ -4706,7 +4744,7 @@ Meta.whenReady(() => {
   function revivePlayer() {
     const t = player;
     if (!t || !t.dead || state !== 'play') return;
-    t.dead = false; t.deadT = 0; t.turretGone = false; t.fireT = 0; t.trackT = 0; t.wheelK = 1; t.speed = 0; t.vx = t.vy = t.vl = t.turnRate = 0; t.gear = 0;
+    t.dead = false; t.deadT = 0; t.turretGone = false; t.fireT = 0; t.trackT = 0; t.wheelK = 1; t.speed = 0; t.noFuel = false; t.fuelOutT = null; t.bentT = 0; t.extUsed = false; t.vx = t.vy = t.vl = t.turnRate = 0; t.gear = 0;
     for (const m of t.mods) m.hp = m.max0;
     for (const k of SHELL_KEYS) t.ammo[k] = Math.min(t.T.ammo[k], t.ammo[k] + Math.ceil(t.T.ammo[k] * 0.3));
     t.smoke = Math.max(t.smoke, 2); t.invulnT = 3; t.reloadT = 0;
@@ -5005,6 +5043,7 @@ Meta.whenReady(() => {
       }
     }
     if (e.code === 'KeyE' && state === 'play') deploySmoke(player);
+    if (e.code === 'KeyT' && state === 'play' && player && !player.dead && player.fireT > 0 && !player.extUsed) { player.extUsed = true; quench(player, 'Hand extinguisher used'); }
     if (e.code === 'KeyG') {
       const g = player.mg;
       if (g.type === 'SmK' && g.ammoH <= 0) showMsg('No S.m.K.H. belts left', '#ff9a7a', 1.2);
