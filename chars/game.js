@@ -207,7 +207,6 @@ Meta.whenReady(() => {
     W = innerWidth; H = innerHeight;
     cv.width = W * DPR; cv.height = H * DPR;
     cv.style.width = W + 'px'; cv.style.height = H + 'px';
-    dark.width = cv.width; dark.height = cv.height;
     S = clamp(Math.min(W / 1200, H / 740), 0.5, 1.6);
     redraw = true; // canevas vidés : image figée à redessiner
   }
@@ -2383,6 +2382,27 @@ Meta.whenReady(() => {
   }
 
   let last = performance.now(), acc = 0, viewerT = 0, errRun = 0, errLogged = false;
+  // Résolution dynamique du champ de bataille 3D. Moyenne glissante de la durée des images : au-delà
+  // de 22 ms pendant 2 s, la scène est rendue plus petite (étirée par le CSS), par pas de 10 % jusqu'à
+  // 60 % ; à 60 images/s stables, elle remonte d'un pas. Une remontée suivie d'une rechute en moins de
+  // 4 s double l'attente avant la suivante, pour ne pas osciller. Si trois pas de baisse (deux fois
+  // moins de pixels) n'ont rien gagné, c'est le processeur qui limite : la résolution revient et y reste.
+  const dyn = { k: 1, ema: 16.7, slow: 0, fast: 0, upWait: 3, upAt: -1e9, floor: 0.6, ref: null };
+  function dynRes(ms, dt) {
+    dyn.ema += (ms - dyn.ema) * 0.08;
+    if (dyn.ema > 22) { dyn.slow += dt; dyn.fast = 0; } else if (dyn.ema < 18) { dyn.fast += dt; dyn.slow = 0; } else dyn.slow = dyn.fast = 0;
+    const now = performance.now();
+    if (dyn.slow > 2 && dyn.k > dyn.floor) {
+      if (!dyn.ref) dyn.ref = { k: dyn.k, ema: dyn.ema };
+      else if (dyn.ref.k - dyn.k > 0.25 && dyn.ema > dyn.ref.ema * 0.9) { dyn.k = dyn.floor = dyn.ref.k; dyn.ref = null; dyn.slow = 0; return; }
+      if (now - dyn.upAt < 4000) dyn.upWait = Math.min(60, dyn.upWait * 2);
+      dyn.k = Math.round(dyn.k * 10 - 1) / 10; dyn.slow = 0; dyn.ema = 20;
+    } else if (dyn.fast > dyn.upWait && dyn.k < 1) {
+      dyn.k = Math.round(dyn.k * 10 + 1) / 10; dyn.fast = 0; dyn.upAt = now; dyn.ref = null;
+    }
+  }
+  // nouvelle qualité ou nouvelle carte : la mesure repart de zéro (la résolution acquise est gardée)
+  function dynReset(full) { if (full) { dyn.k = 1; dyn.upWait = 3; } dyn.floor = 0.6; dyn.ref = null; dyn.slow = dyn.fast = 0; }
   // Boucle principale : l'image suivante est demandée d'abord, et une exception n'arrête rien. Elle
   // est journalisée une fois ; si elle se répète 30 images de suite, retour au QG.
   function frame(now) {
@@ -2396,8 +2416,9 @@ Meta.whenReady(() => {
     }
   }
   function frameBody(now) {
-    const dt = Math.min(0.1, (now - last) / 1000);
+    const ms = now - last, dt = Math.min(0.1, ms / 1000);
     last = now;
+    if (W3D && state === 'play' && ms > 0 && ms < 1000) dynRes(Math.min(ms, 100), ms / 1000);
     if (state === 'intro' || state === 'play' || state === 'ending') {
       // ralenti pendant la caméra d'impact
       const slow = HitCam.active() && HitCam.time() < HitCam.phys ? 0.1 : 1;
@@ -2856,7 +2877,7 @@ Meta.whenReady(() => {
     }
     const tg = cam3.target;
     lights.sort((a, b) => Math.hypot(a.p[0] - tg[0], a.p[1] - tg[1]) / a.r - Math.hypot(b.p[0] - tg[0], b.p[1] - tg[1]) / b.r);
-    W3D.render({ cam: { eye: cam3.eye, target: cam3.target, vp: cam3.vp, view: cam3.view, time: gameTime, lights }, items, parts: { soft, glow }, shadowExt: sight.on ? 110 : Math.max(60, cam3.dist * 1.6) }, Math.round(W * DPR), Math.round(H * DPR));
+    W3D.render({ cam: { eye: cam3.eye, target: cam3.target, vp: cam3.vp, view: cam3.view, time: gameTime, lights }, items, parts: { soft, glow }, shadowExt: sight.on ? 110 : Math.max(60, cam3.dist * 1.6) }, Math.round(W * DPR * dyn.k), Math.round(H * DPR * dyn.k));
     // interface par-dessus
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, cv.width, cv.height);
@@ -3172,6 +3193,8 @@ Meta.whenReady(() => {
   }
 
   function drawNight() {
+    // voile de nuit de la vue 2D, alloué seulement quand il sert (20 Mo de moins en 3D à haute résolution)
+    if (dark.width !== cv.width || dark.height !== cv.height) { dark.width = cv.width; dark.height = cv.height; }
     dctx.setTransform(1, 0, 0, 1, 0, 0);
     dctx.globalCompositeOperation = 'source-over';
     dctx.clearRect(0, 0, dark.width, dark.height);
@@ -3403,6 +3426,11 @@ Meta.whenReady(() => {
     ctx.fillText(mode === 'survie' ? `Survival · ${lv.name} · Wave ${survWave}${nextWaveT > 0 ? ` · next in ${Math.ceil(nextWaveT)} s` : ''}`
       : mode === 'duel' ? `Duel · ${lv.name} · Round ${duelScore[0] + duelScore[1] + 1} · ${duelScore[0]} – ${duelScore[1]}`
       : `Sector ${levelIdx + 1} · ${lv.name} · Wave ${waveIdx + 1}/${WAVES}`, W / 2, 26);
+    if (DEV) { // ?debug : cadence et résolution dynamique du rendu 3D
+      ctx.textAlign = 'left'; ctx.font = '600 11px system-ui, sans-serif'; ctx.fillStyle = '#9fd0ff';
+      ctx.fillText(`${Math.round(1000 / dyn.ema)} fps · 3D ${Math.round(dyn.k * 100)}% · DPR ${DPR}`, 8, H - 8);
+      ctx.textAlign = 'center'; ctx.font = '600 14px system-ui, sans-serif';
+    }
     for (let team = 0; team < 2; team++) {
       const list = tanks.filter(t => t.team === team);
       list.forEach((t, i) => {
@@ -4094,7 +4122,7 @@ Meta.whenReady(() => {
   }
   $('oSfx').oninput = e => { Meta.P.opts.sfx = +e.target.value; Meta.save(); applyOptions(); };
   $('oMusic').oninput = e => { Meta.P.opts.music = +e.target.value; Meta.save(); applyOptions(); playMusic(); };
-  $('oQuality').onchange = e => { Meta.P.opts.quality = e.target.value; Meta.save(); applyOptions(); };
+  $('oQuality').onchange = e => { Meta.P.opts.quality = e.target.value; Meta.save(); dynReset(true); applyOptions(); };
   $('oHitcam').onchange = e => { Meta.P.opts.hitcam = e.target.checked; Meta.save(); applyOptions(); };
   // Fenêtre de confirmation du jeu (les fenêtres natives sont bloquées dans l'iframe du portail
   // et font sortir du plein écran)
@@ -4120,7 +4148,7 @@ Meta.whenReady(() => {
   Meta.hooks.adEnd = () => { Sfx.setMuted(false); playMusic(); };
   Meta.hooks.mute = m => { Sfx.setPortalMute(m); if (m) stopMusic(); else playMusic(); };
 
-  function startLevel() { genMap(); setup3D(); spawnWave(); }
+  function startLevel() { genMap(); setup3D(); dynReset(false); spawnWave(); }
   // ===================== Réparation (publicité récompensée ou kit) =====================
   // Le compte à rebours de 8 s est figé pendant la publicité de réparation (15 à 30 s sur CrazyGames)
   // et quand l'onglet est masqué ; la réparation n'est appliquée que si l'écran est encore ouvert.
@@ -4550,7 +4578,7 @@ Meta.whenReady(() => {
   if (Q.has('debug')) {
     window.__fa = {
       get tanks() { return tanks; }, get state() { return state; }, get stats() { return waveStats; }, get shells() { return shells; },
-      get time() { return gameTime; }, get player() { return player; }, get bushes() { return bushes; }, cam3, sight, setSight, sightProbe, get mode() { return mode; }, get survWave() { return survWave; }, hitcam: HitCam, TYPES, SHELLS, bench, benchFire,
+      get time() { return gameTime; }, get player() { return player; }, get bushes() { return bushes; }, cam3, sight, setSight, sightProbe, get mode() { return mode; }, get survWave() { return survWave; }, dyn, hitcam: HitCam, TYPES, SHELLS, bench, benchFire,
       // test : tir forcé du joueur sur la cible la plus proche
       fireAt(i, key) {
         const e = tanks.filter(t => t.team === 1 && !t.dead)[i || 0];

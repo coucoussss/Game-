@@ -164,10 +164,12 @@ const Meta = (() => {
   const LEGACY = { unlocked: 'frontdacier.unlocked', survBest: 'frontdacier.survie' }; // clés de la version 1
   const today = () => { const d = new Date(); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; };
   const dayNum = s => { const [y, m, d] = s.split('-').map(Number); return Math.floor(Date.UTC(y, m - 1, d) / 864e5); };
+  // qualité par défaut : moyenne sur écran très dense ou petit processeur (portables, Chromebooks)
+  const defQuality = () => { try { return (window.devicePixelRatio || 1) > 1.5 || (navigator.hardwareConcurrency || 8) <= 4 ? 'moyenne' : 'haute'; } catch (e) { return 'haute'; } };
   const fresh = () => ({
     v: VERSION, credits: 600, xp: 0, level: 1, tanks: ['light', 'pz4'], skins: ['std'], skinSel: {}, kits: 1, x2: 0,
     wheelDay: '', streakDay: '', streak: 0, missionsDay: '', missions: [], stats: { battles: 0, kills: 0, wins: 0 },
-    opts: { sfx: 0.8, music: 0.6, quality: 'haute', hitcam: true, mute: false }, parts: {}, adProg: {}, featDay: '', feat: '',
+    opts: { sfx: 0.8, music: 0.6, quality: defQuality(), hitcam: true, mute: false }, parts: {}, adProg: {}, featDay: '', feat: '',
     unlocked: 0, survBest: 0,
   });
   // ready : aucune sauvegarde avant la lecture du profil (sinon le profil neuf du démarrage
