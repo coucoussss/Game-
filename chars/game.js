@@ -147,35 +147,35 @@ Meta.whenReady(() => {
   const W_ = (a, b, c, d, e) => [a, b, c, d, e];
   const LEVELS = [
     {
-      name: 'Kursk Plain', crr: 0.06, soil: 'dry grass', sub: 'Summer steppe, wide open spaces',
+      name: 'Kursk Plain', when: 'Prokhorovka · 12 July 1943', crr: 0.06, soil: 'dry grass', sub: 'Summer steppe, wide open spaces',
       ground: ['#7b8446', '#6c763b', '#8a9352'], road: '#8d7d58', dust: '#a59a6a', track: 'rgba(40,35,20,0.16)',
       trees: 45, treeCl: 6, bushes: 34, buildings: 6, walls: 9, rocks: 8,
       tree: ['#36521f', '#4a6a2b'], bush: '#4c6b2a', wall: '#a59a86', roof: ['#8a4f3a', '#73402f'],
       waves: [W_('light', 'light', 'medium', 'light', 'medium'), W_('pz4', 'light', 'medium', 'stug', 'light'), W_('pz4', 'medium', 'heavy', 'stug', 'medium')],
     },
     {
-      forest: true, name: 'Ardennes Forest', crr: 0.085, soil: 'muddy undergrowth', sub: 'Dense undergrowth, close-quarters fighting',
+      forest: true, name: 'Ardennes Forest', when: 'Ardennes · 16 December 1944', crr: 0.085, soil: 'muddy undergrowth', sub: 'Dense undergrowth, close-quarters fighting',
       ground: ['#4c5c30', '#425228', '#58693a'], road: '#6d5d3f', dust: '#6b6a48', track: 'rgba(25,25,10,0.2)',
       trees: 150, treeCl: 14, bushes: 70, buildings: 3, walls: 4, rocks: 10,
       tree: ['#24401a', '#335726'], bush: '#3a5a22', wall: '#8f8a7a', roof: ['#5a4a3a', '#4a3c30'],
       waves: [W_('medium', 'light', 'medium', 'light', 'medium'), W_('pz4', 'medium', 'heavy', 'stug', 'destroyer'), W_('heavy', 'medium', 'medium', 'destroyer', 'light')],
     },
     {
-      name: 'Stalingrad Ruins', crr: 0.07, soil: 'rubble', sub: 'Ruined streets, destructible buildings', city: true,
+      name: 'Stalingrad Ruins', when: 'Stalingrad · January 1943', crr: 0.07, soil: 'rubble', sub: 'Ruined streets, destructible buildings', city: true,
       ground: ['#6d665c', '#615a51', '#79726a'], road: '#55504a', dust: '#8a8378', track: 'rgba(20,18,15,0.18)',
       trees: 8, treeCl: 2, bushes: 10, buildings: 0, walls: 12, rocks: 4,
       tree: ['#3c4a2a', '#4a5a34'], bush: '#4a5530', wall: '#8f877b', roof: ['#7a7268', '#686057'],
       waves: [W_('medium', 'heavy', 'medium', 'light', 'medium'), W_('heavy', 'pz4', 'destroyer', 'medium', 'kingtiger'), W_('heavy', 'heavy', 'destroyer', 'medium', 'medium')],
     },
     {
-      desert: true, name: 'El Alamein Desert', crr: 0.08, soil: 'sand', sub: 'Open terrain, long-range shooting',
+      desert: true, name: 'El Alamein Desert', when: 'Tel el Aqqaqir · 2 November 1942', crr: 0.08, soil: 'sand', sub: 'Open terrain, long-range shooting',
       ground: ['#cdb27a', '#c1a46b', '#d9c08c'], road: '#b39463', dust: '#dcc391', track: 'rgba(90,60,30,0.16)',
       trees: 0, treeCl: 1, bushes: 16, buildings: 5, walls: 5, rocks: 36,
       tree: ['#5a6a2a', '#6a7a3a'], bush: '#8c8a4a', wall: '#d8c7a0', roof: ['#e0d2ad', '#cdbd96'],
       waves: [W_('destroyer', 'medium', 'light', 'destroyer', 'medium'), W_('heavy', 'destroyer', 'stug', 'destroyer', 'pz4'), W_('heavy', 'heavy', 'destroyer', 'destroyer', 'medium')],
     },
     {
-      name: 'Bastogne Night', crr: 0.09, soil: 'snow', sub: 'Snow and darkness, reduced vision', night: true,
+      name: 'Bastogne Night', when: 'Bastogne · 26 December 1944', crr: 0.09, soil: 'snow', sub: 'Snow and darkness, reduced vision', night: true,
       ground: ['#dfe4e8', '#cfd6dc', '#eaeef1'], road: '#b9b3a8', dust: '#ffffff', track: 'rgba(60,60,70,0.22)',
       trees: 95, treeCl: 10, bushes: 34, buildings: 8, walls: 6, rocks: 6,
       tree: ['#203828', '#2c4a36'], bush: '#3c5a46', wall: '#9a958c', roof: ['#eef3f6', '#d8e0e6'], snow: true,
@@ -3500,6 +3500,9 @@ Meta.whenReady(() => {
     ctx.textAlign = 'center';
     if (state === 'intro') {
       ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(0, H / 2 - 90, W, 150);
+      // carte historique : lieu et date de la bataille
+      ctx.fillStyle = '#a39d88'; ctx.font = '600 13px system-ui, sans-serif';
+      ctx.fillText(lv.when.toUpperCase(), W / 2, H / 2 - 74);
       ctx.fillStyle = '#e9d9a6'; ctx.font = '800 34px system-ui, sans-serif';
       ctx.fillText(`${lv.name.toUpperCase()}`, W / 2, H / 2 - 45);
       ctx.font = '600 16px system-ui, sans-serif'; ctx.fillStyle = '#bdb7a2';

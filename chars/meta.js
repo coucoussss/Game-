@@ -123,7 +123,7 @@ const Meta = (() => {
     { id: 'foret', name: 'Snowbound Ardennes', flav: 'Winter 1944. The last offensive.', rar: 'epic', price: 5200, ads: 4, pat: 4, camo: [[0.86, 0.88, 0.88], [0.18, 0.24, 0.12], [0.33, 0.22, 0.14]] },
     { id: 'rouille', name: 'Rust Revenant', flav: 'Pulled from the river, back for revenge.', rar: 'legendary', price: 9000, ads: 5, pat: 0, camo: [[0.36, 0.17, 0.08], [0.2, 0.1, 0.05], [0.48, 0.3, 0.14]] },
     { id: 'or', name: 'Field Marshal Gold', flav: 'Solid gold plating. Fear is the point.', rar: 'legendary', price: 25000, pat: 1, camo: [[0.75, 0.55, 0.16], [0.6, 0.42, 0.1], [0.85, 0.68, 0.25]] },
-    { id: 'parade', name: 'Grand Parade', flav: 'Black, crimson and bone. Made to be seen.', rar: 'legendary', price: 0, ads: 6, adOnly: true, pat: 2, camo: [[0.1, 0.1, 0.1], [0.55, 0.06, 0.05], [0.8, 0.78, 0.74]] },
+    { id: 'parade', name: 'Victory Parade', flav: 'Olive, sand and polished brass. Made to be seen.', rar: 'legendary', price: 0, ads: 6, adOnly: true, pat: 2, camo: [[0.2, 0.24, 0.12], [0.56, 0.47, 0.3], [0.62, 0.46, 0.17]] },
   ];
   // Pièces : trois niveaux par char (Mk I à III). Effet par niveau ; coût en crédits, ou niveau + 1 publicités.
   const PARTS = [
