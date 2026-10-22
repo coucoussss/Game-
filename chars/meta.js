@@ -193,7 +193,7 @@ const Meta = (() => {
   const today = () => { const d = new Date(); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; };
   const dayNum = s => { const [y, m, d] = s.split('-').map(Number); return Math.floor(Date.UTC(y, m - 1, d) / 864e5); };
   // qualité par défaut : moyenne sur écran très dense ou petit processeur (portables, Chromebooks)
-  const defQuality = () => { try { return (window.devicePixelRatio || 1) > 1.5 || (navigator.hardwareConcurrency || 8) <= 4 ? 'moyenne' : 'haute'; } catch (e) { return 'haute'; } };
+  const defQuality = () => { try { if (matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches) return 'mobile'; return (window.devicePixelRatio || 1) > 1.5 || (navigator.hardwareConcurrency || 8) <= 4 ? 'moyenne' : 'haute'; } catch (e) { return 'haute'; } };
   const fresh = () => ({
     v: VERSION, credits: 600, xp: 0, level: 1, tanks: ['light', 'pz4'], skins: ['std'], skinSel: {}, kits: 1, x2: 0,
     wheelDay: '', streakDay: '', streak: 0, missionsDay: '', missions: [], stats: { battles: 0, kills: 0, wins: 0 },
@@ -236,7 +236,7 @@ const Meta = (() => {
     if (isObj(o.opts)) {
       const q = o.opts;
       p.opts.sfx = unit(q.sfx, f.opts.sfx); p.opts.music = unit(q.music, f.opts.music);
-      p.opts.quality = ['haute', 'moyenne', 'basse'].includes(q.quality) ? q.quality : f.opts.quality;
+      p.opts.quality = ['haute', 'moyenne', 'basse', 'mobile'].includes(q.quality) ? q.quality : f.opts.quality;
       p.opts.hitcam = q.hitcam !== false; p.opts.mute = q.mute === true;
     }
     return p;

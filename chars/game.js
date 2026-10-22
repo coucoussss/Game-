@@ -228,7 +228,9 @@ Meta.whenReady(() => {
   // anisotrope, wx : particules de météo, bloom : halo des lueurs). Un préréglage
   // (mobile par exemple) s'ajoute simplement ici et dans la liste du menu Options.
   const QUALITY = {
-    basse: { dpr: 1, pcap: 900, leaf: 0.35, r3: { kr: 2, nl: 3, sms: 2048, smd: 1024, lod: 0.6, gt: [2048, 1024], aniso: 2, wx: 500, bloom: 0 } },
+    // mobile : choisi d'office sur un écran tactile sans souris (téléphone, tablette) ; lite : sans MSAA
+    mobile: { dpr: 1.25, pcap: 500, leaf: 0.25, lite: true, r3: { kr: 2, nl: 2, sms: 1024, smd: 1024, lod: 0.5, gt: [2048, 1024], aniso: 1, wx: 300, bloom: 0 } },
+    basse: { dpr: 1, pcap: 900, leaf: 0.35, lite: true, r3: { kr: 2, nl: 3, sms: 2048, smd: 1024, lod: 0.6, gt: [2048, 1024], aniso: 2, wx: 500, bloom: 0 } },
     moyenne: { dpr: 1.25, pcap: 1700, leaf: 0.6, r3: { kr: 2, nl: 5, sms: 2048, smd: 2048, lod: 0.8, gt: [4096, 2048], aniso: 4, wx: 1200 } },
     haute: { dpr: 2, pcap: 2600, leaf: 1, r3: { kr: 3, nl: 8, sms: 4096, smd: 2048, lod: 1, gt: [4096, 2048], aniso: 8, wx: 2500 } },
   };
@@ -271,6 +273,10 @@ Meta.whenReady(() => {
   const sight = { on: false, yaw: 0, pitch: 0, cx: 0, cy: 0, aimYaw: 0, aimPitch: 0, mag: 0, probe: null, probeT: 0, dust: false, z0: 2, gunPitch: 0 };
   const mouse = { x: W / 2, y: H / 2, down: false };
   const keys = {};
+  // État de commande partagé, alimenté par les commandes tactiles (et demain par d'autres sources :
+  // manette, couche d'entrées centrale) : axes analogiques et commandes maintenues, que playerInput
+  // ajoute au clavier et à la souris. tap : tir demandé par une pression brève, consommé au pas suivant.
+  const ctl = { thr: 0, turn: 0, fire: false, tap: false, mg: false };
 
   // secteurs de campagne ouverts (profil sauvegardé, borné au nombre de secteurs)
   const unlockedIdx = () => Math.min(Meta.P.unlocked, LEVELS.length - 1);
@@ -2954,7 +2960,7 @@ Meta.whenReady(() => {
       const side = h.ny > 0 ? 1 : -1; // côté touché (repère du char : y vers la droite)
       if (gear === 'track' && Math.random() < 0.9 || gear === 'wheels' && Math.random() < 0.2) {
         t.trackT = Math.max(t.trackT, rnd(14, 22)); t.trackSide = side; gearRes = 'Track broken';
-        if (t === player) addLog('Track broken: stop and press R to repair it', '#ffb070');
+        if (t === player) addLog(`Track broken: stop and ${touch.on ? 'tap REPAIR' : 'press R'} to repair it`, '#ffb070');
       } else if (gear === 'wheels') {
         t.wheelK = Math.max(0.6, (t.wheelK || 1) * 0.92); gearRes = 'Road wheel destroyed';
         if (t === player) addLog('Road wheel destroyed: top speed −8%', '#ffb070');
@@ -3471,7 +3477,7 @@ Meta.whenReady(() => {
     if (t === player) {
       if (!reviveUsed && mode !== 'duel' && state === 'play') reviveT = 1.8;
       addLog(how === 'brewed' ? 'Your ammunition exploded.' : how === 'abandoned' ? 'Your crew bailed out.' : 'Your crew is out of action.', '#ff6a5a');
-      showMsg('Your tank is destroyed. Spectating an ally (click to switch)', '#ff7a5c', 4);
+      showMsg(`Your tank is destroyed. Spectating an ally (${touch.on ? 'tap' : 'click'} to switch)`, '#ff7a5c', 4);
     }
   }
   // Explosion des munitions : boule de feu, cratère, tourelle arrachée (sur une casemate, le toit)
@@ -3738,13 +3744,15 @@ Meta.whenReady(() => {
     if (k.KeyS || k.ArrowDown) thr -= 1;
     if (k.KeyA || k.ArrowLeft) turn -= 1;
     if (k.KeyD || k.ArrowRight) turn += 1;
+    thr = clamp(thr + ctl.thr, -1, 1); turn = clamp(turn + ctl.turn, -1, 1);
     const pv = pivot(player);
     const m = W3D && cam3.view && !sight.on ? (player.aim3 = aimRay3(mouse.x, mouse.y)) : screenToWorld(mouse.x, mouse.y);
     if (!(W3D && cam3.view && !sight.on)) player.aim3 = { x: m.x, y: m.y, z: 1.5 };
     player.in.throttle = thr; player.in.turn = turn; player.in.brake = !!k.KeyX;
     player.in.aim = sight.on ? sight.aimYaw : Math.atan2(m.y - pv.y, m.x - pv.x);
-    player.in.mg = !!k.KeyF || (sight.on && mouse.right);
-    player.in.fire = mouse.down || !!k.Space;
+    player.in.mg = !!k.KeyF || (sight.on && mouse.right) || ctl.mg;
+    player.in.fire = mouse.down || !!k.Space || ctl.fire || ctl.tap;
+    ctl.tap = false;
   }
 
   function step(dt) {
@@ -4086,7 +4094,7 @@ Meta.whenReady(() => {
   try {
     const c3 = document.getElementById('game3d');
     if (c3 && typeof World3D !== 'undefined' && !dq('2d')) {
-      W3D = World3D.create(c3, { q: QL().r3, msaa: Meta.P.opts.quality !== 'basse' });
+      W3D = World3D.create(c3, { q: QL().r3, msaa: !QL().lite });
       if (W3D) W3D.q = QL();
       if (W3D) for (const id of Object.keys(TYPES)) { const b = TankModels.build(id, true); MESH3[id] = { wheel: W3D.upload(b.wheel), wheels: b.wheels, hull: W3D.upload(b.hull), turret: W3D.upload(b.turret), body: W3D.upload(b.turretBody), gun: W3D.upload(b.gun), gunPivot: b.gunPivot }; RAYTRI[id] = { hull: b.hull.v, turret: b.turret.v }; }
       if (W3D) {
@@ -4246,7 +4254,7 @@ Meta.whenReady(() => {
     // tourelle suit à sa propre vitesse. Curseur verrouillé : la vue recentre le curseur. Sans
     // verrouillage (page intégrée) : visée libre au centre, la vue ne pivote que vers les bords.
     cam3.fov = 2 * Math.atan(Math.tan(0.49) / MAGS[sight.mag]);
-    const ppr = (H / 2) / Math.tan(cam3.fov / 2), R = sightR() * 0.92, locked = document.pointerLockElement === cv;
+    const ppr = (H / 2) / Math.tan(cam3.fov / 2), R = sightR() * 0.92, locked = relAim();
     if (!locked) { sight.cx = mouse.x - W / 2; sight.cy = mouse.y - H / 2; }
     const rl = Math.hypot(sight.cx, sight.cy);
     if (rl > R) { sight.cx *= R / rl; sight.cy *= R / rl; }
@@ -4359,7 +4367,7 @@ Meta.whenReady(() => {
     // curseur verrouillé : il reste sur le même point du terrain pendant que la vue tourne, si bien
     // que la tourelle rejoint la visée et que la caméra s'arrête (visée à la World of Tanks).
     // Sans verrouillage, un curseur décalé fait tourner tourelle et caméra tant qu'il le reste.
-    if (document.pointerLockElement === cv && cam3.view) {
+    if (relAim() && cam3.view) {
       const ppr = (W / 2) / (Math.tan(cam3.fov / 2) * W / H);
       mouse.x = clamp(mouse.x + dyaw * ppr, 0, W);
     }
@@ -4537,7 +4545,7 @@ Meta.whenReady(() => {
     if (sight.on) drawSightMask();
     drawThreats3D();
     drawWorldLabels();
-    if (state !== 'menu') drawHUD();
+    if (state !== 'menu') { drawHUD(); drawTouchUI(); }
   }
   // Obus qui menacent le joueur : trajectoire prévue et cercle d'impact au sol
   function drawThreats3D() {
@@ -4627,7 +4635,7 @@ Meta.whenReady(() => {
     if (L().night) drawNight();
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     drawWorldLabels();
-    if (state !== 'menu') drawHUD();
+    if (state !== 'menu') { drawHUD(); drawTouchUI(); }
   }
 
   function shade(hex, k) {
@@ -4996,7 +5004,7 @@ Meta.whenReady(() => {
       }
     }
     ctx.font = '600 11px system-ui, sans-serif'; ctx.fillStyle = 'rgba(220,215,200,0.7)';
-    ctx.fillText('Shift: outside view · wheel: magnification', cx, cy - R * 0.72);
+    ctx.fillText(touch.on ? 'SIGHT: outside view · ZOOM / pinch: magnification' : 'Shift: outside view · wheel: magnification', cx, cy - R * 0.72);
     // vent : flèche dans le repère du tireur (vers le haut = dans l'axe du tir) et composante de travers,
     // qui fait dériver les obus lents de plusieurs décimètres à 1 km
     const wf = Math.cos(ta) * WIND.x + Math.sin(ta) * WIND.y, wr = -Math.sin(ta) * WIND.x + Math.cos(ta) * WIND.y, ws = Math.hypot(wf, wr);
@@ -5142,7 +5150,7 @@ Meta.whenReady(() => {
     // fil des destructions (en haut à gauche)
     ctx.textAlign = 'left'; ctx.font = '600 12px system-ui, sans-serif';
     feed.forEach((f, i) => {
-      const y = 24 + i * 20;
+      const y = (touch.on && inBattle() ? touch.top : 0) + 24 + i * 20;
       ctx.globalAlpha = Math.min(1, f.life);
       const mid = f.ff ? ' ✖ FRIENDLY FIRE ✖ ' : f.det ? ' 💥 ' : ' ⟶ ', how = f.how ? ` · ${HOW[f.how]}` : '';
       const wA = ctx.measureText(f.a).width, wM = ctx.measureText(mid).width, wV = ctx.measureText(f.v).width, wH = ctx.measureText(how).width;
@@ -5304,14 +5312,14 @@ Meta.whenReady(() => {
     ctx.fillText(`${T.name} · ${T.cls}`, bx + 10, by + 17);
     const g = player.mg;
     ctx.font = '600 11px system-ui, sans-serif'; ctx.fillStyle = g.jam > 0 ? '#ff9a5c' : '#c9c4b2';
-    ctx.fillText(g.jam > 0 ? `MG: barrel change ${Math.ceil(g.jam)} s` : `MG (F/G) ${MG_AMMO[g.type].name} : ${g.type === 'SmKH' ? g.ammoH : g.ammo}`, bx + 175, by + 17);
+    ctx.fillText(g.jam > 0 ? `MG: barrel change ${Math.ceil(g.jam)} s` : `MG${touch.on ? '' : ' (F/G)'} ${MG_AMMO[g.type].name} : ${g.type === 'SmKH' ? g.ammoH : g.ammo}`, bx + 175, by + 17);
     const tag = k => SHELLS[k].tag || k;
     ctx.fillStyle = '#e9d9a6';
     ctx.fillText(player.nextShell ? `${tag(player.shell)} → next ${tag(player.nextShell)}` : `Loaded ${tag(player.shell)}`, bx + 468, by + 49);
     ctx.fillStyle = player.ready > 0 ? '#c9c4b2' : '#ffb070';
     ctx.fillText(`Ready rack ${player.ready}/${T.ready + player.up.ready}`, bx + 468, by + 64);
     ctx.fillStyle = player.hatch ? '#ffcf7a' : '#8f8a77';
-    ctx.fillText(player.hatch ? 'Commander out (U)' : 'Buttoned up (U)', bx + 468, by + 79);
+    ctx.fillText(player.hatch ? (touch.on ? 'Commander out' : 'Commander out (U)') : (touch.on ? 'Buttoned up' : 'Buttoned up (U)'), bx + 468, by + 79);
     if (!(g.jam > 0)) { ctx.fillStyle = '#2c3024'; ctx.fillRect(bx + 335, by + 9, 50, 6); ctx.fillStyle = g.heat > 180 ? '#ff6a3a' : '#c98a3a'; ctx.fillRect(bx + 335, by + 9, 50 * Math.min(1, g.heat / 250), 6); }
     // équipage
     let x = bx + 10;
@@ -5376,9 +5384,12 @@ Meta.whenReady(() => {
       if (sx2 + w > bx + pw - 6) break;
       ctx.fillStyle = c; ctx.fillText(s, sx2, by - 8); sx2 += w + 12;
     }
-    // obus
+    // obus (emplacements touchables en mode tactile, dans le repère de l'écran)
     x = bx + 10;
+    const pk = panelK();
+    touch.slots.length = 0;
     for (const k of SHELL_KEYS) {
+      if (touch.on) touch.slots.push({ key: k, x: W / 2 * (1 - pk) + x * pk, y: H * (1 - pk) + (by + 52) * pk, w: 62 * pk, h: 30 * pk });
       const sh = SHELLS[k], sel = player.shell === k, n = player.ammo[k];
       ctx.fillStyle = sel ? '#4a3f1a' : 'rgba(255,255,255,0.06)';
       ctx.fillRect(x, by + 52, 62, 30);
@@ -5570,21 +5581,9 @@ Meta.whenReady(() => {
     R3.onLost = () => $('showcase').classList.add('no3d');
     R3.onRestored = () => { $('showcase').classList.remove('no3d'); if (state === 'menu') buildMenu(); };
   }
-  // Appareil tactile sans souris ni clavier (téléphone, tablette) : aucune commande tactile en bataille,
-  // le bouton de départ laisse place à un avertissement, levé dès qu'une touche du clavier est frappée
-  // une touche de clavier physique (iPad avec clavier) suffit à débloquer le jeu
-  let kbSeen = false;
-  addEventListener('keydown', () => { if (!kbSeen) { kbSeen = true; document.body.classList.remove('touch'); } }, true);
-  function touchOnly() {
-    try {
-      if (kbSeen || matchMedia('(any-pointer: fine)').matches) return false; // clavier, souris ou pavé tactile branché
-      const d = Meta.sdk.device;
-      return d ? d !== 'desktop' : matchMedia('(pointer: coarse)').matches;
-    } catch (e) { return false; }
-  }
   function buildMenu() {
     const P = Meta.P;
-    document.body.classList.toggle('touch', touchOnly());
+    document.body.classList.toggle('touch', touch.on);
     const tc = $('tankCards'); tc.innerHTML = '';
     for (const T of Object.values(TYPES)) {
       const d = document.createElement('div'), own = P.tanks.includes(T.id), inf = Meta.TANKS[T.id];
@@ -5697,7 +5696,7 @@ Meta.whenReady(() => {
     const im = $('uImg'); im.className = 'ui' + (o.icon ? ' icon' : ''); im.innerHTML = '';
     if (o.icon) im.textContent = o.icon; else if (o.img) { const i = document.createElement('img'); i.src = o.img; i.alt = ''; im.appendChild(i); }
     el.querySelectorAll('.confetti').forEach(c => c.remove());
-    const cols = ['#ffc23d', '#fff4c4', '#4fb0ff', '#b57bff', '#8fd46a', '#ff6a50'], n = Meta.P.opts.quality === 'basse' ? 30 : 70;
+    const cols = ['#ffc23d', '#fff4c4', '#4fb0ff', '#b57bff', '#8fd46a', '#ff6a50'], n = QL().lite ? 30 : 70;
     for (let i = 0; i < n; i++) {
       const c = document.createElement('i'); c.className = 'confetti';
       c.style.cssText = `left:${Math.random() * 100}%;background:${cols[i % cols.length]};animation-duration:${2.2 + Math.random() * 2.4}s;animation-delay:${Math.random() * 0.8}s;--dx:${(Math.random() - 0.5) * 300}px;--rot:${(Math.random() - 0.5) * 1440}deg`;
@@ -6145,7 +6144,7 @@ Meta.whenReady(() => {
   // exemple si l'on reverrouille moins d'une seconde après Échap) : l'erreur est absorbée.
   let lockedBefore = false, intentionalUnlock = false, pausedAt = -1e9;
   function lockPointer() {
-    if (!W3D || !cv.requestPointerLock || document.pointerLockElement === cv) return;
+    if (!W3D || touch.on || !cv.requestPointerLock || document.pointerLockElement === cv) return;
     try { const r = cv.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch (e) { /* verrouillage refusé */ }
   }
   function freePointer() { if (document.pointerLockElement === cv) { intentionalUnlock = true; document.exitPointerLock(); } }
@@ -6219,7 +6218,7 @@ Meta.whenReady(() => {
   }
 
   $('startBtn').onclick = () => {
-    if (!Meta.P.tanks.includes(chosenType) || touchOnly()) return;
+    if (!Meta.P.tanks.includes(chosenType)) return;
     Sfx.init(); hide('menu'); waveIdx = 0; campaignScore = 0; duelScore = [0, 0];
     if (mode === 'campagne') levelIdx = Math.min(levelIdx, unlockedIdx());
     startLevel();
@@ -6254,28 +6253,33 @@ Meta.whenReady(() => {
     if (adOn()) return;
     if (e.repeat && keys[e.code]) return;
     keys[e.code] = true;
+    keyAction(e.code);
+  });
+  // Action d'une touche, partagée par le clavier et les boutons tactiles (qui envoient le même code).
+  // Les claviers d'iPad n'ont souvent pas d'Échap : ` (ou §) et P mettent aussi en pause.
+  function keyAction(code) {
     // la même pression d'Échap peut libérer le curseur (pause automatique) puis arriver ici
-    if ((e.code === 'Escape' || e.code === 'KeyP') && !(state === 'pause' && performance.now() - pausedAt < 400)) togglePause();
-    if (e.code === 'KeyM') {
+    if ((code === 'Escape' || code === 'KeyP' || code === 'Backquote' || code === 'IntlBackslash') && !(state === 'pause' && performance.now() - pausedAt < 400)) togglePause();
+    if (code === 'KeyM') {
       Meta.P.opts.mute = Sfx.toggle(); Meta.save();
       if (Meta.P.opts.mute) stopMusic(); else playMusic();
       if (state !== 'menu') showMsg(Meta.P.opts.mute ? 'Sound off' : 'Sound on', '#bcd8ff', 1);
     }
-    if (e.code === 'KeyH' && state !== 'menu') { hitcamOn = !hitcamOn; if (!hitcamOn) HitCam.stop(); showMsg(hitcamOn ? 'Impact camera on' : 'Impact camera off', '#bcd8ff', 1.4); }
-    if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyV') && state !== 'menu') setSight(!sight.on);
-    if (e.code === 'KeyL' && state === 'play' && player && !player.dead && L().night && gameTime - (player.flareAt || -99) > 8) {
+    if (code === 'KeyH' && state !== 'menu') { hitcamOn = !hitcamOn; if (!hitcamOn) HitCam.stop(); showMsg(hitcamOn ? 'Impact camera on' : 'Impact camera off', '#bcd8ff', 1.4); }
+    if ((code === 'ShiftLeft' || code === 'ShiftRight' || code === 'KeyV') && state !== 'menu') setSight(!sight.on);
+    if (code === 'KeyL' && state === 'play' && player && !player.dead && L().night && gameTime - (player.flareAt || -99) > 8) {
       player.flareAt = gameTime;
       const m = screenToWorld(mouse.x, mouse.y);
       launchFlare(player, m.x, m.y);
     }
-    if (e.code === 'KeyC' && W3D && state !== 'menu') {
+    if (code === 'KeyC' && W3D && state !== 'menu') {
       setSight(false);
       cam3.mode = (cam3.mode + 1) % CAM_MODES.length;
       cam3.dist = CAM_MODES[cam3.mode].dist; cam3.off = 0;
       showMsg(CAM_MODES[cam3.mode].name, '#bcd8ff', 1.2);
     }
     if (!player || player.dead || player.ai || !inBattle()) return;
-    const dm = e.code.match(/^(?:Digit|Numpad)([1-7])$/);
+    const dm = code.match(/^(?:Digit|Numpad)([1-7])$/);
     if (dm) {
       const key = SHELL_KEYS[Number(dm[1]) - 1];
       if (player.ammo[key] <= 0) showMsg(`Out of ${SHELLS[key].name.toLowerCase()} rounds`, '#ff9a7a', 1.2);
@@ -6287,36 +6291,38 @@ Meta.whenReady(() => {
         else if (r === 'cancelled') showMsg(`Keeping ${SHELLS[key].name.toLowerCase()}`, '#e9d9a6', 1.2);
       }
     }
-    const ord = { Digit8: 'attack', Numpad8: 'attack', Digit9: 'follow', Numpad9: 'follow', Digit0: 'hold', Numpad0: 'hold', KeyN: 'move' }[e.code];
+    const ord = { Digit8: 'attack', Numpad8: 'attack', Digit9: 'follow', Numpad9: 'follow', Digit0: 'hold', Numpad0: 'hold', KeyN: 'move' }[code];
     if (ord) giveOrder(ord);
-    if (e.code === 'KeyE' && state === 'play') deploySmoke(player);
+    if (code === 'KeyE' && state === 'play') deploySmoke(player);
     // extincteur à main : 3 s pendant lesquelles le tireur ne tire pas ; inutile sur un feu de charges
-    if (e.code === 'KeyT' && state === 'play' && player.fires.length && !(player.extT > 0)) {
+    if (code === 'KeyT' && state === 'play' && player.fires.length && !(player.extT > 0)) {
       if (player.extN <= 0) showMsg('No extinguisher left', '#ff9a7a', 1.2);
       else { player.extN--; player.extT = 3; showMsg(`Extinguisher (${player.extN} left)`, '#bcd8ff', 1.4); }
     }
     // chenille : l'équipage descend la réparer (char arrêté), ou remonte
-    if (e.code === 'KeyR' && state === 'play' && player.trackT > 0) {
+    if (code === 'KeyR' && state === 'play' && player.trackT > 0) {
       if (!player.dismount && Math.abs(player.speed) > 0.5 * PX) showMsg('Stop the tank to repair the track', '#ffcf7a', 1.4);
       else { player.dismount = !player.dismount; showMsg(player.dismount ? 'Crew out: repairing the track' : 'Crew back inside', '#bcd8ff', 1.4); }
     }
     // abandon du char : l'équipage est sauvé, le char perdu
-    if (e.code === 'KeyB' && state === 'play' && (player.fires.length || player.cookT > 0)) bail(player);
-    if (e.code === 'KeyG') {
+    if (code === 'KeyB' && state === 'play' && (player.fires.length || player.cookT > 0)) bail(player);
+    if (code === 'KeyG') {
       const g = player.mg;
       if (g.type === 'SmK' && g.ammoH <= 0) showMsg('No S.m.K.H. belts left', '#ff9a7a', 1.2);
       else { g.type = g.type === 'SmK' ? 'SmKH' : 'SmK'; showMsg(`Machine gun: ${MG_AMMO[g.type].full}`, '#e9d9a6', 1.4); }
     }
-    if (e.code === 'KeyU' && roleOk(player, 'commander')) {
+    if (code === 'KeyU' && roleOk(player, 'commander')) {
       player.hatch = !player.hatch;
       showMsg(player.hatch ? 'Commander out: better vision, but exposed to bullets' : 'Buttoned up', '#bcd8ff', 1.6);
     }
-  });
+  }
   addEventListener('keyup', e => { keys[e.code] = false; });
   addEventListener('blur', () => { releaseInput(); autoPause(); });
   // position de la souris dans le repère du canvas (décalage et mise à l'échelle éventuels de la page)
   function trackMouse(e) {
+    if (e.pointerType === 'touch' || e.pointerType === 'pen' || synthMouse()) return; // doigt : voir les commandes tactiles
     const r = cv.getBoundingClientRect();
+    touch.rel = false;
     if (document.pointerLockElement === cv) {
       mouse.x = clamp(mouse.x + (e.movementX || 0) * (W / (r.width || W)), 0, W);
       mouse.y = clamp(mouse.y + (e.movementY || 0) * (H / (r.height || H)), 0, H);
@@ -6334,7 +6340,7 @@ Meta.whenReady(() => {
   });
   addEventListener('pointerdown', trackMouse);
   cv.addEventListener('mousedown', e => {
-    if (adOn()) return;
+    if (adOn() || synthMouse()) return;
     Sfx.init();
     if (e.button === 0) {
       mouse.down = true;
@@ -6356,6 +6362,199 @@ Meta.whenReady(() => {
   addEventListener('mousemove', e => { if (cam3.drag) cam3.off = cam3.drag.off - (e.clientX - cam3.drag.x) * 0.006; });
   addEventListener('mouseup', e => { if (e.button === 2) cam3.drag = null; });
   cv.addEventListener('dblclick', () => { if (!adOn()) cam3.off = 0; });
+
+  // ===================== Commandes tactiles =====================
+  // Téléphones, tablettes et iPad avec clavier : manche flottant à gauche (gaz et direction), glisser
+  // ailleurs pour viser (comme un curseur verrouillé), boutons dessinés sur le canevas 2D. Le calque
+  // paraît au premier toucher et s'efface à la première touche du clavier, sauf en usage mixte (doigt
+  // posé ou toucher récent) : clavier et toucher s'ajoutent alors dans ctl.
+  const touch = { on: false, rel: false, t: -1e9, ptrs: new Map(), stick: null, pinch: null, menu: false, btns: [], slots: [], top: 0, safe: [0, 0, 0, 0] };
+  const STICK_R = 56, STICK_DZ = 0.15;
+  const mq = q => { try { return matchMedia(q).matches; } catch (e) { return false; } };
+  const relAim = () => document.pointerLockElement === cv || touch.rel;
+  const synthMouse = () => performance.now() - touch.t < 800; // souris émulée juste après un toucher
+  function setTouchMode(on) {
+    if (touch.on === on) return;
+    touch.on = on; touch.menu = false;
+    if (!on) { touch.rel = false; ctl.thr = ctl.turn = 0; ctl.fire = ctl.mg = false; }
+    document.body.classList.toggle('touch', on);
+    if (on) freePointer();
+  }
+  // marges de sécurité (encoche, barre d'accueil) : variables CSS de index.html
+  function readSafe() {
+    const cs = getComputedStyle(document.documentElement);
+    touch.safe = ['--sat', '--sar', '--sab', '--sal'].map(v => parseFloat(cs.getPropertyValue(v)) || 0);
+    // écran tactile tenu en portrait : voile « tournez l'appareil » (CSS) et pause
+    if (mq('(orientation: portrait) and (pointer: coarse)') && inBattle()) autoPause();
+  }
+  addEventListener('resize', readSafe);
+  readSafe();
+  setTouchMode(mq('(pointer: coarse)'));
+  addEventListener('keydown', () => { if (touch.on && !touch.ptrs.size && performance.now() - touch.t > 3000) setTouchMode(false); }, true);
+
+  const alive = () => player && !player.dead && !player.ai && inBattle();
+  const ownedShells = () => SHELL_KEYS.filter(k => player.ammo[k] > 0);
+  const shellKey = k => 'Digit' + (SHELL_KEYS.indexOf(k) + 1);
+  function cycleShell() {
+    const l = ownedShells(), cur = player.nextShell || player.shell;
+    const nx = l[(l.indexOf(cur) + 1) % l.length];
+    if (nx && nx !== cur) keyAction(shellKey(nx));
+  }
+  // Boutons : grappe de droite (at : décalage depuis le coin inférieur droit, r : rayon ≥ 24 px) et
+  // rangées en haut à gauche (row). key : même action que la touche ; hold : commande maintenue.
+  const TBTN = [
+    { at: [-84, -96], r: 44, label: 'FIRE', hold: v => { ctl.fire = v; if (v) ctl.tap = true; } },
+    { at: [-186, -62], r: 28, label: 'MG', hold: v => { ctl.mg = v; } },
+    { at: [-176, -164], r: 28, label: () => sight.on ? 'OUT' : 'SIGHT', key: 'KeyV' },
+    { at: [-84, -206], r: 28, label: () => SHELLS[player.nextShell || player.shell].tag || (player.nextShell || player.shell), sub: 'AMMO', tap: cycleShell },
+    { at: [-262, -150], r: 26, label: () => `×${MAGS[sight.mag]}`, sub: 'ZOOM', show: () => sight.on, tap: () => { sight.mag = (sight.mag + 1) % MAGS.length; } },
+    { row: 1, label: '❚❚', key: 'KeyP', any: true },
+    { row: 1, label: 'CAM', key: 'KeyC', show: () => W3D && !sight.on },
+    { row: 1, label: 'SMOKE', key: 'KeyE' },
+    { row: 1, label: () => player.hatch ? 'HATCH ▲' : 'HATCH', key: 'KeyU' },
+    { row: 1, label: 'FLARE', key: 'KeyL', show: () => L().night },
+    { row: 1, label: 'REPAIR', key: 'KeyR', warn: true, show: () => player.trackT > 0 },
+    { row: 1, label: 'EXTINGUISH', key: 'KeyT', warn: true, show: () => player.fires.length > 0 },
+    { row: 1, label: 'BAIL OUT', key: 'KeyB', warn: true, show: () => player.fires.length > 0 || player.cookT > 0 },
+    { row: 1, label: 'ORDERS', show: () => mode === 'campagne', tap: () => { touch.menu = !touch.menu; } },
+    ...[['ATTACK', 'Digit8'], ['FOLLOW', 'Digit9'], ['HOLD', 'Digit0'], ['MOVE', 'KeyN']].map(([label, key]) =>
+      ({ row: 2, label, key, show: () => touch.menu && mode === 'campagne', after: () => { touch.menu = false; } })),
+  ];
+  const txt = v => typeof v === 'function' ? v() : v;
+  // position et taille des boutons visibles pour cette image (dessin et détection des touchers)
+  function layoutTouch() {
+    const [st, sr, sb, sl] = touch.safe, k = clamp(Math.min(W, H) / 390, 0.9, 1.25);
+    const list = [], rx = [0, sl + 10, sl + 10];
+    ctx.font = '700 11px system-ui, sans-serif';
+    for (const b of TBTN) {
+      if (!(b.any ? inBattle() : alive()) || (b.show && !b.show())) continue;
+      const label = txt(b.label);
+      if (b.row) {
+        const w = Math.max(52, ctx.measureText(label).width + 20), h = 48, y = st + 10 + (b.row - 1) * (h + 8);
+        list.push({ b, label, x: rx[b.row], y, w, h }); rx[b.row] += w + 8;
+      } else list.push({ b, label, cx: W - sr + b.at[0] * k, cy: H - sb + b.at[1] * k, r: b.r * k });
+    }
+    touch.top = st + 10 + (touch.menu ? 112 : 56);
+    return touch.btns = list;
+  }
+  function hitTouch(x, y) {
+    for (const q of touch.btns) {
+      if (q.r ? Math.hypot(x - q.cx, y - q.cy) <= q.r + 6 : x >= q.x - 4 && x <= q.x + q.w + 4 && y >= q.y - 4 && y <= q.y + q.h + 4) return q.b;
+    }
+    for (const s of touch.slots) if (alive() && x >= s.x && x <= s.x + s.w && y >= s.y && y <= s.y + s.h) return { key: shellKey(s.key) };
+    return null;
+  }
+  function pressTouch(b, down) {
+    if (b.hold) { b.hold(down); return; }
+    if (!down) return;
+    if (b.tap) b.tap(); else if (b.key) keyAction(b.key);
+    if (b.after) b.after();
+  }
+  function tPos(e) {
+    const r = cv.getBoundingClientRect();
+    return [(e.clientX - r.left) * (W / (r.width || W)), (e.clientY - r.top) * (H / (r.height || H))];
+  }
+  function stickAxes() {
+    const s = touch.stick, dz = v => Math.abs(v) < STICK_DZ ? 0 : clamp((v - Math.sign(v) * STICK_DZ) / (1 - STICK_DZ), -1, 1);
+    ctl.thr = s ? dz(-s.dy / STICK_R) : 0; ctl.turn = s ? dz(s.dx / STICK_R) : 0;
+  }
+  const aimPtrs = () => [...touch.ptrs.values()].filter(p => p.kind === 'aim');
+  cv.addEventListener('pointerdown', e => {
+    // souris ou pavé tactile (iPad compris) : commandes de bureau, le calque tactile s'efface
+    if (e.pointerType === 'mouse') { if (touch.on && !touch.ptrs.size && !synthMouse()) setTouchMode(false); return; }
+    e.preventDefault(); // pas de clic de souris émulé (tir, verrouillage du curseur)
+    if (adOn()) return;
+    touch.t = performance.now(); setTouchMode(true); Sfx.init();
+    try { cv.setPointerCapture(e.pointerId); } catch (err) { /* capture refusée */ }
+    const [x, y] = tPos(e);
+    if (player && player.dead && inBattle()) { specIdx++; return; }
+    layoutTouch();
+    const b = hitTouch(x, y), kind = b ? 'btn' : x < W * 0.4 && !touch.stick ? 'stick' : 'aim';
+    touch.ptrs.set(e.pointerId, { kind, b, x, y });
+    if (b) pressTouch(b, true);
+    else if (kind === 'stick') { touch.stick = { id: e.pointerId, ox: x, oy: y, dx: 0, dy: 0 }; stickAxes(); }
+    else {
+      const a = aimPtrs();
+      if (a.length === 2) touch.pinch = { d: Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y) || 1, mag: sight.mag, dist: cam3.dist };
+    }
+  }, { passive: false });
+  cv.addEventListener('pointermove', e => {
+    const p = touch.ptrs.get(e.pointerId);
+    if (!p) return;
+    e.preventDefault(); touch.t = performance.now();
+    const [x, y] = tPos(e), dx = x - p.x, dy = y - p.y;
+    p.x = x; p.y = y;
+    if (p.kind === 'stick') {
+      const s = touch.stick;
+      s.dx = x - s.ox; s.dy = y - s.oy;
+      // le manche suit le doigt qui dépasse sa course
+      const l = Math.hypot(s.dx, s.dy);
+      if (l > STICK_R) { s.ox += s.dx * (1 - STICK_R / l); s.oy += s.dy * (1 - STICK_R / l); s.dx *= STICK_R / l; s.dy *= STICK_R / l; }
+      stickAxes();
+    } else if (p.kind === 'aim') {
+      const a = aimPtrs();
+      if (a.length >= 2 && touch.pinch) { // pincement : grossissement à la lunette, recul de la caméra dehors
+        const f = Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y) / touch.pinch.d;
+        if (sight.on) sight.mag = clamp(Math.round(touch.pinch.mag + Math.log2(f) * 2), 0, MAGS.length - 1);
+        else cam3.dist = clamp(touch.pinch.dist / f, 14, 160);
+        return;
+      }
+      touch.rel = true;
+      if (sight.on) { sight.cx += dx * 0.8; sight.cy += dy * 0.8; }
+      else { mouse.x = clamp(mouse.x + dx * 1.4, 0, W); mouse.y = clamp(mouse.y + dy, H * 0.25, H * 0.7); }
+    }
+  }, { passive: false });
+  function touchEnd(e) {
+    const p = touch.ptrs.get(e.pointerId);
+    if (!p) return;
+    touch.ptrs.delete(e.pointerId); touch.t = performance.now();
+    if (p.kind === 'btn') pressTouch(p.b, false);
+    else if (p.kind === 'stick') { touch.stick = null; stickAxes(); }
+    if (aimPtrs().length < 2) touch.pinch = null;
+  }
+  cv.addEventListener('pointerup', touchEnd);
+  cv.addEventListener('pointercancel', touchEnd);
+  // contexte audio d'iOS : il ne démarre que dans un geste (fin de toucher) ou à une touche du clavier
+  addEventListener('touchend', () => Sfx.init(), { passive: true });
+  addEventListener('keydown', () => { if (state === 'menu') { Sfx.init(); playMusic(); } });
+
+  function drawTouchUI() {
+    if (!touch.on || !inBattle()) { touch.btns = []; return; }
+    const list = layoutTouch(), [, , sb, sl] = touch.safe;
+    ctx.save();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 2;
+    // manche : sous le doigt, ou un repère discret là où le pouce se pose d'habitude
+    const s = touch.stick;
+    if (alive()) {
+      const ox = s ? s.ox : sl + 100, oy = s ? s.oy : H - sb - 110;
+      ctx.globalAlpha = s ? 0.9 : 0.35;
+      ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.strokeStyle = 'rgba(233,217,166,0.6)';
+      ctx.beginPath(); ctx.arc(ox, oy, STICK_R, 0, TAU); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = 'rgba(233,217,166,0.55)';
+      ctx.beginPath(); ctx.arc(ox + (s ? s.dx : 0), oy + (s ? s.dy : 0), 22, 0, TAU); ctx.fill();
+      if (!s) { ctx.fillStyle = '#e9d9a6'; ctx.font = '700 11px system-ui, sans-serif'; ctx.fillText('DRIVE', ox, oy + STICK_R + 12); }
+      ctx.globalAlpha = 1;
+    }
+    for (const q of list) {
+      const b = q.b, held = [...touch.ptrs.values()].some(p => p.b === b);
+      ctx.fillStyle = held ? 'rgba(233,196,106,0.45)' : b.warn ? 'rgba(120,40,20,0.6)' : 'rgba(0,0,0,0.45)';
+      ctx.strokeStyle = b.warn ? '#ffb070' : 'rgba(233,217,166,0.7)';
+      ctx.beginPath();
+      if (q.r) ctx.arc(q.cx, q.cy, q.r, 0, TAU); else ctx.roundRect ? ctx.roundRect(q.x, q.y, q.w, q.h, 10) : ctx.rect(q.x, q.y, q.w, q.h);
+      ctx.fill(); ctx.stroke();
+      const cx = q.r ? q.cx : q.x + q.w / 2, cy = q.r ? q.cy : q.y + q.h / 2;
+      ctx.fillStyle = '#f0e6c8'; ctx.font = `700 ${q.r > 40 ? 15 : 11}px system-ui, sans-serif`;
+      ctx.fillText(q.label, cx, b.sub ? cy - 5 : cy);
+      if (b.sub) { ctx.font = '600 9px system-ui, sans-serif'; ctx.fillStyle = '#a39d88'; ctx.fillText(b.sub, cx, cy + 9); }
+      // anneau de rechargement autour du bouton de tir
+      if (q.r > 40) {
+        const rf = player.reloadT > 0 ? 1 - player.reloadT / player.reloadMax : 1;
+        ctx.strokeStyle = rf >= 1 ? '#ffe27a' : 'rgba(255,200,90,0.8)'; ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.arc(q.cx, q.cy, q.r + 5, -Math.PI / 2, -Math.PI / 2 + TAU * rf); ctx.stroke(); ctx.lineWidth = 2;
+      }
+    }
+    ctx.restore();
+  }
 
   // Démarrage direct en développement (?debug seulement)
   if (dq('level')) levelIdx = clamp(Number(Q.get('level')) - 1, 0, LEVELS.length - 1);
