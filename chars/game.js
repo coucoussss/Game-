@@ -164,7 +164,7 @@ Meta.whenReady(() => {
   const W_ = (a, b, c, d, e) => [a, b, c, d, e];
   const LEVELS = [
     {
-      name: 'Kursk Plain', when: 'Prokhorovka · 12 July 1943', soils: ['steppe', 'track'], soil: 'dry grass', gRic: 1, atm: { T: 25, rho: 1.18, wind: 3 }, sub: 'Summer steppe, wide open spaces',
+      name: 'Kursk Plain', when: 'Prokhorovka · 12 July 1943', soils: ['steppe', 'track'], dustK: 0.7, soil: 'dry grass', gRic: 1, atm: { T: 25, rho: 1.18, wind: 3 }, sub: 'Summer steppe, wide open spaces',
       ground: ['#7b8446', '#6c763b', '#8a9352'], road: '#8d7d58', dust: '#a59a6a', track: 'rgba(40,35,20,0.16)',
       trees: 45, treeCl: 6, bushes: 34, buildings: 6, walls: 9, rocks: 8,
       tree: ['#36521f', '#4a6a2b'], bush: '#4c6b2a', wall: '#a59a86', roof: ['#8a4f3a', '#73402f'],
@@ -172,7 +172,7 @@ Meta.whenReady(() => {
       forms: [['line', 'wedge'], ['late', 'pincer'], ['wedge', 'ambush', 'late']],
     },
     {
-      forest: true, name: 'Ardennes Forest', when: 'Ardennes · 16 December 1944', soils: ['forest', 'track'], mud: 14, soil: 'muddy undergrowth', gRic: 0.5, atm: { T: 8, rho: 1.25, wind: 1.5 }, sub: 'Dense undergrowth, close-quarters fighting',
+      forest: true, name: 'Ardennes Forest', when: 'Ardennes · 16 December 1944', soils: ['forest', 'track'], mud: 14, dustK: 0.2, soil: 'muddy undergrowth', gRic: 0.5, atm: { T: 8, rho: 1.25, wind: 1.5 }, sub: 'Dense undergrowth, close-quarters fighting',
       ground: ['#4c5c30', '#425228', '#58693a'], road: '#6d5d3f', dust: '#6b6a48', track: 'rgba(25,25,10,0.2)',
       trees: 150, treeCl: 14, bushes: 70, buildings: 3, walls: 4, rocks: 10,
       tree: ['#24401a', '#335726'], bush: '#3a5a22', wall: '#8f8a7a', roof: ['#5a4a3a', '#4a3c30'],
@@ -180,7 +180,7 @@ Meta.whenReady(() => {
       forms: [['line', 'pincer'], ['ambush', 'late'], ['ambush', 'wedge']],
     },
     {
-      name: 'Stalingrad Ruins', when: 'Stalingrad · January 1943', soils: ['rubble', 'road'], soil: 'rubble', gRic: 1, atm: { T: -5, rho: 1.31, wind: 4 }, sub: 'Ruined streets, destructible buildings', city: true,
+      name: 'Stalingrad Ruins', when: 'Stalingrad · January 1943', soils: ['rubble', 'road'], dustK: 0.5, soil: 'rubble', gRic: 1, atm: { T: -5, rho: 1.31, wind: 4 }, sub: 'Ruined streets, destructible buildings', city: true,
       ground: ['#6d665c', '#615a51', '#79726a'], road: '#55504a', dust: '#8a8378', track: 'rgba(20,18,15,0.18)',
       trees: 8, treeCl: 2, bushes: 10, buildings: 0, walls: 12, rocks: 4,
       tree: ['#3c4a2a', '#4a5a34'], bush: '#4a5530', wall: '#8f877b', roof: ['#7a7268', '#686057'],
@@ -188,7 +188,7 @@ Meta.whenReady(() => {
       forms: [['line', 'pincer'], ['wedge', 'late'], ['pincer', 'ambush']],
     },
     {
-      desert: true, name: 'El Alamein Desert', when: 'Tel el Aqqaqir · 2 November 1942', soils: ['sand', 'track'], soil: 'sand', gRic: 0.4, atm: { T: 35, rho: 1.15, wind: 5 }, sub: 'Open terrain, long-range shooting',
+      desert: true, name: 'El Alamein Desert', when: 'Tel el Aqqaqir · 2 November 1942', soils: ['sand', 'track'], dustK: 1, soil: 'sand', gRic: 0.4, atm: { T: 35, rho: 1.15, wind: 5 }, sub: 'Open terrain, long-range shooting',
       ground: ['#cdb27a', '#c1a46b', '#d9c08c'], road: '#b39463', dust: '#dcc391', track: 'rgba(90,60,30,0.16)',
       trees: 0, treeCl: 1, bushes: 16, buildings: 5, walls: 5, rocks: 36,
       tree: ['#5a6a2a', '#6a7a3a'], bush: '#8c8a4a', wall: '#d8c7a0', roof: ['#e0d2ad', '#cdbd96'],
@@ -196,7 +196,7 @@ Meta.whenReady(() => {
       forms: [['ambush', 'line'], ['ambush', 'late'], ['wedge', 'pincer']],
     },
     {
-      name: 'Bastogne Night', when: 'Bastogne · 26 December 1944', soils: ['snow', 'packed'], soil: 'snow', gRic: 0.5, atm: { T: -10, rho: 1.34, wind: 2.5 }, sub: 'Snow and darkness, reduced vision', night: true,
+      name: 'Bastogne Night', when: 'Bastogne · 26 December 1944', soils: ['snow', 'packed'], dustK: 0.6, soil: 'snow', gRic: 0.5, atm: { T: -10, rho: 1.34, wind: 2.5 }, sub: 'Snow and darkness, reduced vision', night: true,
       ground: ['#dfe4e8', '#cfd6dc', '#eaeef1'], road: '#b9b3a8', dust: '#ffffff', track: 'rgba(60,60,70,0.22)',
       trees: 95, treeCl: 10, bushes: 34, buildings: 8, walls: 6, rocks: 6,
       tree: ['#203828', '#2c4a36'], bush: '#3c5a46', wall: '#9a958c', roof: ['#eef3f6', '#d8e0e6'], snow: true,
@@ -257,7 +257,7 @@ Meta.whenReady(() => {
   let mode = 'campagne', survWave = 0, nextWaveT = 0, duelScore = [0, 0], enemyN = 0;
   // vue du tireur : lunette à grossissement fixe, la souris oriente la visée
   const MAGS = [2.5, 5, 8];
-  const sight = { on: false, yaw: 0, pitch: 0, cx: 0, cy: 0, aimYaw: 0, aimPitch: 0, mag: 0, probe: null, probeT: 0, z0: 2, gunPitch: 0 };
+  const sight = { on: false, yaw: 0, pitch: 0, cx: 0, cy: 0, aimYaw: 0, aimPitch: 0, mag: 0, probe: null, probeT: 0, dust: false, z0: 2, gunPitch: 0 };
   const mouse = { x: W / 2, y: H / 2, down: false };
   const keys = {};
 
@@ -787,7 +787,7 @@ Meta.whenReady(() => {
     reviveT = 0; reviveUsed = false;
     tanks = []; shells = []; bullets = []; smokes = []; texts = []; feed = []; parts = []; logs = []; runners = []; ribbons = [];
     if (obstacles.some(o => o.type === 'wreck')) { obstacles = obstacles.filter(o => o.type !== 'wreck'); buildGrid(); }
-    orders = { kind: 'free', pos: null, target: null, t: 0 }; reinf = [];
+    orders = { kind: 'free', pos: null, target: null, t: 0 }; reinf = []; veils = [];
     spotted[0].clear(); spotted[1].clear(); seenAt.clear(); artyMarks = []; contactT = [0, 0]; artyT = [0, 0];
     HitCam.stop();
     const lv = L();
@@ -901,7 +901,7 @@ Meta.whenReady(() => {
     if (o.type === 'tree') return 16 * o.size;     // tronc d'environ 40 cm
     return Infinity;
   }
-  function losClear(x0, y0, x1, y1, vision, blast) {
+  function losClear(x0, y0, x1, y1, vision, blast, self) {
     const dx = x1 - x0, dy = y1 - y0;
     const minx = Math.min(x0, x1), maxx = Math.max(x0, x1), miny = Math.min(y0, y1), maxy = Math.max(y0, y1);
     for (const o of obstacles) {
@@ -911,14 +911,36 @@ Meta.whenReady(() => {
       if (h && h.t < 1) return false;
     }
     if (vision) {
+      const l2 = dx * dx + dy * dy || 1;
       for (const s of smokes) {
-        const l2 = dx * dx + dy * dy || 1;
         const k = clamp(((s.x - x0) * dx + (s.y - y0) * dy) / l2, 0, 1);
         if (Math.hypot(x0 + dx * k - s.x, y0 + dy * k - s.y) < s.r * 0.8) return false;
       }
+      // poussières (sauf celle de son propre coup) et panaches des épaves en feu, rabattus par le vent
+      let op = 0;
+      for (const v of veils) if (v.by !== self) op += v.dens * veilA(v) * chord(x0, y0, dx, dy, l2, v.x, v.y, v.r);
+      const wk = 6 * PX / Math.max(1, Math.hypot(WIND.x, WIND.y));
+      for (const w of tanks) if (w.dead && (w.wreck === 'burning' || w.wreck === 'brewed' && w.deadT < 12)) op += 0.6 * chord(x0, y0, dx, dy, l2, w.x + WIND.x * wk, w.y + WIND.y * wk, 6 * PX);
+      if (op >= 1) return false;
     }
     return true;
   }
+  // Corde traversée dans un disque (en rayons, de 0 à 2) par le segment (x0, y0) + k·(dx, dy)
+  function chord(x0, y0, dx, dy, l2, cx, cy, r) {
+    const k = clamp(((cx - x0) * dx + (cy - y0) * dy) / l2, 0, 1), h = Math.hypot(x0 + dx * k - cx, y0 + dy * k - cy);
+    return h < r ? 2 * Math.sqrt(1 - h * h / (r * r)) : 0;
+  }
+  // Voiles de poussière : départ du coup (selon le calibre et le sol de la carte, dustK) et explosion
+  // d'obus explosif. « dens » : opacité par rayon traversé ; la vue est coupée quand la somme des cordes
+  // pondérées atteint 1. Le tireur ne compte pas la sienne : elle voile sa lunette et lui cache la chute
+  // du coup (seul un chef sorti de la coupole la voit encore).
+  let veils = [];
+  const veilA = v => Math.min(1, 2 * v.life / v.max);
+  function muzzleVeil(t, mx, my) {
+    const q = (L().dustK || 0) * Math.min(1.3, t.T.caliber / 75), ta = t.angle + t.turret, r = (3 + 4 * q) * PX;
+    if (q >= 0.3) veils.push({ x: mx + Math.cos(ta) * r * 0.6, y: my + Math.sin(ta) * r * 0.6, r, life: 1 + 1.6 * q, max: 1 + 1.6 * q, dens: 0.7 * q, by: t });
+  }
+  const ownVeil = t => { let a = 0; for (const v of veils) if (v.by === t) a = Math.max(a, v.dens * veilA(v)); return a; };
   // Radio : poste intact et quelqu'un pour le servir (radio, chef ou chargeur)
   const radioOk = t => modOk(t, 'radio') && (roleOk(t, 'radio') || roleOk(t, 'commander') || roleOk(t, 'loader'));
   // Une épave sur la ligne de visée cache ce qui est plus bas qu'elle (portée de détection divisée par deux)
@@ -963,7 +985,7 @@ Meta.whenReady(() => {
             if (d < range && wreckCover(a, e)) range *= 0.5;
             // la lueur et la poussière d'un coup de feu se voient même à travers la poussière soulevée
             if (d < range && e.revealT > 0 && losClear(a.x, a.y, e.x, e.y, false)) rate = 9;
-            else if (d < range && losClear(a.x, a.y, e.x, e.y, true)) rate = clamp(1.6 * (1 - d / range), 0.05, 1.6) * vis;
+            else if (d < range && losClear(a.x, a.y, e.x, e.y, true, false, a)) rate = clamp(1.6 * (1 - d / range), 0.05, 1.6) * vis;
           }
           const v = clamp((a.det.get(e) || 0) + rate * dt, 0, 1.5);
           if (v > 0) a.det.set(e, v); else a.det.delete(e);
@@ -1188,7 +1210,7 @@ Meta.whenReady(() => {
     const a = s.by && s.by.ai, e = s.tgt;
     if (s.obs || !a || !e || e.dead || a.target !== e || !(s.by.sees && s.by.sees.has(e))) return;
     s.obs = true;
-    if (hit === e) return;
+    if (hit === e || ownVeil(s.by) >= 0.45 && !(s.by.hatch && roleOk(s.by, 'commander'))) return;
     const d = Math.hypot(e.x - s.fx, e.y - s.fy) || 1, ux = (e.x - s.fx) / d, uy = (e.y - s.fy) / d, rx = x - e.x, ry = y - e.y;
     a.corrA -= 0.7 * Math.atan2(-rx * uy + ry * ux, d);
     a.rngK = clamp(a.rngK * (1 - 0.7 * clamp((rx * ux + ry * uy) / d, -0.15, 0.15)), 0.7, 1.3);
@@ -1212,7 +1234,7 @@ Meta.whenReady(() => {
       let best = null, bs = 0, curS = 0, threat = null, ts = 0, tk = 0, pens = 0, aimed = false, bWreck = false;
       for (const e of seen) {
         if (e.dead) continue;
-        const d = dist(t, e), lo = losClear(t.x, t.y, e.x, e.y, true), wc = wreckClear(t, e), vis = own.has(e), los = lo && wc && vis;
+        const d = dist(t, e), lo = losClear(t.x, t.y, e.x, e.y, true, false, t), wc = wreckClear(t, e), vis = own.has(e), los = lo && wc && vis;
         const pen = penRatio(t, e, d), th = threatOf(t, e, d);
         let focus = 0;
         for (const a of tanks) if (a !== t && !a.dead && a.team === t.team && a.ai && a.ai.target === e) focus++;
@@ -1240,7 +1262,7 @@ Meta.whenReady(() => {
       }
       ai.target = best; ai.threat = threat; ai.threatK = tk;
       const d = best ? dist(t, best) : 0;
-      ai.los = !!best && own.has(best) && losClear(t.x, t.y, best.x, best.y, true) && wreckClear(t, best);
+      ai.los = !!best && own.has(best) && losClear(t.x, t.y, best.x, best.y, true, false, t) && wreckClear(t, best);
       ai.side = bWreck ? sideStep(t, best) : null;
       ai.pen = best ? penRatio(t, best, d) : 0;
       if (best) {
@@ -2108,7 +2130,7 @@ Meta.whenReady(() => {
     }
     if (t === player) { waveStats.shots++; shake = Math.max(shake, 5); }
     parts.push({ k: 'flash', x: mx, y: my, life: 0.08, max: 0.08, size: 20 + T.caliber / 4, z: T.S.gun.z });
-    Fx.muzzle(t, mx, my);
+    Fx.muzzle(t, mx, my); muzzleVeil(t, mx, my);
     Sfx.fire(listenerDist(mx, my), T.caliber >= 85);
   }
 
@@ -3303,7 +3325,8 @@ Meta.whenReady(() => {
     for (const r of runners) if (Math.random() < fragP(s.sb.cal, Math.hypot(r.x - x, r.y - y) / PX, 0.5)) r.hp = 0;
   }
   function explode(x, y, s, direct) {
-    const R = 75 * Math.sqrt(s.by.T.caliber / 75);
+    const R = 75 * Math.sqrt(s.by.T.caliber / 75), q = 0.6 + 0.4 * (L().dustK || 0);
+    veils.push({ x, y, r: (3 + 3 * Math.min(1, s.by.T.caliber / 88)) * PX * q, life: 2.2, max: 2.2, dens: 0.55 * q, by: null });
     blastNear(x, y, s, direct);
     for (const o of obstacles) {
       if (o.dead || o.hp === Infinity) continue;
@@ -3611,6 +3634,7 @@ Meta.whenReady(() => {
       else if (p.k === 'spark' || p.k === 'debris' || p.k === 'leaf') { p.vx *= 0.92; p.vy *= 0.92; }
       else if (p.k === 'turret') { p.rot += p.vr * dt; p.vr *= 0.98; if (p.life <= dt * 1.5) { stampCrater(p.x, p.y, 14); addDust(p.x, p.y); turretWreck(p); p.life = 0; } }
     }
+    for (let i = veils.length - 1; i >= 0; i--) if ((veils[i].life -= dt) <= 0) veils.splice(i, 1);
     for (let i = smokes.length - 1; i >= 0; i--) {
       const s = smokes[i];
       s.life -= dt; s.r = Math.min(s.maxR, s.r + 70 * dt);
@@ -3999,7 +4023,7 @@ Meta.whenReady(() => {
     // la vue extérieure reprendra derrière le char
     const P = to3(player.x, player.y, 0); cam3.tx = P[0]; cam3.ty = P[1]; cam3.yaw = -player.angle;
     sight.probeT -= dt;
-    if (sight.probeT <= 0) { sight.probeT = 0.1; sight.probe = sightProbe(); }
+    if (sight.probeT <= 0) { sight.probeT = 0.1; sight.probe = sightProbe(); sight.dust = ownVeil(player) >= 0.45; }
   }
   // Ce que vise la lunette : premier obstacle, char ou point du sol sur la ligne de visée,
   // et, sur un char, la plaque touchée et la perforation attendue
@@ -4599,7 +4623,9 @@ Meta.whenReady(() => {
   // ===================== Lunette du tireur =====================
   const sightR = () => Math.min(W, H - 130) * 0.5;
   function drawSightMask() {
-    const R = sightR(), cx = W / 2, cy = H / 2;
+    const R = sightR(), cx = W / 2, cy = H / 2, vd = ownVeil(player);
+    // poussière soulevée par le départ du coup : la lunette est voilée un instant
+    if (vd > 0) { const c = hex3(L().dust); ctx.fillStyle = `rgba(${c.map(v => Math.round(v * 200)).join(',')},${Math.min(0.85, vd * 1.1)})`; ctx.fillRect(0, 0, W, H); }
     ctx.fillStyle = '#050605';
     ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.arc(cx, cy, R, 0, TAU, true); ctx.fill();
     // bord de l'oculaire : assombrissement et léger liseré coloré (aberration chromatique)
@@ -4668,7 +4694,7 @@ Meta.whenReady(() => {
       ctx.moveTo(mx - 15, my); ctx.lineTo(mx - 11, my); ctx.moveTo(mx + 11, my); ctx.lineTo(mx + 15, my);
       ctx.moveTo(mx, my - 15); ctx.lineTo(mx, my - 11); ctx.moveTo(mx, my + 11); ctx.lineTo(mx, my + 15);
       ctx.stroke();
-      ctx.fillStyle = pr && pr.kind === 'tank' ? verdictOf(pr).col : '#fff';
+      ctx.fillStyle = pr && pr.kind === 'tank' && !sight.dust ? verdictOf(pr).col : '#fff';
       ctx.beginPath(); ctx.arc(mx, my, 1.8, 0, TAU); ctx.fill();
       if (dm != null) {
         ctx.font = '600 11px system-ui, sans-serif'; ctx.textAlign = 'left';
@@ -4685,7 +4711,8 @@ Meta.whenReady(() => {
     const top = `×${MAGS[sight.mag]} · ${sb.name}${dm != null ? ` · ${Math.round(dm)} m · ${Math.round(penAt(player.T, player.shell, pr.dist))} mm` : ''}`;
     ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillText(top, cx + 1, cy + R * 0.42 + 1);
     ctx.fillStyle = '#e9d9a6'; ctx.fillText(top, cx, cy + R * 0.42);
-    if (pr && pr.kind === 'tank') {
+    if (sight.dust) { ctx.font = '700 14px system-ui, sans-serif'; ctx.fillStyle = '#e9d9a6'; ctx.fillText('Muzzle dust: target obscured', cx, cy + R * 0.55); }
+    else if (pr && pr.kind === 'tank') {
       const t = pr.tank, ally = t.team === 0, { col, verdict } = verdictOf(pr);
       const l1 = `${t.T.name}${ally ? ' (ally)' : ''} · ${verdict}`;
       const l2 = t.dead ? '' : `${pr.plate}: ${pr.mm} mm at ${Math.round(pr.angle)}° → ${Math.round(pr.eff)} mm effective · penetration ${Math.round(pr.pen)} mm${pr.wall > 0 ? ` (through wall: −${pr.wall} mm)` : ''}`;
@@ -6117,7 +6144,7 @@ Meta.whenReady(() => {
         shells.push(s);
         return s;
       },
-      giveOrder, get orders() { return orders; }, get aiSkillK() { return aiSkillK; }, set aiSkillK(k) { aiSkillK = k; }, get form() { return waveForm; },
+      giveOrder, get orders() { return orders; }, get aiSkillK() { return aiSkillK; }, set aiSkillK(k) { aiSkillK = k; }, get form() { return waveForm; }, losClear,
       place(t, x, y, angle, turret) { t.x = x; t.y = y; t.angle = angle; if (turret != null) t.turret = turret; t.vx = t.vy = t.speed = 0; },
       get meta() { return Meta.P; },
       kill(i, det) { const e = tanks.filter(t => t.team === 1 && !t.dead)[i || 0]; if (e) destroyTank(e, player, !!det); return !!e; },
