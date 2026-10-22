@@ -963,10 +963,17 @@ Meta.whenReady(() => {
       const tt = Ballistics.tof(Ballistics.shell(T.id, t.shell), d * RK) / TOF;
       const px = tg.x + tg.vx * tt * ai.lead, py = tg.y + tg.vy * tt * ai.lead;
       aim = Math.atan2(py - pv.y, px - pv.x) + ai.aimErr;
+      // arrêt court (Kurzhalt) : obus prêt, le char s'arrête et attend que la caisse se calme ; une tourelle
+      // lente se fait aider par la caisse quand la cible est loin de son axe
+      if (ai.los && seen.has(tg) && t.reloadT < 0.6 && canFire(t) && ai.retreatT <= 0 && ai.dodgeT <= 0 && ai.unstickT <= 0) {
+        thr = 0;
+        if (ai.path) turn = 0;
+        if (!T.arc && T.tturn < 15 * D2R && Math.abs(angNorm(aim - t.angle - t.turret)) > 30 * D2R) turn = clamp(angNorm(aim - t.angle) * 3, -1, 1);
+      }
       if (ai.los && ai.reactT <= 0 && t.reloadT <= 0 && seen.has(tg) && canFire(t)) {
         ai.waitT += dt;
         const err = Math.abs(angNorm(t.angle + t.turret - aim));
-        const steady = t.disp < T.disp * (2.6 - ai.skill) || d < 300 || ai.waitT > 2;
+        const steady = (t.disp < T.disp * (2.6 - ai.skill) || d < 300 || ai.waitT > 2) && (t.stillT > 1.1 || d < 250 || ai.waitT > 4);
         if (err < Math.max(0.012, 9 / d) && steady && (ai.careless || friendlyClear(t, aim, d))) {
           fire = true; ai.waitT = 0;
           ai.aimErr = gauss() * ai.aimStd * (0.6 + d / 700);
@@ -1098,7 +1105,7 @@ Meta.whenReady(() => {
     const acc = (t.speed - u.v0) / dt / PX; u.v0 = t.speed;
     const lat = (t.speed / PX) * t.turnRate, sp = Math.abs(t.speed) / T.speed, ph = t.treadPhase / PX;
     const bump = sp * (t.bumpK || 1) * (Math.sin(ph * 2.3) * 0.6 + Math.sin(ph * 5.1 + 1.3) * 0.4 + Math.sin(ph * 9.7) * 0.25);
-    const fp = K * (0.005 * clamp(acc, -6, 6) + 0.004 * bump), fr = K * (0.006 * clamp(lat, -4, 4) + 0.003 * Math.sin(ph * 3.7 + 0.5) * sp);
+    const fp = K * (0.005 * clamp(acc, -6, 6) + 0.008 * bump), fr = K * (0.006 * clamp(lat, -4, 4) + 0.005 * Math.sin(ph * 3.7 + 0.5) * sp * (t.bumpK || 1));
     u.vp += (-K * u.p - C * u.vp + fp) * dt; u.p += u.vp * dt;
     u.vr += (-K * u.r - C * u.vr + fr) * dt; u.r += u.vr * dt;
   }
@@ -1108,6 +1115,12 @@ Meta.whenReady(() => {
     t.sus.vr += J * h / t.T.Ir * dirY * 3;
   }
   const DRV = {};
+  // Tourelles : vitesses réelles (TRAV_K = 1) ; TRAV_K est le réglage arcade si les essais le demandent.
+  // TRAV_ACC : accélération angulaire de la tourelle (rad/s²)
+  const TRAV_K = 1, TRAV_ACC = 30 * D2R;
+  // pente du tube due à la caisse (tangage, roulis) et dévers du canon (roulis autour de l'âme)
+  const hullPitch = t => t.sus.p * Math.cos(t.turret) - t.sus.r * Math.sin(t.turret);
+  const gunCant = t => t.sus.r * Math.cos(t.turret) + t.sus.p * Math.sin(t.turret);
   function updateTank(t, dt) {
     if (t.dead) {
       t.deadT += dt;
@@ -1148,7 +1161,9 @@ Meta.whenReady(() => {
     c.vCap = D.top * gov / D.gov * (t.wheelK || 1) * (t.optic.driver > 0 ? 0.7 : 1) * 1.02;
     // chenille cassée : la chenille intacte entraîne seule, ses roues labourent le sol
     c.vBroken = clamp(1.6 - T.mass / 100, 0.9, 1.5) / 2;
-    c.maxGear = 9; c.stuck = false; c.rev = 0;
+    c.maxGear = 9; c.stuck = false;
+    // tourelle hydraulique à l'arrêt : le pilote fait monter le régime pour que la pompe la tourne vite
+    c.rev = D.trav.kind === 'hyd' && t.travWant && Math.abs(t.speed) < 0.5 * PX ? 0.9 : 0;
     t.bumpK = 1 + ((gR.bump || 0) + (gL.bump || 0)) / 2;
     const vPre = t.speed, ox = t.x, oy = t.y;
     Vehicle.step(t, D, c, dt, PX);
@@ -1191,18 +1206,23 @@ Meta.whenReady(() => {
     let d;
     if (T.arc) d = clamp(desiredRel, -T.arc, T.arc) - t.turret;
     else d = angNorm(desiredRel - t.turret);
-    const ts = T.tturn * (roleOk(t, 'gunner') ? 1 : 0) * (t.turretGone ? 0 : 1);
-    const rot = clamp(d, -ts * dt, ts * dt);
+    // entraînement hydraulique (régime du moteur, manivelle s'il est arrêté), électrique ou à la main,
+    // avec l'inertie de la tourelle : accélération limitée, freinage avant le point visé
+    const ts = Vehicle.traverse(D, t.rpmA, engOn) * TRAV_K * (roleOk(t, 'gunner') ? 1 : 0) * (t.turretGone ? 0 : 1);
+    t.travWant = ts > 0 && Math.abs(d) > 0.01;
+    const want = Math.sign(d) * Math.min(ts, Math.sqrt(2 * TRAV_ACC * Math.abs(d)));
+    let rate = t.turretRate + clamp(want - t.turretRate, -TRAV_ACC * dt, TRAV_ACC * dt), rot = rate * dt;
+    if (rot * d >= 0 && Math.abs(rot) > Math.abs(d)) { rot = d; rate = 0; }
     const nt = T.arc ? clamp(t.turret + rot, -T.arc, T.arc) : angNorm(t.turret + rot);
     // le tube ne traverse ni les maisons, ni les rochers, ni les autres chars : la tourelle bute (les arbres
     // plient) ; déjà engagé, il peut toujours se dégager
     if (rot !== 0 && barrelHit(t, t.angle + nt, false) && !barrelHit(t, t.angle + t.turret, false)) {
       t.turretRate = 0;
       if (gameTime - (t.barrelT || -9) > 1) { t.barrelT = gameTime; Sfx.clang(listenerDist(t.x, t.y)); }
-    } else { t.turret = nt; t.turretRate = rot / dt; }
+    } else { t.turret = nt; t.turretRate = rate; }
 
     // Dispersion : elle augmente en mouvement et se resserre à l'arrêt
-    const goal = T.disp / t.up.optic * (t.optic.gunner > 0 ? 2.5 : 1) * (1 + 2.6 * Math.abs(t.speed) / T.speed + 1.6 * Math.abs(t.turnRate) / T.turn + 1.1 * Math.abs(t.turretRate) / T.tturn);
+    const goal = T.disp / t.up.optic * (t.optic.gunner > 0 ? 2.5 : 1) * (1 + 0.6 * Math.abs(t.speed) / T.speed + 0.8 * Math.abs(t.turnRate) / T.turn + 1.1 * Math.abs(t.turretRate) / T.tturn);
     t.disp += (goal - t.disp) * Math.min(1, dt * (goal > t.disp ? 6 : 1.3));
 
     // hors du tir, le chargeur regarnit le râtelier : un obus toutes les 8 s
@@ -1210,14 +1230,19 @@ Meta.whenReady(() => {
     if (t.reloadT > 0) { t.reloadT -= dt / reloadMul(t); if (t.reloadT <= 0 && t === player) Sfx.reload(); }
     t.recoil = Math.max(0, t.recoil - dt * 3);
     t.fireAge += dt;
-    // Pointage en hauteur : le canon prend l'élévation qui amène l'obus sur le point visé (chute
-    // comprise), à la vitesse du volant de pointage
+    // Pointage en hauteur, relatif à la caisse (aucun char de l'époque n'était stabilisé) : le tireur
+    // cherche au volant (≈ 4 °/s) l'élévation qui amène l'obus sur le point visé, chute comprise ; le
+    // tangage de la caisse s'y ajoute. Tirer juste demande un arrêt court, le temps que la suspension se calme.
     {
-      const sb = Ballistics.shell(T.id, t.shell), pv = pivot(t), ta = t.angle + t.turret;
+      const sb = Ballistics.shell(T.id, t.shell), pv = pivot(t), ta = t.angle + t.turret, hp = hullPitch(t);
       const ap = aimPoint(t, pv.x + Math.cos(ta) * T.gunEnd, pv.y + Math.sin(ta) * T.gunEnd);
-      const want = clamp(Math.atan(aimSlope(sb, ap.D, T.S.gun.z, ap.z) * PX * RK), -8 * D2R, 20 * D2R);
-      t.elev += clamp(want - t.elev, -0.15 * dt, 0.15 * dt);
+      const want = Math.atan(aimSlope(sb, ap.D, T.S.gun.z, ap.z) * PX * RK), er = D.elevRate * D2R * (roleOk(t, 'gunner') ? 1 : 0);
+      // le tireur corrige le tangage qu'il voit dans la lunette, avec un temps de réaction (≈ 0,5 s)
+      t.hpSeen = (t.hpSeen || 0) + (hp - (t.hpSeen || 0)) * Math.min(1, dt / 0.5);
+      t.elev = clamp(t.elev + clamp(want - t.hpSeen - t.elev, -er * dt, er * dt), D.elev[0] * D2R, D.elev[1] * D2R);
+      t.elevErr = t.elev + hp - want;
     }
+    t.stillT = Math.abs(t.speed) < 0.3 * PX && Math.abs(t.turnRate) < 0.05 ? (t.stillT || 0) + dt : 0;
     suspension(t, dt);
     // fumée de poudre qui s'échappe encore de la bouche après le coup
     if (t.fireAge < 2.5 && Math.random() < dt * 7 * (1 - t.fireAge / 2.5)) {
@@ -1275,21 +1300,23 @@ Meta.whenReady(() => {
   }
   function fireShell(t) {
     const T = t.T, key = t.shell, sh = SHELLS[key];
-    const ta = t.angle + t.turret;
-    const ang = ta + gauss() * t.disp;
+    const ta = t.angle + t.turret, hp = hullPitch(t), lo = D2R * T.D.elev[0] + hp, hi = D2R * T.D.elev[1] + hp;
+    // le dévers du canon (roulis) décale le coup du côté penché, d'autant plus que la hausse est forte
+    const ang = ta + gauss() * t.disp + gunCant(t) * Math.tan(t.elev);
     const pv = pivot(t);
     // canon collé à un arbre, un mur ou un char : la bouche est au-delà, l'obus part du point de contact
     const blk = barrelHit(t, ta, true);
     const mx = blk ? blk.x : pv.x + Math.cos(ta) * T.gunEnd, my = blk ? blk.y : pv.y + Math.sin(ta) * T.gunEnd;
     t.ammo[key]--;
     const sb = Ballistics.shell(T.id, key), v0 = Ballistics.muzzle(sb), pxk = shellPxK(), sp = v0 * pxk;
-    // vertical : élévation du canon (débattement de −8° à +20°) et dispersion, isotrope avec l'horizontale
-    const z0 = T.S.gun.z, k3 = PX * RK;
-    let slope = Math.tan(t.elev) / k3 + gauss() * t.disp / k3;
+    // vertical : élévation du tube, caisse comprise, et dispersion, isotrope avec l'horizontale ; la bouche
+    // monte ou descend avec le tangage
+    const z0 = T.S.gun.z + Math.sin(hp) * T.S.gun.len, k3 = PX * RK;
+    let slope = Math.tan(t.elev + hp) / k3 + gauss() * t.disp / k3;
     // recul : la caisse bascule vers l'arrière du tir (canon au-dessus du centre de gravité)
     t.fireAge = 0;
     rock(t, sb.m * sb.v0 * (key === 'CAN' ? 0.9 : 1.3), Math.cos(t.turret), -Math.sin(t.turret), T.S.gun.z - T.S.ht * 0.5);
-    slope = clamp(slope, Math.tan(-8 * D2R) / k3, Math.tan(20 * D2R) / k3);
+    slope = clamp(slope, Math.tan(lo) / k3, Math.tan(hi) / k3);
     if (key === 'CAN') {
       // la boîte s'ouvre à la bouche : une gerbe de billes d'acier qui s'ouvre d'environ 3°
       for (let i = 0; i < sb.balls; i++) {
@@ -2763,7 +2790,8 @@ Meta.whenReady(() => {
     // moteur au régime réel et selon sa charge ; chenilles à leur vitesse moyenne, pivot compris
     Sfx.engine(live ? player.rpm : -1, live ? player.load : 0);
     Sfx.tracks(live ? Math.abs(player.speed) / PX + Math.abs(player.turnRate) * player.T.D.B / 2 : -1);
-    Sfx.turret(live ? Math.abs(player.turretRate) / player.T.tturn : 0);
+    // moteur de tourelle, ou pompe hydraulique qui chante avec le régime
+    Sfx.turret(live ? Math.abs(player.turretRate) / player.T.tturn : 0, live && player.T.D.trav.kind === 'hyd' && modOk(player, 'engine') ? player.rpm : undefined);
   }
 
   // ===================== Rendu =====================
@@ -2955,8 +2983,6 @@ Meta.whenReady(() => {
   // l'époque n'en avait), l'image tremble quand le char roule ou pivote, et saute au départ du coup.
   function sightCam(dt) {
     const T = player.T, Sd = T.S, pv = pivot(player), ta = player.angle + player.turret;
-    const mv = Math.abs(player.speed) / T.speed, tr = Math.abs(player.turnRate) / T.turn, g = gameTime;
-    const sw = mv * 0.7 + tr * 0.5;
     // Curseur incrusté dans la lunette : il désigne le point visé, la vue le suit en douceur, et la
     // tourelle suit à sa propre vitesse. Curseur verrouillé : la vue recentre le curseur. Sans
     // verrouillage (page intégrée) : visée libre au centre, la vue ne pivote que vers les bords.
@@ -2974,19 +3000,20 @@ Meta.whenReady(() => {
       const ex = Math.max(0, Math.hypot(sight.cx, sight.cy) / R - 0.6) / 0.4;
       sight.yaw += ay * ex * 2.5 * dt; sight.pitch += ap * ex * 2.5 * dt;
     }
-    sight.pitch = clamp(sight.pitch, -0.14, 0.3);
-    sight.aimYaw = sight.yaw + ay; sight.aimPitch = clamp(sight.pitch + ap, -0.14, 0.3);
-    const jy = sw * (0.005 * Math.sin(g * 6.1) + 0.0025 * Math.sin(g * 15.7));
-    const jp = sw * (0.007 * Math.sin(g * 7.3 + 1) + 0.0035 * Math.sin(g * 17.9)) + player.recoil * 0.03;
-    const yaw = sight.yaw + jy, pitch = sight.pitch + jp;
-    sight.gunPitch = sight.aimPitch + jp;
+    const lo = T.D.elev[0] * D2R, hi = T.D.elev[1] * D2R;
+    sight.pitch = clamp(sight.pitch, lo, hi);
+    sight.aimYaw = sight.yaw + ay; sight.aimPitch = clamp(sight.pitch + ap, lo, hi);
+    // la lunette est liée au canon : la vue montre l'écart entre le tube et le point visé (tangage de la
+    // caisse, retard du volant de pointage), penche avec le roulis et sursaute au départ du coup
+    const yaw = sight.yaw, pitch = sight.pitch + (player.elevErr || 0) + player.recoil * 0.03, roll = gunCant(player);
+    sight.gunPitch = sight.aimPitch;
     const fx = pv.x + Math.cos(ta) * 0.9 * PX - Math.sin(ta) * 0.35 * PX, fy = pv.y + Math.sin(ta) * 0.9 * PX + Math.cos(ta) * 0.35 * PX;
     sight.z0 = Sd.gun.z + 0.08;
     const eye = to3(fx, fy, sight.z0), cp = Math.cos(pitch);
     const dir = [Math.cos(yaw) * cp, -Math.sin(yaw) * cp, Math.sin(pitch)];
     const tgt = [eye[0] + dir[0] * 60, eye[1] + dir[1] * 60, eye[2] + dir[2] * 60];
     cam3.eye = eye; cam3.target = tgt;
-    cam3.view = G3.M4.lookAt(eye, tgt, [0, 0, 1]);
+    cam3.view = G3.M4.lookAt(eye, tgt, [-Math.sin(yaw) * Math.sin(roll), -Math.cos(yaw) * Math.sin(roll), Math.cos(roll)]);
     cam3.vp = G3.M4.mul(G3.M4.persp(cam3.fov, W / H, 0.25, 2400), cam3.view);
     camX = player.x; camY = player.y;
     // la vue extérieure reprendra derrière le char
@@ -3627,7 +3654,7 @@ Meta.whenReady(() => {
 
     // canon réel (la tourelle suit à sa vitesse de rotation) et cercle de dispersion
     const pv = pivot(player), ta = player.angle + player.turret, dd = pr && pr.kind !== 'sky' ? pr.dist : 400;
-    const gz = sight.z0 + Math.tan(sight.gunPitch) * dd / PX;
+    const gz = sight.z0 + Math.tan(sight.gunPitch + (player.elevErr || 0)) * dd / PX;
     const gp = project3(pv.x + Math.cos(ta) * dd, pv.y + Math.sin(ta) * dd, gz);
     if (!gp.behind) {
       const rr = Math.max(5, player.disp * ppr);

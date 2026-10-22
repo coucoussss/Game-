@@ -202,10 +202,11 @@ const Sfx = (() => {
       trk.tf.frequency.setTargetAtTime(500 + k * 900, t, 0.1);
       trk.tg.gain.setTargetAtTime(vms <= 0.2 ? 0 : 0.03 + k * 0.09, t, 0.15);
     },
-    turret(k) {
+    // k : vitesse de la tourelle 0..1 ; p : hauteur (régime de la pompe hydraulique), k par défaut
+    turret(k, p = k) {
       if (!trk) return;
       const t = ac.currentTime;
-      trk.to.frequency.setTargetAtTime(90 + k * 70, t, 0.1);
+      trk.to.frequency.setTargetAtTime(90 + p * 70, t, 0.1);
       trk.tgg.gain.setTargetAtTime(k > 0.05 ? 0.012 + k * 0.025 : 0, t, 0.08);
     },
   };

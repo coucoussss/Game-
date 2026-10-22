@@ -38,16 +38,16 @@ const Vehicle = (() => {
     kingtiger: { gears: geo(2.6, 41.5, 8), rev: geo(2.6, 41.5, 8).slice(0, 4), rated: 3000, gov: 2500, box: OLVAR, steer: { kind: 'regen', r: [3.5, 165], neutral: 15 }, trav: { kind: 'hyd', idle: 1.9, max: 19, rpm: 2000, hand: 0.6 }, elev: [-8, 15], elevRate: 4, press: 1.0, ext: 1 },
   };
   // Sols : crr, résistance au roulement ; mu, adhérence (traction, freinage) ; lat, adhérence latérale ;
-  // sink, sensibilité à la pression au sol ; path, coût pour l'itinéraire ; bump, bosses
+  // sink, sensibilité à la pression au sol ; path, coût pour l'itinéraire ; bump, bosses (lisse < 0 < cahoteux)
   const SOILS = [
-    { id: 'road', name: 'road', crr: 0.035, mu: 0.85, lat: 0.65, sink: 0, path: 0.7 },
-    { id: 'track', name: 'dirt track', crr: 0.05, mu: 0.8, lat: 0.6, sink: 0.2, path: 0.8 },
+    { id: 'road', name: 'road', crr: 0.035, mu: 0.85, lat: 0.65, sink: 0, path: 0.7, bump: -0.6 },
+    { id: 'track', name: 'dirt track', crr: 0.05, mu: 0.8, lat: 0.6, sink: 0.2, path: 0.8, bump: -0.3 },
     { id: 'steppe', name: 'dry grass', crr: 0.09, mu: 0.8, lat: 0.6, sink: 0.3, path: 1 },
     { id: 'forest', name: 'muddy undergrowth', crr: 0.12, mu: 0.6, lat: 0.5, sink: 0.7, path: 1.15 },
     { id: 'mud', name: 'mud', crr: 0.17, mu: 0.45, lat: 0.4, sink: 1, path: 1.6 },
     { id: 'sand', name: 'sand', crr: 0.12, mu: 0.55, lat: 0.45, sink: 0.6, path: 1.2 },
     { id: 'snow', name: 'snow', crr: 0.11, mu: 0.35, lat: 0.3, sink: 0.8, path: 1.2 },
-    { id: 'packed', name: 'packed snow', crr: 0.045, mu: 0.3, lat: 0.25, sink: 0, path: 0.75 },
+    { id: 'packed', name: 'packed snow', crr: 0.045, mu: 0.3, lat: 0.25, sink: 0, path: 0.75, bump: -0.4 },
     { id: 'rubble', name: 'rubble', crr: 0.1, mu: 0.6, lat: 0.55, sink: 0.2, path: 1.2, bump: 1 },
     { id: 'crater', name: 'crater', crr: 0.14, mu: 0.6, lat: 0.5, sink: 0.4, path: 1.3, bump: 1.5 },
     { id: 'trunk', name: 'fallen trunk', crr: 0.25, mu: 0.6, lat: 0.5, sink: 0, path: 1.5, bump: 2 },
