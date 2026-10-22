@@ -618,6 +618,7 @@ void main(){
     };
     for (const o of obstacles) {
       s = ((Math.round(o.x) * 73856093) ^ (Math.round(o.y) * 19349663)) >>> 0 || 1;
+      if (o.type === 'wreck') continue; // tourelle arrachée : dessinée par le jeu avec son modèle
       if (o.type === 'tree') tree(M(o.x + 8), Yv(o.y + 8), o.size, o.dead, -(o.fall || 0));
       else if (o.type === 'rock') rock(M(o.x + o.w / 2), Yv(o.y + o.h / 2), M(o.w) * 0.55, M(o.h) * 0.55, M(Math.min(o.w, o.h)) * 0.45, snow ? [0.55, 0.57, 0.6] : desert ? [0.6, 0.5, 0.38] : [0.47, 0.45, 0.42]);
       else if (o.type === 'wall') {
