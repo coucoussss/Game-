@@ -4,14 +4,19 @@
 // Repère monde en mètres : X vers l'est, Y vers le nord, Z vers le haut.
 const World3D = (() => {
   const { M4, Builder } = G3;
+  const IDENT = M4.ident();
 
   const VS = `
 attribute vec3 aPos; attribute vec3 aNor; attribute vec3 aCol; attribute float aMat;
-uniform mat4 uVP; uniform mat4 uModel; uniform mat4 uLVP; uniform float uTime;
-varying vec3 vW; varying vec3 vN; varying vec3 vC; varying vec3 vO; varying float vM; varying vec3 vNO; varying vec4 vL;
+uniform mat4 uVP; uniform mat4 uModel; uniform mat4 uLVP; uniform mat4 uLVPS; uniform float uTime; uniform vec2 uNOff;
+varying vec3 vW; varying vec3 vN; varying vec3 vC; varying vec3 vO; varying float vM; varying vec3 vNO; varying vec4 vL; varying vec4 vLS;
 void main(){
   vNO = aNor;
   vec4 w = uModel * vec4(aPos, 1.0);
+  vec3 nW = normalize(mat3(uModel) * aNor);
+  // ombres décalées le long de la normale (pas d'acné sans gros biais) ; la carte statique est
+  // calculée sans le vent : on la lit à la position au repos pour que l'ombre suive la feuille
+  vLS = uLVPS * vec4(w.xyz + nW * uNOff.y, 1.0);
   if (aMat > 7.5 && aMat < 8.5) {
     float h = max(0.0, w.z - 0.8);
     w.x += sin(uTime * 1.3 + w.x * 0.15 + w.y * 0.11) * 0.035 * h;
@@ -26,18 +31,18 @@ void main(){
     w.y += g * 0.025 * h + fl * 0.01;
     w.z += fl * 0.008;
   }
-  vW = w.xyz; vO = aPos; vN = mat3(uModel) * aNor; vC = aCol; vM = aMat; vL = uLVP * w;
+  vW = w.xyz; vO = aPos; vN = nW; vC = aCol; vM = aMat; vL = uLVP * vec4(w.xyz + nW * uNOff.x, 1.0);
   gl_Position = uVP * w;
 }`;
   const FS = `
 precision highp float;
-varying vec3 vW; varying vec3 vN; varying vec3 vC; varying vec3 vO; varying float vM; varying vec3 vNO; varying vec4 vL;
+varying vec3 vW; varying vec3 vN; varying vec3 vC; varying vec3 vO; varying float vM; varying vec3 vNO; varying vec4 vL; varying vec4 vLS;
 uniform vec3 uEye; uniform vec3 uSun; uniform vec3 uSunCol; uniform vec3 uSkyCol; uniform vec3 uBounce;
 uniform vec3 uFogCol; uniform float uFogD; uniform vec3 uZenith; uniform vec3 uHorizon;
 uniform vec3 uCamo0; uniform vec3 uCamo1; uniform vec3 uCamo2; uniform float uPat;
 uniform float uBurnt; uniform vec4 uTint; uniform float uTread; uniform float uSeed; uniform float uSnow;
-uniform sampler2D uShadow; uniform float uShadowTexel; uniform sampler2D uGround; uniform vec2 uMap;
-uniform vec4 uLP[8]; uniform vec3 uLC[8]; uniform float uTime;
+uniform sampler2D uShadow; uniform sampler2D uShadowS; uniform vec2 uShT; uniform vec2 uSR; uniform sampler2D uGround; uniform vec2 uMap;
+uniform vec4 uLP[NL]; uniform vec3 uLC[NL]; uniform float uNL; uniform float uTime;
 float h3(vec3 p){ p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
 float n3(vec3 x){
   vec3 i = floor(x); vec3 f = fract(x); f = f * f * (3.0 - 2.0 * f);
@@ -45,16 +50,23 @@ float n3(vec3 x){
              mix(mix(h3(i + vec3(0,0,1)), h3(i + vec3(1,0,1)), f.x), mix(h3(i + vec3(0,1,1)), h3(i + vec3(1,1,1)), f.x), f.y), f.z);
 }
 float fbm(vec3 p){ return 0.5 * n3(p) + 0.25 * n3(p * 2.03) + 0.125 * n3(p * 4.01) + 0.0625 * n3(p * 8.07); }
-float unpack(vec4 c){ return dot(c, vec4(1.0, 1.0 / 255.0, 1.0 / 65025.0, 1.0 / 16581375.0)); }
-float shadowAt(vec4 l, float bias){
+#if DEPTH_TEX
+float dAt(sampler2D t, vec2 uv){ return texture2D(t, uv).r; }
+#else
+float dAt(sampler2D t, vec2 uv){ return dot(texture2D(t, uv), vec4(1.0, 1.0 / 255.0, 1.0 / 65025.0, 1.0 / 16581375.0)); }
+#endif
+// filtrage bilinéaire des comparaisons sur KR x KR texels (pénombre lisse, sans marches)
+float shadowAt(sampler2D t, vec4 l, float ts, float bias){
   vec3 p = l.xyz / l.w * 0.5 + 0.5;
   if (p.x < 0.0 || p.y < 0.0 || p.x > 1.0 || p.y > 1.0 || p.z > 1.0) return 1.0;
+  float z = p.z - bias;
+  vec2 st = p.xy / ts - 0.5, f = fract(st), b0 = (floor(st) - float((KR - 1) / 2) + 0.5) * ts;
   float s = 0.0;
-  for (int i = -1; i <= 1; i++) for (int j = -1; j <= 1; j++) {
-    float d = unpack(texture2D(uShadow, p.xy + vec2(float(i), float(j)) * uShadowTexel));
-    s += p.z - bias > d ? 0.0 : 1.0;
+  for (int j = 0; j < KR; j++) for (int i = 0; i < KR; i++) {
+    float wx = i == 0 ? 1.0 - f.x : (i == KR - 1 ? f.x : 1.0), wy = j == 0 ? 1.0 - f.y : (j == KR - 1 ? f.y : 1.0);
+    s += wx * wy * step(z, dAt(t, b0 + vec2(float(i), float(j)) * ts));
   }
-  return s / 9.0;
+  return s / float((KR - 1) * (KR - 1));
 }
 vec3 lin(vec3 c){ return pow(c, vec3(2.2)); }
 vec3 tm(vec3 c){ c = (c * (2.51 * c + 0.03)) / (c * (2.43 * c + 0.59) + 0.14); return pow(clamp(c, 0.0, 1.0), vec3(1.0 / 2.2)); }
@@ -165,7 +177,7 @@ void main(){
     trans = 0.55; ks = 0.18; shin = 28.0;
   }
   if (uTint.w > 0.0) { base = mix(base, uTint.rgb, uTint.w); paint = 0.0; }
-  float grime = fbm(P * 5.0);
+  float grime = (vM < 3.5 || uBurnt > 0.0) ? fbm(P * 5.0) : 0.5;
   if (vM < 1.5 || (vM > 2.5 && vM < 3.5)) base *= 0.82 + 0.32 * grime;
   if (paint > 0.5) {
     float mud = smoothstep(1.25, 0.15, vO.z) * (0.55 + 0.45 * fbm(P * 2.0 + 9.0));
@@ -178,14 +190,17 @@ void main(){
   vec3 L = normalize(uSun);
   float nd = dot(N, L);
   float diff = max(nd, 0.0) + trans * max(-nd, 0.0) * 0.6;
-  float sh = shadowAt(vL, 0.0012 + 0.002 * (1.0 - abs(nd)));
+  float bm = 0.03 + 0.09 * (1.0 - abs(nd));
+  float sh = shadowAt(uShadowS, vLS, uShT.y, bm * uSR.y);
+  if (sh > 0.0) sh = min(sh, shadowAt(uShadow, vL, uShT.x, bm * uSR.x));
   float hemi = 0.5 + 0.5 * N.z;
   float ao = 0.55 + 0.45 * smoothstep(-0.1, 1.4, vW.z);
   if (vM > 8.5 && vM < 9.5) ao = 1.0;
   vec3 H = normalize(L + V);
   float spec = pow(max(dot(N, H), 0.0), shin) * ks * sh * (1.0 - uBurnt * 0.8);
   vec3 col = base * (uSunCol * diff * sh + mix(uBounce, uSkyCol, hemi) * ao) + uSunCol * spec;
-  for (int i = 0; i < 8; i++) {
+  for (int i = 0; i < NL; i++) {
+    if (float(i) >= uNL) break;
     vec3 lv = uLP[i].xyz - vW;
     float ld = length(lv);
     float att = clamp(1.0 - ld / max(uLP[i].w, 0.001), 0.0, 1.0);
@@ -198,13 +213,10 @@ void main(){
 }`;
   const SVS = `
 attribute vec3 aPos; attribute vec3 aNor; attribute vec3 aCol; attribute float aMat;
-uniform mat4 uLVP; uniform mat4 uModel; uniform float uTime;
+uniform mat4 uLVP; uniform mat4 uModel;
 varying float vD;
 void main(){
-  vec4 w = uModel * vec4(aPos, 1.0);
-  if (aMat > 7.5 && aMat < 8.5) { float h = max(0.0, w.z - 0.8); w.x += sin(uTime * 1.3 + w.x * 0.15 + w.y * 0.11) * 0.035 * h; }
-  if (aMat > 13.5) { float h = max(0.0, w.z - 0.15); w.x += sin(uTime * 1.6 + w.x * 0.4 + w.y * 0.3) * 0.04 * h; }
-  vec4 p = uLVP * w;
+  vec4 p = uLVP * (uModel * vec4(aPos, 1.0));
   vD = p.z / p.w * 0.5 + 0.5;
   gl_Position = p;
 }`;
@@ -212,10 +224,14 @@ void main(){
 precision highp float;
 varying float vD;
 void main(){
+#if DEPTH_TEX
+  gl_FragColor = vec4(1.0);
+#else
   vec4 e = vec4(1.0, 255.0, 65025.0, 16581375.0) * vD;
   e = fract(e);
   e -= e.yzww * vec4(1.0 / 255.0, 1.0 / 255.0, 1.0 / 255.0, 0.0);
   gl_FragColor = e;
+#endif
 }`;
   // particules : billboards doux (fumée éclairée) ou lumineux (flammes, éclairs, traceurs)
   const PVS = `
@@ -245,11 +261,17 @@ void main(){
   gl_FragColor = vec4(pow(clamp(c, 0.0, 1.0), vec3(1.0 / 2.2)), a);
 }`;
 
-  function create(canvas) {
-    const gl = canvas.getContext('webgl', { antialias: true, alpha: false, preserveDrawingBuffer: false });
+  // Réglages du rendu selon la qualité : noyau de filtrage des ombres (KR texels par axe), lumières
+  // dynamiques, cartes d'ombre statique (toute la carte, calculée une fois) et dynamique (chars, à
+  // chaque image), échelle des distances de détail. Les niveaux eux-mêmes sont choisis par le jeu.
+  const QDEF = { kr: 4, nl: 8, sms: 4096, smd: 2048, lod: 1 };
+  function create(canvas, opt = {}) {
+    const gl = canvas.getContext('webgl', { antialias: opt.msaa !== false, alpha: false, preserveDrawingBuffer: false });
     if (!gl) return null;
+    let Q = Object.assign({}, QDEF, opt.q), depthOK = false;
     const compile = (vs, fs) => {
-      const mk = (t, src) => { const s = gl.createShader(t); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; };
+      const pre = `#define KR ${Q.kr}\n#define NL ${Q.nl}\n#define DEPTH_TEX ${depthOK ? 1 : 0}\n`;
+      const mk = (t, src) => { const s = gl.createShader(t); gl.shaderSource(s, pre + src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; };
       const p = gl.createProgram();
       gl.attachShader(p, mk(gl.VERTEX_SHADER, vs)); gl.attachShader(p, mk(gl.FRAGMENT_SHADER, fs)); gl.linkProgram(p);
       if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
@@ -262,52 +284,87 @@ void main(){
     };
     // Ressources du GPU, toutes recréées après une perte du contexte WebGL (pilote réinitialisé,
     // mémoire saturée, changement d'application sur mobile)
-    let main, shadow, part, shTex, shFB, shRB, gTex, sky, pBuf, lost = false;
-    const SM = 2048; // carte d'ombre (profondeur encodée en RGBA)
+    let main, shadow, part, shS = null, shD = null, gTex, sky, pBuf, lost = false;
     const mkBuf = data => {
       const buf = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, buf);
       gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
       return buf;
     };
+    // Sommets compacts sur le GPU (20 octets au lieu de 40) : position en flottants, normale et
+    // matériau en octets signés et non signés, couleur en octets normalisés
+    const pack = f => {
+      const n = f.length / 10, buf = new ArrayBuffer(n * 20), F = new Float32Array(buf), B = new Int8Array(buf), C = new Uint8ClampedArray(buf);
+      for (let i = 0; i < n; i++) {
+        const s = i * 10, o = i * 20;
+        F[i * 5] = f[s]; F[i * 5 + 1] = f[s + 1]; F[i * 5 + 2] = f[s + 2];
+        B[o + 12] = Math.round(f[s + 3] * 127); B[o + 13] = Math.round(f[s + 4] * 127); B[o + 14] = Math.round(f[s + 5] * 127);
+        C[o + 15] = f[s + 9]; C[o + 16] = f[s + 6] * 255; C[o + 17] = f[s + 7] * 255; C[o + 18] = f[s + 8] * 255;
+      }
+      return C;
+    };
     const skyB = new Builder(); skyB.sphere([0, 0, 0], 900, 900, 900, 18, [1, 1, 1], 11);
-    const skyData = new Float32Array(skyB.v);
-    function initGL() {
+    const skyData = pack(skyB.v);
+    const texP = (min, mag = min, wrap = gl.CLAMP_TO_EDGE) => { for (const [k, v] of [[gl.TEXTURE_MIN_FILTER, min], [gl.TEXTURE_MAG_FILTER, mag], [gl.TEXTURE_WRAP_S, wrap], [gl.TEXTURE_WRAP_T, wrap]]) gl.texParameteri(gl.TEXTURE_2D, k, v); };
+    // carte d'ombre : texture de profondeur (16 bits) si possible, sinon profondeur encodée en RGBA
+    function mkTarget(size) {
+      const T = { size, tex: gl.createTexture(), fb: gl.createFramebuffer(), rb: [] };
+      gl.bindTexture(gl.TEXTURE_2D, T.tex);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, T.fb);
+      const rb = (fmt, att) => { const r = gl.createRenderbuffer(); T.rb.push(r); gl.bindRenderbuffer(gl.RENDERBUFFER, r); gl.renderbufferStorage(gl.RENDERBUFFER, fmt, size, size); gl.framebufferRenderbuffer(gl.FRAMEBUFFER, att, gl.RENDERBUFFER, r); };
+      const ok = () => gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+      if (depthOK) {
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT, size, size, 0, gl.DEPTH_COMPONENT, gl.UNSIGNED_SHORT, null);
+        texP(gl.NEAREST);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, T.tex, 0);
+        if (!ok()) rb(gl.RGBA4, gl.COLOR_ATTACHMENT0); // certains pilotes exigent une couleur
+      } else {
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, size, size, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+        texP(gl.NEAREST);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, T.tex, 0);
+        rb(gl.DEPTH_COMPONENT16, gl.DEPTH_ATTACHMENT);
+      }
+      const good = ok();
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      if (!good) { freeTarget(T); return null; }
+      return T;
+    }
+    function freeTarget(T) { if (!T || lost) return; gl.deleteTexture(T.tex); gl.deleteFramebuffer(T.fb); for (const r of T.rb) gl.deleteRenderbuffer(r); }
+    // programmes et cartes d'ombre : dépendent de la qualité
+    function initTargets() {
+      freeTarget(shS); freeTarget(shD);
+      depthOK = !!gl.getExtension('WEBGL_depth_texture');
+      shS = depthOK && mkTarget(Q.sms);
+      if (!shS) { depthOK = false; Q.sms = Math.min(Q.sms, 2048); shS = mkTarget(Q.sms); }
+      shD = mkTarget(Q.smd);
       main = compile(VS, FS); shadow = compile(SVS, SFS); part = compile(PVS, PFS);
+      bakeAll = true;
+    }
+    function initGL() {
       gl.enable(gl.DEPTH_TEST);
       gl.disable(gl.CULL_FACE);
-      shTex = gl.createTexture();
-      gl.bindTexture(gl.TEXTURE_2D, shTex);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, SM, SM, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-      for (const [k, v] of [[gl.TEXTURE_MIN_FILTER, gl.NEAREST], [gl.TEXTURE_MAG_FILTER, gl.NEAREST], [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D, k, v);
-      shFB = gl.createFramebuffer(); shRB = gl.createRenderbuffer();
-      gl.bindFramebuffer(gl.FRAMEBUFFER, shFB);
-      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, shTex, 0);
-      gl.bindRenderbuffer(gl.RENDERBUFFER, shRB);
-      gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, SM, SM);
-      gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, shRB);
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      shS = shD = null;
+      initTargets();
       gTex = gl.createTexture(); // texture du sol, renvoyée par le jeu (setGround)
-      sky = { buf: mkBuf(skyData), count: skyData.length / 10 };
+      sky = { buf: mkBuf(skyData), count: skyData.length / 20 };
       pBuf = gl.createBuffer();
     }
-    initGL();
 
     // Maillages vivants. Par défaut leurs sommets sont gardés pour être renvoyés tels quels après
     // une perte du contexte ; keep = false pour les gros décors, que le jeu reconstruit (onRestored).
     const meshes = new Set();
     const upload = (b, keep = true) => {
-      const data = b instanceof Float32Array ? b : new Float32Array(b.v);
-      const m = { buf: mkBuf(data), count: data.length / 10, data: keep ? data : null };
+      const data = pack(b instanceof Float32Array ? b : b.v);
+      const m = { buf: mkBuf(data), count: data.length / 20, data: keep ? data : null };
       meshes.add(m);
       return m;
     };
     const free = m => { if (!m) return; meshes.delete(m); if (m.buf && !lost) gl.deleteBuffer(m.buf); m.buf = null; };
     const bindMesh = (prog, m) => {
       gl.bindBuffer(gl.ARRAY_BUFFER, m.buf);
-      const A = prog.A, st = 40;
-      const at = (n, size, off) => { if (A[n] == null || A[n] < 0) return; gl.enableVertexAttribArray(A[n]); gl.vertexAttribPointer(A[n], size, gl.FLOAT, false, st, off); };
-      at('aPos', 3, 0); at('aNor', 3, 12); at('aCol', 3, 24); at('aMat', 1, 36);
+      const A = prog.A;
+      const at = (n, size, type, nrm, off) => { if (A[n] == null || A[n] < 0) return; gl.enableVertexAttribArray(A[n]); gl.vertexAttribPointer(A[n], size, type, nrm, 20, off); };
+      at('aPos', 3, gl.FLOAT, false, 0); at('aNor', 3, gl.BYTE, true, 12); at('aMat', 1, gl.UNSIGNED_BYTE, false, 15); at('aCol', 3, gl.UNSIGNED_BYTE, true, 16);
     };
     // texture du sol (mise à jour par tuiles quand des traces s'y impriment)
     let mapW = 1, mapH = 1;
@@ -315,7 +372,8 @@ void main(){
       gl.bindTexture(gl.TEXTURE_2D, gTex);
       gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, cv);
-      for (const [k, v] of [[gl.TEXTURE_MIN_FILTER, gl.LINEAR], [gl.TEXTURE_MAG_FILTER, gl.LINEAR], [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D, k, v);
+      texP(gl.LINEAR);
+      if (wm !== mapW || hm !== mapH) slvp = null;
       mapW = wm; mapH = hm;
     }
     function updateGround(img, x, y) {
@@ -327,26 +385,132 @@ void main(){
     const pData = new Float32Array(PCAP * 6 * 9);
     let env = null;
 
-    function setEnv(e) { env = e; }
+    function setEnv(e) { env = e; slvp = null; }
+
+    // ---- décor statique par cellules ----
+    // Chaque cellule : boîte englobante, maillages par niveau de détail (0 proche, 1 moyen, 2 lointain,
+    // 3 commun à toutes les distances) et emprise dans la carte d'ombre statique. Seules les cellules
+    // dans le champ sont dessinées ; une cellule remplacée ne recalcule que sa zone de la carte d'ombre.
+    const cells = new Map(), bakeBoxes = [];
+    let bakeAll = true, slvp = null, sRange = 1, sTexel = 0.1;
+    const corners = (b, f) => { for (let i = 0; i < 8; i++) f([b[i & 1 ? 3 : 0], b[i & 2 ? 4 : 1], b[i & 4 ? 5 : 2]]); };
+    const lightRect = b => { const r = [1e9, 1e9, -1e9, -1e9]; corners(b, p => { const q = M4.apply(slvp, p); r[0] = Math.min(r[0], q[0]); r[1] = Math.min(r[1], q[1]); r[2] = Math.max(r[2], q[0]); r[3] = Math.max(r[3], q[1]); }); return r; };
+    function boxOf(B) {
+      const b = [1e9, 1e9, 1e9, -1e9, -1e9, -1e9];
+      for (const bu of B) if (bu) for (let i = 0; i < bu.n; i += 10) for (let k = 0; k < 3; k++) { const v = bu.a[i + k]; if (v < b[k]) b[k] = v; if (v > b[k + 3]) b[k + 3] = v; }
+      if (b[0] > b[3]) return null;
+      for (let k = 0; k < 3; k++) { b[k] -= 0.6; b[k + 3] += 0.6; } // balancement du vent
+      return b;
+    }
+    function putCell(id, c) {
+      const old = cells.get(id);
+      if (old) { old.m.forEach(free); cells.delete(id); bakeBoxes.push(old.box); }
+      const box = c && boxOf(c.b);
+      if (!box) return;
+      const rec = { box, m: c.b.map(b => b && b.n ? upload(b, false) : null), lr: slvp ? lightRect(box) : null };
+      cells.set(id, rec); bakeBoxes.push(box);
+    }
+    function clearCells() { for (const c of cells.values()) c.m.forEach(free); cells.clear(); bakeBoxes.length = 0; bakeAll = true; }
+    // carte statique : ajustée à la carte entière (et sa lisière) vue du soleil
+    function fitStatic() {
+      const sd = norm(env.sun), c = [mapW / 2, -mapH / 2, 0];
+      const view = M4.lookAt([c[0] + sd[0] * 500, c[1] + sd[1] * 500, c[2] + sd[2] * 500], c, Math.abs(sd[2]) > 0.95 ? [0, 1, 0] : [0, 0, 1]);
+      const r = [1e9, 1e9, 1e9, -1e9, -1e9, -1e9];
+      corners([-50, -mapH - 50, -2, mapW + 50, 50, 24], p => { const q = M4.apply(view, p); for (let k = 0; k < 3; k++) { r[k] = Math.min(r[k], q[k]); r[k + 3] = Math.max(r[k + 3], q[k]); } });
+      slvp = M4.mul(M4.ortho(r[0], r[3], r[1], r[4], -r[5] - 1, -r[2] + 1), view);
+      sRange = r[5] - r[2] + 2; sTexel = Math.max(r[3] - r[0], r[4] - r[1]) / shS.size;
+      for (const cl of cells.values()) cl.lr = lightRect(cl.box);
+      bakeAll = true;
+    }
+    function bakeStatic() {
+      const T = shS, S = T.size;
+      let r = null;
+      if (!bakeAll) {
+        r = [1e9, 1e9, -1e9, -1e9];
+        for (const b of bakeBoxes) { const q = lightRect(b); r[0] = Math.min(r[0], q[0]); r[1] = Math.min(r[1], q[1]); r[2] = Math.max(r[2], q[2]); r[3] = Math.max(r[3], q[3]); }
+      }
+      bakeAll = false; bakeBoxes.length = 0;
+      gl.bindFramebuffer(gl.FRAMEBUFFER, T.fb);
+      gl.viewport(0, 0, S, S);
+      if (r) {
+        const px = v => Math.floor((v * 0.5 + 0.5) * S);
+        const x0 = Math.max(0, px(r[0]) - 2), y0 = Math.max(0, px(r[1]) - 2), x1 = Math.min(S, px(r[2]) + 3), y1 = Math.min(S, px(r[3]) + 3);
+        if (x1 <= x0 || y1 <= y0) { gl.bindFramebuffer(gl.FRAMEBUFFER, null); return; }
+        gl.enable(gl.SCISSOR_TEST); gl.scissor(x0, y0, x1 - x0, y1 - y0);
+      }
+      gl.clearColor(1, 1, 1, 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+      gl.useProgram(shadow.p);
+      gl.uniformMatrix4fv(shadow.U.uLVP, false, slvp);
+      gl.uniformMatrix4fv(shadow.U.uModel, false, IDENT);
+      for (const c of cells.values()) {
+        if (r && (c.lr[2] < r[0] || c.lr[0] > r[2] || c.lr[3] < r[1] || c.lr[1] > r[3])) continue;
+        for (const k of [0, 3]) { const m = c.m[k]; if (m && m.buf) { bindMesh(shadow, m); gl.drawArrays(gl.TRIANGLES, 0, m.count); } }
+      }
+      gl.disable(gl.SCISSOR_TEST);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    }
+    // plans du champ de vision (Gribb-Hartmann), normalisés pour les tests de sphères
+    const planes = new Float32Array(24);
+    function setFrustum(m) {
+      for (let i = 0; i < 6; i++) {
+        const r = i >> 1, s = i & 1 ? -1 : 1, o = i * 4;
+        planes[o] = m[3] + s * m[r]; planes[o + 1] = m[7] + s * m[4 + r]; planes[o + 2] = m[11] + s * m[8 + r]; planes[o + 3] = m[15] + s * m[12 + r];
+        const l = Math.hypot(planes[o], planes[o + 1], planes[o + 2]) || 1;
+        for (let k = 0; k < 4; k++) planes[o + k] /= l;
+      }
+    }
+    const boxIn = b => { for (let o = 0; o < 24; o += 4) { const a = planes[o], c = planes[o + 1], d = planes[o + 2]; if (a * (a > 0 ? b[3] : b[0]) + c * (c > 0 ? b[4] : b[1]) + d * (d > 0 ? b[5] : b[2]) + planes[o + 3] < 0) return false; } return true; };
+    const sphereIn = s => { for (let o = 0; o < 24; o += 4) if (planes[o] * s[0] + planes[o + 1] * s[1] + planes[o + 2] * s[2] + planes[o + 3] < -s[3]) return false; return true; };
+    const stats = { cells: 0, verts: 0 };
+    const vis = [];
+    function drawCells(cam) {
+      const U = main.U, e = cam.eye;
+      gl.uniformMatrix4fv(U.uModel, false, IDENT);
+      const dc = [[0.6, 0.55, 0.35], [0.4, 0.3, 0.2], [0.3, 0.35, 0.2]];
+      gl.uniform3fv(U.uCamo0, dc[0]); gl.uniform3fv(U.uCamo1, dc[1]); gl.uniform3fv(U.uCamo2, dc[2]);
+      if (U.uPat) gl.uniform1f(U.uPat, 0);
+      gl.uniform1f(U.uBurnt, 0); gl.uniform4fv(U.uTint, [0, 0, 0, 0]); gl.uniform1f(U.uTread, 0); gl.uniform1f(U.uSeed, 0);
+      // la lunette grossit : le détail se garde plus loin
+      const lodK = Math.tan(0.45) / Math.tan((cam.fov || 0.9) / 2) * Q.lod;
+      vis.length = 0;
+      for (const c of cells.values()) {
+        if (!boxIn(c.box)) continue;
+        const b = c.box, dx = Math.max(b[0] - e[0], 0, e[0] - b[3]), dy = Math.max(b[1] - e[1], 0, e[1] - b[4]), dz = Math.max(b[2] - e[2], 0, e[2] - b[5]);
+        c.d = Math.hypot(dx, dy, dz) / lodK;
+        vis.push(c);
+      }
+      // du plus proche au plus lointain : le test de profondeur évite d'ombrer ce qui sera caché
+      vis.sort((a, b) => a.d - b.d);
+      stats.cells = vis.length; stats.verts = 0;
+      for (const c of vis) {
+        const L = c.d < 45 ? 0 : c.d < 110 ? 1 : 2;
+        for (const m of [c.m[3], c.m[L]]) if (m && m.buf) { bindMesh(main, m); gl.drawArrays(gl.TRIANGLES, 0, m.count); stats.verts += m.count; }
+      }
+    }
 
     // ---- dessin ----
-    let frameU = null;
-    function uniformsMain(cam, lvp) {
+    const lp = new Float32Array(32), lc = new Float32Array(24);
+    function uniformsMain(cam, lvp, dRange, dTexel) {
       const U = main.U;
       gl.useProgram(main.p);
       gl.uniformMatrix4fv(U.uVP, false, cam.vp);
       gl.uniformMatrix4fv(U.uLVP, false, lvp);
+      gl.uniformMatrix4fv(U.uLVPS, false, slvp);
+      gl.uniform2f(U.uNOff, dTexel * 1.5, sTexel * 1.5);
+      gl.uniform2f(U.uSR, 1 / dRange, 1 / sRange);
+      gl.uniform2f(U.uShT, 1 / shD.size, 1 / shS.size);
       gl.uniform3fv(U.uEye, cam.eye);
       gl.uniform3fv(U.uSun, env.sun); gl.uniform3fv(U.uSunCol, env.sunCol); gl.uniform3fv(U.uSkyCol, env.skyCol); gl.uniform3fv(U.uBounce, env.bounce);
       gl.uniform3fv(U.uFogCol, env.fogCol); gl.uniform1f(U.uFogD, env.fogD); gl.uniform3fv(U.uZenith, env.zenith); gl.uniform3fv(U.uHorizon, env.horizon);
       gl.uniform1f(U.uSnow, env.snow || 0); gl.uniform1f(U.uTime, cam.time);
       gl.uniform2f(U.uMap, mapW, mapH);
-      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, shTex); gl.uniform1i(U.uShadow, 0);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, shD.tex); gl.uniform1i(U.uShadow, 0);
       gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, gTex); gl.uniform1i(U.uGround, 1);
-      gl.uniform1f(U.uShadowTexel, 1 / SM);
-      const lp = new Float32Array(32), lc = new Float32Array(24);
-      (cam.lights || []).slice(0, 8).forEach((l, i) => { lp.set([l.p[0], l.p[1], l.p[2], l.r], i * 4); lc.set(l.c, i * 3); });
-      gl.uniform4fv(U.uLP, lp); gl.uniform3fv(U.uLC, lc);
+      gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, shS.tex); gl.uniform1i(U.uShadowS, 2);
+      gl.activeTexture(gl.TEXTURE0);
+      const L = cam.lights || [], n = Math.min(L.length, Q.nl);
+      for (let i = 0; i < n; i++) { const l = L[i]; lp[i * 4] = l.p[0]; lp[i * 4 + 1] = l.p[1]; lp[i * 4 + 2] = l.p[2]; lp[i * 4 + 3] = l.r; lc[i * 3] = l.c[0]; lc[i * 3 + 1] = l.c[1]; lc[i * 3 + 2] = l.c[2]; }
+      gl.uniform4fv(U.uLP, lp.subarray(0, Q.nl * 4)); gl.uniform3fv(U.uLC, lc.subarray(0, Q.nl * 3)); gl.uniform1f(U.uNL, n);
     }
     function drawMain(m, model, o = {}) {
       if (!m.buf) return; // décor pas encore renvoyé après une perte du contexte
@@ -368,35 +532,46 @@ void main(){
       gl.uniformMatrix4fv(shadow.U.uModel, false, model);
       gl.drawArrays(gl.TRIANGLES, 0, m.count);
     }
+    // carte dynamique centrée sur la zone regardée, recalée au texel près et d'étendue arrondie à 10 m :
+    // les bords des ombres ne rampent pas quand la caméra glisse ou zoome
+    let dView = null, dSun = null;
+    function dynLight(c, ext0) {
+      const sd = norm(env.sun);
+      if (dSun !== env.sun) { dSun = env.sun; dView = M4.lookAt([sd[0] * 1000, sd[1] * 1000, sd[2] * 1000], [0, 0, 0], Math.abs(sd[2]) > 0.95 ? [0, 1, 0] : [0, 0, 1]); }
+      const ext = Math.ceil(ext0 / 10) * 10, tx = 2 * ext / shD.size, q = M4.apply(dView, c);
+      const x = Math.round(q[0] / tx) * tx, y = Math.round(q[1] / tx) * tx, d = -q[2], dr = ext + 30;
+      return { lvp: M4.mul(M4.ortho(x - ext, x + ext, y - ext, y + ext, d - dr, d + dr), dView), range: 2 * dr, texel: tx };
+    }
 
-    // scène : { cam: {eye, target, vp, time, lights}, items: [{mesh, model, o, noShadow}], parts: {soft:[], glow:[]} }
+    // scène : { cam: {eye, target, vp, view, fov, time, lights}, items: [{mesh, model, o, noShadow, cull}], parts: {soft:[], glow:[]} }
+    // cull : sphère englobante [x, y, z, r] facultative, pour ne pas dessiner un objet hors du champ
     function render(scene, w, h) {
-      if (lost) return;
+      if (lost || !env) return;
       if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
       const cam = scene.cam;
-      // passe d'ombre, centrée sur la zone regardée
-      const c = cam.target, sd = norm(env.sun);
-      const eyeL = [c[0] + sd[0] * 220, c[1] + sd[1] * 220, c[2] + sd[2] * 220];
-      const ext = scene.shadowExt || 80;
-      const lvp = M4.mul(M4.ortho(-ext, ext, -ext, ext, 20, 480), M4.lookAt(eyeL, c, Math.abs(sd[2]) > 0.95 ? [0, 1, 0] : [0, 0, 1]));
-      gl.bindFramebuffer(gl.FRAMEBUFFER, shFB);
-      gl.viewport(0, 0, SM, SM);
-      gl.clearColor(1, 1, 1, 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
       gl.disable(gl.BLEND); gl.depthMask(true);
+      if (!slvp) fitStatic();
+      if (bakeAll || bakeBoxes.length) bakeStatic();
+      // passe d'ombre dynamique : chars, épaves, débris
+      const dl = dynLight(cam.target, scene.shadowExt || 80);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, shD.fb);
+      gl.viewport(0, 0, shD.size, shD.size);
+      gl.clearColor(1, 1, 1, 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
       gl.useProgram(shadow.p);
-      gl.uniformMatrix4fv(shadow.U.uLVP, false, lvp);
-      gl.uniform1f(shadow.U.uTime, cam.time);
+      gl.uniformMatrix4fv(shadow.U.uLVP, false, dl.lvp);
       for (const it of scene.items) if (!it.noShadow) drawShadow(it.mesh, it.model);
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
       // passe principale
       gl.viewport(0, 0, w, h);
       gl.clearColor(env.fogCol[0], env.fogCol[1], env.fogCol[2], 1);
       gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-      uniformsMain(cam, lvp);
+      setFrustum(cam.vp);
+      uniformsMain(cam, dl.lvp, dl.range, dl.texel);
       gl.depthMask(false);
       drawMain(sky, M4.trs(cam.eye[0], cam.eye[1], cam.eye[2], 0), {});
       gl.depthMask(true);
-      for (const it of scene.items) drawMain(it.mesh, it.model, it.o || {});
+      drawCells(cam);
+      for (const it of scene.items) if (!it.cull || sphereIn(it.cull)) drawMain(it.mesh, it.model, it.o || {});
       drawParticles(scene.parts, cam);
     }
 
@@ -463,12 +638,15 @@ void main(){
       draw(parts.glow, true);
     }
 
-    const api = { gl, canvas, upload, free, render, setEnv, setGround, updateGround, get lost() { return lost; }, onLost: null, onRestored: null };
+    initGL();
+    // nouvelle qualité : programmes et cartes d'ombre refaits (l'anticrénelage, lui, est fixé à la création)
+    function setQuality(q) { Q = Object.assign({}, QDEF, q); if (!lost) { initTargets(); slvp = null; } }
+    const api = { gl, canvas, upload, free, render, setEnv, setGround, updateGround, putCell, clearCells, setQuality, stats, get lost() { return lost; }, onLost: null, onRestored: null };
     // sans preventDefault, le navigateur refuse de rendre le contexte
     canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); lost = true; if (api.onLost) api.onLost(); });
     canvas.addEventListener('webglcontextrestored', () => {
       try {
-        initGL();
+        initGL(); slvp = null;
         for (const m of meshes) m.buf = m.data ? mkBuf(m.data) : null;
         lost = false;
       } catch (e) { console.warn('WebGL restore failed', e); return; }
@@ -480,9 +658,35 @@ void main(){
   const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 
   // ===================== Décor =====================
-  // obstacles du jeu (pixels) → maillage statique (mètres). px : pixels par mètre.
-  function buildScene(lv, obstacles, bushes, px, WWm, WHm, seed) {
+  // Le décor est découpé en cellules de 32 m (clé numérique), chacune avec 4 constructeurs : détail
+  // proche, moyen, lointain, et commun à toutes les distances. Un objet appartient à la cellule de
+  // son point d'ancrage, si bien qu'une destruction ne reconstruit que sa cellule.
+  const CELL = 32;
+  const cellKey = (x, y) => (Math.floor(x / CELL) + 64) + (Math.floor(-y / CELL) + 64) * 256;
+  const obstacleCell = (o, px) => o.type === 'tree' ? cellKey((o.x + 8) / px, -(o.y + 8) / px) : cellKey((o.x + o.w / 2) / px, -(o.y + o.h / 2) / px);
+  function cellSet() {
+    const m = new Map();
+    return { m, at(x, y) { const k = cellKey(x, y); let c = m.get(k); if (!c) m.set(k, c = { k, b: [new Builder(), new Builder(), new Builder(), new Builder()] }); return c.b; } };
+  }
+  // sol : grandes dalles débordant de la carte (la texture s'étire au-delà des bords) ; un relief
+  // viendra déplacer ces sommets, d'où une cellule à part
+  function buildGround(WWm, WHm) {
     const b = new Builder();
+    const g0 = -WWm * 0.6, g1 = WWm * 1.6, h0 = -WHm * 1.6, h1 = WHm * 0.6;
+    const GN = 8, n = [0, 0, 1];
+    for (let i = 0; i < GN; i++) for (let j = 0; j < GN; j++) {
+      const x0 = g0 + (g1 - g0) * i / GN, x1 = g0 + (g1 - g0) * (i + 1) / GN, y0 = h0 + (h1 - h0) * j / GN, y1 = h0 + (h1 - h0) * (j + 1) / GN;
+      b.triN([x0, y0, 0], [x1, y0, 0], [x1, y1, 0], n, n, n, [1, 1, 1], 9);
+      b.triN([x0, y0, 0], [x1, y1, 0], [x0, y1, 0], n, n, n, [1, 1, 1], 9);
+    }
+    return { b: [null, null, null, b] };
+  }
+  // obstacles du jeu (pixels) → cellules statiques (mètres). px : pixels par mètre. only : clé d'une
+  // seule cellule à reconstruire. extras : herbe et lisière hors carte (construites une fois).
+  function buildScene(lv, obstacles, px, WWm, WHm, seed, only = null, extras = false) {
+    const cs = cellSet();
+    let B = null, b = null;
+    const cellAt = (x, y) => { B = cs.at(x, y); b = B[3]; };
     let s = seed >>> 0 || 1;
     const R = () => (s = (s * 16807) % 2147483647) / 2147483647;
     const rr = (a, c) => a + R() * (c - a);
@@ -491,15 +695,6 @@ void main(){
     const snow = !!lv.snow, city = !!lv.city, desert = !!lv.desert, forest = !!lv.forest;
     const conifer = forest || snow;
     const wallCol = hex(lv.wall), roofCol = hex(lv.roof[0]);
-    // sol (débordant de la carte, la texture s'étire sur les bords)
-    const g0 = -WWm * 0.6, g1 = WWm * 1.6, h0 = -WHm * 1.6, h1 = WHm * 0.6;
-    const GN = 8;
-    for (let i = 0; i < GN; i++) for (let j = 0; j < GN; j++) {
-      const x0 = g0 + (g1 - g0) * i / GN, x1 = g0 + (g1 - g0) * (i + 1) / GN, y0 = h0 + (h1 - h0) * j / GN, y1 = h0 + (h1 - h0) * (j + 1) / GN;
-      const n = [0, 0, 1];
-      b.triN([x0, y0, 0], [x1, y0, 0], [x1, y1, 0], n, n, n, [1, 1, 1], 9);
-      b.triN([x0, y0, 0], [x1, y1, 0], [x0, y1, 0], n, n, n, [1, 1, 1], 9);
-    }
     const tree = (x, y, sc, dead, ang) => {
       const trunkC = [0.28, 0.21, 0.15];
       if (dead) {
@@ -520,13 +715,15 @@ void main(){
         }
       } else {
         b.cyl([x, y, 0], [x, y, 4.2 * sc], 0.32 * sc, 0.2 * sc, 7, trunkC, 6);
-        b.cyl([x, y, 2.6 * sc], [x + 1.2 * sc, y + 0.6 * sc, 4.6 * sc], 0.12 * sc, 0.08 * sc, 5, trunkC, 6);
-        // houppier : nombreuses touffes de tailles variées, plus sombres au cœur
+        B[0].cyl([x, y, 2.6 * sc], [x + 1.2 * sc, y + 0.6 * sc, 4.6 * sc], 0.12 * sc, 0.08 * sc, 5, trunkC, 6);
+        // houppier : nombreuses touffes de tailles variées, plus sombres au cœur ; de loin, les cinq
+        // premières seulement, grossies et moins facettées
         for (let k = 0; k < 11; k++) {
           const a = R() * Math.PI * 2, d = Math.sqrt(R()) * 2.4 * sc, z = rr(4.2, 7.6) * sc;
           const r = rr(1.0, 1.7) * sc, kc = rr(0.7, 1.1) * (0.8 + 0.2 * (d / (2.4 * sc)));
-          const cb = k % 2 ? col1 : col0;
-          b.sphere([x + Math.cos(a) * d, y + Math.sin(a) * d, z], r, r, r * 0.85, 6, [cb[0] * kc, cb[1] * kc, cb[2] * kc], 8);
+          const cb = k % 2 ? col1 : col0, cc = [cb[0] * kc, cb[1] * kc, cb[2] * kc], p = [x + Math.cos(a) * d, y + Math.sin(a) * d, z];
+          B[0].sphere(p, r, r, r * 0.85, 6, cc, 8);
+          if (k < 5) { B[1].sphere(p, r * 1.3, r * 1.3, r * 1.1, 5, cc, 8); B[2].sphere(p, r * 1.3, r * 1.3, r * 1.1, 4, cc, 8); }
         }
       }
     };
@@ -577,8 +774,9 @@ void main(){
             continue;
           }
           const broken = city && R() < 0.35;
-          if (ax) { b.box(cx + t, fixed + sign * 0.04, z, 1.25, 0.06, 1.55, frame, 7); b.box(cx + t, fixed + sign * 0.07, z, 1.05, 0.04, 1.35, broken ? [0.02, 0.02, 0.02] : glass, broken ? 7 : 13); }
-          else { b.box(fixed + sign * 0.04, cy + t, z, 0.06, 1.25, 1.55, frame, 7); b.box(fixed + sign * 0.07, cy + t, z, 0.04, 1.05, 1.35, broken ? [0.02, 0.02, 0.02] : glass, broken ? 7 : 13); }
+          // encadrements : de près seulement
+          if (ax) { for (let q = 0; q < 2; q++) B[q].box(cx + t, fixed + sign * 0.04, z, 1.25, 0.06, 1.55, frame, 7); b.box(cx + t, fixed + sign * 0.07, z, 1.05, 0.04, 1.35, broken ? [0.02, 0.02, 0.02] : glass, broken ? 7 : 13); }
+          else { for (let q = 0; q < 2; q++) B[q].box(fixed + sign * 0.04, cy + t, z, 0.06, 1.25, 1.55, frame, 7); b.box(fixed + sign * 0.07, cy + t, z, 0.04, 1.05, 1.35, broken ? [0.02, 0.02, 0.02] : glass, broken ? 7 : 13); }
         }
       };
       facade(true, dx, y0, -1); facade(true, dx, y1, 1); facade(false, dy, x0, -1); facade(false, dy, x1, 1);
@@ -616,9 +814,11 @@ void main(){
         else b.box((R() < 0.5 ? x0 : x1), cy + t * dy, z, 0.5, rr(1, 2.2), rr(1, 2), [0.05, 0.045, 0.04], 6);
       }
     };
-    for (const o of obstacles) {
-      s = ((Math.round(o.x) * 73856093) ^ (Math.round(o.y) * 19349663)) >>> 0 || 1;
+    if (!extras) for (const o of obstacles) {
       if (o.type === 'wreck') continue; // tourelle arrachée : dessinée par le jeu avec son modèle
+      if (only != null && obstacleCell(o, px) !== only) continue;
+      s = ((Math.round(o.x) * 73856093) ^ (Math.round(o.y) * 19349663)) >>> 0 || 1;
+      if (o.type === 'tree') cellAt(M(o.x + 8), Yv(o.y + 8)); else cellAt(M(o.x + o.w / 2), Yv(o.y + o.h / 2));
       if (o.type === 'tree') tree(M(o.x + 8), Yv(o.y + 8), o.size, o.dead, -(o.fall || 0));
       else if (o.type === 'rock') rock(M(o.x + o.w / 2), Yv(o.y + o.h / 2), M(o.w) * 0.55, M(o.h) * 0.55, M(Math.min(o.w, o.h)) * 0.45, snow ? [0.55, 0.57, 0.6] : desert ? [0.6, 0.5, 0.38] : [0.47, 0.45, 0.42]);
       else if (o.type === 'wall') {
@@ -629,18 +829,21 @@ void main(){
         if (snow) b.box((x0 + x1) / 2, (y0 + y1) / 2, 1.33, x1 - x0, y1 - y0, 0.05, [0.92, 0.94, 0.97], 7);
       } else building(o);
     }
+    if (only != null) return cs.m.get(only) || { k: only, b: [null, null, null, null] };
+    if (!extras) return cs.m;
     s = (seed >>> 0) + 977 || 1;
-    // touffes d'herbe : trois brins fins, un peu plus sombres que le sol
+    // touffes d'herbe : trois brins fins, un peu plus sombres que le sol (invisibles de loin)
     if (!city && !snow) {
       const gc = desert ? [0.5, 0.44, 0.27] : forest ? [0.2, 0.28, 0.1] : [0.32, 0.38, 0.15];
       for (let k = 0; k < (desert ? 900 : 3200); k++) {
         const x = rr(0, WWm), y = -rr(0, WHm);
+        cellAt(x, y);
         const cc = [gc[0] * rr(0.75, 1.15), gc[1] * rr(0.75, 1.15), gc[2] * rr(0.75, 1.15)];
         for (let q = 0; q < 3; q++) {
           const a = R() * Math.PI * 2, hgt = rr(0.25, 0.65), w = 0.05, lean = rr(0.05, 0.2);
           const c = Math.cos(a), sn = Math.sin(a), bx = x + rr(-0.12, 0.12), by = y + rr(-0.12, 0.12);
           const n = [0, 0, 1];
-          b.triN([bx - sn * w, by + c * w, 0], [bx + sn * w, by - c * w, 0], [bx + c * lean, by + sn * lean, hgt], n, n, n, cc, 8);
+          for (let q = 0; q < 2; q++) B[q].triN([bx - sn * w, by + c * w, 0], [bx + sn * w, by - c * w, 0], [bx + c * lean, by + sn * lean, hgt], n, n, n, cc, 8);
         }
       }
     }
@@ -651,17 +854,21 @@ void main(){
         let x, y;
         if (side === 0) { x = t * WWm; y = rr(8, 40); } else if (side === 1) { x = t * WWm; y = -WHm - rr(8, 40); }
         else if (side === 2) { x = -rr(8, 40); y = -t * WHm; } else { x = WWm + rr(8, 40); y = -t * WHm; }
+        cellAt(x, y);
         tree(x, y, rr(1.0, 1.5), false, 0);
       }
     }
-    return b;
+    return cs.m;
   }
 
   // ===================== Buissons =====================
   // Chaque zone de buisson est remplie de plants de taille réelle ; chaque plant a des branches,
   // un cœur dense et quelques centaines de feuilles orientées vers l'extérieur.
-  function buildBushes(lv, bushes, px, seed) {
-    const b = new Builder();
+  // Niveaux de détail : de près tout, à mi-distance le cœur et les bouquets larges grossis, de loin
+  // une seule masse de feuillage. leafK : densité de feuilles selon la qualité.
+  function buildBushes(lv, bushes, px, seed, leafK = 1) {
+    const cs = cellSet();
+    let B = null;
     let s = (seed >>> 0) || 1;
     const R = () => (s = (s * 16807) % 2147483647) / 2147483647;
     const rr = (a, c) => a + R() * (c - a);
@@ -676,15 +883,18 @@ void main(){
       const nb = 5 + Math.floor(R() * 3);
       for (let k = 0; k < nb; k++) {
         const a = R() * Math.PI * 2, d = pr * rr(0.45, 0.8);
-        b.cyl([x, y, 0], [x + Math.cos(a) * d, y + Math.sin(a) * d, ph * rr(0.55, 0.85)], rr(0.025, 0.04), 0.01, 5, wood, 6);
+        B[0].cyl([x, y, 0], [x + Math.cos(a) * d, y + Math.sin(a) * d, ph * rr(0.55, 0.85)], rr(0.025, 0.04), 0.01, 5, wood, 6);
       }
       // cœur sombre : pas de vide au milieu du feuillage
-      b.sphere([x, y, ph * 0.45], pr * 0.5, pr * 0.5, ph * 0.36, 6, [leafBase[0] * 0.55, leafBase[1] * 0.55, leafBase[2] * 0.55], 8);
+      const core = [leafBase[0] * 0.55, leafBase[1] * 0.55, leafBase[2] * 0.55];
+      for (let q = 0; q < 2; q++) B[q].sphere([x, y, ph * 0.45], pr * 0.5, pr * 0.5, ph * 0.36, 6, core, 8);
+      const far = [0, 1, 2].map(i => (leafBase[i] + leafTop[i]) * 0.36);
+      B[2].sphere([x, y, ph * 0.5], pr * 0.85, pr * 0.85, ph * 0.52, 5, far, 8);
       // feuilles, plus denses en surface
       // deux couches : bouquets larges à mi-profondeur, puis feuilles fines en surface
-      const nl = Math.round(120 * Math.min(1.8, (pr * pr) / 1.2)), nc = Math.round(nl * 0.45);
+      const nl = Math.round(120 * Math.min(1.8, (pr * pr) / 1.2) * leafK), nc = Math.round(nl * 0.45), lk = Math.min(1.5, 1 / Math.sqrt(leafK));
       for (let k = 0; k < nl + nc; k++) {
-        const cluster = k >= nl, leafS = (desert ? 0.1 : 0.17) * (cluster ? 2.1 : 1);
+        const cluster = k >= nl, leafS = (desert ? 0.1 : 0.17) * (cluster ? 2.1 : 1) * lk;
         const z0 = rr(-1, 1), ph0 = R() * Math.PI * 2, rr0 = Math.sqrt(1 - z0 * z0);
         const dir = [rr0 * Math.cos(ph0), rr0 * Math.sin(ph0), Math.abs(z0) * (z0 < -0.3 ? 0.4 : 1)];
         const f = cluster ? 0.55 + 0.3 * R() : 0.72 + 0.28 * Math.cbrt(R());
@@ -707,14 +917,21 @@ void main(){
         if (R() < 0.02) col = dead.map(q => q * rr(0.8, 1.1));
         const ao = 0.62 + 0.38 * depth;
         col = col.map(q => q * ao);
-        b.triN(tip, side1, back, n, n, n, col, 14);
-        b.triN(tip, back, side2, n, n, n, col, 14);
-        if (berries && R() < 0.012) b.sphere(P(0, 0), 0.03, 0.03, 0.03, 4, R() < 0.6 ? [0.5, 0.05, 0.05] : [0.85, 0.85, 0.8], 7);
+        B[0].triN(tip, side1, back, n, n, n, col, 14);
+        B[0].triN(tip, back, side2, n, n, n, col, 14);
+        if (cluster) {
+          const P2 = (a, bb) => [c[0] + (u[0] * a + v[0] * bb) * 1.3, c[1] + (u[1] * a + v[1] * bb) * 1.3, c[2] + (u[2] * a + v[2] * bb) * 1.3];
+          const t2 = P2(sz, 0), b2 = P2(-sz * 0.55, 0);
+          B[1].triN(t2, P2(0, sz * 0.42), b2, n, n, n, col, 14);
+          B[1].triN(t2, b2, P2(0, -sz * 0.42), n, n, n, col, 14);
+        }
+        if (berries && R() < 0.012) B[0].sphere(P(0, 0), 0.03, 0.03, 0.03, 4, R() < 0.6 ? [0.5, 0.05, 0.05] : [0.85, 0.85, 0.8], 7);
       }
-      if (snow) b.sphere([x, y, ph * 0.92], pr * 0.75, pr * 0.75, ph * 0.14, 7, [0.9, 0.92, 0.96], 7);
+      if (snow) B[3].sphere([x, y, ph * 0.92], pr * 0.75, pr * 0.75, ph * 0.14, 7, [0.9, 0.92, 0.96], 7);
     };
     for (const bu of bushes) {
       const x = bu.x / px, y = -bu.y / px, r = bu.r / px;
+      B = cs.at(x, y);
       const n = Math.max(2, Math.min(4, Math.round((r / 1.4) * (r / 1.4) * 0.6)));
       for (let k = 0; k < n; k++) {
         const a = R() * Math.PI * 2, d = Math.sqrt(R()) * r * 0.65;
@@ -722,8 +939,8 @@ void main(){
         plant(x + Math.cos(a) * d, y + Math.sin(a) * d, pr, ph);
       }
     }
-    return b;
+    return cs.m;
   }
 
-  return { create, buildScene, buildBushes };
+  return { create, buildScene, buildBushes, buildGround, cellKey, obstacleCell };
 })();

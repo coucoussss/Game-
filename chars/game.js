@@ -222,6 +222,16 @@ Meta.whenReady(() => {
   const ctx = cv.getContext('2d');
   const dark = document.createElement('canvas');
   const dctx = dark.getContext('2d');
+  // Niveaux de qualité : résolution maximale, plafond de particules, densité du feuillage, particules
+  // de météo, et rendu 3D (kr : texels du filtrage des ombres par axe, nl : lumières dynamiques, sms et
+  // smd : cartes d'ombre statique et dynamique, lod : échelle des distances de détail). Un préréglage
+  // (mobile par exemple) s'ajoute simplement ici et dans la liste du menu Options.
+  const QUALITY = {
+    basse: { dpr: 1, pcap: 900, leaf: 0.35, wx: 0, r3: { kr: 2, nl: 3, sms: 2048, smd: 1024, lod: 0.6 } },
+    moyenne: { dpr: 1.25, pcap: 1700, leaf: 0.6, wx: 1200, r3: { kr: 3, nl: 5, sms: 2048, smd: 2048, lod: 0.8 } },
+    haute: { dpr: 2, pcap: 2600, leaf: 1, wx: 2500, r3: { kr: 4, nl: 8, sms: 4096, smd: 2048, lod: 1 } },
+  };
+  const QL = () => QUALITY[Meta.P.opts.quality] || QUALITY.haute;
   let QDPR = 2, PCAP = 2600; // qualité graphique : résolution maximale et nombre de particules
   let W = 0, H = 0, DPR = 1, S = 1, redraw = false;
   function resize() {
@@ -3351,10 +3361,10 @@ Meta.whenReady(() => {
   function damageObstacle(o, amount) {
     const before = Math.floor((1 - o.hp / o.maxHp) * 6);
     o.hp -= amount;
-    if (Math.floor((1 - Math.max(0, o.hp) / o.maxHp) * 6) !== before) scene3Dirty = true;
+    if (Math.floor((1 - Math.max(0, o.hp) / o.maxHp) * 6) !== before) dirty3Obs(o);
     if (o.hp <= 0 && !o.dead) {
       o.dead = true;
-      scene3Dirty = true; markDirty(o.x + o.w / 2, o.y + o.h / 2, Math.max(o.w, o.h));
+      dirty3Obs(o); markDirty(o.x + o.w / 2, o.y + o.h / 2, Math.max(o.w, o.h));
       const R = mulberry32(o.x * 13 + o.y * 7);
       gctx.fillStyle = 'rgba(0,0,0,0.3)';
       gctx.fillRect(o.x - 4, o.y - 4, o.w + 8, o.h + 8);
@@ -3375,7 +3385,7 @@ Meta.whenReady(() => {
   function knockTree(o, ang) {
     if (o.dead) return;
     o.dead = true; o.fall = ang;
-    scene3Dirty = true; markDirty(o.x + 8, o.y + 8, 40);
+    dirty3Obs(o); markDirty(o.x + 8, o.y + 8, 40);
     const cx = o.x + 8, cy = o.y + 8, len = 34 * o.size;
     gctx.save();
     gctx.translate(cx, cy); gctx.rotate(ang);
@@ -3862,7 +3872,10 @@ Meta.whenReady(() => {
     if (!ADDR[k] && R3) { const b = TankModels.addonArmor(id, lv); ADDR[k] = { hull: R3.upload(b.hull), turret: R3.upload(b.turret) }; }
     return ADDR[k];
   }
-  let W3D = null, MESH3 = {}, bush3 = null, scene3 = null, scene3Dirty = false, scene3T = 0;
+  // décor 3D : cellules statiques (W3D.putCell), et cellules à reconstruire après une destruction
+  let W3D = null, MESH3 = {}, scene3On = false, scene3T = 0;
+  const dirty3 = new Set();
+  function dirty3Obs(o) { if (W3D0 && scene3On) dirty3.add(World3D.obstacleCell(o, PX)); }
   // modes de caméra (touche C) : hauteur, recul et part du regard portée vers la visée
   const CAM_MODES = [
     { name: 'Chase camera', pitch: 0.52, dist: 46, ahead: 0.18, look: 0.3 },
@@ -3874,7 +3887,8 @@ Meta.whenReady(() => {
   try {
     const c3 = document.getElementById('game3d');
     if (c3 && typeof World3D !== 'undefined' && !dq('2d')) {
-      W3D = World3D.create(c3);
+      W3D = World3D.create(c3, { q: QL().r3, msaa: Meta.P.opts.quality !== 'basse' });
+      if (W3D) W3D.q = QL();
       if (W3D) for (const id of Object.keys(TYPES)) { const b = TankModels.build(id, true); MESH3[id] = { wheel: W3D.upload(b.wheel), wheels: b.wheels, hull: W3D.upload(b.hull), turret: W3D.upload(b.turret), body: W3D.upload(b.turretBody), gun: W3D.upload(b.gun), gunPivot: b.gunPivot }; RAYTRI[id] = { hull: b.hull.v, turret: b.turret.v }; }
       if (W3D) {
         // chef de char debout dans sa coupole : buste en vareuse, bras, tête, calot et écouteurs
@@ -3915,7 +3929,7 @@ Meta.whenReady(() => {
   function reupload3D() {
     if (groundCv) W3D.setGround(groundCv, WW / PX, WH / PX);
     dirtyTiles.clear();
-    if (groundCv && (scene3 || bush3)) build3DScene();
+    if (groundCv && scene3On) build3DScene();
     for (const t of tanks) if (t.scar3) { W3D.free(t.scar3.hull); W3D.free(t.scar3.turret); t.scar3 = null; t.scarDirty = true; t.scarT = 0; }
     redraw = true;
   }
@@ -3936,15 +3950,22 @@ Meta.whenReady(() => {
     cam3.init = false;
   }
   // gros décors : sommets non gardés côté W3D (reconstruits ici après une perte du contexte)
+  // sol, herbe et lisière (jamais reconstruits), buissons, puis obstacles par cellule
   function build3DScene() {
-    W3D.free(bush3);
-    bush3 = W3D.upload(World3D.buildBushes(L(), bushes, PX, 4242 + levelIdx * 131), false);
-    rebuildScene3();
+    W3D.clearCells();
+    const lv = L(), wm = WW / PX, hm = WH / PX, seed = 1000 + levelIdx * 7919;
+    W3D.putCell('g', World3D.buildGround(wm, hm));
+    for (const [k, c] of World3D.buildScene(lv, obstacles, PX, wm, hm, seed, null, true)) W3D.putCell('x' + k, c);
+    for (const [k, c] of World3D.buildBushes(lv, bushes, PX, 4242 + levelIdx * 131, QL().leaf)) W3D.putCell('b' + k, c);
+    for (const [k, c] of World3D.buildScene(lv, obstacles, PX, wm, hm, seed)) W3D.putCell('s' + k, c);
+    dirty3.clear(); scene3On = true;
   }
-  function rebuildScene3() {
-    W3D.free(scene3);
-    scene3 = W3D.upload(World3D.buildScene(L(), obstacles, bushes, PX, WW / PX, WH / PX, 1000 + levelIdx * 7919), false);
-    scene3Dirty = false; scene3T = 0;
+  // une cellule abîmée à la fois, la plus proche de la caméra d'abord
+  function rebuild3DCell() {
+    let best = null, bd = 1e18;
+    for (const k of dirty3) { const x = ((k % 256) - 63.5) * 32 - cam3.tx, y = -(Math.floor(k / 256) - 63.5) * 32 - cam3.ty, d = x * x + y * y; if (d < bd) { bd = d; best = k; } }
+    dirty3.delete(best);
+    W3D.putCell('s' + best, World3D.buildScene(L(), obstacles, PX, WW / PX, WH / PX, 0, best));
   }
   // rayon depuis la caméra à travers un point de l'écran, coupé par le plan z = h
   function ray3(sx, sy, h) {
@@ -4171,9 +4192,9 @@ Meta.whenReady(() => {
   function render3D(dt) {
     updateCam3(dt);
     if (!cam3.vp) return;
-    // gravats et arbres abattus : reconstruction du décor (au plus 3 fois par seconde)
+    // gravats et arbres abattus : reconstruction des cellules touchées, une toutes les 0,1 s au plus
     scene3T += dt;
-    if (scene3Dirty && scene3T > 0.33) rebuildScene3();
+    if (dirty3.size && scene3T > 0.1 && !W3D.lost) { rebuild3DCell(); scene3T = 0; }
     // traces et cratères : envoi des tuiles modifiées de la texture du sol
     let n = 0;
     if (!W3D.lost) for (const k of dirtyTiles) {
@@ -4182,7 +4203,7 @@ Meta.whenReady(() => {
       const tx = (k % 64) * 256, ty = Math.floor(k / 64) * 256, w = Math.min(256, WW - tx), h = Math.min(256, WH - ty);
       W3D.updateGround(gctx.getImageData(tx, ty, w, h), tx, ty);
     }
-    const M4 = G3.M4, items = [{ mesh: scene3, model: M4.ident() }, { mesh: bush3, model: M4.ident() }];
+    const M4 = G3.M4, items = [];
     for (const t of tanks) {
       if (!t.dead && !visibleToPlayer(t)) continue;
       if (sight.on && t === player) continue;
@@ -4294,7 +4315,7 @@ Meta.whenReady(() => {
     }
     const tg = cam3.target;
     lights.sort((a, b) => Math.hypot(a.p[0] - tg[0], a.p[1] - tg[1]) / a.r - Math.hypot(b.p[0] - tg[0], b.p[1] - tg[1]) / b.r);
-    W3D.render({ cam: { eye: cam3.eye, target: cam3.target, vp: cam3.vp, view: cam3.view, time: gameTime, lights }, items, parts: { soft, glow }, shadowExt: sight.on ? 110 : Math.max(60, cam3.dist * 1.6) }, Math.round(W * DPR * dyn.k), Math.round(H * DPR * dyn.k));
+    W3D.render({ cam: { eye: cam3.eye, target: cam3.target, vp: cam3.vp, view: cam3.view, fov: cam3.fov, time: gameTime, lights }, items, parts: { soft, glow }, shadowExt: sight.on ? 110 : Math.max(60, cam3.dist * 1.6) }, Math.round(W * DPR * dyn.k), Math.round(H * DPR * dyn.k));
     // interface par-dessus
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, cv.width, cv.height);
@@ -5653,8 +5674,9 @@ Meta.whenReady(() => {
   function applyOptions() {
     const o = Meta.P.opts;
     Sfx.setVolume(o.sfx); Sfx.setUserMute(o.mute); Sfx.setPortalMute(Meta.platformMute); hitcamOn = o.hitcam;
-    QDPR = o.quality === 'basse' ? 1 : o.quality === 'moyenne' ? 1.25 : 2;
-    PCAP = o.quality === 'basse' ? 900 : o.quality === 'moyenne' ? 1700 : 2600;
+    const q = QL();
+    QDPR = q.dpr; PCAP = q.pcap;
+    if (W3D0 && W3D0.q !== q) { const leaf = W3D0.q && W3D0.q.leaf !== q.leaf; W3D0.q = q; W3D0.setQuality(q.r3); if (leaf && scene3On) build3DScene(); }
     resize();
     TOF = o.ballistics === 'arcade' ? 0.6 : 1;
     $('oSfx').value = o.sfx; $('oMusic').value = o.music; $('oQuality').value = o.quality; $('oHitcam').checked = o.hitcam; $('oBallistics').value = o.ballistics || 'real';
@@ -5906,7 +5928,7 @@ Meta.whenReady(() => {
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height);
     if (W3D0) {
       for (const t of tanks) if (t.scar3) { W3D0.free(t.scar3.hull); W3D0.free(t.scar3.turret); t.scar3 = null; }
-      W3D0.free(scene3); W3D0.free(bush3); scene3 = bush3 = null;
+      W3D0.clearCells(); scene3On = false; dirty3.clear();
     }
     groundCv = gctx = null; dirtyTiles.clear();
   }
@@ -6155,7 +6177,7 @@ Meta.whenReady(() => {
   if (Q.has('debug')) {
     window.__fa = {
       get tanks() { return tanks; }, get state() { return state; }, get stats() { return waveStats; }, get shells() { return shells; },
-      get time() { return gameTime; }, get player() { return player; }, get bushes() { return bushes; }, get obstacles() { return obstacles; }, barrelHit, cam3, sight, setSight, sightProbe, get mode() { return mode; }, get survWave() { return survWave; }, dyn, hitcam: HitCam, TYPES, SHELLS, bench, benchFire,
+      get time() { return gameTime; }, get player() { return player; }, get bushes() { return bushes; }, get w3d() { return W3D; }, get obstacles() { return obstacles; }, barrelHit, cam3, sight, setSight, sightProbe, get mode() { return mode; }, get survWave() { return survWave; }, dyn, hitcam: HitCam, TYPES, SHELLS, bench, benchFire,
       // test : tir forcé du joueur sur la cible la plus proche
       fireAt(i, key) {
         const e = tanks.filter(t => t.team === 1 && !t.dead)[i || 0];

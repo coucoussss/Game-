@@ -51,8 +51,19 @@ const G3 = (() => {
   // ===================== Construction de maillages =====================
   // Matériaux : 0 peint uni, 1 peint camouflé, 2 chenille, 3 acier nu, 4 caoutchouc, 5 verre, 6 bois, 9 sol
   const hex = h => { const n = parseInt(h.slice(1), 16); return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255]; };
+  // Les sommets (10 nombres : position, normale, couleur, matériau) s'écrivent dans un tableau typé
+  // qui double de taille au besoin : pas de grands tableaux JS de nombres (8 octets chacun) à recopier.
   class Builder {
-    constructor() { this.v = []; }
+    constructor() { this.a = new Float32Array(1200); this.n = 0; }
+    get v() { return this.a.subarray(0, this.n); }
+    set v(x) { this.a = new Float32Array(Math.max(1200, x.length * 2)); this.a.set(x); this.n = x.length; }
+    get count() { return this.n / 10; }
+    put(x, y, z, nx, ny, nz, r, g, b, m) {
+      if (this.n + 10 > this.a.length) { const a = new Float32Array(this.a.length * 2); a.set(this.a); this.a = a; }
+      const a = this.a, o = this.n;
+      a[o] = x; a[o + 1] = y; a[o + 2] = z; a[o + 3] = nx; a[o + 4] = ny; a[o + 5] = nz; a[o + 6] = r; a[o + 7] = g; a[o + 8] = b; a[o + 9] = m;
+      this.n = o + 10;
+    }
     tri(a, b, c, col, mat, ctr) {
       const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
       let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
@@ -64,12 +75,15 @@ const G3 = (() => {
         if (nx * mx + ny * my + nz * mz < 0) { nx = -nx; ny = -ny; nz = -nz; }
       }
       const cc = typeof col === 'string' ? hex(col) : col;
-      for (const p of [a, b, c]) this.v.push(p[0], p[1], p[2], nx, ny, nz, cc[0], cc[1], cc[2], mat);
+      this.put(a[0], a[1], a[2], nx, ny, nz, cc[0], cc[1], cc[2], mat);
+      this.put(b[0], b[1], b[2], nx, ny, nz, cc[0], cc[1], cc[2], mat);
+      this.put(c[0], c[1], c[2], nx, ny, nz, cc[0], cc[1], cc[2], mat);
     }
     triN(a, b, c, na, nb, nc, col, mat) {
       const cc = typeof col === 'string' ? hex(col) : col;
-      const P = [a, b, c], N = [na, nb, nc];
-      for (let i = 0; i < 3; i++) this.v.push(P[i][0], P[i][1], P[i][2], N[i][0], N[i][1], N[i][2], cc[0], cc[1], cc[2], mat);
+      this.put(a[0], a[1], a[2], na[0], na[1], na[2], cc[0], cc[1], cc[2], mat);
+      this.put(b[0], b[1], b[2], nb[0], nb[1], nb[2], cc[0], cc[1], cc[2], mat);
+      this.put(c[0], c[1], c[2], nc[0], nc[1], nc[2], cc[0], cc[1], cc[2], mat);
     }
     quad(a, b, c, d, col, mat, ctr) { this.tri(a, b, c, col, mat, ctr); this.tri(a, c, d, col, mat, ctr); }
     poly(pts, col, mat, ctr) { for (let i = 1; i < pts.length - 1; i++) this.tri(pts[0], pts[i], pts[i + 1], col, mat, ctr); }
@@ -342,7 +356,7 @@ void main(){
       gl, canvas, view: null, proj: null, vp: null, eye: [0, 0, 10], onLost: null, onRestored: null,
       get lost() { return lost; },
       upload(builder) {
-        const data = new Float32Array(builder.v);
+        const data = builder.v.slice();
         const m = { buf: mkBuf(data), count: data.length / 10, data };
         meshes.push(m);
         return m;
