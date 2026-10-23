@@ -4074,7 +4074,7 @@ Meta.whenReady(() => {
   }
   // Rappel des touches sous la mini-carte pendant les trois premières batailles (clavier et manette)
   function drawHints() {
-    if (Meta.P.stats.battles >= 3 || device() === 'touch' || (ui.pip && ui.pip.big) || state !== 'play') return;
+    if (Meta.P.stats.battles >= 3 || device() === 'touch' || ui.pip || state !== 'play') return;
     const tx = device() === 'pad' ? `A: sight · B: smoke ×${player ? player.smoke : 0} · Y: camera · View: x-ray`
       : `${K('sight')}: sight · ${K('smoke')}: smoke ×${player ? player.smoke : 0} · ${K('cam')}: camera · ${K('xray')}: x-ray · ${K('help')}: controls`;
     fitFont(tx, ui.mm.w + 60, 11, 600);
@@ -5515,10 +5515,10 @@ Meta.whenReady(() => {
     try { fn(); } finally { ctx.restore(); W = w; H = h; }
   }
   // police réduite pour qu'un texte tienne dans une largeur
-  function fitFont(text, max, px, wt = 700) {
+  function fitFont(text, max, px, wt = 700, min = 8) {
     ctx.font = `${wt} ${px}px system-ui, sans-serif`;
     const w = ctx.measureText(text).width;
-    if (w > max) ctx.font = `${wt} ${Math.max(8, px * max / w).toFixed(1)}px system-ui, sans-serif`;
+    if (w > max) ctx.font = `${wt} ${Math.max(min, px * max / w).toFixed(1)}px system-ui, sans-serif`;
   }
   const F = (wt, px) => `${wt} ${(px * uiK).toFixed(1)}px system-ui, sans-serif`; // police à l'échelle, hors du repère virtuel
   const hudTitle = () => {
@@ -5577,6 +5577,8 @@ Meta.whenReady(() => {
     let ly = tch ? (H * k - sb - 176) / k : H - 20;
     if (ui.panel && lw + 10 > ui.panel.x0 && ly > ui.panel.top - 34) ly = ui.panel.top - 34;
     ui.logY = ly;
+    // à la lunette, le journal tient à gauche de l'oculaire
+    ui.logMax = sight.on ? (W * k / 2 - Math.max(60, Math.min(W * k / 2, H * k / 2 - 60 * k))) / k - 30 : 1e4;
   }
 
   function drawHUD() {
@@ -5628,9 +5630,12 @@ Meta.whenReady(() => {
     logs.slice(0, n).forEach((l, i) => {
       const y = ui.logY - i * 18;
       ctx.globalAlpha = Math.min(1, l.life);
-      const w = ctx.measureText(l.text).width;
+      let tx = l.text;
+      fitFont(tx, ui.logMax, 12, 600, 10);
+      while (tx.length > 8 && ctx.measureText(tx).width > ui.logMax) tx = tx.slice(0, -2).trimEnd() + '…';
+      const w = ctx.measureText(tx).width;
       ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(10, y - 13, w + 14, 17);
-      ctx.fillStyle = l.color; ctx.fillText(l.text, 17, y);
+      ctx.fillStyle = l.color; ctx.fillText(tx, 17, y);
       ctx.globalAlpha = 1;
     });
     if (player && ui.panel) { drawTankPanel(ui.panel); drawRadioRow(); }
