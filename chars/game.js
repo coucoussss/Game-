@@ -556,7 +556,7 @@ Meta.whenReady(() => {
     const c2 = cv.getContext('2d'), im = c2.createImageData(w, h), d = im.data;
     for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
       const x = (i + 0.5) * k, y = (j + 0.5) * k, o = (j * w + i) * 4, dep = T.wl - T.bed(x, y);
-      if (dep > 0) { d[o] = wc[0]; d[o + 1] = wc[1]; d[o + 2] = wc[2]; d[o + 3] = 255 * (T.ice ? 0.85 : clamp(0.35 + dep * 0.5, 0, 0.92)); continue; }
+      if (dep > 0) { d[o] = wc[0]; d[o + 1] = wc[1]; d[o + 2] = wc[2]; d[o + 3] = 255 * (T.ice ? 0.85 * clamp(dep * 4, 0, 1) : clamp(dep * 1.4, 0, 0.92)); continue; }
       if (W3D) continue;
       const g = T.grad(x, y), sh = clamp((g[0] * 0.6 + g[1] * 0.8) * PX * 1.6, -0.5, 0.5); // soleil au nord-ouest
       d[o] = d[o + 1] = d[o + 2] = sh < 0 ? 255 : 0; d[o + 3] = Math.abs(sh) * 130;
@@ -795,6 +795,8 @@ Meta.whenReady(() => {
       ai: (isPlayer && !AUTO) ? null : makeAI(skill),
     };
     stowAmmo(t);
+    // jamais dans l'eau profonde ni sur une berge trop raide : la maille praticable la plus proche
+    if (grid && terra && blocked(cellOf(t.x, t.y))) { const j = nearestFree(cellOf(t.x, t.y)); if (j >= 0) { t.x = (j % GC + 0.5) * CELL; t.y = ((j / GC | 0) + 0.5) * CELL; } }
     tankPose(t, 0); t.sus.p = t.gp; t.sus.r = t.gr;
     return t;
   }
@@ -2111,6 +2113,12 @@ Meta.whenReady(() => {
   // Tourelles : vitesses réelles (TRAV_K = 1) ; TRAV_K est le réglage arcade si les essais le demandent.
   // TRAV_ACC : accélération angulaire de la tourelle (rad/s²)
   const TRAV_K = 1, TRAV_ACC = 30 * D2R;
+  // direction d'un coup ramenée dans le repère de la caisse inclinée (tangage puis roulis, relief et
+  // suspension) : un char qui franchit une crête face à l'ennemi lui présente son ventre et son bas de caisse
+  function tiltIn(t, d) {
+    const p = t.sus.p, r = t.sus.r, cp = Math.cos(p), sp = Math.sin(p), cr = Math.cos(r), sr = Math.sin(r), z = -d[0] * sp + d[2] * cp;
+    return [d[0] * cp + d[2] * sp, d[1] * cr + z * sr, -d[1] * sr + z * cr];
+  }
   // pente du tube due à la caisse (tangage, roulis) et dévers du canon (roulis autour de l'âme)
   const hullPitch = t => t.sus.p * Math.cos(t.turret) - t.sus.r * Math.sin(t.turret);
   const gunCant = t => t.sus.r * Math.cos(t.turret) + t.sus.p * Math.sin(t.turret);
@@ -2579,7 +2587,7 @@ Meta.whenReady(() => {
     if (t.dead) { Fx.armorHit(hx, hy, best.z, 'mg', ux, uy); return 'stop'; }
     const c = Math.cos(t.angle), sn = Math.sin(t.angle), ll = 1;
     const ldx = ux * c + uy * sn, ldy = -ux * sn + uy * c;
-    const d = norm3([ldx / ll, -ldy / ll, b.slope]);
+    const d = tiltIn(t, norm3([ldx / ll, -ldy / ll, b.slope]));
     const lx = (hx - t.x) * c + (hy - t.y) * sn, ly = -(hx - t.x) * sn + (hy - t.y) * c;
     const E = [lx / PX, -ly / PX, best.z], S = t.T.S, tAng = -t.turret;
     let kind = null, lines = [], mod = null, outcome = 'nopen', eff = 0, mm = 0, plate = '';
@@ -3137,7 +3145,7 @@ Meta.whenReady(() => {
     // Géométrie 3D de l'impact (repère du modèle : y vers la gauche), avec la vraie pente balistique de
     // la trajectoire (la vue 3D écrase les distances, pas les angles d'incidence)
     const ll = Math.hypot(h.ldx, h.ldy) || 1;
-    const d = norm3([h.ldx / ll, -h.ldy / ll, s.slope]);
+    const d = tiltIn(t, norm3([h.ldx / ll, -h.ldy / ll, s.slope]));
     return strike(s, t, h, hx, hy, d, [h.lx / PX, -h.ly / PX, h.z], null);
   }
 
@@ -3956,11 +3964,14 @@ Meta.whenReady(() => {
     if (d < 900) addTrauma(Math.min(1, k) * (1 - d / 900) * 0.6);
     Sfx.explosion(listenerDist(x, y), k > 1);
   }
+  // Traces : ornières de la largeur des chenilles, bords tassés plus sombres et barrettes des patins ;
+  // rien sur l'eau, à peine sur la glace
   function stampTracks(t) {
+    if (t.wet > 0.1) return;
     markDirty(t.x, t.y, t.T.len);
-    const c = Math.cos(t.angle), s = Math.sin(t.angle), T = t.T;
+    const c = Math.cos(t.angle), s = Math.sin(t.angle), T = t.T, ice = terra.iceAt(t.x, t.y);
     const tw = T.S.tw * PX;
-    gctx.fillStyle = L().track;
+    gctx.fillStyle = L().track; gctx.globalAlpha = ice ? 0.3 : 1;
     for (const side of [-1, 1]) {
       const off = T.wid / 2 - tw / 2;
       const ox = -s * side * off, oy = c * side * off;
@@ -3969,17 +3980,24 @@ Meta.whenReady(() => {
         gctx.translate(t.x + ox + c * T.len * f, t.y + oy + s * T.len * f);
         gctx.rotate(t.angle);
         gctx.fillRect(-4, -tw / 2, 8, tw);
+        gctx.fillRect(-4, -tw / 2, 8, 1); gctx.fillRect(-4, tw / 2 - 1, 8, 1);
+        for (let k = -3; k < 4; k += 2.5) gctx.fillRect(k, -tw / 2 + 1, 0.8, tw - 2);
         gctx.restore();
       }
     }
+    gctx.globalAlpha = 1;
   }
+  // entonnoir sombre puis bourrelet de terre rejetée, plus clair, qui marque le relief quelle que soit
+  // l'heure du jour (dans l'eau, rien)
   function stampCrater(x, y, r) {
-    markDirty(x, y, r);
+    if (terra && terra.depth(x, y) > 0.1) return;
+    markDirty(x, y, r * 1.35);
     soilSeg(x, y, x, y, r * 0.6, 'crater');
-    const g = gctx.createRadialGradient(x, y, 0, x, y, r);
-    g.addColorStop(0, 'rgba(20,16,12,0.55)'); g.addColorStop(0.7, 'rgba(30,24,18,0.3)'); g.addColorStop(1, 'rgba(30,24,18,0)');
+    const g = gctx.createRadialGradient(x, y, 0, x, y, r * 1.35);
+    g.addColorStop(0, 'rgba(20,16,12,0.6)'); g.addColorStop(0.5, 'rgba(30,24,18,0.38)'); g.addColorStop(0.7, 'rgba(60,50,38,0.12)');
+    g.addColorStop(0.8, 'rgba(235,225,200,0.13)'); g.addColorStop(1, 'rgba(235,225,200,0)');
     gctx.fillStyle = g;
-    gctx.beginPath(); gctx.arc(x, y, r, 0, TAU); gctx.fill();
+    gctx.beginPath(); gctx.arc(x, y, r * 1.35, 0, TAU); gctx.fill();
   }
   function missionToast() { toast('🎖 Mission complete! Claim your reward in “Missions”'); Sfx.notify(); }
   // Bandeaux des coups critiques infligés par le joueur (4 au plus, 2,5 s chacun), son selon la catégorie
@@ -4924,7 +4942,7 @@ Meta.whenReady(() => {
     if (best.kind === 'tank' && !best.tank.dead) {
       const t = best.tank, h = best.h;
       const ll = Math.hypot(h.ldx, h.ldy) || 1, desc = Ballistics.descent(sb, dist * RK);
-      const pp = platePick(t, h, norm3([h.ldx / ll, -h.ldy / ll, -desc]), key, sb.cal, true);
+      const pp = platePick(t, h, tiltIn(t, norm3([h.ldx / ll, -h.ldy / ll, -desc])), key, sb.cal, true);
       const cosI = Math.max(0.03, -dot3(pp.dd, pp.n)), angle = Math.acos(Math.min(1, cosI)) / D2R;
       const eff = Ballistics.effective(sb, pp.mm, angle).eff + pp.extra;
       // vitesse à l'impact, réduite par les murs traversés en chemin
