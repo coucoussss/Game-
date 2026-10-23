@@ -959,9 +959,9 @@ void main(){
     WET = T ? (x, y) => T.wetAt(x * px, -y * px) : null;
   }
   // sol : grille du relief en blocs de 16 × 16 mailles (seuls ceux du champ sont dessinés), normales
-  // lissées aux sommets, une maille sur deux puis sur quatre au loin, avec une jupe de 1,5 m au bord de
-  // chaque bloc contre les fentes entre niveaux de détail ; au-delà de la marge, grandes dalles plates
-  // (la texture s'étire hors de la carte)
+  // lissées aux sommets ; pleine résolution de près et à mi-distance (les chars y roulent sur la même
+  // hauteur), une maille sur deux au loin, avec une jupe de 1,5 m au bord de chaque bloc contre les fentes
+  // entre niveaux de détail ; au-delà de la marge, grandes dalles plates (la texture s'étire hors de la carte)
   function buildGround(T, px, WWm, WHm) {
     const out = new Map(), { C, M, nx, ny, h } = T, s = C / px, X0 = -M / px, Y0 = M / px, BK = 16;
     const nor = (i, j) => {
@@ -971,7 +971,7 @@ void main(){
     };
     const P = (i, j) => [X0 + i * s, Y0 - j * s, h[j * nx + i]], W1 = [1, 1, 1];
     for (let bj = 0; bj < ny - 1; bj += BK) for (let bi = 0; bi < nx - 1; bi += BK) {
-      const ie = Math.min(nx - 1, bi + BK), je = Math.min(ny - 1, bj + BK), LB = [0, 1, 2].map(L => {
+      const ie = Math.min(nx - 1, bi + BK), je = Math.min(ny - 1, bj + BK), LB = [0, 0, 1].map(L => {
         const b = new Builder(), st = 1 << L;
         for (let j = bj; j < je; j += st) for (let i = bi; i < ie; i += st) {
           const i2 = Math.min(ie, i + st), j2 = Math.min(je, j + st), A = P(i, j2), B = P(i2, j2), Cc = P(i2, j), D = P(i, j);
@@ -1006,19 +1006,31 @@ void main(){
   }
   // Eau et glace : une dalle au niveau de l'eau sur chaque maille mouillée, teintée selon la profondeur
   // aux sommets (la berge cache le reste) ; mailles de glace intactes en glace, brisées en eau
+  // (chaque triangle du maillage du sol est découpé à la ligne de rive, qui suit donc exactement le sol)
   function buildWater(T, px, lv) {
-    const b = new Builder(), { C, M, nx, ny, h, wl } = T, s = C / px, X0 = -M / px, Y0 = M / px, n = [0, 0, 1];
+    const b = new Builder(), { C, M, nx, ny, h, wl } = T, s = C / px, X0 = -M / px, Y0 = M / px;
     if (!(wl > -1e9)) return { b: [null, null, null, null] };
-    const sh = lv.forest ? [0.2, 0.22, 0.14] : [0.22, 0.27, 0.22], dp = lv.forest ? [0.04, 0.06, 0.05] : [0.05, 0.09, 0.1];
-    const col = q => { const k = Math.min(1, Math.max(0, (wl - h[q]) / 1.6)); return [sh[0] + (dp[0] - sh[0]) * k, sh[1] + (dp[1] - sh[1]) * k, sh[2] + (dp[2] - sh[2]) * k]; };
+    const sh = lv.forest ? [0.2, 0.22, 0.14] : [0.22, 0.27, 0.22], dp = lv.forest ? [0.04, 0.06, 0.05] : [0.05, 0.09, 0.1], ic = [0.74, 0.82, 0.88];
+    let z = wl, m = 15;
+    const put = p => { const k = Math.min(1, p[2] / 1.6), c = m === 16 ? ic : [0, 1, 2].map(i => sh[i] + (dp[i] - sh[i]) * k); b.put(p[0], p[1], z, 0, 0, 1, c[0], c[1], c[2], m); };
+    // sommets [x, y, profondeur] ; la partie mouillée d'un triangle (profondeur ≥ 0) en éventail
+    const tri = (...P) => {
+      const poly = [];
+      for (let k = 0; k < 3; k++) {
+        const p = P[k], q = P[(k + 1) % 3];
+        if (p[2] >= 0) poly.push(p);
+        if ((p[2] >= 0) !== (q[2] >= 0)) { const u = p[2] / (p[2] - q[2]); poly.push([p[0] + (q[0] - p[0]) * u, p[1] + (q[1] - p[1]) * u, 0]); }
+      }
+      for (let k = 1; k + 1 < poly.length; k++) { put(poly[0]); put(poly[k]); put(poly[k + 1]); }
+    };
+    const V = (i, j) => [X0 + i * s, Y0 - j * s, wl - h[j * nx + i]];
     for (let j = 0; j < ny - 1; j++) for (let i = 0; i < nx - 1; i++) {
-      const q = j * nx + i, qs = [q + nx, q + nx + 1, q + 1, q];
+      const q = j * nx + i;
       if (Math.min(h[q], h[q + 1], h[q + nx], h[q + nx + 1]) >= wl) continue;
-      const iced = T.ice && T.ice[j * (nx - 1) + i] === 1, z = wl + (iced ? 0.04 : 0), m = iced ? 16 : 15;
-      const p = [[i, j + 1], [i + 1, j + 1], [i + 1, j], [i, j]].map(([a, c]) => [X0 + a * s, Y0 - c * s, z]);
-      const cs = qs.map(k => iced ? [0.74, 0.82, 0.88] : col(k));
-      b.put(...p[0], ...n, ...cs[0], m); b.put(...p[1], ...n, ...cs[1], m); b.put(...p[2], ...n, ...cs[2], m);
-      b.put(...p[0], ...n, ...cs[0], m); b.put(...p[2], ...n, ...cs[2], m); b.put(...p[3], ...n, ...cs[3], m);
+      const iced = T.ice && T.ice[j * (nx - 1) + i] === 1;
+      z = wl + (iced ? 0.04 : 0); m = iced ? 16 : 15;
+      const A = V(i, j + 1), B = V(i + 1, j + 1), Cc = V(i + 1, j), D = V(i, j);
+      tri(A, B, Cc); tri(A, Cc, D);
     }
     return { b: [null, null, null, b] };
   }

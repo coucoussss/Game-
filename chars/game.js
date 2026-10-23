@@ -532,6 +532,14 @@ Meta.whenReady(() => {
         gctx.beginPath(); gctx.moveTo(x, y); gctx.quadraticCurveTo(x + 60, y - 18, x + 130, y + 4); gctx.stroke();
       }
     }
+    // eau, glace et tabliers des ponts dans le sol de conduite
+    const nc = Math.ceil(WW / CELL);
+    if (terra.wl > -1e9) for (let i = 0; i < soil.length; i++) {
+      const x = (i % nc + 0.5) * CELL, y = (Math.floor(i / nc) + 0.5) * CELL;
+      if (terra.bridgeAt(x, y)) soil[i] = Vehicle.SOIL.track.i;
+      else if (terra.iceAt(x, y)) soil[i] = Vehicle.SOIL.ice.i;
+      else if (terra.depth(x, y) > 0.05) soil[i] = Vehicle.SOIL.water.i;
+    }
     paintTerrain();
     for (const o of obstacles) {
       if (o.type === 'tree' || W3D) continue;
@@ -625,14 +633,16 @@ Meta.whenReady(() => {
   const blocked = i => grid[i] === 1 || wgrid[i] === 1;
   // Relief et eau dans l'itinéraire : coût selon la pente (m/m) ; infranchissables au-delà de 28° ou de
   // 0,75 m d'eau (le gué le plus bas, celui du StuG, est de 0,8 m) ; tcost garde le coût de chaque maille
-  let tcost = null;
+  let tcost = null, heavyNo = null, navHeavy = false;
   function terrainGrid() {
-    tcost = new Float32Array(GC * GR).fill(1);
+    tcost = new Float32Array(GC * GR).fill(1); heavyNo = new Uint8Array(GC * GR);
     if (!terra) return;
     for (let r = 0; r < GR; r++) for (let c = 0; c < GC; c++) {
       const i = r * GC + c, x = (c + 0.5) * CELL, y = (r + 0.5) * CELL, e = CELL / 2, G0 = terra.ground;
       const sl = Math.hypot(G0(x + e, y) - G0(x - e, y), G0(x, y + e) - G0(x, y - e)) / (2 * e) * PX;
       if (sl > 0.53 || terra.depth(x, y) > 0.75) { grid[i] = 1; continue; }
+      // glace et pont : interdits aux chars de plus de 30 t (navHeavy)
+      if (terra.iceAt(x, y) || terra.bridgeAt(x, y)) heavyNo[i] = 1;
       tcost[i] = 1 + 4 * sl * sl + (terra.depth(x, y) > 0 ? 1.5 : 0);
     }
   }
@@ -713,7 +723,7 @@ Meta.whenReady(() => {
         const nc = c + dx, nr = r + dy;
         if (nc < 0 || nr < 0 || nc >= GC || nr >= GR) continue;
         const ni = nr * GC + nc;
-        if (blocked(ni) || closedId[ni] === searchId) continue;
+        if (blocked(ni) || closedId[ni] === searchId || navHeavy && heavyNo[ni]) continue;
         if (dx && dy && (blocked(r * GC + nc) || blocked(nr * GC + c))) continue;
         const cost = (dx && dy ? 1.414 : 1) * (grid[ni] === 2 || wgrid[ni] === 2 ? 2.5 : 1) * (soil ? Vehicle.SOILS[soil[ni]].path : 1) * tcost[ni];
         const ng = gScore[cur] + cost;
@@ -1551,7 +1561,8 @@ Meta.whenReady(() => {
       ai.dest = dest;
       if (dest) {
         if (!ai.path || ai.pathT <= 0 || !ai.pathDest || Math.hypot(ai.pathDest.x - dest.x, ai.pathDest.y - dest.y) > 60) {
-          ai.path = findPath(t.x, t.y, dest.x, dest.y); ai.pi = 0; ai.pathDest = { x: dest.x, y: dest.y }; ai.pathT = 2.5;
+          navHeavy = T.mass > HEAVY_T && !heavyNo[cellOf(t.x, t.y)];
+          ai.path = findPath(t.x, t.y, dest.x, dest.y); ai.pi = 0; navHeavy = false; ai.pathDest = { x: dest.x, y: dest.y }; ai.pathT = 2.5;
         }
       } else ai.path = null;
     }
@@ -2125,6 +2136,58 @@ Meta.whenReady(() => {
       Sfx.impact(listenerDist(t.x, t.y));
     }
   }
+  // Eau, glace et ponts sous un char. Traînée de l'eau ½ ρ Cd A v² (A : largeur × profondeur mouillée) en
+  // plus du fond (sol « gué ») ; au-delà de sa profondeur de gué, le moteur se noie en 3 s ; la caisse sous
+  // l'eau jusqu'au toit, l'équipage évacue (renvoie true). La glace cède sous plus de 30 t, un pont sous plus
+  // que sa charge. t.wet : profondeur sous le char (m)
+  const HEAVY_T = 30;
+  function waterLogic(t, dt, c) {
+    const T = t.T, D = T.D;
+    if (T.mass > HEAVY_T) {
+      // le tablier craque une seconde avant de céder : le temps de reculer
+      const b = terra.bridges.length && terra.bridgeAt(t.x, t.y);
+      if (b && T.mass > b.cap) {
+        if (!b.creak && t === player) addLog(`The bridge is creaking: it takes ${b.cap} t, your ${T.name} weighs ${T.mass} t!`, '#ffb070');
+        if ((b.creak = (b.creak || 0) + dt) > 1.2) collapseBridge(b, t);
+      }
+      if (terra.ice && terra.iceAt(t.x, t.y)) breakIce(t);
+    }
+    const dep = t.wet = Math.max(0, terra.wl - t.gz);
+    if (!dep) { t.floodT = 0; return false; }
+    const v = Math.abs(t.speed) / PX;
+    c.crr += 500 * T.S.W * Math.min(dep, T.S.ht) * v * v / (T.mass * 1000 * G);
+    // gerbes d'étrave
+    if (v > 1 && Math.random() < dt * v * 3) { const f = Math.sign(t.speed) * T.len * 0.5; Fx.splash(t.x + Math.cos(t.angle) * f, t.y + Math.sin(t.angle) * f, 0.1 + v * 0.03); }
+    if (dep > D.ford && modOk(t, 'engine')) {
+      if (t === player && !t.floodT) addLog(`Water too deep (${dep.toFixed(1)} m, fording limit ${D.ford} m): the engine is flooding!`, '#ffb070');
+      if ((t.floodT = (t.floodT || 0) + dt) > 3) { modDamage(t, modOf(t, 'engine'), 1e9, null, true); if (t === player) addLog('Engine flooded', '#ff6a5a'); }
+    } else if (dep <= D.ford) t.floodT = 0;
+    if (dep > T.S.ht + 0.2) { if (t === player) addLog('The tank is sinking: abandon ship!', '#ff6a5a'); bail(t); return true; }
+    return false;
+  }
+  // Pont qui cède : la travée tombe à l'eau, le char avec ; le passage disparaît de l'itinéraire
+  function collapseBridge(b, t) {
+    b.dead = true;
+    paintBridge(b);
+    soilSeg(b.x - b.ux * b.hl, b.y - b.uy * b.hl, b.x + b.ux * b.hl, b.y + b.uy * b.hl, b.hw, 'water');
+    for (let i = 0; i < 6; i++) Fx.splash(b.x + b.ux * rnd(-30, 30), b.y + b.uy * rnd(-30, 30), 0.8);
+    Sfx.explosion(listenerDist(b.x, b.y), false); addTrauma(t === player ? 0.5 : 0);
+    if (W3D && scene3On) W3D.putCell('br', World3D.buildBridges(terra, PX));
+    buildGrid();
+    if (t === player || visibleToPlayer(t)) addLog(`The bridge collapses under the ${t.T.name}!`, '#ffb070');
+  }
+  // Glace qui se brise sous un char lourd : trou d'eau noire, sol « gué », plus de passage pour l'itinéraire
+  let iceDirty = false;
+  function breakIce(t) {
+    const r = t.r + 12;
+    if (!terra.breakIce(t.x, t.y, r)) return;
+    iceDirty = true;
+    markDirty(t.x, t.y, r + 8); gctx.fillStyle = 'rgba(34,48,58,0.92)'; gctx.beginPath(); gctx.ellipse(t.x, t.y, r, r * 0.85, t.angle, 0, TAU); gctx.fill();
+    soilSeg(t.x, t.y, t.x, t.y, r, 'water');
+    terrainGrid();
+    Fx.splash(t.x, t.y, 0.6); Sfx.impact(listenerDist(t.x, t.y));
+    if (!t.iceMsg && (t === player || visibleToPlayer(t))) { t.iceMsg = true; addLog(`The ice gives way under ${t === player ? 'your tank' : 'the ' + t.T.name}!`, '#ffb070'); }
+  }
   function updateTank(t, dt) {
     if (t.dead) {
       t.deadT += dt;
@@ -2179,6 +2242,7 @@ Meta.whenReady(() => {
     // tourelle hydraulique à l'arrêt : le pilote fait monter le régime pour que la pompe la tourne vite
     c.rev = D.trav.kind === 'hyd' && t.travWant && Math.abs(t.speed) < 0.5 * PX ? 0.9 : 0;
     t.bumpK = 1 + ((gR.bump || 0) + (gL.bump || 0)) / 2;
+    if (waterLogic(t, dt, c)) return;
     const vPre = t.speed, lPre = t.vl, a0 = t.angle, ox = t.x, oy = t.y;
     Vehicle.step(t, D, c, dt, PX);
     t.angle = angNorm(t.angle + t.turnRate * dt);
@@ -4937,6 +5001,8 @@ Meta.whenReady(() => {
     // gravats et arbres abattus : reconstruction des cellules touchées, une toutes les 0,1 s au plus
     scene3T += dt;
     if (dirty3.size && scene3T > 0.1 && !W3D.lost) { rebuild3DCell(); scene3T = 0; }
+    // glace brisée : la nappe d'eau est refaite, deux fois par seconde au plus
+    if (iceDirty && scene3T > 0.5 && !W3D.lost && scene3On) { iceDirty = false; scene3T = 0; W3D.putCell('w', World3D.buildWater(terra, PX, L())); }
     // traces et cratères : envoi des tuiles modifiées de la texture du sol
     let n = 0;
     if (!W3D.lost) for (const k of dirtyTiles) {
@@ -6199,7 +6265,7 @@ Meta.whenReady(() => {
     let h = `<div class="specTitle">${T.name} <small>${T.cls}</small></div><div class="specSub">${Sd.inspired} · ${Sd.real}</div>`;
     h += `<div class="specLine">Gun ${Sd.gun.name} · AP shell ${String(Ballistics.shell(T.id, 'APHE').m)} kg at ${Ballistics.shell(T.id, 'APHE').v0} m/s · reload ${T.reload.toFixed(1)} s · ${T.kmh} km/h</div>`;
     const Dd = T.D, trav = Vehicle.traverse(Dd, Dd.gov, true) / D2R;
-    h += `<div class="specLine">${Dd.gears.length}+${Dd.rev.length} ${Dd.box.name} gearbox · reverse ${Math.round(Dd.revTop * 3.6)} km/h · ${Dd.steer.kind === 'regen' ? 'regenerative steering, neutral turn' : 'clutch-and-brake steering'} · ${T.arc ? `gun traverse ±${Math.round(T.arc / D2R)}° by hand` : `turret 360° in ${Math.round(360 / trav)} s (${Dd.trav.kind === 'hyd' ? 'hydraulic, engine-driven' : Dd.trav.kind === 'elec' ? 'electric' : 'hand-cranked'})`} · elevation ${Dd.elev[0]}° to +${Dd.elev[1]}°</div>`;
+    h += `<div class="specLine">${Dd.gears.length}+${Dd.rev.length} ${Dd.box.name} gearbox · reverse ${Math.round(Dd.revTop * 3.6)} km/h · ${Dd.steer.kind === 'regen' ? 'regenerative steering, neutral turn' : 'clutch-and-brake steering'} · ${T.arc ? `gun traverse ±${Math.round(T.arc / D2R)}° by hand` : `turret 360° in ${Math.round(360 / trav)} s (${Dd.trav.kind === 'hyd' ? 'hydraulic, engine-driven' : Dd.trav.kind === 'elec' ? 'electric' : 'hand-cranked'})`} · elevation ${Dd.elev[0]}° to +${Dd.elev[1]}° · climbs ${Dd.climb}° · fords ${Dd.ford} m${T.mass > HEAVY_T ? ' · too heavy for ice and wooden bridges' : ''}</div>`;
     h += `<div class="specLine">Crew: ${Sd.crew.map(r => TankModels.NAMES[r]).join(', ')}</div>`;
     h += '<table class="spec"><tr><th>Armor</th><th>Thickness</th><th>Effective</th></tr>';
     h += row('Upper front hull', A.hull.up) + row('Lower front hull', A.hull.low) + row('Hull sides', A.hull.side) + row('Lower sides (behind wheels)', A.hull.lowSide) + row('Rear hull', A.hull.rear);
