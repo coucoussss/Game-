@@ -646,16 +646,17 @@ Meta.whenReady(() => {
   // réaction à un canon braqué, débordement et embuscade
   function makeAI(skill) {
     return {
-      skill, aimStd: 0.05 * (1 - skill) + 0.006, react: 1.1 - 0.75 * skill, careless: Math.random() < (1 - skill) * 0.35,
+      skill, aimStd: 0.05 * (1 - skill) + 0.006, react: (1.1 - 0.75 * skill) * aiReact, careless: Math.random() < (1 - skill) * 0.35,
       target: null, threat: null, threatK: 0, los: false, lastKnown: null, dest: null, path: null, pi: 0, pathT: 0, pathDest: null,
       thinkT: Math.random() * 0.3, reactT: 0, aimErr: 0, biasA: 0, corrA: 0, leadErr: 0, rngK: 1, bearErr: 0, trackT: 0, lostT: 0, mem: null, vx: 0, vy: 0, shots: 0, pen: 1,
       stuckT: 0, unstickT: 0, unstickDir: -1, unstickTurn: 1, wiggleT: 0, wig: 1, laneY: WH / 2, waitT: 0, noContactT: 0, pushT: 0,
       state: 'engage', wdT: 0, wdCd: 0, noFireT: 0, cover: null, evadeT: 0, evadeDir: 0, evCd: 0, aimedT: 0, mode: null, flankT: 0, post: null,
     };
   }
-  const DEF_UP = { hp: 1, pen: 1, armor: 1, grip: 1, optic: 1, reload: 1, ready: 0, armorLv: 0 };
+  // multiplicateurs neutres (IA) ; en Vétéran et As, les chars ennemis ont des pièces (Meta.enemyUp)
+  const DEF_UP = { hp: 1, pen: 1, armor: 1, grip: 1, optic: 1, view: 1, reload: 1, ready: 0, armorLv: 0, disp: 1, moveDisp: 1, relay: 1, sixth: false };
   function makeTank(typeId, team, x, y, angle, isPlayer, name, skill) {
-    const T = TYPES[typeId], up = isPlayer ? Meta.mods(typeId) : DEF_UP;
+    const T = TYPES[typeId], up = isPlayer ? Meta.mods(typeId) : (team === 1 && Meta.enemyUp()) || DEF_UP;
     const mods = TankModels.makeModules(typeId);
     const roles = {};
     mods.forEach((m, i) => { if (m.kind === 'crew') roles[m.role] = i; });
@@ -783,10 +784,11 @@ Meta.whenReady(() => {
     return 'queued';
   }
 
-  // Habileté de l'IA ennemie : un seul multiplicateur (futur réglage de difficulté), appliqué à chaque
-  // apparition ; 1 = réglage d'origine
-  let aiSkillK = 1;
-  const aiSkill = s => clamp(s * aiSkillK, 0.1, 0.98);
+  // Habileté de l'IA ennemie : habileté de base + décalage de la difficulté choisie et aide adaptative du
+  // secteur (Meta.aiSkill), puis un multiplicateur global (1 = réglage d'origine). aiReact : temps de
+  // réaction selon la difficulté, relu à chaque vague.
+  let aiSkillK = 1, aiReact = 1;
+  const aiSkill = s => clamp(Meta.aiSkill(s, mode === 'campagne' ? levelIdx : null) * aiSkillK, 0.1, 0.98);
   // Dispositifs d'attaque de la campagne : places [recul depuis le bord est, décalage vertical, délai
   // d'entrée en s], du plus lourd au plus léger. « late » : deux chars débouchent du coin nord-est
   // 40 s plus tard ; « ambush » : les chasseurs de chars attendent dans des buissons à mi-terrain.
@@ -810,6 +812,7 @@ Meta.whenReady(() => {
     HitCam.stop();
     if (W3D && groundCv) setEnv3();
     const lv = L();
+    aiReact = Meta.diff().react;
     const allyTypes = levelIdx < 2 ? ['pz4', 'light', 'medium', 'stug'] : levelIdx < 4 ? ['medium', 'heavy', 'destroyer', 'pz4'] : ['kingtiger', 'medium', 'stug', 'heavy'];
     const enemyTypes = lv.waves[waveIdx];
     const eSkill = aiSkill(Math.min(0.95, 0.3 + levelIdx * 0.14 + waveIdx * 0.04));
@@ -1000,7 +1003,7 @@ Meta.whenReady(() => {
           // tout près, on entend et on voit le char, sauf derrière une maison
           if (d < 90 && losClear(a.x, a.y, e.x, e.y, false)) rate = 9;
           else {
-            let range = a.T.view * a.up.optic * (night && !flareLit(e) ? 0.6 : 1) * (0.75 + 0.25 * eff(a, 'commander')) * (a.hatch ? 1.15 : 1) * (a.optic.cmd > 0 && !a.hatch ? 0.8 : 1);
+            let range = a.T.view * a.up.view * (a.team === 0 && player && a !== player && !player.dead ? player.up.relay : 1) * (night && !flareLit(e) ? 0.6 : 1) * (0.75 + 0.25 * eff(a, 'commander')) * (a.hatch ? 1.15 : 1) * (a.optic.cmd > 0 && !a.hatch ? 0.8 : 1);
             if (e.revealT > 0) range *= 1.3;
             // un char qui roule vite soulève un panache de poussière qui se voit de loin
             if (!night && !L().snow && Math.abs(e.speed) > e.T.speed * 0.5) range *= 1.2;
@@ -2050,7 +2053,7 @@ Meta.whenReady(() => {
 
     // Dispersion : elle augmente en mouvement et se resserre à l'arrêt
     if (t.bentT > 0 && (t.bentT -= dt) <= 0 && t === player) addLog('Gun barrel straightened', '#a6f08a');
-    const goal = T.disp / t.up.optic / Math.max(0.4, eG) * (t.optic.gunner > 0 ? 2.5 : 1) * (t.bentT > 0 ? 3 : 1) * (1 + 0.6 * Math.abs(t.speed) / T.speed + 0.8 * Math.abs(t.turnRate) / T.turn + 1.1 * Math.abs(t.turretRate) / T.tturn);
+    const goal = T.disp / t.up.optic * t.up.disp / Math.max(0.4, eG) * (t.optic.gunner > 0 ? 2.5 : 1) * (t.bentT > 0 ? 3 : 1) * (1 + t.up.moveDisp * (0.6 * Math.abs(t.speed) / T.speed + 0.8 * Math.abs(t.turnRate) / T.turn) + 1.1 * Math.abs(t.turretRate) / T.tturn);
     t.disp += (goal - t.disp) * Math.min(1, dt * (goal > t.disp ? 6 : 1.3));
 
     // hors du tir, le chargeur regarnit le râtelier : un obus toutes les 8 s
@@ -5676,7 +5679,9 @@ Meta.whenReady(() => {
     buildMissions();
     drawWheel(wheelRot);
     $('spinFree').disabled = !Meta.canSpinFree() || wheelSpin;
-    $('spinAd').disabled = wheelSpin;
+    $('spinAd').hidden = !Meta.canSpinAd() && !wheelSpin;
+    $('spinAd').disabled = wheelSpin || !Meta.canSpinAd();
+    $('spinAd').textContent = `Bonus spin (${Meta.adSpinsLeft()} left today)`;
     updateTopbar();
   }
   // Rareté affichée des chars (selon leur rang dans l'arbre) et des niveaux de pièces
@@ -5685,8 +5690,11 @@ Meta.whenReady(() => {
   const RAR_N = { common: 1, rare: 1, epic: 2, legendary: 3 };
   const adPips = (n, need) => need > 3 ? `<span class="adp n">${n}/${need}</span>` : `<span class="adp">${Array.from({ length: need }, (_, i) => `<i class="${i < n ? 'on' : ''}"></i>`).join('')}</span>`;
   // Célébration plein écran d'un déblocage : rayons, confettis, aperçu, fanfare
+  // une célébration à la fois : les suivantes attendent la fermeture de la précédente
+  const celebQ = [];
   function celebrate(o) {
     const el = $('unlock'), rc = `var(--c-${o.rar})`;
+    if (el.classList.contains('on')) { celebQ.push(o); return; }
     el.style.setProperty('--rc', rc);
     $('uKind').textContent = o.kind;
     $('uName').textContent = o.name;
@@ -5715,8 +5723,11 @@ Meta.whenReady(() => {
     } else img = swatchURL(sk);
     celebrate({ kind: kind || 'New camo unlocked', name: sk.name, rar: sk.rar, flav: sk.flav, img });
   }
-  $('uOk').onclick = () => $('unlock').classList.remove('on');
-  $('unlock').onclick = e => { if (e.target === e.currentTarget) $('unlock').classList.remove('on'); };
+  // camouflage obtenu par une récompense (Meta.give) : célébré avec le char du garage
+  function celebrateGot(kind) { const sk = Meta.takeSkin(); if (sk) celebrateSkin(sk, kind); }
+  function closeUnlock() { $('unlock').classList.remove('on'); if (celebQ.length) setTimeout(() => celebrate(celebQ.shift()), 250); }
+  $('uOk').onclick = closeUnlock;
+  $('unlock').onclick = e => { if (e.target === e.currentTarget) closeUnlock(); };
   // Échantillon de camouflage dessiné en 2D selon son motif
   let skinPreview = null;
   const swatchCache = {};
@@ -5740,7 +5751,8 @@ Meta.whenReady(() => {
     }
     return swatchCache[sk.id];
   }
-  // Pièces du char choisi : niveau, achat en crédits ou en publicités (niveau + 1 publicités)
+  // Pièces du char choisi : niveau, achat en crédits (prix selon le palier du char) ou en publicités
+  // (une par tranche de 1 000 ✪)
   function buildParts() {
     const P = Meta.P, pl = $('partList'); pl.innerHTML = '';
     const own = P.tanks.includes(chosenType);
@@ -5753,11 +5765,12 @@ Meta.whenReady(() => {
       else {
         const installed = () => { buildMenu(); celebrate({ kind: 'Upgrade installed', name: `${pd.name} ${Meta.MK[lv + 1]}`, rar: PART_RAR[lv], flav: pd.desc, icon: pd.ic }); };
         const b = document.createElement('button'); b.className = 'btn buy';
-        b.textContent = `${Meta.MK[lv + 1]} · ✪ ${fmt(pd.cost[lv])}`;
-        b.disabled = !own || P.credits < pd.cost[lv];
+        const cost = Meta.partCost(chosenType, pd.id, lv);
+        b.textContent = `${Meta.MK[lv + 1]} · ✪ ${fmt(cost)}`;
+        b.disabled = !own || P.credits < cost;
         b.onclick = () => { if (Meta.buyPart(chosenType, pd.id)) installed(); };
         const a = document.createElement('button'); a.className = 'btn ad';
-        const need = lv + 1, left = Meta.adsLeft(`part:${chosenType}:${pd.id}`, need);
+        const need = Meta.partAds(chosenType, pd.id), left = Meta.adsLeft(`part:${chosenType}:${pd.id}`, need);
         a.innerHTML = `Watch ad${adPips(need - left, need)}`;
         a.title = `Install by watching ${need} ad${need > 1 ? 's' : ''}`;
         a.disabled = !own;
@@ -5834,7 +5847,7 @@ Meta.whenReady(() => {
   }
   function spinWheel(free) {
     if (wheelSpin) return;
-    const idx = Meta.spinResult(), n = Meta.WHEEL.length;
+    const idx = Meta.spinResult(free), n = Meta.WHEEL.length;
     // le segment gagnant s'arrête sous l'aiguille (en haut), après 6 tours et un peu de hasard
     const target = -idx / n * TAU + (Math.random() - 0.5) * (TAU / n) * 0.7;
     const start = wheelRot, end = start - ((start - target) % TAU + TAU) % TAU + TAU * 6, t0 = performance.now(), dur = 5200;
@@ -5868,7 +5881,7 @@ Meta.whenReady(() => {
     Sfx.init(); playMusic(); newDay();
   });
   $('spinFree').onclick = () => { if (Meta.canSpinFree()) spinWheel(true); };
-  $('spinAd').onclick = () => Meta.rewarded(() => spinWheel(false), () => toast('Ad unavailable right now'));
+  $('spinAd').onclick = () => { if (Meta.canSpinAd()) Meta.rewarded(() => spinWheel(false), () => toast('Ad unavailable right now')); };
   // Musique synthétisée de audio.js (thème du menu, couches de bataille). Ces deux crochets décident seuls
   // quand elle joue : volume non nul, son non coupé, onglet visible, et pas pendant la publicité de sortie
   function playMusic() {
@@ -6125,9 +6138,19 @@ Meta.whenReady(() => {
     Meta.banner('bannerMenu');
   }
   // nouveau jour pendant la session : missions renouvelées et prime de présence annoncée
-  function newDay() {
-    const b = Meta.dailyRoll();
-    if (b) { buildMenu(); toast(`Daily login · day ${Meta.P.streak}: +✪ ${fmt(b)}`); }
+  function newDay() { const r = Meta.dailyRoll(); if (r) { buildMenu(); dailyNote(r); } }
+  // Annonces du nouveau jour : missions non réclamées payées d'office, saison du bon de guerre, série
+  // perdue (rattrapable aujourd'hui), et calendrier de la prime de présence (caisse au 7e jour)
+  function dailyNote(r) {
+    if (!r) return;
+    if (r.paid) toast(`Unclaimed orders paid: +✪ ${fmt(r.paid)}`);
+    if (r.season) toast(`🎖 ${r.season}`);
+    if (r.lost) toast(`Your ${r.lost}-day streak was broken: restore it in Missions today`);
+    if (r.day) {
+      const crate = (r.day - 1) % 7 === 6;
+      celebrate({ kind: `Daily login · day ${r.day}`, name: r.text, rar: crate ? 'epic' : 'rare', icon: crate ? '📦' : '✪', flav: `Tomorrow: ✪ ${fmt(r.tomorrow)}. Day 7 of every week brings a Supply Crate.` });
+      celebrateGot('Supply Crate');
+    }
   }
   // Retour au menu : interface effacée, décor 3D et texture du sol libérés (des dizaines de Mo de
   // tampons dans les Ardennes) ; la prochaine bataille les reconstruit (genMap, setup3D)
@@ -6580,7 +6603,7 @@ Meta.whenReady(() => {
     document.body.classList.toggle('cg', Meta.sdk.banners);
     if (DEV_START) startLevel(); else { show('menu'); Meta.banner('bannerMenu'); }
     if (DEV_RUN) setTimeout(() => toast('Debug run: progress is not saved'), 300);
-    else if (bonus) setTimeout(() => toast(`Daily login · day ${Meta.P.streak}: +✪ ${fmt(bonus)}`), 600);
+    else if (bonus) setTimeout(() => dailyNote(bonus), 600);
   }
   const bootT = setTimeout(() => { console.warn('Profile loading timed out'); boot(0); }, 12000);
   Meta.init({ dev: DEV_RUN }).then(b => { clearTimeout(bootT); boot(b); }, e => { console.error(e); clearTimeout(bootT); boot(0); });
