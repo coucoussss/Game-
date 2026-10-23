@@ -6547,6 +6547,7 @@ Meta.whenReady(() => {
   // ----- onglets, options -----
   document.querySelectorAll('.tab').forEach(b => b.onclick = () => {
     document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === b));
+    rebinding = null;
     if (b.dataset.tab === 'garage') { markGarage(); buildMenu(); } else if (garageNew.size) { garageNew.clear(); buildMenu(); }
     document.querySelectorAll('.panel').forEach(x => x.classList.toggle('on', x.id === 'tab-' + b.dataset.tab));
     Sfx.init(); playMusic(); newDay();

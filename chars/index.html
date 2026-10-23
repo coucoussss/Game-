@@ -408,6 +408,12 @@
   /* iframe basse (640×360, 800×450) : bouton de départ plus compact, panneau qui défile sous lui,
      annonces en bas pour ne pas couvrir le grade et les crédits */
   @media (max-height: 600px) {
+    /* célébration : image plus basse pour que le bouton reste visible en paysage sur téléphone */
+    #unlock .ui { width: min(380px, 80vw, 40vh * 480 / 260); margin: 10px auto; }
+    #unlock .ui.icon { font-size: 70px; }
+    #unlock .un { font-size: clamp(26px, 9vh, 54px); }
+    #unlock .uf { margin-top: 6px; font-size: 13px; }
+    #unlock .btn { margin-top: 12px; font-size: 16px; padding: 10px 36px; }
     .box { padding: 14px 16px; }
     .box h1 { font-size: 30px; }
     .box .sub { margin: 2px 0 8px; font-size: 13px; }
