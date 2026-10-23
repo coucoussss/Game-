@@ -6058,8 +6058,38 @@ Meta.whenReady(() => {
     }
     return thumbCache[key] || '';
   }
+  // Nouveautés du garage : chars à débloquer et pièces abordables encore jamais vus (pastille de l'onglet ;
+  // ruban « NEW » sur les cartes de char tant qu'on reste dans le garage)
+  let garageNew = new Set();
+  function garageReady() {
+    const P = Meta.P, l = [];
+    for (const id in TYPES) {
+      if (!P.tanks.includes(id)) { if (Meta.canBuyTank(id)) l.push('t:' + id); continue; }
+      for (const d of Meta.PARTS) { const lv = Meta.partLv(id, d.id), c = Meta.partCost(id, d.id, lv); if (c && P.credits >= c) l.push(`p:${id}:${d.id}:${lv}`); }
+    }
+    return l;
+  }
+  function markGarage() {
+    const P = Meta.P, l = garageReady().filter(k => !P.seen.includes(k));
+    garageNew = new Set(l.filter(k => k[0] === 't').map(k => k.slice(2)));
+    if (l.length) { P.seen.push(...l); P.seen = P.seen.slice(-300); Meta.save(); }
+  }
+  // mission réclamée : son, toast, et la promotion qu'elle apporte peut-être
+  function claimMission(id) {
+    const lv = Meta.P.level, c = Meta.claim(id);
+    if (!c) return 0;
+    toast(`Mission complete: +✪ ${fmt(c)}`); Sfx.notify(); celebrateGot('Weekly order reward');
+    if (Meta.P.level > lv) celebratePromo(lv);
+    return c;
+  }
+  function celebratePromo(lv0) {
+    const P = Meta.P, now = Object.keys(Meta.TANKS).filter(id => Meta.TANKS[id].lvl > lv0 && Meta.TANKS[id].lvl <= P.level && !P.tanks.includes(id));
+    celebrate({ kind: 'Promotion', name: Meta.rankName(), rar: P.level >= 10 ? 'legendary' : P.level >= 6 ? 'epic' : 'rare', icon: '🎖',
+      flav: now.length ? `Now available: ${now.map(id => `${TYPES[id].name} (✪ ${fmt(Meta.TANKS[id].price)})`).join(', ')}` : `Rank ${P.level} reached` });
+  }
   function updateTopbar() {
     const P = Meta.P, need = Meta.xpFor(P.level);
+    $('dotGarage').classList.toggle('on', garageReady().some(k => !P.seen.includes(k)));
     $('credN').textContent = fmt(wheelHold ? wheelHold.credits : P.credits);
     $('kitsN').textContent = wheelHold ? wheelHold.kits : P.kits;
     $('rkLv').querySelector('span').textContent = P.level;
@@ -6098,7 +6128,7 @@ Meta.whenReady(() => {
       const lock = own ? '<span class="tag own">✓ Owned</span>' : P.level < inf.lvl
         ? `<div class="lockov"><span class="lk">🔒</span><span>Requires level ${inf.lvl}</span><b>✪ ${fmt(inf.price)}</b></div>`
         : `<div class="lockov"><span class="lk">🔓</span><span>Ready to unlock</span><b>✪ ${fmt(inf.price)}</b></div>`;
-      d.innerHTML = `${lock}<img class="thumb" alt="" src="${tankThumb(T.id)}"><b>${T.name}</b><small>${T.cls}${T.arc ? ' · turretless' : ''}</small><span class="rib">${Meta.RARITY[rar]}</span>${ms ? `<span class="mast" title="Mastery: ${Meta.MASTERY_N[ms - 1]}">${['III', 'II', 'I', '★'][ms - 1]}</span>` : ''}`;
+      d.innerHTML = `${lock}${garageNew.has(T.id) ? '<span class="newb">NEW</span>' : ''}<img class="thumb" alt="" src="${tankThumb(T.id)}"><b>${T.name}</b><small>${T.cls}${T.arc ? ' · turretless' : ''}</small><span class="rib">${Meta.RARITY[rar]}</span>${ms ? `<span class="mast" title="Mastery: ${Meta.MASTERY_N[ms - 1]}">${['III', 'II', 'I', '★'][ms - 1]}</span>` : ''}`;
       d.onclick = () => { chosenType = T.id; skinPreview = null; buildMenu(); };
       tc.appendChild(d);
     }
@@ -6411,7 +6441,7 @@ Meta.whenReady(() => {
     b.className = 'btn small' + (done && !m.claimed ? '' : ' alt');
     b.textContent = m.claimed ? 'Claimed' : done ? 'Claim' : 'In progress';
     b.disabled = !done || m.claimed;
-    b.onclick = () => { const c = Meta.claim(m.id); if (c) { toast(`Mission complete: +✪ ${fmt(c)}`); Sfx.notify(); celebrateGot('Weekly order reward'); buildMenu(); } };
+    b.onclick = () => { if (claimMission(m.id)) buildMenu(); };
     d.appendChild(b);
     return d;
   }
@@ -6509,6 +6539,7 @@ Meta.whenReady(() => {
   // ----- onglets, options -----
   document.querySelectorAll('.tab').forEach(b => b.onclick = () => {
     document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === b));
+    if (b.dataset.tab === 'garage') { markGarage(); buildMenu(); } else if (garageNew.size) { garageNew.clear(); buildMenu(); }
     document.querySelectorAll('.panel').forEach(x => x.classList.toggle('on', x.id === 'tab-' + b.dataset.tab));
     Sfx.init(); playMusic(); newDay();
   });
@@ -6778,6 +6809,7 @@ Meta.whenReady(() => {
     $('lvUp').classList.toggle('on', up.length > 0);
     $('lvUp').innerHTML = up.map(x => `<div>${x}</div>`).join('');
     if (g.up > 0 || g.mast) celebrateGot('Promotion reward');
+    if (g.up > 0) setTimeout(() => { if (state === 'result') celebratePromo(g.before.level); }, 1000); // après le décompte des gains
     renderGoals(g, notes);
     // doubler n'est proposé que s'il rapporte assez ; sur une défaite, une prime de terrain fixe
     if (g.credits >= 300 || !r.win) {
@@ -6813,7 +6845,7 @@ Meta.whenReady(() => {
     el.innerHTML = h;
     el.querySelectorAll('.goal.now .btn').forEach(x => { const d = x.parentNode; x.onclick = () => goGarage(d.dataset.k === 'tank' ? d.dataset.id : chosenType); });
     el.querySelectorAll('.goal.done .btn').forEach(x => {
-      x.onclick = () => { const c = Meta.claim(x.parentNode.dataset.m); if (c) { x.disabled = true; x.textContent = 'Claimed'; toast(`Mission complete: +✪ ${fmt(c)}`); Sfx.notify(); celebrateGot('Weekly order reward'); } };
+      x.onclick = () => { if (claimMission(x.parentNode.dataset.m)) { x.disabled = true; x.textContent = 'Claimed'; } };
     });
     requestAnimationFrame(() => requestAnimationFrame(() => el.querySelectorAll('.bar i[data-to]').forEach(i => { i.style.width = i.dataset.to + '%'; })));
   }

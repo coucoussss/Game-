@@ -93,6 +93,7 @@
   .card .tag.own { color: var(--green); border-color: rgba(143, 212, 106, 0.35); }
   .card .tag.lock { color: var(--amber); }
   .tcard { padding: 8px; }
+  .newb { position: absolute; top: 6px; right: 6px; z-index: 2; background: var(--red); color: #fff; font-size: 10px; font-weight: 800; letter-spacing: 0.08em; padding: 2px 6px; border-radius: 4px; box-shadow: 0 0 10px var(--red); }
   .thumb { display: block; width: 100%; height: auto; border-radius: 10px; margin-bottom: 6px; background: #12140f; }
   .mode { display: flex; gap: 12px; align-items: center; }
   .mode .em { font-size: 28px; width: 46px; height: 46px; display: grid; place-items: center; border-radius: 12px; background: rgba(233, 196, 106, 0.1); border: 1px solid var(--line); }
@@ -451,7 +452,7 @@
     <div class="logo"><span class="l1">Steel Front</span><span class="l2"></span></div>
     <nav class="tabs" id="tabs">
       <button class="tab on" data-tab="play">Battle</button>
-      <button class="tab" data-tab="garage">Garage</button>
+      <button class="tab" data-tab="garage">Garage<span class="dot" id="dotGarage"></span></button>
       <button class="tab" data-tab="wheel">Wheel<span class="dot" id="dotWheel"></span></button>
       <button class="tab" data-tab="missions">Missions<span class="dot" id="dotMissions"></span></button>
       <button class="tab" data-tab="atelier">Workshop</button>
