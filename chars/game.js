@@ -5557,9 +5557,11 @@ Meta.whenReady(() => {
     // au-dessus des boutons de tir en tactile
     ui.pip = null;
     if (HitCam.active()) {
-      const big = W >= 1150 && !tch;
+      // à la lunette, l'incrustation ne mord pas sur l'oculaire
+      const sr = sight.on ? (W * k / 2 + Math.max(60, Math.min(W * k / 2, H * k / 2 - 60 * k))) / k + 10 : 0;
+      const big = W >= 1150 && !tch && W - 14 - sr >= 240;
       let cw, ch, x0, y0;
-      if (big) { cw = Math.min(420, W * 0.3); y0 = mm.bottom + 14; ch = Math.min(cw * 0.66, (ui.panel ? ui.panel.top : H) - 12 - y0); x0 = W - cw - 14; }
+      if (big) { cw = Math.min(420, W * 0.3, W - 14 - sr); y0 = mm.bottom + 14; ch = Math.min(cw * 0.66, (ui.panel ? ui.panel.top : H) - 12 - y0); x0 = W - cw - 14; }
       else {
         cw = Math.min(300, W - 24 - ui.bar.x1); ch = cw * 0.66; y0 = 12;
         if (tch) { let tb = H; for (const q of touch.btns) if (q.r) tb = Math.min(tb, (q.cy - q.r) / k); if (ch > tb - 8 - y0) { ch = Math.max(90, tb - 8 - y0); cw = ch / 0.66; } }
@@ -6108,7 +6110,8 @@ Meta.whenReady(() => {
     const cw = contWave();
     $('sumInfo').textContent = owned ? `${MODES[mode].name} · ${L().name} · ${Meta.diff().name}${P.x2 ? ` · ×2 rewards (${P.x2} left)` : ''}` : `Locked tank: buy it in the Garage`;
     $('startBtn').disabled = !owned;
-    $('startBtn').textContent = cw ? `▶ Continue · wave ${cw + 1}/${WAVES}` : '⚔ Deploy';
+    // tout premier lancement : un seul mot, et la bataille d'entraînement guidée derrière
+    $('startBtn').textContent = cw ? `▶ Continue · wave ${cw + 1}/${WAVES}` : !P.stats.battles && !P.tut.done ? '▶ Play' : '⚔ Deploy';
     $('restartLnk').hidden = !cw;
     $('x2Pill').hidden = !P.x2; $('x2N').textContent = P.x2;
   }
