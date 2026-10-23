@@ -60,6 +60,7 @@
   .spacer { flex: 1; }
   .pill { display: flex; align-items: center; gap: 8px; padding: 7px 14px 7px 8px; border-radius: 999px; background: var(--glass); border: 1px solid var(--line); font-family: var(--head); font-size: 16px; font-weight: 600; letter-spacing: 0.04em; }
   .pill .ic { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff1b8, #c99a32 60%, #7a5614); color: #3a2806; font-size: 14px; box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.3); }
+  .pill .ic.x2 { background: radial-gradient(circle at 35% 30%, #e8d4ff, #8a5fd0 60%, #3e2370); color: #1c0c36; font-size: 11px; }
   .pill .ic.kit { background: radial-gradient(circle at 35% 30%, #d8ecff, #5a8fc8 60%, #234a72); color: #0c2236; }
   .rank { display: flex; align-items: center; gap: 10px; padding: 6px 14px 6px 6px; border-radius: 999px; background: var(--glass); border: 1px solid var(--line); }
   .rank .lv { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-family: var(--head); font-weight: 700; font-size: 16px; color: #2a1d05; background: conic-gradient(var(--gold) var(--p, 0%), rgba(255, 255, 255, 0.12) 0); position: relative; }
@@ -204,6 +205,33 @@
   .rw.xp b { color: var(--blue); }
   .lvup { margin-top: 14px; font-family: var(--head); font-size: 20px; letter-spacing: 0.1em; color: var(--green); display: none; }
   .lvup.on { display: block; animation: pop .4s; }
+  .lvup div + div { font-size: 14px; color: var(--gold); margin-top: 4px; letter-spacing: 0.06em; }
+  /* objectifs suivants des résultats : barres de progression, boutons « débloquer » et « réclamer » */
+  #resGoals { margin-top: 14px; display: grid; gap: 6px; text-align: left; }
+  .goal { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 12px; border-radius: 12px; background: var(--glass); border: 1px solid var(--line2); }
+  .goal .gl { flex: 1 1 60%; display: flex; justify-content: space-between; gap: 10px; font-size: 13px; }
+  .goal .gl b { font-weight: 600; }
+  .goal .gl span { color: var(--mute); white-space: nowrap; }
+  .goal .bar { flex: 1 1 100%; height: 6px; }
+  .goal .bar i { transition: width .9s cubic-bezier(.2, .8, .3, 1); }
+  .goal.rankg .bar i { background: linear-gradient(90deg, #4a86c0, var(--blue)); }
+  .goal.bond .bar i { background: linear-gradient(90deg, #8a5fd0, #c9a0ff); }
+  .goal.now { border-color: var(--gold); box-shadow: 0 0 18px rgba(233, 196, 106, 0.2); }
+  .goal.now .gl span, .goal.done .gl span { color: var(--gold); }
+  .goal.done { border-color: rgba(143, 212, 106, 0.4); }
+  .goal .btn { padding: 6px 12px; font-size: 11px; }
+  .note { font-size: 13px; color: var(--mute); text-align: center; }
+  .note.gold { color: var(--gold); font-family: var(--head); letter-spacing: 0.06em; font-size: 15px; }
+  .note.rec { color: #2a1d05; background: linear-gradient(90deg, #b8913a, #ffe39a, #b8913a); border-radius: 8px; padding: 4px 10px; font-family: var(--head); letter-spacing: 0.08em; }
+  .stars { text-align: center; font-size: 34px; letter-spacing: 6px; color: rgba(255, 255, 255, 0.15); }
+  .stars i { font-style: normal; } .stars i.on { color: var(--gold); text-shadow: 0 0 14px rgba(233, 196, 106, 0.6); }
+  #resTable tr.medal td { color: var(--gold); }
+  /* joueur détruit : commandement d'un allié, avance rapide */
+  #deadBar { position: fixed; left: 50%; bottom: 18%; transform: translateX(-50%); z-index: 8; display: none; gap: 10px; }
+  #deadBar.on { display: flex; }
+  #deadBar .btn.on { border-color: var(--gold); color: var(--gold); }
+  .cta .lnk { background: none; border: 0; color: var(--mute); font-size: 13px; text-decoration: underline; cursor: pointer; padding: 0; }
+  .cta .lnk[hidden], #x2Pill[hidden], #spinAd[hidden] { display: none; }
   /* emplacements de bannières CrazyGames (menu, résultats), absents hors du portail */
   .banner { display: none; }
   body.cg .banner { display: block; }
@@ -365,6 +393,7 @@
     </nav>
     <div class="spacer"></div>
     <div class="rank" title="Rank and experience"><div class="lv" id="rkLv"><span>1</span></div><div><b id="rkName">Private</b><small id="rkXp">0 / 300 XP</small></div></div>
+    <div class="pill" id="x2Pill" title="Double rewards boosters: used on your next victories" hidden><span class="ic x2">×2</span><span id="x2N">0</span></div>
     <div class="pill" title="Repair kits"><span class="ic kit">✚</span><span id="kitsN">0</span></div>
     <div class="pill" title="Credits"><span class="ic">✪</span><span id="credN">0</span></div>
   </div>
@@ -470,6 +499,7 @@
   <div class="cta">
     <div class="sum"><b id="sumTank">Panzer IV</b><span id="sumInfo"></span></div>
     <button id="startBtn">⚔ Deploy</button>
+    <button class="lnk" id="restartLnk" hidden>Restart sector from wave 1</button>
   </div>
 </div>
 
@@ -480,6 +510,7 @@
     <table id="resTable"></table>
     <div class="rewards"><div class="rw"><small>Credits</small><b id="rwCred">0</b></div><div class="rw xp"><small>Experience</small><b id="rwXp">0</b></div></div>
     <div class="lvup" id="lvUp"></div>
+    <div id="resGoals"></div>
     <div class="btns" id="resBtns"></div>
   </div>
   <div id="bannerRes" class="banner"></div>
@@ -490,8 +521,9 @@
     <h1>PAUSE</h1>
     <div class="btns">
       <button class="btn" id="resumeBtn">Resume</button>
-      <button class="btn alt" id="quitBtn">Leave battle</button>
+      <button class="btn alt" id="quitBtn">Withdraw</button>
     </div>
+    <div class="sub" style="margin:12px 0 0;font-size:13px">Withdrawing ends the battle as a defeat. Rewards earned so far are kept.</div>
   </div>
 </div>
 
@@ -516,6 +548,7 @@
   </div>
 </div>
 
+<div id="deadBar"><button class="btn small" id="cmdBtn">Take command</button><button class="btn small alt" id="ffBtn">Fast-forward ×3</button></div>
 <div id="adSim" class="screen"><span>ADVERTISEMENT</span><b>3</b></div>
 <div id="unlock" class="screen"><div class="rays"></div><div class="ub"><div class="uk" id="uKind"></div><div class="ui" id="uImg"></div><div class="un" id="uName"></div><span class="rib" id="uRar"></span><div class="uf" id="uFlav"></div><div><button class="btn buy" id="uOk">Awesome!</button></div></div></div>
 <div id="toasts"></div>

@@ -260,6 +260,10 @@ Meta.whenReady(() => {
   let spotTimer = 0, waveTime = 0, introT = 0, endT = 0, waveResult = null, gameTime = 0;
   let groundCv = null, gctx = null;
   let waveStats = null, campaignScore = 0, msg = null, ffMsgT = 0;
+  // secteur en cours : score cumulé des vagues gagnées et alliés détruits par le joueur (étoiles) ;
+  // retried : vagues déjà reprises dans la session (la prime de revanche ne vaut qu'à la première reprise)
+  let sectorScore = 0, sectorTk = 0;
+  const retried = new Set();
   let tankId = 0, shellId = 0, hitcamOn = true;
   // modes de jeu : campagne 5 contre 5, survie seul contre des vagues, duel en 3 manches
   const MODES = {
@@ -800,7 +804,7 @@ Meta.whenReady(() => {
     ambush: [[0, 0], [60, -150], [60, 150], [0, -300], [0, 300]],
   };
   const HEAVY = ['kingtiger', 'heavy', 'destroyer', 'medium', 'stug', 'pz4', 'light'];
-  let reinf = [], waveForm = 'line';
+  let reinf = [], waveForm = 'line', revengeNext = false; // revengeNext : première reprise d'une vague perdue (prime de revanche)
   function spawnWave() {
     if (W3D0) for (const t of tanks) if (t.scar3) { W3D0.free(t.scar3.hull); W3D0.free(t.scar3.turret); }
     reviveT = 0; reviveUsed = false;
@@ -859,9 +863,14 @@ Meta.whenReady(() => {
     Sfx.setTank(player.T.id, player.T.D.rated, player.T.D.trav.kind);
     Sfx.setRoom(lv.forest ? 'forest' : lv.city ? 'city' : lv.desert ? 'desert' : lv.snow ? 'snow' : 'open');
     specIdx = 0;
-    waveStats = { kills: 0, pens: 0, crew: 0, mods: 0, ffCrew: 0, tk: 0, hits: 0, shots: 0, ric: 0, dodged: 0, crits: 0, fires: 0, bailed: 0, saved: 0 };
+    waveStats = { kills: 0, pens: 0, crew: 0, mods: 0, ffCrew: 0, tk: 0, hits: 0, shots: 0, ric: 0, dodged: 0, crits: 0, fires: 0, bailed: 0, saved: 0,
+      ffPens: 0, medals: [], killT: [], streak: 0, streakCr: 0, firstKill: false, ricSelf: 0, pened: false, revived: false, longest: 0, maxPen: 0, revenge: revengeNext };
+    if (revengeNext) addLog('Revenge bonus: +50% credits if you win this wave', '#ffd76a');
+    revengeNext = false;
     state = 'intro'; introT = 3.2; waveTime = 0;
     playMusic();
+    if (waveIdx === 0) { sectorScore = 0; sectorTk = 0; }
+    hideDeadBar();
     if (mode === 'campagne' && waveIdx === 0) addLog('Radio orders: 8 attack my target · 9 follow me · 0 hold · N move there', '#bcd8ff');
     Meta.sdk.gameplayStart();
     msg = null;
@@ -1032,6 +1041,8 @@ Meta.whenReady(() => {
         }
       }
     }
+    // sixième sens du chef de char (compétence) : alerte quand l'ennemi repère le joueur
+    if (player && !player.dead && player.up.sixth) { const sp = spotted[1].has(player); if (sp && !player.spottedB && state === 'play') { showMsg('👁 Sixth sense: you have been spotted!', '#ffcf7a', 1.6); Sfx.notify(); } player.spottedB = sp; }
     // dernière position vue de chaque ennemi (repère fantôme 6 s pour le joueur)
     for (const e of (player && player.knows) || spotted[0]) seenAt.set(e, { x: e.x, y: e.y, t: gameTime });
   }
@@ -2301,7 +2312,8 @@ Meta.whenReady(() => {
       }
       const hx = b.x + dx * best.t, hy = b.y + dy * best.t, hz = Math.max(0, b.z + (zNext - b.z) * best.t), ux = b.vx / b.sp, uy = b.vy / b.sp;
       if (best.tank) {
-        if (mgHitTank(b, best.tank, best, hx, hy) === 'continue') continue;
+        mgNow = b.by === player; const mr = mgHitTank(b, best.tank, best, hx, hy); mgNow = false;
+        if (mr === 'continue') continue;
       } else if (best.runner) { best.runner.hp -= rnd(60, 130); Fx.bulletGround(hx, hy, ux, uy); }
       else if (best.ground) Fx.bulletGround(hx, hy, ux, uy);
       else Fx.chips(hx, hy, hz, best.o.type === 'tree');
@@ -2344,7 +2356,7 @@ Meta.whenReady(() => {
       const m = t.mods[t.roles.commander], dmg = rnd(60, 130);
       modDamage(t, m, dmg, by); t.hatch = false; mod = m.i; kind = 'cmd'; outcome = 'pen';
       lines.push({ t: m.hp <= 0 ? 'Exposed commander killed' : 'Commander wounded: he ducks into the turret', c: '#ff8a6a' });
-      if (by === player && m.hp <= 0 && t.team !== by.team && Meta.track('cmd')) missionToast();
+      if (by === player && m.hp <= 0 && t.team !== by.team) { medal('headhunter'); if (Meta.track('cmd')) missionToast(); }
       if (show) floatText(hx, hy - 10, m.hp <= 0 ? 'Commander killed' : 'Commander wounded', '#ffb070');
       if (t === player) addLog(m.hp <= 0 ? 'Your commander was killed while exposed' : 'Your commander is wounded', '#ff6a5a');
       Fx.armorHit(hx, hy, best.z, 'mg', ux, uy);
@@ -2873,7 +2885,7 @@ Meta.whenReady(() => {
       const a = Math.atan2(-s.vy, -s.vx) + gauss() * 10 * D2R, d = dist(t, by) * rnd(0.7, 1.3);
       t.ai.lastKnown = { x: clamp(t.x + Math.cos(a) * d, 60, WW - 60), y: clamp(t.y + Math.sin(a) * d, 60, WH - 60) };
     }
-    if (by === player) waveStats.hits++;
+    if (by === player && t.team !== by.team) waveStats.hits++;
     if (by.team !== t.team) t.underFire = 8;
     // Géométrie 3D de l'impact (repère du modèle : y vers la gauche), avec la vraie pente balistique de
     // la trajectoire (la vue 3D écrase les distances, pas les angles d'incidence)
@@ -2887,7 +2899,7 @@ Meta.whenReady(() => {
   function barrelStrike(s, t, h, hx, hy) {
     const sb = s.sb, by = s.by, pen = sb.he || sb.heat ? 99 : Ballistics.penVel(sb, s.V);
     if (by.team !== t.team) t.underFire = 8;
-    if (by === player) waveStats.hits++;
+    if (by === player && t.team !== by.team) waveStats.hits++;
     Fx.armorHit(hx, hy, h.z, 'non', s.vx / s.sp, s.vy / s.sp); Sfx.clang(listenerDist(hx, hy));
     if (pen >= 15) {
       const muzzle = h.along > t.T.S.gun.fx + t.T.S.gun.len * 0.75, l = muzzle ? 'Gun barrel holed near the muzzle' : 'Gun barrel damaged';
@@ -3002,7 +3014,7 @@ Meta.whenReady(() => {
       Sfx.ricochet(listenerDist(hx, hy));
       if (show) floatText(hx, hy - 10, 'Ricochet', '#cfe3ff');
       if (by === player) waveStats.ric++;
-      if (t === player) { addLog(`Ricochet off ${plate.toLowerCase()}`, '#cfe3ff'); if (Meta.track('ricself')) missionToast(); }
+      if (t === player) { addLog(`Ricochet off ${plate.toLowerCase()}`, '#cfe3ff'); if (Meta.track('ricself')) missionToast(); if (++waveStats.ricSelf === 5) medal('steel_wall'); }
       // piège à obus : la moitié basse d'un masque arrondi renvoie l'obus vers le bas, à travers le toit de
       // caisse mince au-dessus du pilote et du radio (d'où le masque « à menton » du Panther G) ; à
       // l'inverse, un ricochet qui remonte du glacis peut frapper la face avant de la tourelle
@@ -3066,7 +3078,13 @@ Meta.whenReady(() => {
       sb.he ? (mm0 < 30 ? 0.2 : 0.06) : Math.min(1, pen / eff));
     if (penetrated) {
       t.morale -= 0.25;
-      if (by === player) { waveStats.pens++; if (Meta.track('pen')) missionToast(); }
+      if (t === player) waveStats.pened = true;
+      if (by === player && t.team === by.team) waveStats.ffPens++;
+      else if (by === player) {
+        waveStats.pens++; waveStats.maxPen = Math.max(waveStats.maxPen, pen);
+        const dp = Meta.track('pen'), df = /side|rear/i.test(plate) && Meta.track('flank');
+        if (dp || df) missionToast();
+      }
       if (show) {
         const col = t === player ? '#ff5a4a' : t.team === 0 ? '#ffaa44' : '#ffe27a';
         floatText(hx, hy - 12, out.knocked ? 'DESTROYED' : out.crewKilled ? `Penetrated · ${out.crewKilled} killed` : 'Penetrated', col, 1.15);
@@ -3226,6 +3244,7 @@ Meta.whenReady(() => {
 
   const ROLE_FX = { gunner: 'aim', driver: 'driving', loader: 'loading', commander: 'awareness', radio: 'first aid' };
   // Dégâts à un module ; statistiques et tirs alliés
+  let mgNow = false; // dégâts en cours d'une balle de mitrailleuse du joueur (mission « mitrailleuse »)
   function modDamage(t, m, amount, by, silent) {
     if (t.dead || m.hp <= 0 || amount <= 0) return;
     if (GOD && t === player) return;
@@ -3246,8 +3265,8 @@ Meta.whenReady(() => {
           waveStats.ffCrew++;
           if (gameTime - ffMsgT > 1.2) { ffMsgT = gameTime; showMsg('⚠ FRIENDLY FIRE: an allied crewman killed!', '#ffaa44'); Sfx.alarm(); }
         }
-      } else if (by === player) { waveStats.crew++; if (Meta.track('crew')) missionToast(); }
-    } else if (by === player && by.team !== t.team) waveStats.mods++;
+      } else if (by === player) { waveStats.crew++; const dc = Meta.track('crew'), dm = mgNow && Meta.track('mg'); if (dc || dm) missionToast(); }
+    } else if (by === player && by.team !== t.team) { waveStats.mods++; if (Meta.track('mod')) missionToast(); }
     if (!silent && t === player) addLog(`${m.name} ${m.kind === 'crew' ? 'knocked out' : 'destroyed'}`, '#ff6a5a');
   }
   function checkKnock(t, by) { if (!t.dead && crewAlive(t) < 2) destroyTank(t, by, null); }
@@ -3277,7 +3296,7 @@ Meta.whenReady(() => {
       if (Math.random() < fragP(sb.cal, Math.hypot(h.x - x, h.y - y) / PX, 0.15)) {
         modDamage(t, m, rnd(50, 130), by); t.hatch = false;
         res.push(m.hp <= 0 ? 'Exposed commander killed by fragments' : 'Commander hit by shell fragments');
-        if (by === player && m.hp <= 0 && t.team !== by.team && Meta.track('cmd')) missionToast();
+        if (by === player && m.hp <= 0 && t.team !== by.team) { medal('headhunter'); if (Meta.track('cmd')) missionToast(); }
       }
     }
     for (const m of t.mods) if (m.out && m.hp > 0 && Math.random() < fragP(sb.cal, r, 0.5)) { modDamage(t, m, rnd(50, 130), by); res.push(`${m.name} hit while repairing the track`); }
@@ -3473,15 +3492,47 @@ Meta.whenReady(() => {
     if (feed.length > 6) feed.pop();
     if (by === player) {
       if (ff) { waveStats.tk++; showMsg('Ally destroyed by your fire!', '#ff7a4a'); }
-      else if (by !== t) { waveStats.kills++; floatText(t.x, t.y - 26, '+✪ 150', '#e9c46a', 1.3); if (Meta.track('kill')) missionToast(); showMsg(how === 'brewed' ? 'Enemy tank destroyed: ammo detonated!' : how === 'abandoned' ? 'Enemy crew bailed out!' : how === 'burning' ? 'Enemy tank knocked out and burning' : 'Enemy tank knocked out', '#ffe27a'); }
+      else if (by !== t) { waveStats.kills++; floatText(t.x, t.y - 26, '+✪ 150', '#e9c46a', 1.3); playerKill(t, how); showMsg(how === 'brewed' ? 'Enemy tank destroyed: ammo detonated!' : how === 'abandoned' ? 'Enemy crew bailed out!' : how === 'burning' ? 'Enemy tank knocked out and burning' : 'Enemy tank knocked out', '#ffe27a'); }
     }
+    if (t.team !== (player ? player.team : 0) && waveStats && !waveStats.firstKill) { waveStats.firstKill = true; if (enemy) medal('first_blood'); }
     if (enemy && how === 'brewed' && Meta.track('det')) missionToast();
     if (enemy && how === 'abandoned') { waveStats.bailed++; if (Meta.track('bail')) missionToast(); }
     if (t === player) {
-      if (!reviveUsed && mode !== 'duel' && state === 'play') reviveT = 1.8;
+      waveStats.streak = 0;
+      if (!reviveUsed && mode !== 'duel' && state === 'play' && !Meta.diff().noRevive) reviveT = 1.8;
       addLog(how === 'brewed' ? 'Your ammunition exploded.' : how === 'abandoned' ? 'Your crew bailed out.' : 'Your crew is out of action.', '#ff6a5a');
       showMsg(`Your tank is destroyed. Spectating an ally (${touch.on ? 'tap' : 'click'} to switch)`, '#ff7a5c', 4);
     }
+  }
+  // Char ennemi détruit par le joueur : missions, série de destructions (prime × 1,1 à 2, × 1,25 à 3,
+  // × 1,5 à 5 et plus, sans mourir), médailles (doublé, blitz, feu d'artifice, tireur d'élite, retour)
+  function playerKill(t, how) {
+    const ws = waveStats, now = gameTime, m = dist(player, t) * RK, key = t.lastHit && t.lastHit.by === player ? t.lastHit.key : '';
+    let done = Meta.track('kill');
+    if (key === 'HE' || key === 'HEAT') done = Meta.track('killhe') || done;
+    if (m >= 400) done = Meta.track('snipe') || done;
+    if (t.T.id === 'heavy' || t.T.id === 'kingtiger') done = Meta.track('killheavy') || done;
+    if (done) missionToast();
+    ws.longest = Math.max(ws.longest, m);
+    ws.killT.push(now); ws.streak++;
+    const k = ws.streak >= 5 ? 1.5 : ws.streak >= 3 ? 1.25 : ws.streak >= 2 ? 1.1 : 1;
+    if (k > 1) { ws.streakCr += Math.round(150 * (k - 1)); floatText(t.x, t.y - 44, `Streak ×${k}`, '#ffd76a', 1); }
+    const n = s => ws.killT.filter(x => now - x <= s).length;
+    if (n(15) === 3) medal('blitz'); else if (n(10) === 2) medal('double');
+    if (how === 'brewed') medal('fireworks');
+    if (m >= 500) medal('sniper');
+    if (ws.revived) medal('comeback');
+  }
+  // Médaille de bataille : bandeau et fanfare (quiet : décernée sur l'écran de résultats) ; la plupart
+  // une fois par bataille, les doublés, blitz, tirs lointains et explosions à chaque fois
+  const MEDAL_REP = { double: 1, blitz: 1, sniper: 1, fireworks: 1, headhunter: 1 };
+  function medal(id, quiet) {
+    const m = Meta.MEDALS.find(k => k.id === id), ws = waveStats;
+    if (!m || !ws || (ws.medals.includes(id) && !MEDAL_REP[id])) return;
+    ws.medals.push(id);
+    if (quiet) return;
+    showMsg(`${m.ic} ${m.name.toUpperCase()} · +✪ ${m.c}`, '#ffd76a', 2.4); Sfx.unlock(1);
+    addLog(`Medal: ${m.name} (+✪ ${m.c})`, '#ffd76a');
   }
   // Explosion des munitions : boule de feu, cratère, tourelle arrachée (sur une casemate, le toit)
   function brewUp(t) {
@@ -3807,6 +3858,7 @@ Meta.whenReady(() => {
         }
       }
     } else if (state === 'play') {
+      if (cmdT > 0 && (cmdT -= dt) <= 0) commandSwitch();
       // renforts ennemis : ils débouchent à l'heure prévue
       for (let i = reinf.length - 1; i >= 0; i--) {
         const r = reinf[i];
@@ -3972,10 +4024,11 @@ Meta.whenReady(() => {
       // ralenti pendant la caméra d'impact, sauf en jeu automatique (personne ne regarde, et les tests
       // tournent en rendu logiciel où la caméra d'impact se dessine à une image par seconde)
       const slow = HitCam.active() && HitCam.time() < HitCam.phys && !AUTO ? 0.1 : 1;
-      acc += dt * timeScale * slow;
+      acc += dt * timeScale * slow * ffK;
       let n = 0;
       while (acc >= STEP && n++ < 40) { step(STEP); acc -= STEP; }
       if (n >= 40) acc = 0;
+      deadBarTick();
       HitCam.update(dt);
       const hev = HitCam.ev();
       if (hev && hev.metal && !hev.metal.st.done) metalRun(hev.metal, ms, 6);
@@ -5575,10 +5628,17 @@ Meta.whenReady(() => {
     $('dotMissions').classList.toggle('on', P.missions.some(m => { const d = Meta.MISSIONS.find(k => k.id === m.id); return d && m.prog >= d.goal && !m.claimed; }));
     const owned = P.tanks.includes(chosenType), T = TYPES[chosenType];
     $('sumTank').textContent = T.name;
-    $('sumInfo').textContent = owned ? `${MODES[mode].name} · ${L().name}` : `Locked tank: buy it in the Garage`;
+    const cw = contWave();
+    $('sumInfo').textContent = owned ? `${MODES[mode].name} · ${L().name} · ${Meta.diff().name}${P.x2 ? ` · ×2 rewards (${P.x2} left)` : ''}` : `Locked tank: buy it in the Garage`;
     $('startBtn').disabled = !owned;
+    $('startBtn').textContent = cw ? `▶ Continue · wave ${cw + 1}/${WAVES}` : '⚔ Deploy';
+    $('restartLnk').hidden = !cw;
+    $('x2Pill').hidden = !P.x2; $('x2N').textContent = P.x2;
   }
   const MODE_EM = { campagne: '🎖', survie: '☠', duel: '⚔' };
+  // vague de reprise du secteur choisi (dernière bataille de campagne interrompue), 0 sinon
+  const contWave = () => { const l = Meta.P.last; return l && mode === 'campagne' && l.mode === 'campagne' && l.level === levelIdx && l.wave > 0 && l.wave < WAVES ? l.wave : 0; };
+  $('restartLnk').onclick = () => { const l = Meta.P.last; if (l) Meta.setLast(Object.assign({}, l, { wave: 0 })); updateTopbar(); };
   // vitrine : sans contexte WebGL, elle s'efface (et ses commandes avec) jusqu'à son retour
   if (R3) {
     R3.onLost = () => $('showcase').classList.add('no3d');
@@ -5996,7 +6056,7 @@ Meta.whenReady(() => {
     t.smoke = Math.max(t.smoke, 2); t.invulnT = 3; t.reloadT = 0;
     if (t.ammo[t.shell] <= 0) t.shell = nextShell(t);
     for (let i = 0; i < 20; i++) P3({ x: t.x + rnd(-12, 12), y: t.y + rnd(-12, 12), z: rnd(0.2, 2), vz: rnd(0.5, 2), size: 0.08, glow: true, life: rnd(0.4, 0.9), c: [0.6, 0.85, 1, 2] });
-    showMsg('TANK REPAIRED!', '#8fd46a', 2.2);
+    showMsg('TANK REPAIRED!', '#8fd46a', 2.2); waveStats.revived = true;
     addLog('Field repair: crew and modules restored', '#8fd46a');
     Sfx.notify();
   }
@@ -6015,18 +6075,20 @@ Meta.whenReady(() => {
 
 
   function showResult() {
-    freePointer();
+    freePointer(); hideDeadBar();
     if (mode !== 'campagne') { showModeResult(); return; }
     state = 'result';
     const win = waveResult === 'win';
     const ws = waveStats;
     const pts = Math.round(ws.kills * 200 + ws.crew * 40 + ws.mods * 15 + ws.pens * 20 + ws.crits * 10 + ws.fires * 25 + ws.saved * 30 - ws.ffCrew * 80 - ws.tk * 400 + (win ? 500 : 0));
-    if (win) campaignScore += pts;
+    if (win) { campaignScore += pts; sectorScore += pts; }
+    sectorTk += ws.tk;
     const lastWave = waveIdx >= WAVES - 1;
     const lastLevel = levelIdx >= LEVELS.length - 1;
+    if (win) { if (!ws.pened) medal('untouched', true); if (ws.kills >= 3) medal('ace', true); }
     $('resTitle').className = win ? 'win' : 'lose';
     $('resTitle').textContent = !win ? 'WAVE LOST' : lastWave ? (lastLevel ? 'TOTAL VICTORY' : 'SECTOR CONQUERED') : 'WAVE WON';
-    $('resSub').textContent = `${L().name} · wave ${waveIdx + 1}/${WAVES}` + (win ? '' : ' · your team was wiped out');
+    $('resSub').textContent = `${L().name} · wave ${waveIdx + 1}/${WAVES} · ${Meta.diff().name}` + (win ? '' : nearMiss());
     const acc = ws.shots ? Math.round(ws.hits / ws.shots * 100) : 0;
     $('resTable').innerHTML =
       `<tr><td>Enemy tanks destroyed</td><td>${ws.kills}</td></tr>` +
@@ -6040,26 +6102,64 @@ Meta.whenReady(() => {
       `<tr><td>Allies destroyed by your fire</td><td class="${ws.tk ? 'bad' : ''}">${ws.tk}</td></tr>` +
       `<tr><td>Wave score</td><td>${win ? pts : 0}</td></tr>` +
       `<tr><td>Campaign score</td><td>${campaignScore}</td></tr>`;
-    const btns = resultButtons({ win, kills: ws.kills, pens: ws.pens, crew: ws.crew });
+    // fin de secteur : étoiles, prime de première conquête, record du secteur
+    const notes = [];
+    let sc = null;
+    if (win && lastWave) {
+      sc = Meta.sectorClear(levelIdx, sectorScore, sectorTk);
+      notes.push(`<div class="stars">${[1, 2, 3].map(i => `<i class="${i <= sc.stars ? 'on' : ''}">★</i>`).join('')}</div>`);
+      if (sc.bonus) notes.push(`<div class="note gold">First conquest on ${Meta.diff().name}: +✪ ${fmt(sc.bonus)}</div>`);
+      if (sc.text) notes.push(`<div class="note gold">Total victory on Ace: ${sc.text}</div>`);
+      if (sc.stars < 3) notes.push(`<div class="note">Next star: sector score ${fmt(Meta.STARS[sc.stars - 1])}${sc.stars === 2 ? ' with no ally destroyed by your fire' : ''} (this run: ${fmt(sectorScore)})</div>`);
+      const rc = Meta.record('sector', sectorScore, levelIdx);
+      if (rc.beat) notes.push(`<div class="note rec">NEW RECORD · best sector score ${fmt(sectorScore)} (was ${fmt(rc.old)})</div>`);
+      celebrateGot('Total victory');
+    }
+    const btns = resultButtons({ win, kills: ws.kills, pens: ws.pens, crew: ws.crew }, notes);
     const add = btns.add;
-    if (!win) add('Retry wave', () => spawnWave());
-    else if (!lastWave) add('Next wave', () => { waveIdx++; spawnWave(); });
-    else {
+    if (!win) {
+      const k = `${levelIdx}:${waveIdx}`, rev = !retried.has(k);
+      Meta.setLast({ tank: chosenType, mode, level: levelIdx, wave: waveIdx });
+      add(rev ? 'Retry wave · revenge +50%' : 'Retry wave', () => { if (rev) { retried.add(k); revengeNext = true; } spawnWave(); });
+    } else if (!lastWave) {
+      Meta.setLast({ tank: chosenType, mode, level: levelIdx, wave: waveIdx + 1 });
+      add('Next wave', () => { waveIdx++; spawnWave(); });
+    } else {
       if (levelIdx + 1 > Meta.P.unlocked && !lastLevel) { Meta.P.unlocked = levelIdx + 1; Meta.save(); }
+      Meta.setLast({ tank: chosenType, mode, level: lastLevel ? levelIdx : levelIdx + 1, wave: 0 });
       if (!lastLevel) add('Next sector', () => { levelIdx++; waveIdx = 0; startLevel(); });
     }
     add('Main menu', toMenu, true);
     show('result'); Meta.banner('bannerRes');
   }
+  // Défaite : ennemis restants et état de leur équipage (« si près du but »)
+  function nearMiss() {
+    const left = tanks.filter(t => t.team === 1 && !t.dead);
+    if (!left.length && !reinf.length) return ' · your team was wiped out';
+    const n = left.length + reinf.length, t = left.sort((a, b) => crewAlive(a) - crewAlive(b))[0];
+    const crewN = t ? t.mods.filter(m => m.kind === 'crew').length : 0;
+    return ` · ${n <= 1 ? 'So close! ' : ''}${n} enem${n > 1 ? 'ies' : 'y'} left` + (t ? ` (${t.T.name}${n > 1 ? ' and others' : ''}, ${crewAlive(t)}/${crewN} crew)` : '');
+  }
+  function medalRows(ws) {
+    return ws.medals.map(id => { const m = Meta.MEDALS.find(k => k.id === id); return `<tr class="medal"><td>${m.ic} Medal: ${m.name}</td><td>+✪ ${m.c}</td></tr>`; }).join('');
+  }
 
-  // Gains de la bataille (crédits, expérience, grade), bouton « doubler » par publicité, et boutons
-  // de suite précédés d'une publicité de mi-partie plafonnée
-  function resultButtons(r) {
+  // Gains de la bataille (crédits, expérience, grade), bouton « doubler » par publicité, objectifs
+  // suivants, et boutons de suite précédés d'une publicité de mi-partie plafonnée
+  function resultButtons(r, notes = []) {
     Meta.sdk.gameplayStop();
-    if (r.win) Meta.track('win');
-    const g = Meta.battleEnd(r), btns = $('resBtns');
+    const ws = waveStats, T = TYPES[chosenType];
+    // records de la bataille (avant battleEnd, qui garde le plus de destructions)
+    for (const [k, v, lab] of [['maxKills', ws.kills, `${ws.kills} tanks destroyed in one battle`], ['longest', ws.longest, `longest kill ${Math.round(ws.longest)} m`], ['maxPen', ws.maxPen, `deepest penetration ${Math.round(ws.maxPen)} mm`]]) {
+      const rc = Meta.record(k, v);
+      if (rc.beat) notes.push(`<div class="note rec">NEW RECORD · ${lab}</div>`);
+    }
+    const g = Meta.battleEnd(Object.assign({ mode, ffCrew: ws.ffCrew, tk: ws.tk, time: waveTime, medals: ws.medals, streakCr: ws.streakCr, revenge: ws.revenge, level: levelIdx, tank: chosenType, td: !!T.arc, untouched: !ws.pened }, r));
+    const btns = $('resBtns');
     btns.innerHTML = '';
-    let shown = 0;
+    $('resTable').insertAdjacentHTML('beforeend', medalRows(ws) + (ws.streakCr ? `<tr><td>Kill streak bonus</td><td>+✪ ${fmt(ws.streakCr)}</td></tr>` : '') +
+      (ws.revenge && r.win ? '<tr><td>Revenge bonus</td><td>×1.5</td></tr>' : '') + (Meta.diff().mul !== 1 ? `<tr><td>${Meta.diff().name} difficulty</td><td>×${Meta.diff().mul}</td></tr>` : '') +
+      (g.penalty ? `<tr><td>Friendly fire penalty</td><td class="bad">−✪ ${fmt(g.penalty)}</td></tr>` : ''));
     const t0 = performance.now(), count = () => {
       const k = Math.min(1, (performance.now() - t0) / 900);
       $('rwCred').textContent = '+' + fmt(g.credits * k) + (g.boosted ? ' ×2' : '');
@@ -6067,21 +6167,51 @@ Meta.whenReady(() => {
       if (k < 1) requestAnimationFrame(count);
     };
     count();
-    $('lvUp').classList.toggle('on', g.up > 0);
-    if (g.up > 0) $('lvUp').textContent = `PROMOTED: ${Meta.rankName().toUpperCase()} · +✪ ${fmt(500 * g.up)}`;
-    const dbl = document.createElement('button');
-    dbl.className = 'btn ad'; dbl.textContent = `Double rewards (+✪ ${fmt(g.credits)})`;
-    dbl.onclick = () => Meta.rewarded(() => { Meta.P.credits += g.credits; Meta.save(); dbl.disabled = true; dbl.textContent = 'Rewards doubled!'; $('rwCred').textContent = '+' + fmt(g.credits * 2); toast(`+✪ ${fmt(g.credits)}`); }, () => toast('Ad unavailable right now'));
-    btns.appendChild(dbl);
+    const up = [g.up > 0 ? `PROMOTED: ${Meta.rankName().toUpperCase()} · +✪ ${fmt(g.upCr)}` : '', ...g.promo, g.mast ? `Tank mastery · ${g.mast}` : '', g.x2kept ? '×2 booster kept for your next victory' : ''].filter(Boolean);
+    $('lvUp').classList.toggle('on', up.length > 0);
+    $('lvUp').innerHTML = up.map(x => `<div>${x}</div>`).join('');
+    if (g.up > 0 || g.mast) celebrateGot('Promotion reward');
+    renderGoals(g, notes);
+    // doubler n'est proposé que s'il rapporte assez ; sur une défaite, une prime de terrain fixe
+    if (g.credits >= 300 || !r.win) {
+      const dbl = document.createElement('button'), add = g.credits >= 300 ? g.credits : 300;
+      dbl.className = 'btn ad'; dbl.textContent = g.credits >= 300 ? `Double rewards (+✪ ${fmt(add)})` : `Field bonus: +✪ ${fmt(add)}`;
+      dbl.onclick = () => Meta.rewarded(() => { Meta.P.credits += add; Meta.save(); dbl.disabled = true; dbl.textContent = 'Bonus received!'; $('rwCred').textContent = '+' + fmt(g.credits + add); toast(`+✪ ${fmt(add)}`); }, () => toast('Ad unavailable right now'));
+      btns.appendChild(dbl);
+    }
     return {
       add(label, fn, alt) {
         const b = document.createElement('button');
         b.className = 'btn' + (alt ? ' alt' : ''); b.textContent = label;
-        b.onclick = () => { if (state !== 'result') return; Sfx.init(); hide('result'); state = 'leaving'; Meta.midgame(fn); };
-        btns.appendChild(b); shown++;
+        b.onclick = () => leaveResult(fn);
+        btns.appendChild(b);
       },
     };
   }
+  function leaveResult(fn) { if (state !== 'result') return; Sfx.init(); hide('result'); state = 'leaving'; Meta.midgame(fn); }
+  // Objectifs suivants : barre de grade animée, bon de guerre, char, pièce, maîtrise ou mission la plus
+  // proche (« dans N batailles »), missions terminées à réclamer sur place
+  function renderGoals(g, notes) {
+    const P = Meta.P, el = $('resGoals'), b = g.before, bd = Meta.bond();
+    const bar = (cls, title, right, p0, p1) => `<div class="goal ${cls}"><div class="gl"><b>${title}</b><span>${right}</span></div><div class="bar"><i style="width:${Math.round(p0 * 100)}%" data-to="${Math.round(Math.min(1, p1) * 100)}"></i></div></div>`;
+    let h = notes.join('');
+    h += bar('rankg', `Rank ${P.level} · ${Meta.rankName()}`, `${fmt(P.xp)} / ${fmt(Meta.xpFor(P.level))} XP`, g.up ? 0 : b.xp / b.need, P.xp / Meta.xpFor(P.level));
+    h += bar('bond', `War Bond · Operation ${bd.name} · tier ${bd.tier}/${bd.n}`, bd.max ? 'complete' : `${fmt(bd.xp)} / ${fmt(bd.need)}`, g.tier > (b.tier || 0) ? 0 : (b.opXp % bd.need) / bd.need, bd.max ? 1 : bd.xp / bd.need);
+    for (const o of Meta.nextGoals(chosenType)) {
+      const name = o.kind === 'tank' ? TYPES[o.id].name : o.name, now = o.battles <= 0 && (o.kind === 'tank' || o.kind === 'part');
+      const right = now ? 'ready now!' : `${o.battles} battle${o.battles > 1 ? 's' : ''} away${o.text ? ' · ' + o.text : ''}`;
+      h += `<div class="goal${now ? ' now' : ''}" data-k="${o.kind}" data-id="${o.id}"><div class="gl"><b>${o.kind === 'tank' ? '🔓 ' : o.kind === 'part' ? '⚙ ' : o.kind === 'mastery' ? '🎖 ' : '📋 '}${name}</b><span>${right}</span></div><div class="bar"><i style="width:${Math.round(o.p * 100)}%"></i></div>${now ? `<button class="btn small buy">${o.kind === 'tank' ? 'Unlock now' : 'Install'}</button>` : ''}</div>`;
+    }
+    for (const m of Meta.claimable()) { const d = Meta.mDef(m.id); h += `<div class="goal done" data-m="${m.id}"><div class="gl"><b>✓ ${d.t}</b><span>✪ ${fmt(d.reward)}</span></div><button class="btn small">Claim</button></div>`; }
+    el.innerHTML = h;
+    el.querySelectorAll('.goal.now .btn').forEach(x => { const d = x.parentNode; x.onclick = () => goGarage(d.dataset.k === 'tank' ? d.dataset.id : chosenType); });
+    el.querySelectorAll('.goal.done .btn').forEach(x => {
+      x.onclick = () => { const c = Meta.claim(x.parentNode.dataset.m); if (c) { x.disabled = true; x.textContent = 'Claimed'; toast(`Mission complete: +✪ ${fmt(c)}`); Sfx.notify(); celebrateGot('Weekly order reward'); } };
+    });
+    requestAnimationFrame(() => requestAnimationFrame(() => el.querySelectorAll('.bar i[data-to]').forEach(i => { i.style.width = i.dataset.to + '%'; })));
+  }
+  // « Débloquer » depuis les résultats : garage ouvert sur le char visé
+  function goGarage(id) { leaveResult(() => { toMenu(); if (id && TYPES[id]) chosenType = id; openTab('garage'); }); }
   function statRows(ws) {
     const acc = ws.shots ? Math.round(ws.hits / ws.shots * 100) : 0;
     return `<tr><td>Enemy tanks destroyed</td><td>${ws.kills}</td></tr>` +
@@ -6100,24 +6230,33 @@ Meta.whenReady(() => {
   }
   function showModeResult() {
     state = 'result';
-    const win = waveResult === 'win', ws = waveStats;
+    const win = waveResult === 'win', ws = waveStats, notes = [];
     if (mode === 'survie') Meta.track('wave', survWave);
-    const add = resultButtons({ win: mode === 'survie' ? survWave > 3 : win, kills: ws.kills, pens: ws.pens, crew: ws.crew, waves: mode === 'survie' ? survWave - 1 : 0 }).add;
+    if (win && !ws.pened) medal('untouched', true);
+    let add;
     if (mode === 'survie') {
-      const held = survWave - 1, rec = held > Meta.P.survBest;
-      if (rec) { Meta.P.survBest = held; Meta.save(); }
+      // records par champ de bataille, tableau d'honneur et « si près du record »
+      const held = survWave - 1, rc = Meta.record('surv', held, levelIdx), best = Meta.P.rec.surv[levelIdx] || 0;
+      if (held > Meta.P.survBest) { Meta.P.survBest = held; Meta.save(); }
+      const hof = Meta.hallOfFame(levelIdx), me = hof.findIndex(e => e.me), above = hof[me - 1];
+      notes.push(`<div class="note${rc.beat ? ' rec' : ''}">${rc.beat ? `NEW RECORD · ${held} waves (was ${rc.old}) · ` : ''}Hall of Fame #${me + 1}${above ? ` · beat ${above.name}'s ${above.v} waves` : ' · top of the board!'}</div>`);
       $('resTitle').className = held > 0 ? 'win' : 'lose';
-      $('resTitle').textContent = rec && held > 0 ? 'NEW RECORD' : 'SURVIVAL OVER';
-      $('resSub').textContent = `${L().name} · ${held} wave${held > 1 ? 's' : ''} repelled · best: ${Meta.P.survBest}`;
+      $('resTitle').textContent = rc.beat ? 'NEW RECORD' : 'SURVIVAL OVER';
+      $('resSub').textContent = `${L().name} · ${held} wave${held !== 1 ? 's' : ''} repelled · best here: ${best}` + (!rc.beat && best > held && best - held <= 3 ? ` · ${best - held} short of your best!` : '');
       $('resTable').innerHTML = `<tr><td>Wave reached</td><td>${survWave}</td></tr>` + statRows(ws);
+      add = resultButtons({ win: survWave > 3, kills: ws.kills, pens: ws.pens, crew: ws.crew, waves: held }, notes).add;
+      Meta.setLast({ tank: chosenType, mode, level: levelIdx, wave: 0 });
       add('Play again', () => startLevel());
     } else {
       duelScore[win ? 0 : 1]++;
-      const over = duelScore[0] >= 2 || duelScore[1] >= 2;
-      $('resTitle').className = win ? 'win' : 'lose';
-      $('resTitle').textContent = over ? (duelScore[0] >= 2 ? 'DUEL WON' : 'DUEL LOST') : (win ? 'ROUND WON' : 'ROUND LOST');
-      $('resSub').textContent = `${L().name} · ${TYPES[chosenType].name} vs ${TYPES[chosenType].name} · score ${duelScore[0]} – ${duelScore[1]}`;
+      const over = duelScore[0] >= 2 || duelScore[1] >= 2, won = duelScore[0] >= 2;
+      if (over) { const rc = Meta.duelOver(won); if (rc.beat) notes.push(`<div class="note rec">NEW RECORD · ${Meta.P.rec.duelBest} duels won in a row</div>`); else if (won && Meta.P.rec.duelStreak > 1) notes.push(`<div class="note">Duel win streak: ${Meta.P.rec.duelStreak}</div>`); }
       $('resTable').innerHTML = statRows(ws);
+      add = resultButtons({ win, kills: ws.kills, pens: ws.pens, crew: ws.crew, over, matchWon: over && won }, notes).add;
+      $('resTitle').className = win ? 'win' : 'lose';
+      $('resTitle').textContent = over ? (won ? 'DUEL WON' : 'DUEL LOST') : (win ? 'ROUND WON' : 'ROUND LOST');
+      $('resSub').textContent = `${L().name} · ${TYPES[chosenType].name} vs ${TYPES[chosenType].name} · score ${duelScore[0]} – ${duelScore[1]}`;
+      Meta.setLast({ tank: chosenType, mode, level: levelIdx, wave: 0 });
       if (over) add('New duel', () => { duelScore = [0, 0]; startLevel(); });
       else add('Next round', () => spawnWave());
     }
@@ -6129,7 +6268,7 @@ Meta.whenReady(() => {
   function hide(id) { $(id).classList.remove('on'); }
   function toMenu() {
     freePointer();
-    hide('pause'); hide('result'); hide('revive');
+    hide('pause'); hide('result'); hide('revive'); hideDeadBar();
     state = 'menu'; campaignScore = 0;
     HitCam.stop(); setSight(false); setAir(null);
     Meta.sdk.gameplayStop();
@@ -6146,7 +6285,9 @@ Meta.whenReady(() => {
     if (r.paid) toast(`Unclaimed orders paid: +✪ ${fmt(r.paid)}`);
     if (r.season) toast(`🎖 ${r.season}`);
     if (r.lost) toast(`Your ${r.lost}-day streak was broken: restore it in Missions today`);
-    if (r.day) {
+    // tout premier jour : simple annonce, rien ne s'interpose avant la première bataille
+    if (r.day && !Meta.P.stats.battles) toast(`Daily login · day ${r.day}: +${r.text} · tomorrow ✪ ${fmt(r.tomorrow)}`);
+    else if (r.day) {
       const crate = (r.day - 1) % 7 === 6;
       celebrate({ kind: `Daily login · day ${r.day}`, name: r.text, rar: crate ? 'epic' : 'rare', icon: crate ? '📦' : '✪', flav: `Tomorrow: ✪ ${fmt(r.tomorrow)}. Day 7 of every week brings a Supply Crate.` });
       celebrateGot('Supply Crate');
@@ -6242,13 +6383,52 @@ Meta.whenReady(() => {
 
   $('startBtn').onclick = () => {
     if (!Meta.P.tanks.includes(chosenType)) return;
-    Sfx.init(); hide('menu'); waveIdx = 0; campaignScore = 0; duelScore = [0, 0];
+    Sfx.init(); hide('menu'); waveIdx = contWave(); campaignScore = 0; sectorScore = 0; sectorTk = 0; duelScore = [0, 0];
     if (mode === 'campagne') levelIdx = Math.min(levelIdx, unlockedIdx());
+    Meta.setLast({ tank: chosenType, mode, level: levelIdx, wave: waveIdx });
     startLevel();
   };
   // reprendre reverrouille le curseur dans le geste du clic (sinon la vue tourne seule en 3D)
   $('resumeBtn').onclick = () => { if (state !== 'pause') return; togglePause(); if (state === 'play' || state === 'intro') lockPointer(); };
-  $('quitBtn').onclick = () => { if (state !== 'pause') return; hide('pause'); state = 'leaving'; Meta.sdk.gameplayStop(); Meta.midgame(toMenu); };
+  // Repli : la bataille s'arrête sur une défaite (une victoire déjà acquise reste une victoire), et les
+  // gains déjà obtenus sont versés par l'écran de résultats
+  $('quitBtn').onclick = () => {
+    if (state !== 'pause') return;
+    hide('pause'); setSight(false); HitCam.stop();
+    if (pausedFrom !== 'ending') { waveResult = 'lose'; if (mode === 'duel') duelScore[1] = Math.max(duelScore[1], 1); }
+    showResult();
+  };
+  // Joueur détruit en campagne : il prend le commandement de l'allié suivi après 10 s de liaison radio
+  // (Tab ou bouton ; le char garde ses réglages d'origine, sans pièces ni équipage du joueur), ou fait
+  // avancer la bataille trois fois plus vite
+  let ffK = 1, cmdT = 0, cmdTo = null, deadBarOn = false, cmdLab = '';
+  function takeCommand() {
+    if (!deadBarOn || cmdT > 0) return;
+    const a = camFocus();
+    if (!a || a === player || a.dead) return;
+    cmdT = 10; cmdTo = a;
+    showMsg(`Radio: taking command of ${a.name} (${a.T.name}) in 10 s`, '#bcd8ff', 3);
+  }
+  function commandSwitch() {
+    const a = cmdTo; cmdTo = null;
+    if (!a || a.dead || !player || !player.dead) return;
+    a.name = 'You'; if (!AUTO) a.ai = null;
+    player = a; specIdx = 0; ffK = 1; reviveUsed = true;
+    Sfx.setTank(a.T.id, a.T.D.rated, a.T.D.trav.kind);
+    showMsg(`You now command the ${a.T.name}`, '#8fd46a', 2.5); addLog('Platoon leader changed tanks', '#bcd8ff');
+  }
+  function deadBarTick() {
+    const on = state === 'play' && mode === 'campagne' && !!player && player.dead && !revivePending() && tanks.some(t => t.team === 0 && !t.dead);
+    if (on !== deadBarOn) { deadBarOn = on; $('deadBar').classList.toggle('on', on); if (!on) { ffK = 1; cmdT = 0; cmdTo = null; } }
+    if (!on) return;
+    const lab = cmdT > 0 ? `Radio link… ${Math.ceil(cmdT)} s` : touch.on ? 'Take command' : 'Take command (Tab)';
+    if (lab !== cmdLab) { cmdLab = lab; $('cmdBtn').textContent = lab; $('cmdBtn').disabled = cmdT > 0; }
+    $('ffBtn').classList.toggle('on', ffK > 1);
+  }
+  function hideDeadBar() { ffK = 1; cmdT = 0; cmdTo = null; deadBarOn = false; cmdLab = ''; $('deadBar').classList.remove('on'); }
+  $('cmdBtn').onclick = () => takeCommand();
+  $('ffBtn').onclick = () => { if (deadBarOn) ffK = ffK > 1 ? 1 : 3; };
+  function openTab(name) { const b = document.querySelector(`.tab[data-tab="${name}"]`); if (b) b.click(); }
   $('xrayBtn').onclick = () => { viewer.xray = !viewer.xray; $('xrayBtn').classList.toggle('on', viewer.xray); };
   const vc = $('viewer');
   vc.addEventListener('pointerdown', e => { if (adOn()) return; viewer.drag = { x: e.clientX, y: e.clientY, a: viewer.ang, e: viewer.elev }; vc.setPointerCapture(e.pointerId); });
@@ -6288,6 +6468,7 @@ Meta.whenReady(() => {
       if (Meta.P.opts.mute) stopMusic(); else playMusic();
       if (state !== 'menu') showMsg(Meta.P.opts.mute ? 'Sound off' : 'Sound on', '#bcd8ff', 1);
     }
+    if (code === 'Tab') takeCommand();
     if (code === 'KeyH' && state !== 'menu') { hitcamOn = !hitcamOn; if (!hitcamOn) HitCam.stop(); showMsg(hitcamOn ? 'Impact camera on' : 'Impact camera off', '#bcd8ff', 1.4); }
     if ((code === 'ShiftLeft' || code === 'ShiftRight' || code === 'KeyV') && state !== 'menu') setSight(!sight.on);
     if (code === 'KeyL' && state === 'play' && player && !player.dead && L().night && gameTime - (player.flareAt || -99) > 8) {
@@ -6595,6 +6776,8 @@ Meta.whenReady(() => {
     try {
       if (DEV_RUN && !Meta.dev) Meta.devProfile();
       applyOptions();
+      const ls = Meta.P.last;
+      if (ls && !DEV_RUN && Meta.P.tanks.includes(ls.tank)) { chosenType = ls.tank; mode = ls.mode; levelIdx = clamp(mode === 'campagne' ? Math.min(ls.level, unlockedIdx()) : ls.level, 0, LEVELS.length - 1); }
       if (!Meta.P.tanks.includes(chosenType)) chosenType = Meta.P.tanks.includes('pz4') ? 'pz4' : Meta.P.tanks[0];
       buildMenu();
     } catch (e) { console.error(e); }
