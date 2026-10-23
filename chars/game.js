@@ -161,6 +161,8 @@ Meta.whenReady(() => {
     { accent: '#ff4a3d', label: 'Enemy', camo: [[0.62, 0.55, 0.36], [0.40, 0.22, 0.15], [0.25, 0.30, 0.18]], hull: '#8a7d55', top: '#9a8d62', dark: '#5a4f35' },
   ];
 
+  // couleur d'un camp à l'interface (orange au lieu de rouge pour l'ennemi avec la palette pour daltoniens)
+  const teamCol = k => k === 1 && Meta.P.opts.cb ? '#ff9a1a' : TEAM[k].accent;
   const W_ = (a, b, c, d, e) => [a, b, c, d, e];
   const LEVELS = [
     {
@@ -258,7 +260,16 @@ Meta.whenReady(() => {
   let tanks = [], shells = [], parts = [], texts = [], feed = [], smokes = [], logs = [], runners = [];
   let obstacles = [], bushes = [];
   let player = null, specIdx = 0;
-  let camX = WW / 2, camY = WH / 2, shake = 0;
+  let camX = WW / 2, camY = WH / 2;
+  // Secousses : « traumatisme » 0..1 ajouté par les tirs, les coups et les souffles, qui décroît de 1,6/s
+  // (temps réel, une seule fois par image) ; décalage = trauma² × bruit lissé (sommes de sinus) en lacet,
+  // tangage et roulis, donc indépendant de la cadence ; réglage « secousses » et mouvements réduits
+  let trauma = 0, shakeT = 0;
+  const addTrauma = k => { trauma = Math.min(1, trauma + k); };
+  function shakeOff() {
+    const o = Meta.P.opts, a = trauma * trauma * o.shake * (o.calm ? 0.3 : 1), t = shakeT;
+    return { yaw: a * 0.02 * (Math.sin(37 * t) + 0.5 * Math.sin(71 * t + 1)), pitch: a * 0.025 * (Math.sin(43 * t + 2) + 0.5 * Math.sin(89 * t)), roll: a * 0.015 * (Math.sin(29 * t + 4) + 0.5 * Math.sin(61 * t + 3)) };
+  }
   const spotted = [new Set(), new Set()];
   let spotTimer = 0, waveTime = 0, introT = 0, endT = 0, waveResult = null, gameTime = 0;
   let groundCv = null, gctx = null;
@@ -823,8 +834,10 @@ Meta.whenReady(() => {
     const lv = L();
     aiReact = Meta.diff().react;
     const allyTypes = levelIdx < 2 ? ['pz4', 'light', 'medium', 'stug'] : levelIdx < 4 ? ['medium', 'heavy', 'destroyer', 'pz4'] : ['kingtiger', 'medium', 'stug', 'heavy'];
-    const enemyTypes = lv.waves[waveIdx];
-    const eSkill = aiSkill(Math.min(0.95, 0.3 + levelIdx * 0.14 + waveIdx * 0.04));
+    // camp d'entraînement : la toute première bataille oppose des chars légers peu aguerris, plus proches
+    const boot = mode === 'campagne' && levelIdx === 0 && waveIdx === 0 && (DEV_RUN ? dq('tut') : Meta.P.stats.battles === 0);
+    const enemyTypes = boot ? ['light', 'light', 'pz4', 'light', 'pz4'] : lv.waves[waveIdx];
+    const eSkill = boot ? 0.2 : aiSkill(Math.min(0.95, 0.3 + levelIdx * 0.14 + waveIdx * 0.04));
     const aSkill = Math.min(0.7, 0.5 + levelIdx * 0.05);
     const slots = [-300, -150, 0, 150, 300];
     const aT = [allyTypes[0], allyTypes[1], chosenType, allyTypes[2], allyTypes[3]];
@@ -848,10 +861,10 @@ Meta.whenReady(() => {
     if (mode === 'campagne') {
       // dispositif tiré au sort parmi ceux de la vague, retourné une fois sur deux ; les plus lourds aux
       // premières places
-      const fl = (lv.forms && lv.forms[waveIdx]) || ['line'], f = waveForm = FORMS[dq('form') && Q.get('form')] ? Q.get('form') : fl[Math.floor(Math.random() * fl.length)], F = FORMS[f], sg = Math.random() < 0.5 ? 1 : -1, used = [];
+      const fl = boot ? ['line'] : (lv.forms && lv.forms[waveIdx]) || ['line'], f = waveForm = FORMS[dq('form') && Q.get('form')] ? Q.get('form') : fl[Math.floor(Math.random() * fl.length)], F = FORMS[f], sg = Math.random() < 0.5 ? 1 : -1, used = [];
       enemyTypes.slice().sort((a, b) => HEAVY.indexOf(a) - HEAVY.indexOf(b)).forEach((type, i) => {
         const q = F[i], name = 'Enemy ' + (i + 1);
-        let x = WW - 200 - q[0], y = WH / 2 + sg * q[1], post = null;
+        let x = (boot ? WW * 0.62 : WW - 200) - q[0], y = WH / 2 + sg * q[1], post = null;
         if (f === 'ambush' && ROLES[type] === 'ambush') {
           // chasseur de chars posté d'avance dans un buisson à mi-terrain, loin des autres postes
           const bs = bushes.filter(b => b.x > WW * 0.45 && b.x < WW * 0.62 && !blocked(cellOf(b.x, b.y)) && used.every(u => Math.abs(u.y - b.y) > 250)), b = bs[Math.floor(Math.random() * bs.length)];
@@ -872,7 +885,8 @@ Meta.whenReady(() => {
       ffPens: 0, medals: [], killT: [], streak: 0, streakCr: 0, firstKill: false, ricSelf: 0, pened: false, revived: false, longest: 0, maxPen: 0, revenge: revengeNext };
     if (revengeNext) addLog('Revenge bonus: +50% credits if you win this wave', '#ffd76a');
     revengeNext = false;
-    state = 'intro'; introT = 3.2; waveTime = 0;
+    // introduction allongée quand la fiche des commandes s'affiche (deux premières batailles)
+    state = 'intro'; introT = cardOn() ? 5 : 3.2; waveTime = 0; tut.t = 0; tut.drv = 0;
     playMusic();
     if (waveIdx === 0) { sectorScore = 0; sectorTk = 0; }
     hideDeadBar();
@@ -2132,7 +2146,8 @@ Meta.whenReady(() => {
   // Point que le tireur veut toucher : sa cible pour l'IA, le point visé à la souris ou à la lunette
   function aimPoint(t, mx, my) {
     if (t === player && !t.ai) {
-      if (sight.on) { const D = sight.probe && sight.probe.kind !== 'sky' ? sight.probe.dist : 700; return { D, z: sight.z0 + Math.tan(sight.gunPitch) * D / PX }; }
+      // à la lunette : distance télémétrée (assisté) ou hausse affichée sur le tambour (réaliste)
+      if (sight.on) { const D = !assisted() ? sight.rangeSet / RK : sight.probe && sight.probe.kind !== 'sky' ? sight.probe.dist : 700; return { D, z: sight.z0 + Math.tan(sight.gunPitch) * D / PX }; }
       if (t.aim3) return { D: Math.hypot(t.aim3.x - mx, t.aim3.y - my), z: t.aim3.z };
     }
     const a = t.ai, e = a && a.target;
@@ -2209,7 +2224,11 @@ Meta.whenReady(() => {
       t.shell = nextShell(t);
       if (t === player) showMsg(`Out of ${sh.name.toLowerCase()} rounds: ${SHELLS[t.shell].name.toLowerCase()} loaded`, '#e9d9a6', 1.6);
     }
-    if (t === player) { waveStats.shots++; shake = Math.max(shake, 5); }
+    if (t === player) {
+      waveStats.shots++; addTrauma(0.18 + T.caliber / 600);
+      // recul visible : le regard de la caméra extérieure monte et le champ s'ouvre un instant
+      const o = Meta.P.opts; cam3.kick = 0.03 * T.caliber / 75 * (0.4 + 0.6 * o.shake) * (o.calm ? 0.5 : 1);
+    }
     parts.push({ k: 'flash', x: mx, y: my, life: 0.08, max: 0.08, size: 20 + T.caliber / 4, z: T.S.gun.z });
     addBlast3(mx, my, T.caliber / 60);
     Fx.muzzle(t, mx, my); muzzleVeil(t, mx, my);
@@ -3105,7 +3124,7 @@ Meta.whenReady(() => {
       }
       Fx.armorHit(hx, hy, h.z, s.key === 'HEAT' ? 'heat' : 'pen', s.vx / s.sp, s.vy / s.sp);
       Sfx.penetrate(listenerDist(hx, hy));
-      if (t === player) shake = Math.max(shake, 12);
+      if (t === player) addTrauma(0.5);
     } else {
       // explosif ou charge creuse qui éclate contre la plaque, sans la percer
       if (s.key === 'HE' || (sb.heat && pen > 0)) heBlast(t, hx, hy, sb, by, E, face);
@@ -3117,11 +3136,11 @@ Meta.whenReady(() => {
       }
       Fx.armorHit(hx, hy, h.z, s.key === 'HEAT' ? 'heat' : 'non', s.vx / s.sp, s.vy / s.sp);
       Sfx.clang(listenerDist(hx, hy));
-      if (t === player) shake = Math.max(shake, 6);
+      if (t === player) addTrauma(0.25);
       // masque frappé fort : le berceau du canon se bloque en hauteur
       if (plate === 'Gun mantlet' && pen / eff > 0.6 && Math.random() < 0.5) { t.elevJamT = 8; crit.push('Gun elevation jammed'); }
       // choc d'un gros obus qui ne perce pas (plus de 1,5 MJ) : l'équipage est sonné 2 à 3 s
-      if (kinetic && Ek > 1.5e6) { t.stunT = rnd(2, 3); crit.push('Crew stunned by the impact'); if (t === player) shake = Math.max(shake, 14); }
+      if (kinetic && Ek > 1.5e6) { t.stunT = rnd(2, 3); crit.push('Crew stunned by the impact'); if (t === player) addTrauma(0.6); }
       checkKnock(t, by);
     }
     for (const c of crit) {
@@ -3706,7 +3725,7 @@ Meta.whenReady(() => {
     Fx.blast(x, y, z, k * 0.8);
     for (let i = 0; i < 6 * k; i++) addFire(x + rnd(-10, 10) * k, y + rnd(-10, 10) * k);
     const d = player ? Math.hypot(player.x - x, player.y - y) : 9999;
-    shake = Math.max(shake, clamp(22 * k * (1 - d / 900), 0, 22));
+    if (d < 900) addTrauma(Math.min(1, k) * (1 - d / 900) * 0.6);
     Sfx.explosion(listenerDist(x, y), k > 1);
   }
   function stampTracks(t) {
@@ -3783,7 +3802,6 @@ Meta.whenReady(() => {
     o.hitcam = l[(l.indexOf(o.hitcam) + 1) % l.length]; Meta.save(); applyOptions();
     showMsg(`Impact camera: ${HC_MODES[o.hitcam]}`, '#bcd8ff', 1.4);
   }
-  function tutDone() {}
   // un obus arrive sur le joueur : la caméra d'impact s'efface
   const threatened = () => player && !player.dead && shells.some(s => s.warned && s.by !== player);
   // Caméra d'impact : en « moments forts », seulement les coups marquants (destruction, munitions,
@@ -3876,6 +3894,87 @@ Meta.whenReady(() => {
     for (let i = logs.length - 1; i >= 0; i--) { logs[i].life -= dt; if (logs[i].life <= 0) logs.splice(i, 1); }
     for (let i = msgs.length - 1; i >= 0; i--) if ((msgs[i].life -= dt) <= 0) msgs.splice(i, 1);
     if (hitMk && (hitMk.t += dt, hitMk.life -= dt) <= 0) hitMk = null;
+    if (helpT > 0) helpT -= dt;
+  }
+
+  // ===================== Tutoriel et aide =====================
+  // Commandes du joueur selon l'appareil qu'il utilise (manette, toucher ou clavier et souris)
+  let padOn = false;
+  const device = () => padOn ? 'pad' : touch.on ? 'touch' : 'kb';
+  const K = a => keyName(a);
+  const CONTROLS = {
+    kb: () => [[`${K('fwd')} ${K('left')} ${K('back')} ${K('right')}`, 'Drive and turn'], ['Mouse', 'Aim the turret'], [`Click · ${K('fire')}`, 'Fire'],
+      [K('sight'), 'Gunner\'s sight · wheel: zoom'], ['1 – 7', `Shells · ${K('smoke')}: smoke · ${K('cam')}: camera`]],
+    touch: () => [['Left stick', 'Drive and turn'], ['Drag right', 'Aim the turret'], ['FIRE', 'Fire · hold MG: machine gun'], ['SIGHT', 'Gunner\'s sight · pinch: zoom'], ['AMMO', 'Switch shell · SMOKE: smoke screen']],
+    pad: () => [['Left stick', 'Drive and turn'], ['Right stick', 'Aim the turret'], ['RT · LT', 'Fire · machine gun'], ['A', 'Gunner\'s sight · D-pad ↑↓: zoom'], ['LB · RB', 'Shells · B: smoke · Y: camera']],
+  };
+  const helpRows = () => CONTROLS[device()]();
+  // Étapes du premier combat, une à la fois, chacune validée par l'état du jeu (et non par « suivant »)
+  const spotted0 = () => [...spotted[0]].some(t => t.team === 1 && !t.dead);
+  const TUT = [
+    { id: 'drive', text: { kb: () => `Hold ${K('fwd')} to drive · ${K('left')} / ${K('right')} to turn`, touch: () => 'Drag the left stick to drive', pad: () => 'Left stick: drive and turn' },
+      done: dt => (tut.drv += Math.abs(player.speed) > 1.5 * PX ? dt : 0) > 1.5 },
+    { id: 'fire', text: { kb: () => spotted0() ? 'Aim at a red chevron and left-click to fire' : 'Drive east: red chevrons will mark the enemy',
+      touch: () => spotted0() ? 'Drag on the right to aim · FIRE to shoot' : 'Drive east: red chevrons will mark the enemy', pad: () => spotted0() ? 'Right stick: aim · RT: fire' : 'Drive east: red chevrons will mark the enemy' },
+      done: () => waveStats.shots > 0 },
+    { id: 'reload', text: { kb: () => 'The ring around the reticle is your reload: fire again when it turns gold' }, done: () => tut.t > 3 && player.reloadT <= 0 },
+    { id: 'sight', text: { kb: () => `Press ${K('sight')} for the gunner's sight · mouse wheel: zoom`, touch: () => 'Tap SIGHT for the gunner\'s sight · pinch: zoom', pad: () => 'Press A for the gunner\'s sight · D-pad: zoom' },
+      done: () => tut.flag.sight || !W3D },
+    { id: 'shell', text: { kb: () => 'Thick armor? Press 3 for APCR, or hit the sides and rear', touch: () => 'Thick armor? Tap AMMO for APCR, or hit the sides and rear', pad: () => 'Thick armor? LB / RB: switch shell, or hit the sides' },
+      done: () => tut.flag.shell || tut.t > 15 },
+  ];
+  const tut = { t: 0, drv: 0, flag: {} };
+  const cardOn = () => !AUTO && (DEV_RUN ? dq('tut') : Meta.P.stats.battles < 2);
+  const tutOn = () => !Meta.P.tut.done && !AUTO && (!DEV_RUN || dq('tut'));
+  const tutCur = () => tutOn() && state === 'play' && player && !player.dead && !player.ai ? TUT[Meta.P.tut.step] : null;
+  function tutDone(id) { tut.flag[id] = true; }
+  function tutStep(dt) {
+    const s = tutCur();
+    if (!s) return;
+    tut.t += dt;
+    if (!s.done(dt)) return;
+    const P = Meta.P.tut;
+    P.step++; tut.t = 0;
+    if (P.step >= TUT.length) { P.done = true; goldRibbon('🎖 TRAINING COMPLETE', 'good hunting'); }
+    Meta.save(); Sfx.notify();
+  }
+  function skipTut() { Meta.P.tut.done = true; Meta.save(); toast('Tutorial skipped: replay it any time from Options'); $('tutSkip').hidden = true; }
+  // Consigne en cours : pastille sous les messages, qui pulse à son apparition
+  function drawTut(s) {
+    const tx = (s.text[device()] || s.text.kb)(), y = 140, w = Math.min(ui.half * 2, Math.max(300, (fitFont(tx, ui.half * 2 - 30, 15, 700), ctx.measureText(tx).width + 34)));
+    const pulse = 0.55 + 0.45 * Math.max(0, Math.cos(Math.min(tut.t, 1.5) * 6));
+    ctx.fillStyle = 'rgba(12,14,9,0.85)'; ctx.fillRect(W / 2 - w / 2, y - 18, w, 40);
+    ctx.strokeStyle = `rgba(233,196,106,${pulse})`; ctx.lineWidth = 1.5; ctx.strokeRect(W / 2 - w / 2 + 0.5, y - 17.5, w - 1, 39);
+    ctx.textAlign = 'center'; ctx.fillStyle = '#f0e6c8'; ctx.fillText(tx, W / 2, y + 1);
+    ctx.font = '600 10px system-ui, sans-serif'; ctx.fillStyle = '#a39d88';
+    ctx.fillText(`TRAINING ${Meta.P.tut.step + 1}/${TUT.length} · skip it from the pause menu`, W / 2, y + 16);
+  }
+  // Fiche des commandes : pendant l'introduction des premières batailles, ou sur demande (?)
+  function drawControls(y) {
+    const rows = helpRows(), w = 460, h = 30 + rows.length * 24;
+    ctx.fillStyle = 'rgba(12,14,9,0.88)'; ctx.fillRect(W / 2 - w / 2, y, w, h);
+    ctx.strokeStyle = 'rgba(233,196,106,0.5)'; ctx.lineWidth = 1; ctx.strokeRect(W / 2 - w / 2 + 0.5, y + 0.5, w - 1, h - 1);
+    ctx.textAlign = 'center'; ctx.font = '700 11px system-ui, sans-serif'; ctx.fillStyle = '#e9c46a';
+    ctx.fillText(device() === 'pad' ? 'CONTROLLER' : device() === 'touch' ? 'TOUCH CONTROLS' : 'CONTROLS', W / 2, y + 18);
+    rows.forEach(([k, d], i) => {
+      const ry = y + 40 + i * 24;
+      ctx.font = '700 12px system-ui, sans-serif';
+      const kw = ctx.measureText(k).width + 12;
+      ctx.fillStyle = '#2b2f23'; ctx.fillRect(W / 2 - 12 - kw, ry - 13, kw, 18);
+      ctx.textAlign = 'right'; ctx.fillStyle = '#efe3bf'; ctx.fillText(k, W / 2 - 18, ry);
+      ctx.textAlign = 'left'; ctx.font = '600 12px system-ui, sans-serif'; ctx.fillStyle = '#c9c4b2'; ctx.fillText(d, W / 2 + 4, ry);
+    });
+    return y + h;
+  }
+  // Rappel des touches sous la mini-carte pendant les trois premières batailles (clavier et manette)
+  function drawHints() {
+    if (Meta.P.stats.battles >= 3 || device() === 'touch' || (ui.pip && ui.pip.big) || state !== 'play') return;
+    const tx = device() === 'pad' ? `A: sight · B: smoke ×${player ? player.smoke : 0} · Y: camera · View: x-ray`
+      : `${K('sight')}: sight · ${K('smoke')}: smoke ×${player ? player.smoke : 0} · ${K('cam')}: camera · ${K('xray')}: x-ray · ${K('help')}: controls`;
+    fitFont(tx, ui.mm.w + 60, 11, 600);
+    const w = ctx.measureText(tx).width + 14, x1 = ui.mm.x0 + ui.mm.w + 3, y = ui.mm.bottom + 18;
+    ctx.globalAlpha = 0.85; ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(x1 - w, y - 13, w, 18);
+    ctx.textAlign = 'right'; ctx.fillStyle = '#d8d0b4'; ctx.fillText(tx, x1 - 7, y); ctx.globalAlpha = 1;
   }
 
   // ===================== Boucle =====================
@@ -3906,6 +4005,7 @@ Meta.whenReady(() => {
     if (state === 'play') waveTime += dt;
     if (state === 'intro') { introT -= dt; if (introT <= 0) { state = 'play'; showMsg('ADVANCE!', '#ffe27a', 1.2); } }
     if (player && !player.dead && !player.ai) playerInput();
+    tutStep(dt);
     spotTimer -= dt;
     if (spotTimer <= 0) { spotTimer = 0.2; updateSpotting(0.2); }
     for (let i = artyMarks.length - 1; i >= 0; i--) if ((artyMarks[i].life -= dt) <= 0) artyMarks.splice(i, 1);
@@ -4122,6 +4222,7 @@ Meta.whenReady(() => {
       if (n >= 40) acc = 0;
       deadBarTick();
       HitCam.update(dt);
+      trauma = Math.max(0, trauma - 1.6 * dt); shakeT += dt; cam3.kick *= Math.exp(-dt / 0.25);
       const hev = HitCam.ev();
       if (hev && hev.metal && !hev.metal.st.done) metalRun(hev.metal, ms, 6);
     }
@@ -4237,7 +4338,7 @@ Meta.whenReady(() => {
     { name: 'Tactical camera', pitch: 1.15, dist: 90, ahead: 0, look: 0.25 },
     { name: 'Close camera', pitch: 0.48, dist: 24, ahead: 0.14, look: 0.3 },
   ];
-  const cam3 = { mode: 0, lx: 0, ly: 0, yaw: 0, pitch: 0.52, dist: 46, off: 0, eye: [0, 0, 40], target: [0, 0, 0], view: null, vp: null, init: false, drag: null };
+  const cam3 = { mode: 0, lx: 0, ly: 0, yaw: 0, pitch: 0.52, dist: 46, off: 0, eye: [0, 0, 40], target: [0, 0, 0], view: null, vp: null, init: false, drag: null, kick: 0 };
   const dirtyTiles = new Set();
   try {
     const c3 = document.getElementById('game3d');
@@ -4390,12 +4491,24 @@ Meta.whenReady(() => {
     sight.on = on;
     if (on) {
       sight.yaw = sight.aimYaw = player.angle + player.turret; sight.pitch = sight.aimPitch = -0.004; sight.cx = sight.cy = 0; sight.probe = null;
-      lockPointer();
+      lockPointer(); tutDone('sight');
       showMsg(`Gunner sight · ×${MAGS[sight.mag]}`, '#bcd8ff', 1);
     }
   }
   // préréglage réaliste : hausse réglée à la main sur le tambour des distances, par pas de 50 m
   function setRange(dir) { sight.rangeSet = clamp(sight.rangeSet + dir * 50, 0, 2000); }
+  // estimation de distance du chef : vraie distance ± 8 % (sorti), 15 % (fermé), 25 % (chef hors de
+  // combat), arrondie à 50 m, après 1,5 s de visée sur le même char
+  function cmdEstimate(pr) {
+    const t = pr && pr.kind === 'tank' && !pr.tank.dead ? pr.tank : null;
+    if (t !== sight.estTank) { sight.estTank = t; sight.estT = gameTime; sight.est = null; }
+    if (!t || gameTime - sight.estT < 1.5) return null;
+    if (sight.est == null) {
+      const sg = !roleOk(player, 'commander') ? 0.25 : player.hatch ? 0.08 : 0.15;
+      sight.est = Math.max(50, Math.round(pr.dist * RK * (1 + gauss() * sg) / 50) * 50);
+    }
+    return sight.est;
+  }
   // Lunette du tireur, coaxiale au canon, à gauche du masque. Sans stabilisateur (aucun char de
   // l'époque n'en avait), l'image tremble quand le char roule ou pivote, et saute au départ du coup.
   function sightCam(dt) {
@@ -4422,7 +4535,7 @@ Meta.whenReady(() => {
     sight.aimYaw = sight.yaw + ay; sight.aimPitch = clamp(sight.pitch + ap, lo, hi);
     // la lunette est liée au canon : la vue montre l'écart entre le tube et le point visé (tangage de la
     // caisse, retard du volant de pointage), penche avec le roulis et sursaute au départ du coup
-    const yaw = sight.yaw, pitch = sight.pitch + (player.elevErr || 0) + player.recoil * 0.03, roll = gunCant(player);
+    const so = shakeOff(), yaw = sight.yaw + so.yaw, pitch = sight.pitch + (player.elevErr || 0) + player.recoil * 0.03 + so.pitch, roll = gunCant(player) + so.roll;
     sight.gunPitch = sight.aimPitch;
     const fx = pv.x + Math.cos(ta) * 0.9 * PX - Math.sin(ta) * 0.35 * PX, fy = pv.y + Math.sin(ta) * 0.9 * PX + Math.cos(ta) * 0.35 * PX;
     sight.z0 = Sd.gun.z + 0.08;
@@ -4535,13 +4648,13 @@ Meta.whenReady(() => {
     const tgt = [cam3.tx + fw[0] * cam3.ly + fw[1] * cam3.lx, cam3.ty + fw[1] * cam3.ly - fw[0] * cam3.lx, 1.2];
     cam3.pitch += (md.pitch - cam3.pitch) * (1 - Math.pow(0.02, dt));
     const cp = Math.cos(cam3.pitch), sp = Math.sin(cam3.pitch);
-    let eye = [tgt[0] - Math.cos(cam3.yaw) * cp * cam3.dist, tgt[1] - Math.sin(cam3.yaw) * cp * cam3.dist, tgt[2] + sp * cam3.dist];
-    const sh = shake * 0.025;
-    if (sh > 0.01) eye = [eye[0] + (Math.random() - 0.5) * sh, eye[1] + (Math.random() - 0.5) * sh, eye[2] + (Math.random() - 0.5) * sh];
-    shake *= Math.pow(0.004, dt);
-    cam3.fov = 0.9;
+    const eye = [tgt[0] - Math.cos(cam3.yaw) * cp * cam3.dist, tgt[1] - Math.sin(cam3.yaw) * cp * cam3.dist, tgt[2] + sp * cam3.dist];
+    // secousse : rotation du regard (lacet, tangage, roulis) ; recul du tir : le regard monte, le champ s'ouvre
+    const so = shakeOff(), dd = cam3.dist, rx = Math.sin(cam3.yaw), ry = -Math.cos(cam3.yaw);
+    tgt[0] += rx * so.yaw * dd; tgt[1] += ry * so.yaw * dd; tgt[2] += (so.pitch + cam3.kick) * dd;
+    cam3.fov = 0.9 + cam3.kick * 1.3;
     cam3.eye = eye; cam3.target = tgt;
-    cam3.view = G3.M4.lookAt(eye, tgt, [0, 0, 1]);
+    cam3.view = G3.M4.lookAt(eye, tgt, [rx * Math.sin(so.roll), ry * Math.sin(so.roll), Math.cos(so.roll)]);
     cam3.vp = G3.M4.mul(G3.M4.persp(cam3.fov, W / H, 0.8, 2400), cam3.view);
     camX = cam3.tx * PX; camY = -cam3.ty * PX;
   }
@@ -4737,8 +4850,7 @@ Meta.whenReady(() => {
     const hw = W / 2 / S, hh = H / 2 / S;
     camX = WW > hw * 2 ? clamp(camX, hw, WW - hw) : WW / 2;
     camY = WH > hh * 2 ? clamp(camY, hh, WH - hh) : WH / 2;
-    const sx = (Math.random() - 0.5) * shake, sy = (Math.random() - 0.5) * shake;
-    shake *= Math.pow(0.004, dt);
+    const so = shakeOff(), sx = so.yaw * 700, sy = so.pitch * 700;
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = '#0d0f0c'; ctx.fillRect(0, 0, cv.width, cv.height);
@@ -5032,15 +5144,18 @@ Meta.whenReady(() => {
     ctx.drawImage(dark, 0, 0);
   }
 
+  // verdict de perforation : couleur (bleu, blanc et orange pour les daltoniens) et forme du point de
+  // visée (plein : perce, anneau : incertain, croix : ne perce pas)
+  const CB_COL = { '#7ad06a': '#4aa8ff', '#ffe27a': '#ffffff', '#ff6a50': '#ff9a1a', '#ffb070': '#ffd9a0' };
   function verdictOf(pr) {
-    const t = pr.tank;
-    if (t.dead) return { col: '#aaa', verdict: 'wreck' };
-    if (t.team === 0) return { col: '#6ab8ff', verdict: 'ALLY: HOLD FIRE' };
-    if (player.shell === 'HE') return pr.pen >= pr.eff ? { col: '#7ad06a', verdict: 'penetrates' } : { col: '#ffb070', verdict: 'blast effect' };
-    if (pr.ric > 0.5) return { col: '#ffb070', verdict: 'likely ricochet' };
-    if (pr.pen >= pr.eff * 1.08) return { col: '#7ad06a', verdict: 'penetrates' };
-    if (pr.pen >= pr.eff * 0.92) return { col: '#ffe27a', verdict: 'uncertain' };
-    return { col: '#ff6a50', verdict: 'no penetration' };
+    const t = pr.tank, v = (col, verdict, shape) => ({ col: Meta.P.opts.cb ? CB_COL[col] || col : col, verdict, shape });
+    if (t.dead) return v('#aaa', 'wreck', 'ring');
+    if (t.team === 0) return v('#6ab8ff', 'ALLY: HOLD FIRE', 'cross');
+    if (player.shell === 'HE') return pr.pen >= pr.eff ? v('#7ad06a', 'penetrates', 'dot') : v('#ffb070', 'blast effect', 'ring');
+    if (pr.ric > 0.5) return v('#ffb070', 'likely ricochet', 'ring');
+    if (pr.pen >= pr.eff * 1.08) return v('#7ad06a', 'penetrates', 'dot');
+    if (pr.pen >= pr.eff * 0.92) return v('#ffe27a', 'uncertain', 'ring');
+    return v('#ff6a50', 'no penetration', 'cross');
   }
 
   // ===================== Lunette du tireur =====================
@@ -5079,7 +5194,7 @@ Meta.whenReady(() => {
     ctx.moveTo(cx, cy + R); ctx.lineTo(cx, cy + tw * 1.3 + 8 * mil);
     ctx.stroke();
     // réglette des distances (en hectomètres), curseur sur la distance télémétrée
-    const pr = sight.probe, dm = pr && pr.kind !== 'sky' ? pr.dist * RK : null;
+    const pr = sight.probe, real = !assisted(), dm = real ? sight.rangeSet : pr && pr.kind !== 'sky' ? pr.dist * RK : null;
     const sx = cx - R * 0.72, sy0 = cy - R * 0.45, sy1 = cy + R * 0.45;
     ctx.lineWidth = 1; ctx.font = F(600, 10); ctx.textAlign = 'right';
     for (let hm = 0; hm <= 20; hm++) {
@@ -5118,10 +5233,13 @@ Meta.whenReady(() => {
       ctx.moveTo(mx - 15, my); ctx.lineTo(mx - 11, my); ctx.moveTo(mx + 11, my); ctx.lineTo(mx + 15, my);
       ctx.moveTo(mx, my - 15); ctx.lineTo(mx, my - 11); ctx.moveTo(mx, my + 11); ctx.lineTo(mx, my + 15);
       ctx.stroke();
-      ctx.fillStyle = pr && pr.kind === 'tank' && !sight.dust && assisted() ? verdictOf(pr).col : '#fff';
-      ctx.beginPath(); ctx.arc(mx, my, 1.8, 0, TAU); ctx.fill();
+      const vd = pr && pr.kind === 'tank' && !sight.dust && assisted() ? verdictOf(pr) : null;
+      ctx.fillStyle = ctx.strokeStyle = vd ? vd.col : '#fff';
+      if (!vd || vd.shape === 'dot') { ctx.beginPath(); ctx.arc(mx, my, vd ? 3 : 1.8, 0, TAU); ctx.fill(); }
+      else if (vd.shape === 'ring') { ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(mx, my, 3.5, 0, TAU); ctx.stroke(); }
+      else { ctx.lineWidth = 1.8; ctx.beginPath(); ctx.moveTo(mx - 4, my - 4); ctx.lineTo(mx + 4, my + 4); ctx.moveTo(mx + 4, my - 4); ctx.lineTo(mx - 4, my + 4); ctx.stroke(); }
       if (hitMk) drawHitMark(mx, my, true);
-      if (dm != null) {
+      if (dm != null && !real) {
         ctx.font = F(600, 11); ctx.textAlign = 'left';
         const tx = `${Math.round(dm)} m · ${Math.round(penAt(player.T, player.shell, pr.dist))} mm`;
         ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillText(tx, mx + 19 * uiK, my + 17 * uiK);
@@ -5133,11 +5251,19 @@ Meta.whenReady(() => {
     ctx.textAlign = 'center';
     const sb = SHELLS[player.shell];
     ctx.font = F(700, 13);
-    const top = `×${MAGS[sight.mag]} · ${sb.name}${dm != null ? ` · ${Math.round(dm)} m · ${Math.round(penAt(player.T, player.shell, pr.dist))} mm` : ''}`;
+    const top = real ? `×${MAGS[sight.mag]} · ${sb.name} · range set ${sight.rangeSet} m` : `×${MAGS[sight.mag]} · ${sb.name}${dm != null ? ` · ${Math.round(dm)} m · ${Math.round(penAt(player.T, player.shell, pr.dist))} mm` : ''}`;
     ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillText(top, cx + 1, cy + R * 0.42 + 1);
     ctx.fillStyle = '#e9d9a6'; ctx.fillText(top, cx, cy + R * 0.42);
     if (sight.dust) { ctx.font = F(700, 14); ctx.fillStyle = '#e9d9a6'; ctx.fillText('Muzzle dust: target obscured', cx, cy + R * 0.55); }
-    else if (pr && pr.kind === 'tank') {
+    else if (real) {
+      // réaliste : estimation du chef de char (après 1,5 s sur la même cible), et rappel des stadia
+      const e = cmdEstimate(pr);
+      ctx.font = F(700, 14); ctx.fillStyle = 'rgba(0,0,0,0.65)';
+      const l1 = pr && pr.kind === 'tank' ? `${pr.tank.T.name}${pr.tank.team === 0 ? ' (ally)' : ''}${e ? ` · commander: about ${e} m` : ''}` : '';
+      if (l1) { ctx.fillText(l1, cx + 1, cy + R * 0.55 + 1); ctx.fillStyle = pr.tank.team === 0 ? '#6ab8ff' : '#e8e4d8'; ctx.fillText(l1, cx, cy + R * 0.55); }
+      ctx.font = F(600, 11); ctx.fillStyle = '#c9c4b2';
+      ctx.fillText('Triangles are 8 mils apart: a 6 m tank side-on spans one gap at 750 m', cx, cy + R * 0.55 + 18 * uiK);
+    } else if (pr && pr.kind === 'tank') {
       const t = pr.tank, ally = t.team === 0, { col, verdict } = verdictOf(pr);
       const l1 = `${t.T.name}${ally ? ' (ally)' : ''} · ${verdict}`;
       const l2 = t.dead ? '' : `${pr.plate}: ${pr.mm} mm at ${Math.round(pr.angle)}° → ${Math.round(pr.eff)} mm effective · penetration ${Math.round(pr.pen)} mm${pr.wall > 0 ? ` (through wall: −${pr.wall} mm)` : ''}`;
@@ -5185,7 +5311,7 @@ Meta.whenReady(() => {
       const d = Math.round(Math.hypot(t.x - f.x, t.y - f.y) * RK);
       const p = worldToScreen(t.x, t.y, t.T.I.totalH + 2.6);
       const inside = !p.behind && p.x > mx0 && p.y > my0 && p.x < W - mx0 && p.y < my1;
-      ctx.fillStyle = '#ff4a3d'; ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 2;
+      ctx.fillStyle = teamCol(1); ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 2;
       if (inside) {
         const b = 2 * Math.sin(gameTime * 5);
         ctx.beginPath(); ctx.moveTo(p.x - 7, p.y - 18 + b); ctx.lineTo(p.x + 7, p.y - 18 + b); ctx.lineTo(p.x, p.y - 9 + b); ctx.closePath();
@@ -5229,8 +5355,11 @@ Meta.whenReady(() => {
       if (p.x < -50 || p.y < -50 || p.x > W + 50 || p.y > H + 50) continue;
       const w = 38, f = crewFrac(t);
       ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(p.x - w / 2 - 1, p.y - 1, w + 2, 6);
-      ctx.fillStyle = t.team === 0 ? (t === player ? '#7ad06a' : '#5aa8ff') : '#ff5040';
+      const cb = Meta.P.opts.cb;
+      ctx.fillStyle = t.team === 0 ? (t === player ? (cb ? '#ffffff' : '#7ad06a') : '#5aa8ff') : cb ? '#ff9a1a' : '#ff5040';
       ctx.fillRect(p.x - w / 2, p.y, w * f, 4);
+      // palette pour daltoniens : un rond au-dessus des alliés (les ennemis ont leur chevron)
+      if (cb && t.team === 0 && t !== player) { ctx.strokeStyle = '#5aa8ff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(p.x, p.y - 20 * uiK, 5 * uiK, 0, TAU); ctx.stroke(); }
       if (t.fires.length) { ctx.fillStyle = '#ff9a3a'; ctx.fillRect(p.x + w / 2 + 3, p.y - 1, 5, 6); }
       if (t !== player) {
         ctx.font = F(600, 10);
@@ -5354,7 +5483,7 @@ Meta.whenReady(() => {
       const list = tanks.filter(t => t.team === team), st = Math.min(18, ((b.x1 - b.x0) / 2 - 30) / Math.max(5, list.length));
       list.forEach((t, i) => {
         const x = team === 0 ? b.cx - 22 - (list.length - 1 - i) * st - 14 : b.cx + 22 + i * st, w = Math.min(14, st - 3);
-        ctx.fillStyle = t.dead ? '#333' : TEAM[team].accent;
+        ctx.fillStyle = t.dead ? '#333' : teamCol(team);
         ctx.fillRect(x, 34, w, 12);
         if (t === player) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.strokeRect(x - 1, 33, w + 2, 14); }
         if (t.dead) { ctx.strokeStyle = '#999'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x, 34); ctx.lineTo(x + w, 46); ctx.moveTo(x + w, 34); ctx.lineTo(x, 46); ctx.stroke(); }
@@ -5379,11 +5508,11 @@ Meta.whenReady(() => {
     if (!(ui.pip && !ui.pip.big)) drawMinimap();
     if (DEV) { // ?debug : cadence et résolution dynamique du rendu 3D
       ctx.textAlign = 'right'; ctx.font = '600 11px system-ui, sans-serif'; ctx.fillStyle = '#9fd0ff';
-      ctx.fillText(`${Math.round(1000 / dyn.ema)} fps · 3D ${Math.round(dyn.k * 100)}% · DPR ${DPR} · UI ×${uiK.toFixed(2)}`, ui.mm.x0 + ui.mm.w, ui.mm.bottom + 12);
+      ctx.fillText(`${Math.round(1000 / dyn.ema)} fps · 3D ${Math.round(dyn.k * 100)}% · DPR ${DPR} · UI ×${uiK.toFixed(2)}`, W - 6, H - 4);
     }
     // journal des dégâts subis
     ctx.textAlign = 'left'; ctx.font = '600 12px system-ui, sans-serif';
-    const n = Math.max(1, Math.floor((ui.logY - ui.feedY - feed.length * 20) / 18));
+    const n = state === 'intro' && cardOn() ? 0 : Math.max(1, Math.floor((ui.logY - ui.feedY - feed.length * 20) / 18));
     logs.slice(0, n).forEach((l, i) => {
       const y = ui.logY - i * 18;
       ctx.globalAlpha = Math.min(1, l.life);
@@ -5458,8 +5587,11 @@ Meta.whenReady(() => {
       ctx.fillStyle = m.color; ctx.fillText(m.text, W / 2, y);
     });
     ctx.globalAlpha = 1;
+    const ts = tutCur();
+    if (ts) drawTut(ts);
+    drawHints();
     for (const r of ribbons) {
-      const y = 140 + (r.y || 0), tx = r.gold ? `${r.t}${r.sub ? '  ·  ' + r.sub : ''}` : `${r.ic}  ${r.t}`;
+      const y = (ts ? 184 : 140) + (r.y || 0), tx = r.gold ? `${r.t}${r.sub ? '  ·  ' + r.sub : ''}` : `${r.ic}  ${r.t}`;
       fitFont(tx, ui.half * 2 - 44, r.gold ? 14 : 13, r.gold ? 800 : 700);
       const w = ctx.measureText(tx).width + 44;
       ctx.globalAlpha = Math.min(1, r.life * 2, (r.max - r.life) / 0.2);
@@ -5475,20 +5607,26 @@ Meta.whenReady(() => {
       ctx.fillText(tx, W / 2, y);
       ctx.globalAlpha = 1;
     }
+    if (helpT > 0 && state !== 'intro') drawControls(H / 2 - 90);
     if (state === 'intro') {
-      const lv = L();
-      ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(0, H / 2 - 90, W, 150);
+      const lv = L(), card = cardOn();
+      ctx.save();
+      if (card) ctx.translate(0, -70); // la fiche des commandes prend place sous le titre, dans une boîte centrée
+      ctx.fillStyle = 'rgba(0,0,0,0.45)';
+      if (card) ctx.fillRect(W / 2 - 260, H / 2 - 90, 520, 290); else ctx.fillRect(0, H / 2 - 90, W, 150);
       // carte historique : lieu et date de la bataille
       ctx.fillStyle = '#a39d88'; ctx.font = '600 13px system-ui, sans-serif';
       ctx.fillText(lv.when.toUpperCase(), W / 2, H / 2 - 74);
-      ctx.fillStyle = '#e9d9a6'; fitFont(lv.name.toUpperCase(), W - 40, 34, 800);
+      ctx.fillStyle = '#e9d9a6'; fitFont(lv.name.toUpperCase(), card ? 500 : W - 40, 34, 800);
       ctx.fillText(lv.name.toUpperCase(), W / 2, H / 2 - 45);
       ctx.font = '600 16px system-ui, sans-serif'; ctx.fillStyle = '#bdb7a2';
       ctx.fillText(mode === 'survie' ? `${lv.sub} · Survival · alone against all`
         : mode === 'duel' ? `${lv.sub} · Duel · round ${duelScore[0] + duelScore[1] + 1}`
         : `${lv.sub} · Wave ${waveIdx + 1}/${WAVES} · 5 vs 5`, W / 2, H / 2 - 18);
       ctx.font = '800 48px system-ui, sans-serif'; ctx.fillStyle = '#fff';
-      ctx.fillText(String(Math.max(1, Math.ceil(introT))), W / 2, H / 2 + 38);
+      if (card) { const yb = drawControls(H / 2); ctx.textAlign = 'center'; ctx.font = '700 15px system-ui, sans-serif'; ctx.fillStyle = '#fff'; ctx.fillText(`Starting in ${Math.max(1, Math.ceil(introT))}`, W / 2, yb + 22); }
+      else ctx.fillText(String(Math.max(1, Math.ceil(introT))), W / 2, H / 2 + 38);
+      ctx.restore();
     }
   }
 
@@ -5657,7 +5795,7 @@ Meta.whenReady(() => {
     }
     for (const t of tanks) {
       if (!t.dead && !visibleToPlayer(t)) continue;
-      ctx.fillStyle = t.dead ? '#444' : t === player ? '#fff' : TEAM[t.team].accent;
+      ctx.fillStyle = t.dead ? '#444' : t === player ? '#fff' : teamCol(t.team);
       const s = t === player ? 4 : 3;
       ctx.fillRect(x0 + t.x * k - s / 2, y0 + t.y * k - s / 2, s, s);
     }
@@ -6278,7 +6416,16 @@ Meta.whenReady(() => {
     resize();
     TOF = o.ballistics === 'arcade' ? 0.6 : 1;
     $('oSfx').value = o.sfx; $('oMusic').value = o.music; $('oQuality').value = o.quality; $('oHitcam').value = o.hitcam; $('oBallistics').value = o.ballistics || 'real';
+    $('oAssist').value = o.assist; $('oSens').value = o.sens; $('oSensSight').value = o.sensSight; $('oInvert').checked = o.invertY; $('oShake').value = o.shake;
+    $('oSlowmo').checked = o.slowmo; $('oCalm').checked = o.calm; $('oCb').checked = o.cb; $('oHud').value = o.hud;
+    buildBinds();
   }
+  // réglages simples : curseurs (nombres), cases (booléens) et listes
+  for (const [id, k, kind] of [['oAssist', 'assist'], ['oSens', 'sens', 1], ['oSensSight', 'sensSight', 1], ['oInvert', 'invertY', 2], ['oShake', 'shake', 1], ['oSlowmo', 'slowmo', 2], ['oCalm', 'calm', 2], ['oCb', 'cb', 2], ['oHud', 'hud', 1]]) {
+    $(id)[kind === 1 ? 'oninput' : 'onchange'] = e => { Meta.P.opts[k] = kind === 2 ? e.target.checked : kind === 1 ? +e.target.value : e.target.value; Meta.save(); applyOptions(); };
+  }
+  $('oTut').onclick = () => { Meta.P.tut = { step: 0, done: false }; Meta.save(); toast('The tutorial will guide your next battle'); };
+  $('oBindReset').onclick = () => { Meta.P.opts.binds = {}; Meta.save(); buildBinds(); };
   $('oSfx').oninput = e => { Meta.P.opts.sfx = +e.target.value; Meta.save(); applyOptions(); };
   $('oMusic').oninput = e => { Meta.P.opts.music = +e.target.value; Meta.save(); applyOptions(); playMusic(); };
   $('oQuality').onchange = e => { Meta.P.opts.quality = e.target.value; Meta.save(); dynReset(true); applyOptions(); };
@@ -6297,7 +6444,14 @@ Meta.whenReady(() => {
     }
     buildBinds();
   }
-  function buildBinds() {}
+  const BIND_LABELS = { fwd: 'Forward', back: 'Reverse', left: 'Turn left', right: 'Turn right', brake: 'Brakes', fire: 'Fire', mg: 'Machine gun', belt: 'MG belt type', sight: 'Gunner\'s sight',
+    zoom: 'Sight magnification', rangeUp: 'Range + (realistic)', rangeDown: 'Range − (realistic)', smoke: 'Smoke launcher', cam: 'Camera', hatch: 'Commander hatch', ext: 'Extinguisher',
+    repair: 'Repair track', bail: 'Bail out', flare: 'Flare (night)', xray: 'Impact camera / skip', mute: 'Sound on / off', help: 'Controls card', attack: 'Order: attack', follow: 'Order: follow me', hold: 'Order: hold', move: 'Order: move there' };
+  function buildBinds() {
+    const el = $('bindList');
+    el.innerHTML = Object.keys(BIND_LABELS).map(a => `<button data-a="${a}" class="${rebinding === a ? 'wait' : ''}"><span>${BIND_LABELS[a]}</span><kbd>${rebinding === a ? 'press a key…' : codeName(bind(a))}</kbd></button>`).join('');
+    el.querySelectorAll('button').forEach(b => { b.onclick = () => { rebinding = rebinding === b.dataset.a ? null : b.dataset.a; buildBinds(); }; });
+  }
   // Fenêtre de confirmation du jeu (les fenêtres natives sont bloquées dans l'iframe du portail
   // et font sortir du plein écran)
   function askConfirm(title, text, okLabel, onOk) {
@@ -6486,7 +6640,7 @@ Meta.whenReady(() => {
       const rc = Meta.record(k, v);
       if (rc.beat) notes.push(`<div class="note rec">NEW RECORD · ${lab}</div>`);
     }
-    const g = Meta.battleEnd(Object.assign({ mode, ffCrew: ws.ffCrew, tk: ws.tk, time: waveTime, medals: ws.medals, streakCr: ws.streakCr, revenge: ws.revenge, level: levelIdx, tank: chosenType, td: !!T.arc, untouched: !ws.pened }, r));
+    const g = Meta.battleEnd(Object.assign({ mode, ffCrew: ws.ffCrew, tk: ws.tk, time: waveTime, medals: ws.medals, streakCr: ws.streakCr, revenge: ws.revenge, level: levelIdx, tank: chosenType, td: !!T.arc, untouched: !ws.pened, real: !assisted() }, r));
     const btns = $('resBtns'), nm = ws.medals.length;
     btns.innerHTML = '';
     // rapport de bataille replié sur les petits écrans : gains et boutons restent visibles
@@ -6494,7 +6648,7 @@ Meta.whenReady(() => {
     $('resSum').textContent = 'Battle report' + (nm ? ` · ${nm} medal${nm > 1 ? 's' : ''}` : '');
     $('result').querySelector('.box').scrollTop = 0;
     $('resTable').insertAdjacentHTML('beforeend', medalRows(ws) + (ws.streakCr ? `<tr><td>Kill streak bonus</td><td>+✪ ${fmt(ws.streakCr)}</td></tr>` : '') +
-      (ws.revenge && r.win ? '<tr><td>Revenge bonus</td><td>×1.5</td></tr>' : '') + (Meta.diff().mul !== 1 ? `<tr><td>${Meta.diff().name} difficulty</td><td>×${Meta.diff().mul}</td></tr>` : '') +
+      (ws.revenge && r.win ? '<tr><td>Revenge bonus</td><td>×1.5</td></tr>' : '') + (Meta.diff().mul !== 1 ? `<tr><td>${Meta.diff().name} difficulty</td><td>×${Meta.diff().mul}</td></tr>` : '') + (!assisted() ? '<tr><td>Realistic aiming</td><td>×1.1</td></tr>' : '') +
       (g.penalty ? `<tr><td>Friendly fire penalty</td><td class="bad">−✪ ${fmt(g.penalty)}</td></tr>` : ''));
     const t0 = performance.now(), count = () => {
       const k = Math.min(1, (performance.now() - t0) / 900);
@@ -6649,10 +6803,28 @@ Meta.whenReady(() => {
   }
   function freePointer() { if (document.pointerLockElement === cv) { intentionalUnlock = true; document.exitPointerLock(); } }
   function togglePause() {
-    freePointer();
-    if (state === 'pause') { state = pausedFrom; hide('pause'); last = performance.now(); Meta.sdk.gameplayStart(); }
-    else if (inBattle()) { pausedFrom = state; state = 'pause'; pausedAt = performance.now(); show('pause'); Meta.sdk.gameplayStop(); }
+    freePointer(); rebinding = null;
+    if (state === 'pause') { state = pausedFrom; hide('pause'); optHome(); last = performance.now(); Meta.sdk.gameplayStart(); }
+    else if (inBattle()) { pausedFrom = state; state = 'pause'; pausedAt = performance.now(); syncPause(); show('pause'); Meta.sdk.gameplayStop(); }
   }
+  // Options depuis la pause : le panneau du menu vient dans la boîte de pause, puis retourne à sa place
+  function optHome() {
+    const o = $('tab-options');
+    if (o.parentNode === $('pauseOpts')) { $('bannerMenu').before(o); o.classList.toggle('on', !!document.querySelector('.tab.on[data-tab="options"]')); }
+  }
+  function syncPause() { optHome(); $('pauseHelp').hidden = true; $('tutSkip').hidden = !tutOn(); }
+  $('pOptBtn').onclick = () => {
+    const o = $('tab-options');
+    if (o.parentNode === $('pauseOpts')) { optHome(); return; }
+    $('pauseHelp').hidden = true; $('pauseOpts').appendChild(o); o.classList.add('on'); applyOptions();
+  };
+  $('pHelpBtn').onclick = () => {
+    optHome();
+    const h = $('pauseHelp');
+    h.hidden = !h.hidden;
+    h.innerHTML = helpRows().map(([k, d]) => `<div><kbd>${k}</kbd>${d}</div>`).join('');
+  };
+  $('tutSkip').onclick = skipTut;
   // Pause automatique (onglet masqué, fenêtre quittée, curseur libéré par le navigateur), sauf en
   // partie automatique de test où personne ne joue
   function autoPause() { if (inBattle() && !AUTO) togglePause(); }
@@ -6898,8 +7070,9 @@ Meta.whenReady(() => {
     const r = cv.getBoundingClientRect();
     touch.rel = false;
     if (document.pointerLockElement === cv) {
-      mouse.x = clamp(mouse.x + (e.movementX || 0) * (W / (r.width || W)), 0, W);
-      mouse.y = clamp(mouse.y + (e.movementY || 0) * (H / (r.height || H)), 0, H);
+      const o = Meta.P.opts;
+      mouse.x = clamp(mouse.x + (e.movementX || 0) * (W / (r.width || W)) * o.sens, 0, W);
+      mouse.y = clamp(mouse.y + (e.movementY || 0) * (H / (r.height || H)) * o.sens * (o.invertY ? -1 : 1), 0, H);
       return;
     }
     mouse.x = (e.clientX - r.left) * (W / (r.width || W));
@@ -6910,7 +7083,8 @@ Meta.whenReady(() => {
   addEventListener('mousemove', e => {
     if (!sight.on) return;
     if (document.pointerLockElement !== cv) return; // position absolue lue dans sightCam
-    sight.cx += e.movementX || 0; sight.cy += e.movementY || 0;
+    const o = Meta.P.opts;
+    sight.cx += (e.movementX || 0) * o.sensSight; sight.cy += (e.movementY || 0) * o.sensSight * (o.invertY ? -1 : 1);
   });
   addEventListener('pointerdown', trackMouse);
   // clic (curseur libre) ou toucher sur l'incrustation de la caméra d'impact : elle s'efface
@@ -6933,7 +7107,7 @@ Meta.whenReady(() => {
   cv.addEventListener('wheel', e => {
     e.preventDefault();
     if (!W3D || adOn()) return;
-    if (sight.on) { sight.mag = clamp(sight.mag + (e.deltaY < 0 ? 1 : -1), 0, MAGS.length - 1); return; }
+    if (sight.on) { if (assisted()) sight.mag = clamp(sight.mag + (e.deltaY < 0 ? 1 : -1), 0, MAGS.length - 1); else setRange(e.deltaY < 0 ? 1 : -1); return; }
     cam3.dist = clamp(cam3.dist * Math.exp(e.deltaY * 0.0012), 14, 160); }, { passive: false });
   cv.addEventListener('mousedown', e => { if (e.button === 2 && !adOn()) cam3.drag = { x: e.clientX, off: cam3.off }; });
   addEventListener('mousemove', e => { if (cam3.drag) cam3.off = cam3.drag.off - (e.clientX - cam3.drag.x) * 0.006; });
@@ -6985,6 +7159,8 @@ Meta.whenReady(() => {
     { at: [-176, -164], r: 28, label: () => sight.on ? 'OUT' : 'SIGHT', key: 'sight' },
     { at: [-84, -206], r: 28, label: () => SHELLS[player.nextShell || player.shell].tag || (player.nextShell || player.shell), sub: 'AMMO', tap: cycleShell },
     { at: [-262, -150], r: 26, label: () => `×${MAGS[sight.mag]}`, sub: 'ZOOM', show: () => sight.on, tap: () => { sight.mag = (sight.mag + 1) % MAGS.length; } },
+    { at: [-262, -212], r: 24, label: 'R+', sub: 'RANGE', show: () => sight.on && !assisted(), key: 'rangeUp' },
+    { at: [-262, -88], r: 24, label: 'R−', sub: 'RANGE', show: () => sight.on && !assisted(), key: 'rangeDown' },
     { row: 1, label: '❚❚', key: 'pause', any: true },
     { row: 1, label: 'CAM', key: 'cam', show: () => W3D && !sight.on },
     { row: 1, label: 'SMOKE', key: 'smoke' },
@@ -7078,8 +7254,9 @@ Meta.whenReady(() => {
         return;
       }
       touch.rel = true;
-      if (sight.on) { sight.cx += dx * 0.8; sight.cy += dy * 0.8; }
-      else { mouse.x = clamp(mouse.x + dx * 1.4, 0, W); mouse.y = clamp(mouse.y + dy, H * 0.25, H * 0.7); }
+      const o = Meta.P.opts, iy = o.invertY ? -1 : 1;
+      if (sight.on) { sight.cx += dx * 0.8 * o.sensSight; sight.cy += dy * 0.8 * o.sensSight * iy; }
+      else { mouse.x = clamp(mouse.x + dx * 1.4 * o.sens, 0, W); mouse.y = clamp(mouse.y + dy * o.sens * iy, H * 0.25, H * 0.7); }
     }
   }, { passive: false });
   function touchEnd(e) {

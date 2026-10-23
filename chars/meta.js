@@ -798,7 +798,7 @@ const Meta = (() => {
     const bonus = M === 'duel' ? (r.win ? 120 : 0) + (r.matchWon ? 400 : 0) : M === 'survie' ? waves * 120 + 500 * Math.min(3, Math.floor(waves / 5)) : (r.win ? 400 : 0);
     const part = !r.win && M !== 'survie' && (r.time == null || r.time >= 30) ? 60 : 0;
     const medalCr = medals.reduce((s, id) => s + (MEDALS.find(m => m.id === id) || { c: 0 }).c, 0);
-    const k = D.mul * (r.revenge && r.win ? 1.5 : 1);
+    const k = D.mul * (r.revenge && r.win ? 1.5 : 1) * (r.real ? 1.1 : 1); // visée réaliste : +10 %
     let credits = Math.round((r.kills * 150 + r.pens * 20 + r.crew * 12 + (r.streakCr || 0) + bonus + part) * k) + medalCr;
     let xp = Math.round((r.kills * 60 + r.pens * 8 + r.crew * 5 + (r.win ? 150 : 40) + waves * 50) * D.mul);
     const penalty = 60 * (r.ffCrew || 0) + 300 * (r.tk || 0);

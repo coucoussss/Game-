@@ -164,6 +164,20 @@
   .help { display: grid; grid-template-columns: 1fr; gap: 6px; font-size: 13px; color: #c9c4b2; }
   .help kbd { background: #2b2f23; border: 1px solid #4a503b; border-bottom-width: 2px; border-radius: 4px; padding: 1px 6px; font-family: var(--body); font-size: 12px; color: #efe3bf; }
   .opt { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 14px; border-radius: 12px; background: var(--glass); border: 1px solid var(--line2); margin-bottom: 8px; }
+  .opt small { display: block; margin-top: 3px; font-size: 11px; color: var(--mute); line-height: 1.35; }
+  .binds { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 6px; margin-bottom: 8px; }
+  .binds button { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 8px; background: var(--glass); border: 1px solid var(--line2); color: #c9c4b2; font: inherit; font-size: 12px; cursor: pointer; text-align: left; }
+  .binds button kbd { background: #2b2f23; border: 1px solid #4a503b; border-bottom-width: 2px; border-radius: 4px; padding: 1px 7px; font-size: 12px; color: #efe3bf; white-space: nowrap; }
+  .binds button.wait { border-color: var(--gold); color: var(--gold); }
+  /* pause : commandes et options dans la boîte, qui défile ; ni difficulté ni effacement en pleine bataille */
+  #pause .box { max-height: calc(100% - 16px); overflow-y: auto; overscroll-behavior: contain; }
+  #pauseHelp { margin-top: 14px; text-align: left; }
+  #pauseHelp[hidden] { display: none; }
+  #pauseHelp kbd { min-width: 64px; display: inline-block; text-align: center; margin-right: 8px; }
+  #pauseOpts .panel { margin-top: 14px; text-align: left; }
+  #pauseOpts .ptitle, #pauseOpts .opt:has(#oDiff), #pauseOpts #oReset, #pauseOpts .opt:has(#oTut) { display: none; }
+  #tutSkip { display: block; margin: 12px auto 0; background: none; border: 0; color: var(--mute); font-size: 13px; text-decoration: underline; cursor: pointer; }
+  #tutSkip[hidden] { display: none; }
   .opt select, .benchCtl select { background: #23261d; color: #efe3bf; border: 1px solid #4a503b; border-radius: 6px; padding: 6px; font: inherit; }
   input[type=range] { accent-color: var(--gold); }
   .mission { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; background: var(--glass); border: 1px solid var(--line2); margin-bottom: 8px; }
@@ -561,7 +575,24 @@
         <div class="opt"><span>Difficulty</span><select id="oDiff"></select></div>
         <div class="opt"><span>X-ray impact camera</span><select id="oHitcam"><option value="high">Highlights only</option><option value="all">Every hit</option><option value="off">Off</option></select></div>
         <div class="opt"><span>Ballistics</span><select id="oBallistics"><option value="real">Realistic: true shell velocities</option><option value="arcade">Arcade: slower shells</option></select></div>
-        <div class="btns" style="justify-content:flex-start"><button class="btn alt small" id="oReset">Erase progress</button></div>
+        <h2>Aiming</h2>
+        <div class="opt"><span>Aim assist<small>Assisted: automatic ranging and penetration indicator. Realistic: set the range yourself in the sight (wheel), read the stadia, no verdict · rewards ×1.1</small></span><select id="oAssist"><option value="assist">Assisted</option><option value="real">Realistic</option></select></div>
+        <div class="opt"><span>Aim sensitivity</span><input type="range" id="oSens" min="0.2" max="3" step="0.05"></div>
+        <div class="opt"><span>Gunner's sight sensitivity</span><input type="range" id="oSensSight" min="0.2" max="3" step="0.05"></div>
+        <div class="opt"><span>Invert vertical aim</span><input type="checkbox" id="oInvert"></div>
+        <h2>Comfort and accessibility</h2>
+        <div class="opt"><span>Camera shake</span><input type="range" id="oShake" min="0" max="1" step="0.05"></div>
+        <div class="opt"><span>Slow motion on kills</span><input type="checkbox" id="oSlowmo"></div>
+        <div class="opt"><span>Reduce motion<small>No slow motion, gentler shake and recoil</small></span><input type="checkbox" id="oCalm"></div>
+        <div class="opt"><span>Colour-blind friendly palette<small>Blue, orange and white cues with distinct shapes</small></span><input type="checkbox" id="oCb"></div>
+        <div class="opt"><span>HUD size</span><input type="range" id="oHud" min="0.8" max="1.3" step="0.05"></div>
+        <div class="opt"><span>Tutorial</span><button class="btn alt small" id="oTut">Replay</button></div>
+        <div class="kbOnly">
+          <h2>Keyboard</h2>
+          <div class="psub" style="margin:-4px 0 8px">Click an action, then press its new key (Esc cancels). Arrows, numbers, V, P and Esc keep their roles.</div>
+          <div id="bindList" class="binds"></div>
+        </div>
+        <div class="btns" style="justify-content:flex-start"><button class="btn alt small kbOnly" id="oBindReset">Default keys</button><button class="btn alt small" id="oReset">Erase progress</button></div>
       </section>
       <div id="bannerMenu" class="banner"></div>
     </div>
@@ -591,8 +622,13 @@
     <h1>PAUSE</h1>
     <div class="btns">
       <button class="btn" id="resumeBtn">Resume</button>
+      <button class="btn alt" id="pOptBtn">Options</button>
+      <button class="btn alt" id="pHelpBtn">Controls</button>
       <button class="btn alt" id="quitBtn">Withdraw</button>
     </div>
+    <div class="help" id="pauseHelp" hidden></div>
+    <div id="pauseOpts"></div>
+    <button class="lnk" id="tutSkip" hidden>Skip the tutorial</button>
     <div class="sub" style="margin:12px 0 0;font-size:13px">Withdrawing ends the battle as a defeat. Rewards earned so far are kept.</div>
   </div>
 </div>
