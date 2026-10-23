@@ -2238,7 +2238,7 @@ Meta.whenReady(() => {
       if (t === player) showMsg(`Out of ${sh.name.toLowerCase()} rounds: ${SHELLS[t.shell].name.toLowerCase()} loaded`, '#e9d9a6', 1.6);
     }
     if (t === player) {
-      waveStats.shots++; addTrauma(0.18 + T.caliber / 600);
+      waveStats.shots++; addTrauma(0.18 + T.caliber / 600); padRumble(0.6, 120);
       // recul visible : le regard de la caméra extérieure monte et le champ s'ouvre un instant
       const o = Meta.P.opts; cam3.kick = 0.03 * T.caliber / 75 * (0.4 + 0.6 * o.shake) * (o.calm ? 0.5 : 1);
     }
@@ -3137,7 +3137,7 @@ Meta.whenReady(() => {
       }
       Fx.armorHit(hx, hy, h.z, s.key === 'HEAT' ? 'heat' : 'pen', s.vx / s.sp, s.vy / s.sp);
       Sfx.penetrate(listenerDist(hx, hy));
-      if (t === player) { addTrauma(0.5); hitFrom(by, true); }
+      if (t === player) { addTrauma(0.5); hitFrom(by, true); padRumble(0.9, 220); }
     } else {
       // explosif ou charge creuse qui éclate contre la plaque, sans la percer
       if (s.key === 'HE' || (sb.heat && pen > 0)) heBlast(t, hx, hy, sb, by, E, face);
@@ -4315,6 +4315,7 @@ Meta.whenReady(() => {
   function metalRun(sim, ms, max) { const t0 = performance.now(); sim.run(clamp(16.7 - (ms - metalPrev) - 2, 1, max)); metalMs += performance.now() - t0; }
   function frameBody(now) {
     const ms = now - last, dt = Math.min(0.1, ms / 1000);
+    pollPad(dt);
     metalPrev = metalMs; metalMs = 0;
     last = now;
     if (W3D && state === 'play' && ms > 0 && ms < 1000) dynRes(Math.min(ms, 100), ms / 1000);
@@ -5392,7 +5393,8 @@ Meta.whenReady(() => {
       }
     }
     ctx.font = F(600, 11); ctx.fillStyle = 'rgba(220,215,200,0.7)';
-    ctx.fillText(touch.on ? 'SIGHT: outside view · ZOOM / pinch: magnification' : `${keyName('sight')}: outside view · wheel: ${assisted() ? 'magnification' : `range · ${keyName('zoom')}: magnification`}`, cx, cy + R - 12 * uiK);
+    ctx.fillText(device() === 'pad' ? `A: outside view · D-pad: ${assisted() ? 'magnification' : 'range · R3: magnification'}` : touch.on ? `SIGHT: outside view · ZOOM / pinch: magnification${assisted() ? '' : ' · R+ R−: range'}`
+      : `${keyName('sight')}: outside view · wheel: ${assisted() ? 'magnification' : `range · ${keyName('zoom')}: magnification`}`, cx, cy + R - 12 * uiK);
     // vent : flèche dans le repère du tireur (vers le haut = dans l'axe du tir) et composante de travers,
     // qui fait dériver les obus lents de plusieurs décimètres à 1 km
     const wf = Math.cos(ta) * WIND.x + Math.sin(ta) * WIND.y, wr = -Math.sin(ta) * WIND.x + Math.cos(ta) * WIND.y, ws = Math.hypot(wf, wr);
@@ -5684,7 +5686,7 @@ Meta.whenReady(() => {
   function drawHudOver() {
     const pp = ui.pip;
     if (pp) {
-      HitCam.draw(ctx, pp.x0, pp.y0, pp.w, pp.h, DPR * uiK, { compact: !pp.big, hint: touch.on ? 'Tap to skip' : `${keyName('xray')}: skip` });
+      HitCam.draw(ctx, pp.x0, pp.y0, pp.w, pp.h, DPR * uiK, { compact: !pp.big, hint: device() === 'pad' ? 'View: skip' : touch.on ? 'Tap to skip' : `${keyName('xray')}: skip` });
       const hev = HitCam.ev(), my = pp.y0 + pp.h + 10, mh = Math.min(pp.w * 0.62, (ui.panel ? ui.panel.top : H) - 12 - my);
       if (hev && hev.metal && pp.big && mh >= 150) drawMetalPanel(ctx, hev.metal, pp.x0, my, pp.w, mh, clamp((HitCam.time() - HitCam.T_HIT) / HitCam.T_IN, 0, 1), Math.min(1, HitCam.time() / 0.15, (HitCam.DUR - HitCam.time()) / 0.4));
     }
@@ -5789,7 +5791,7 @@ Meta.whenReady(() => {
   const MODS = [['engine', 'Engine', 'Eng'], ['trans', 'Transm.', 'Trans'], ['breech', 'Breech', 'Brch'], ['fuel', 'Fuel', 'Fuel'], ['ammo', 'Ammo', 'Ammo']];
   function drawTankPanel(P) {
     const T = player.T, { x0: bx, by, w: pw, compact } = P, wide = pw >= 540, g = player.mg;
-    const tag = k => SHELLS[k].tag || k, kb = !touch.on;
+    const tag = k => SHELLS[k].tag || k, kb = device() === 'kb';
     const rf = player.reloadT > 0 ? 1 - player.reloadT / player.reloadMax : 1;
     const rw = wide ? 96 : 0, step = Math.floor((pw - 16 - rw) / 7), sw = step - 2, sy = compact ? by + 5 : by + 52;
     ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(bx, by, pw, compact ? 40 : 90);
@@ -7229,6 +7231,57 @@ Meta.whenReady(() => {
   addEventListener('mouseup', e => { if (e.button === 2) cam3.drag = null; });
   cv.addEventListener('dblclick', () => { if (!adOn()) cam3.off = 0; });
 
+  // ===================== Manette =====================
+  // Manette standard (API Gamepad) : manche gauche = conduite, manche droit = visée, RT tir, LT
+  // mitrailleuse, LB / RB obus précédent / suivant, A lunette, B fumigène, X trappe, Y caméra, Start
+  // pause, View caméra d'impact, L3 freins, R3 grossissement, croix ↑↓ grossissement (hausse en visée
+  // réaliste), ← réparer ou éteindre, → ordre d'attaque. Tout passe par ctl et doAction, comme le toucher ;
+  // hors bataille, A et B pressent les boutons des écrans (pause, réparation, résultats, menu).
+  const pad = { prev: [], gp: null };
+  const PAD_TAP = { 0: 'sight', 1: 'smoke', 2: 'hatch', 3: 'cam', 8: 'xray', 9: 'pause', 11: 'zoom' };
+  function padRumble(k, ms) {
+    const g = pad.gp;
+    try { if (padOn && g && g.vibrationActuator) g.vibrationActuator.playEffect('dual-rumble', { duration: ms, strongMagnitude: k, weakMagnitude: k * 0.6 }); } catch (e) { /* vibreur absent */ }
+  }
+  function padRelease() { padOn = false; ctl.thr = ctl.turn = 0; ctl.fire = ctl.mg = ctl.brake = false; }
+  function padScreen(i) {
+    // bouton principal (A) ou de renoncement (B) de l'écran affiché
+    const pick = { pause: i === 0 ? '#resumeBtn' : null, revive: i === 0 ? '#revKit:not([disabled]), #revAd' : '#revNo', result: i === 0 ? '#resBtns .btn:not(.ad):not(.alt)' : '#resBtns .btn.alt', menu: i === 0 ? '#startBtn' : null }[state];
+    const el = pick && document.querySelector(pick);
+    if (el && !el.disabled) el.click();
+  }
+  function pollPad(dt) {
+    let gp = null;
+    try { for (const g of navigator.getGamepads ? navigator.getGamepads() : []) if (g && g.connected && g.mapping === 'standard') { gp = g; break; } } catch (e) { /* API absente */ }
+    pad.gp = gp;
+    if (!gp) { if (padOn) padRelease(); return; }
+    const bt = i => !!(gp.buttons[i] && (gp.buttons[i].pressed || gp.buttons[i].value > 0.5));
+    const ax = i => { const v = gp.axes[i] || 0; return Math.abs(v) < 0.15 ? 0 : (v - Math.sign(v) * 0.15) / 0.85; };
+    const now = gp.buttons.map((x, i) => bt(i)), was = pad.prev, tap = i => now[i] && !was[i];
+    if (!padOn && (now.some(Boolean) || [0, 1, 2, 3].some(i => ax(i)))) { padOn = true; setTouchMode(false); }
+    pad.prev = now;
+    if (!padOn) return;
+    const fight = inBattle() && player && !player.dead && !player.ai;
+    if (!inBattle()) { if (tap(0) || tap(1)) padScreen(tap(0) ? 0 : 1); if (tap(9)) doAction('pause'); ctl.fire = ctl.mg = false; return; }
+    for (const i in PAD_TAP) if (tap(i)) doAction(PAD_TAP[i]);
+    if (player && player.dead) { if (tap(0)) specIdx++; if (tap(2)) takeCommand(); }
+    if (!fight) { ctl.thr = ctl.turn = 0; ctl.fire = ctl.mg = false; return; }
+    ctl.thr = -ax(1); ctl.turn = ax(0); ctl.fire = bt(7); ctl.mg = bt(6); ctl.brake = bt(10);
+    if (tap(4) || tap(5)) cycleShell(tap(4) ? -1 : 1);
+    if (tap(12) || tap(13)) { const d = tap(12) ? 1 : -1; if (sight.on && !assisted()) setRange(d); else if (sight.on) sight.mag = clamp(sight.mag + d, 0, MAGS.length - 1); else cam3.dist = clamp(cam3.dist * (d > 0 ? 0.8 : 1.25), 14, 160); }
+    if (tap(14)) doAction(player.trackT > 0 ? 'repair' : player.fires.length ? 'ext' : 'bail');
+    if (tap(15)) doAction('attack');
+    // visée au manche droit, en déplacement relatif (comme un curseur verrouillé)
+    const o = Meta.P.opts, iy = o.invertY ? -1 : 1, rx = ax(2), ry = ax(3);
+    if (rx || ry) {
+      touch.rel = true;
+      if (sight.on) { sight.cx += rx * 600 * dt * o.sensSight; sight.cy += ry * 450 * dt * o.sensSight * iy; }
+      else { mouse.x = clamp(mouse.x + rx * 900 * dt * o.sens, 0, W); mouse.y = clamp(mouse.y + ry * 500 * dt * o.sens * iy, H * 0.25, H * 0.7); }
+    }
+  }
+  addEventListener('keydown', () => { if (padOn) padRelease(); });
+  addEventListener('mousemove', e => { if (padOn && Math.abs(e.movementX || 0) + Math.abs(e.movementY || 0) > 3) padRelease(); });
+
   // ===================== Commandes tactiles =====================
   // Téléphones, tablettes et iPad avec clavier : manche flottant à gauche (gaz et direction), glisser
   // ailleurs pour viser (comme un curseur verrouillé), boutons dessinés sur le canevas 2D. Le calque
@@ -7261,9 +7314,9 @@ Meta.whenReady(() => {
   const alive = () => player && !player.dead && !player.ai && inBattle();
   const ownedShells = () => SHELL_KEYS.filter(k => player.ammo[k] > 0);
   const shellAct = k => 'shell' + (SHELL_KEYS.indexOf(k) + 1);
-  function cycleShell() {
+  function cycleShell(dir = 1) {
     const l = ownedShells(), cur = player.nextShell || player.shell;
-    const nx = l[(l.indexOf(cur) + 1) % l.length];
+    const nx = l[(l.indexOf(cur) + dir + l.length) % l.length];
     if (nx && nx !== cur) doAction(shellAct(nx));
   }
   // Boutons : grappe de droite (at : décalage depuis le coin inférieur droit, r : rayon ≥ 24 px) et
@@ -7272,7 +7325,7 @@ Meta.whenReady(() => {
     { at: [-84, -96], r: 44, label: 'FIRE', hold: v => { ctl.fire = v; if (v) ctl.tap = true; } },
     { at: [-186, -62], r: 28, label: 'MG', hold: v => { ctl.mg = v; } },
     { at: [-176, -164], r: 28, label: () => sight.on ? 'OUT' : 'SIGHT', key: 'sight' },
-    { at: [-84, -206], r: 28, label: () => SHELLS[player.nextShell || player.shell].tag || (player.nextShell || player.shell), sub: 'AMMO', tap: cycleShell },
+    { at: [-84, -206], r: 28, label: () => SHELLS[player.nextShell || player.shell].tag || (player.nextShell || player.shell), sub: 'AMMO', tap: () => cycleShell() },
     { at: [-262, -150], r: 26, label: () => `×${MAGS[sight.mag]}`, sub: 'ZOOM', show: () => sight.on, tap: () => { sight.mag = (sight.mag + 1) % MAGS.length; } },
     { at: [-262, -212], r: 24, label: 'R+', sub: 'RANGE', show: () => sight.on && !assisted(), key: 'rangeUp' },
     { at: [-262, -88], r: 24, label: 'R−', sub: 'RANGE', show: () => sight.on && !assisted(), key: 'rangeDown' },
@@ -7487,7 +7540,7 @@ Meta.whenReady(() => {
         shells.push(s);
         return s;
       },
-      giveOrder, get orders() { return orders; }, get aiSkillK() { return aiSkillK; }, set aiSkillK(k) { aiSkillK = k; }, get form() { return waveForm; }, losClear,
+      giveOrder, get ctl() { return ctl; }, get orders() { return orders; }, get aiSkillK() { return aiSkillK; }, set aiSkillK(k) { aiSkillK = k; }, get form() { return waveForm; }, losClear,
       place(t, x, y, angle, turret) { t.x = x; t.y = y; t.angle = angle; if (turret != null) t.turret = turret; t.vx = t.vy = t.speed = 0; },
       get meta() { return Meta.P; },
       kill(i, det) { const e = tanks.filter(t => t.team === 1 && !t.dead)[i || 0]; if (e) destroyTank(e, player, !!det); return !!e; },
