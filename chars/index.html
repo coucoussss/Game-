@@ -223,8 +223,17 @@
   #resTitle.win { color: var(--green); text-shadow: 0 0 30px rgba(143, 212, 106, 0.3); }
   #resTitle.lose { color: var(--red); text-shadow: 0 0 30px rgba(255, 106, 80, 0.25); }
   .box .sub { color: var(--mute); margin: 6px 0 16px; }
-  #resTable { margin: 0 auto; min-width: 300px; font-size: 14px; }
-  #resTable td { padding: 6px 14px; border-bottom: 1px solid var(--line2); text-align: left; }
+  /* résultats : gains et boutons d'abord, rapport en deux colonnes (replié sur les petits écrans),
+     boutons collés au bas de la boîte qui défile */
+  #result .box { max-height: calc(100% - 16px); overflow-y: auto; overscroll-behavior: contain; }
+  body.cg #result .box { max-height: calc(100% - 124px); }
+  #resDet { margin-top: 12px; text-align: left; }
+  #resDet summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; text-align: center; padding: 4px; }
+  #resTable { display: block; margin: 6px auto 0; font-size: 14px; }
+  #resTable tbody { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); column-gap: 18px; }
+  #resTable tr { display: flex; justify-content: space-between; gap: 10px; border-bottom: 1px solid var(--line2); }
+  #resTable td { padding: 6px 4px; text-align: left; }
+  #resBtns { position: sticky; bottom: 0; z-index: 1; margin: 16px -26px -28px; padding: 12px 26px 18px; background: linear-gradient(rgba(28, 31, 24, 0), rgba(28, 31, 24, 0.95) 30%); border-radius: 0 0 20px 20px; }
   #resTable td:last-child { text-align: right; font-weight: 600; color: #f0e2b0; }
   #resTable td.bad { color: var(--amber) !important; }
   .rewards { display: flex; gap: 12px; justify-content: center; margin-top: 18px; flex-wrap: wrap; }
@@ -383,6 +392,20 @@
   }
   /* iframe basse (640×360, 800×450) : bouton de départ plus compact, panneau qui défile sous lui,
      annonces en bas pour ne pas couvrir le grade et les crédits */
+  @media (max-height: 600px) {
+    .box { padding: 14px 16px; }
+    .box h1 { font-size: 30px; }
+    .box .sub { margin: 2px 0 8px; font-size: 13px; }
+    .rewards { margin-top: 8px; }
+    .rw { padding: 6px 14px; min-width: 120px; }
+    .rw b { font-size: 22px; }
+    #resTable { font-size: 12px; }
+    #resTable td { padding: 3px 4px; }
+    #resGoals { margin-top: 8px; gap: 4px; }
+    .goal { padding: 5px 10px; }
+    #resBtns { margin: 10px -16px -14px; padding: 10px 16px 12px; }
+    .btns { margin-top: 12px; }
+  }
   @media (max-height: 520px) {
     .topbar { padding-top: 8px; padding-bottom: 6px; }
     .topbar .logo .l1 { font-size: 24px; }
@@ -554,10 +577,10 @@
   <div class="box">
     <h1 id="resTitle">WAVE WON</h1>
     <div class="sub" id="resSub"></div>
-    <table id="resTable"></table>
     <div class="rewards"><div class="rw"><small>Credits</small><b id="rwCred">0</b></div><div class="rw xp"><small>Experience</small><b id="rwXp">0</b></div></div>
     <div class="lvup" id="lvUp"></div>
     <div id="resGoals"></div>
+    <details id="resDet"><summary id="resSum">Battle report</summary><table id="resTable"></table></details>
     <div class="btns" id="resBtns"></div>
   </div>
   <div id="bannerRes" class="banner"></div>

@@ -6403,8 +6403,12 @@ Meta.whenReady(() => {
       if (rc.beat) notes.push(`<div class="note rec">NEW RECORD · ${lab}</div>`);
     }
     const g = Meta.battleEnd(Object.assign({ mode, ffCrew: ws.ffCrew, tk: ws.tk, time: waveTime, medals: ws.medals, streakCr: ws.streakCr, revenge: ws.revenge, level: levelIdx, tank: chosenType, td: !!T.arc, untouched: !ws.pened }, r));
-    const btns = $('resBtns');
+    const btns = $('resBtns'), nm = ws.medals.length;
     btns.innerHTML = '';
+    // rapport de bataille replié sur les petits écrans : gains et boutons restent visibles
+    $('resDet').open = innerHeight >= 620;
+    $('resSum').textContent = 'Battle report' + (nm ? ` · ${nm} medal${nm > 1 ? 's' : ''}` : '');
+    $('result').querySelector('.box').scrollTop = 0;
     $('resTable').insertAdjacentHTML('beforeend', medalRows(ws) + (ws.streakCr ? `<tr><td>Kill streak bonus</td><td>+✪ ${fmt(ws.streakCr)}</td></tr>` : '') +
       (ws.revenge && r.win ? '<tr><td>Revenge bonus</td><td>×1.5</td></tr>' : '') + (Meta.diff().mul !== 1 ? `<tr><td>${Meta.diff().name} difficulty</td><td>×${Meta.diff().mul}</td></tr>` : '') +
       (g.penalty ? `<tr><td>Friendly fire penalty</td><td class="bad">−✪ ${fmt(g.penalty)}</td></tr>` : ''));
