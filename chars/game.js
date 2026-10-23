@@ -236,13 +236,16 @@ Meta.whenReady(() => {
   };
   const QL = () => QUALITY[Meta.P.opts.quality] || QUALITY.haute;
   let QDPR = 2, PCAP = 2600; // qualité graphique : résolution maximale et nombre de particules
-  let W = 0, H = 0, DPR = 1, S = 1, redraw = false;
+  let W = 0, H = 0, DPR = 1, S = 1, uiK = 1, redraw = false;
   function resize() {
     DPR = Math.min(QDPR, window.devicePixelRatio || 1);
     W = innerWidth; H = innerHeight;
     cv.width = W * DPR; cv.height = H * DPR;
     cv.style.width = W + 'px'; cv.style.height = H + 'px';
     S = clamp(Math.min(W / 1200, H / 740), 0.5, 1.6);
+    // échelle de l'interface : 1 en 1280×720, jamais sous 0,8 (lisible en 640×360), croissance
+    // adoucie au-delà (×1,36 en 1080p), multipliée par le réglage « taille de l'interface »
+    uiK = clamp(Math.pow(Math.min(W / 1280, H / 720), 0.75), 0.8, 2) * (Meta.P.opts.hud || 1);
     redraw = true; // canevas vidés : image figée à redessiner
   }
   addEventListener('resize', resize);
@@ -259,7 +262,7 @@ Meta.whenReady(() => {
   const spotted = [new Set(), new Set()];
   let spotTimer = 0, waveTime = 0, introT = 0, endT = 0, waveResult = null, gameTime = 0;
   let groundCv = null, gctx = null;
-  let waveStats = null, campaignScore = 0, msg = null, ffMsgT = 0;
+  let waveStats = null, campaignScore = 0, msgs = [], ffMsgT = 0, helpT = 0;
   // secteur en cours : score cumulé des vagues gagnées et alliés détruits par le joueur (étoiles) ;
   // retried : vagues déjà reprises dans la session (la prime de revanche ne vaut qu'à la première reprise)
   let sectorScore = 0, sectorTk = 0;
@@ -274,13 +277,15 @@ Meta.whenReady(() => {
   let mode = 'campagne', survWave = 0, nextWaveT = 0, duelScore = [0, 0], enemyN = 0;
   // vue du tireur : lunette à grossissement fixe, la souris oriente la visée
   const MAGS = [2.5, 5, 8];
-  const sight = { on: false, yaw: 0, pitch: 0, cx: 0, cy: 0, aimYaw: 0, aimPitch: 0, mag: 0, probe: null, probeT: 0, dust: false, z0: 2, gunPitch: 0 };
+  const sight = { on: false, yaw: 0, pitch: 0, cx: 0, cy: 0, aimYaw: 0, aimPitch: 0, mag: 0, probe: null, probeT: 0, dust: false, z0: 2, gunPitch: 0, rangeSet: 400 };
   const mouse = { x: W / 2, y: H / 2, down: false };
   const keys = {};
   // État de commande partagé, alimenté par les commandes tactiles (et demain par d'autres sources :
   // manette, couche d'entrées centrale) : axes analogiques et commandes maintenues, que playerInput
   // ajoute au clavier et à la souris. tap : tir demandé par une pression brève, consommé au pas suivant.
-  const ctl = { thr: 0, turn: 0, fire: false, tap: false, mg: false };
+  const ctl = { thr: 0, turn: 0, fire: false, tap: false, mg: false, brake: false };
+  // préréglage de visée : « assisté » (télémétrie automatique et verdict de perforation) ou « réaliste »
+  const assisted = () => Meta.P.opts.assist !== 'real';
 
   // secteurs de campagne ouverts (profil sauvegardé, borné au nombre de secteurs)
   const unlockedIdx = () => Math.min(Meta.P.unlocked, LEVELS.length - 1);
@@ -873,7 +878,7 @@ Meta.whenReady(() => {
     hideDeadBar();
     if (mode === 'campagne' && waveIdx === 0) addLog('Radio orders: 8 attack my target · 9 follow me · 0 hold · N move there', '#bcd8ff');
     Meta.sdk.gameplayStart();
-    msg = null;
+    msgs = [];
   }
 
   // Survie : la vague n arrive d'un bord ou d'un coin éloigné du joueur, tiré au sort, plus nombreuse,
@@ -3732,9 +3737,23 @@ Meta.whenReady(() => {
     Sfx.critical(k[1]);
   }
   function floatText(x, y, text, color, scale = 1) { texts.push({ x, y, text, color, life: 1.4, max: 1.4, scale }); }
-  function showMsg(text, color, life = 2) { msg = { text, color, life, max: life }; }
+  // Messages du centre : deux lignes au plus ; un nouveau message ne chasse qu'un message de priorité
+  // inférieure ou égale (le plus ancien), jamais un plus important (pri : 0 réglage, 1 avis, 2 et plus fait de jeu)
+  function showMsg(text, color, life = 2, pri = life >= 2 ? 1 : 0) {
+    const same = msgs.find(m => m.text === text);
+    if (same) { same.life = Math.max(same.life, life); return; }
+    if (msgs.length >= 2) {
+      let i = -1;
+      msgs.forEach((m, j) => { if (m.pri <= pri && (i < 0 || m.pri < msgs[i].pri)) i = j; });
+      if (i < 0) return;
+      msgs.splice(i, 1);
+    }
+    msgs.push({ text, color, life, max: life, pri });
+  }
   function addLog(text, color) { logs.unshift({ text, color, life: 6 }); if (logs.length > 6) logs.pop(); if (inBattle()) Sfx.intercom(); }
 
+  function xrayKey() { hitcamOn = !hitcamOn; if (!hitcamOn) HitCam.stop(); showMsg(hitcamOn ? 'Impact camera on' : 'Impact camera off', '#bcd8ff', 1.4); }
+  function tutDone() {}
   function startHitCam(ev) {
     if (!ev.after) ev.after = ev.before.slice();
     HitCam.play(ev);
@@ -3784,7 +3803,7 @@ Meta.whenReady(() => {
     for (let i = feed.length - 1; i >= 0; i--) { feed[i].life -= dt; if (feed[i].life <= 0) feed.splice(i, 1); }
     for (let i = ribbons.length - 1; i >= 0; i--) if ((ribbons[i].life -= dt) <= 0) ribbons.splice(i, 1);
     for (let i = logs.length - 1; i >= 0; i--) { logs[i].life -= dt; if (logs[i].life <= 0) logs.splice(i, 1); }
-    if (msg) { msg.life -= dt; if (msg.life <= 0) msg = null; }
+    for (let i = msgs.length - 1; i >= 0; i--) if ((msgs[i].life -= dt) <= 0) msgs.splice(i, 1);
   }
 
   // ===================== Boucle =====================
@@ -3792,20 +3811,19 @@ Meta.whenReady(() => {
   function worldToScreen(x, y, z = 1.6) { if (W3D && cam3.vp) return project3(x, y, z); return { x: (x - camX) * S + W / 2, y: (y - camY) * S + H / 2 }; }
 
   function playerInput() {
-    const k = keys;
     let thr = 0, turn = 0;
-    if (k.KeyW || k.ArrowUp) thr += 1;
-    if (k.KeyS || k.ArrowDown) thr -= 1;
-    if (k.KeyA || k.ArrowLeft) turn -= 1;
-    if (k.KeyD || k.ArrowRight) turn += 1;
+    if (held('fwd')) thr += 1;
+    if (held('back')) thr -= 1;
+    if (held('left')) turn -= 1;
+    if (held('right')) turn += 1;
     thr = clamp(thr + ctl.thr, -1, 1); turn = clamp(turn + ctl.turn, -1, 1);
     const pv = pivot(player);
     const m = W3D && cam3.view && !sight.on ? (player.aim3 = aimRay3(mouse.x, mouse.y)) : screenToWorld(mouse.x, mouse.y);
     if (!(W3D && cam3.view && !sight.on)) player.aim3 = { x: m.x, y: m.y, z: 1.5 };
-    player.in.throttle = thr; player.in.turn = turn; player.in.brake = !!k.KeyX;
+    player.in.throttle = thr; player.in.turn = turn; player.in.brake = held('brake') || ctl.brake;
     player.in.aim = sight.on ? sight.aimYaw : Math.atan2(m.y - pv.y, m.x - pv.x);
-    player.in.mg = !!k.KeyF || (sight.on && mouse.right) || ctl.mg;
-    player.in.fire = mouse.down || !!k.Space || ctl.fire || ctl.tap;
+    player.in.mg = held('mg') || (sight.on && mouse.right) || ctl.mg;
+    player.in.fire = mouse.down || held('fire') || ctl.fire || ctl.tap;
     ctl.tap = false;
   }
 
@@ -4302,6 +4320,8 @@ Meta.whenReady(() => {
       showMsg(`Gunner sight · ×${MAGS[sight.mag]}`, '#bcd8ff', 1);
     }
   }
+  // préréglage réaliste : hausse réglée à la main sur le tambour des distances, par pas de 50 m
+  function setRange(dir) { sight.rangeSet = clamp(sight.rangeSet + dir * 50, 0, 2000); }
   // Lunette du tireur, coaxiale au canon, à gauche du masque. Sans stabilisateur (aucun char de
   // l'époque n'en avait), l'image tremble quand le char roule ou pivote, et saute au départ du coup.
   function sightCam(dt) {
@@ -4950,7 +4970,8 @@ Meta.whenReady(() => {
   }
 
   // ===================== Lunette du tireur =====================
-  const sightR = () => Math.min(W, H - 130) * 0.5;
+  // rayon de l'oculaire : entre le bandeau du score et la rangée des obus, à l'échelle de l'interface
+  const sightR = () => Math.max(60, Math.min(W / 2, H / 2 - 60 * uiK));
   function drawSightMask() {
     const R = sightR(), cx = W / 2, cy = H / 2, vd = ownVeil(player);
     // poussière soulevée par le départ du coup : la lunette est voilée un instant
@@ -4986,7 +5007,7 @@ Meta.whenReady(() => {
     // réglette des distances (en hectomètres), curseur sur la distance télémétrée
     const pr = sight.probe, dm = pr && pr.kind !== 'sky' ? pr.dist * RK : null;
     const sx = cx - R * 0.72, sy0 = cy - R * 0.45, sy1 = cy + R * 0.45;
-    ctx.lineWidth = 1; ctx.font = '600 10px system-ui, sans-serif'; ctx.textAlign = 'right';
+    ctx.lineWidth = 1; ctx.font = F(600, 10); ctx.textAlign = 'right';
     for (let hm = 0; hm <= 20; hm++) {
       const y = sy1 - (sy1 - sy0) * hm / 20, big = hm % 4 === 0;
       ctx.beginPath(); ctx.moveTo(sx, y); ctx.lineTo(sx + (big ? 10 : 5), y); ctx.stroke();
@@ -5026,41 +5047,41 @@ Meta.whenReady(() => {
       ctx.fillStyle = pr && pr.kind === 'tank' && !sight.dust ? verdictOf(pr).col : '#fff';
       ctx.beginPath(); ctx.arc(mx, my, 1.8, 0, TAU); ctx.fill();
       if (dm != null) {
-        ctx.font = '600 11px system-ui, sans-serif'; ctx.textAlign = 'left';
+        ctx.font = F(600, 11); ctx.textAlign = 'left';
         const tx = `${Math.round(dm)} m · ${Math.round(penAt(player.T, player.shell, pr.dist))} mm`;
-        ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillText(tx, mx + 19, my + 17);
-        ctx.fillStyle = '#fff'; ctx.fillText(tx, mx + 18, my + 16);
+        ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillText(tx, mx + 19 * uiK, my + 17 * uiK);
+        ctx.fillStyle = '#fff'; ctx.fillText(tx, mx + 18 * uiK, my + 16 * uiK);
       }
     }
 
     // indicateur de perforation sous le réticule
     ctx.textAlign = 'center';
     const sb = SHELLS[player.shell];
-    ctx.font = '700 13px system-ui, sans-serif';
+    ctx.font = F(700, 13);
     const top = `×${MAGS[sight.mag]} · ${sb.name}${dm != null ? ` · ${Math.round(dm)} m · ${Math.round(penAt(player.T, player.shell, pr.dist))} mm` : ''}`;
     ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillText(top, cx + 1, cy + R * 0.42 + 1);
     ctx.fillStyle = '#e9d9a6'; ctx.fillText(top, cx, cy + R * 0.42);
-    if (sight.dust) { ctx.font = '700 14px system-ui, sans-serif'; ctx.fillStyle = '#e9d9a6'; ctx.fillText('Muzzle dust: target obscured', cx, cy + R * 0.55); }
+    if (sight.dust) { ctx.font = F(700, 14); ctx.fillStyle = '#e9d9a6'; ctx.fillText('Muzzle dust: target obscured', cx, cy + R * 0.55); }
     else if (pr && pr.kind === 'tank') {
       const t = pr.tank, ally = t.team === 0, { col, verdict } = verdictOf(pr);
       const l1 = `${t.T.name}${ally ? ' (ally)' : ''} · ${verdict}`;
       const l2 = t.dead ? '' : `${pr.plate}: ${pr.mm} mm at ${Math.round(pr.angle)}° → ${Math.round(pr.eff)} mm effective · penetration ${Math.round(pr.pen)} mm${pr.wall > 0 ? ` (through wall: −${pr.wall} mm)` : ''}`;
-      ctx.font = '700 14px system-ui, sans-serif';
+      ctx.font = F(700, 14);
       ctx.fillStyle = 'rgba(0,0,0,0.65)'; ctx.fillText(l1, cx + 1, cy + R * 0.55 + 1);
       ctx.fillStyle = col; ctx.fillText(l1, cx, cy + R * 0.55);
       if (l2) {
-        ctx.font = '600 12px system-ui, sans-serif';
-        ctx.fillStyle = 'rgba(0,0,0,0.65)'; ctx.fillText(l2, cx + 1, cy + R * 0.55 + 19);
-        ctx.fillStyle = '#e8e4d8'; ctx.fillText(l2, cx, cy + R * 0.55 + 18);
+        ctx.font = F(600, 12);
+        ctx.fillStyle = 'rgba(0,0,0,0.65)'; ctx.fillText(l2, cx + 1, cy + R * 0.55 + 19 * uiK);
+        ctx.fillStyle = '#e8e4d8'; ctx.fillText(l2, cx, cy + R * 0.55 + 18 * uiK);
         // risques de ricochet et de bris de l'obus chargé sur cette plaque
         const l3 = `ricochet ${Math.round(pr.ric * 100)}%${pr.shat >= 0.01 ? ` · shatter risk ${Math.round(pr.shat * 100)}%` : ''}`;
-        ctx.font = '600 11px system-ui, sans-serif';
-        ctx.fillStyle = 'rgba(0,0,0,0.65)'; ctx.fillText(l3, cx + 1, cy + R * 0.55 + 35);
-        ctx.fillStyle = pr.ric > 0.5 || pr.shat > 0.4 ? '#ffb070' : '#c9c4b2'; ctx.fillText(l3, cx, cy + R * 0.55 + 34);
+        ctx.font = F(600, 11);
+        ctx.fillStyle = 'rgba(0,0,0,0.65)'; ctx.fillText(l3, cx + 1, cy + R * 0.55 + 35 * uiK);
+        ctx.fillStyle = pr.ric > 0.5 || pr.shat > 0.4 ? '#ffb070' : '#c9c4b2'; ctx.fillText(l3, cx, cy + R * 0.55 + 34 * uiK);
       }
     }
-    ctx.font = '600 11px system-ui, sans-serif'; ctx.fillStyle = 'rgba(220,215,200,0.7)';
-    ctx.fillText(touch.on ? 'SIGHT: outside view · ZOOM / pinch: magnification' : 'Shift: outside view · wheel: magnification', cx, cy - R * 0.72);
+    ctx.font = F(600, 11); ctx.fillStyle = 'rgba(220,215,200,0.7)';
+    ctx.fillText(touch.on ? 'SIGHT: outside view · ZOOM / pinch: magnification' : `${keyName('sight')}: outside view · wheel: ${assisted() ? 'magnification' : `range · ${keyName('zoom')}: magnification`}`, cx, cy + R - 12 * uiK);
     // vent : flèche dans le repère du tireur (vers le haut = dans l'axe du tir) et composante de travers,
     // qui fait dériver les obus lents de plusieurs décimètres à 1 km
     const wf = Math.cos(ta) * WIND.x + Math.sin(ta) * WIND.y, wr = -Math.sin(ta) * WIND.x + Math.cos(ta) * WIND.y, ws = Math.hypot(wf, wr);
@@ -5072,8 +5093,8 @@ Meta.whenReady(() => {
       ctx.beginPath(); ctx.moveTo(wx - ax * 10, wy - ay * 10); ctx.lineTo(wx + ax * 10, wy + ay * 10); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(wx + ax * 11, wy + ay * 11); ctx.lineTo(wx + ax * 4 - ay * 4, wy + ay * 4 + ax * 4); ctx.lineTo(wx + ax * 4 + ay * 4, wy + ay * 4 - ax * 4); ctx.closePath(); ctx.fill();
     }
-    ctx.font = '600 10.5px system-ui, sans-serif';
-    ctx.fillText(ws < 0.3 ? 'Wind: calm' : `Wind ${ws.toFixed(1)} m/s · ${Math.abs(wr).toFixed(1)} from the ${wr > 0 ? 'left' : 'right'}`, wx, wy + 26);
+    ctx.font = F(600, 10.5);
+    ctx.fillText(ws < 0.3 ? 'Wind: calm' : `Wind ${ws.toFixed(1)} m/s · ${Math.abs(wr).toFixed(1)} from the ${wr > 0 ? 'left' : 'right'}`, wx, wy + 26 * uiK);
   }
 
   // ennemis repérés : chevron au-dessus d'eux, ou flèche au bord de l'écran s'ils sont hors champ
@@ -5081,8 +5102,9 @@ Meta.whenReady(() => {
     const f = camFocus();
     if (!W3D || !cam3.vp || !f) return;
     // marges : bandeau du haut, panneau du bas
-    const mx0 = 26, my0 = 70, my1 = H - 120, cx = W / 2, cy = (my0 + my1) / 2;
-    ctx.textAlign = 'center'; ctx.font = '700 11px system-ui, sans-serif';
+    const mx0 = 26 * uiK, my0 = 64 * uiK, my1 = ui.panel ? ui.panel.top * uiK - 10 : H - 120 * uiK, cx = W / 2, cy = (my0 + my1) / 2;
+    const mmx = ui.mm ? ui.mm.x0 * uiK - 20 : W, mmy = ui.mm ? ui.mm.bottom * uiK + 22 : 0;
+    ctx.textAlign = 'center'; ctx.font = F(700, 11);
     for (const t of tanks) {
       if (t.dead || t.team === 0 || !visibleToPlayer(t)) continue;
       const d = Math.round(Math.hypot(t.x - f.x, t.y - f.y) * RK);
@@ -5101,7 +5123,7 @@ Meta.whenReady(() => {
       let dx = p.x - cx, dy = p.y - cy;
       if (p.behind) { dx = -dx; dy = -dy; }
       const a = Math.atan2(dy, dx), k = Math.min((W / 2 - mx0) / Math.abs(Math.cos(a) || 1e-6), ((my1 - my0) / 2) / Math.abs(Math.sin(a) || 1e-6));
-      const ex = cx + Math.cos(a) * k, ey = cy + Math.sin(a) * k;
+      const ex = cx + Math.cos(a) * k, ey = Math.max(cy + Math.sin(a) * k, ex > mmx ? mmy : 0); // jamais sous la mini-carte
       ctx.save(); ctx.translate(ex, ey); ctx.rotate(a);
       ctx.beginPath(); ctx.moveTo(12, 0); ctx.lineTo(-6, -8); ctx.lineTo(-2, 0); ctx.lineTo(-6, 8); ctx.closePath();
       ctx.stroke(); ctx.fill(); ctx.restore();
@@ -5136,7 +5158,7 @@ Meta.whenReady(() => {
       ctx.fillRect(p.x - w / 2, p.y, w * f, 4);
       if (t.fires.length) { ctx.fillStyle = '#ff9a3a'; ctx.fillRect(p.x + w / 2 + 3, p.y - 1, 5, 6); }
       if (t !== player) {
-        ctx.font = '600 10px system-ui, sans-serif';
+        ctx.font = F(600, 10);
         ctx.fillStyle = t.team === 0 ? '#a8d0ff' : '#ffb0a8';
         ctx.fillText(t.T.name + (t.team === 0 ? ' · ' + t.name.replace('Ally ', 'A') : ''), p.x, p.y - 4);
       }
@@ -5145,7 +5167,7 @@ Meta.whenReady(() => {
       const p = worldToScreen(tx.x, tx.y, 2.6 + (1 - tx.life / tx.max) * 1.5);
       if (p.behind) continue;
       const a = Math.min(1, tx.life / tx.max * 2);
-      ctx.font = `700 ${Math.round(13 * tx.scale)}px system-ui, sans-serif`;
+      ctx.font = F(700, Math.round(13 * tx.scale));
       ctx.fillStyle = 'rgba(0,0,0,' + a * 0.7 + ')';
       ctx.fillText(tx.text, p.x + 1, p.y + 1);
       ctx.globalAlpha = a; ctx.fillStyle = tx.color; ctx.fillText(tx.text, p.x, p.y); ctx.globalAlpha = 1;
@@ -5167,48 +5189,110 @@ Meta.whenReady(() => {
   }
 
   const CREW_ABBR = { driver: 'Dr', radio: 'Rd', gunner: 'Gn', commander: 'Cm', loader: 'Ld' };
-  function drawHUD() {
+  // ===================== Interface de bataille =====================
+  // Dessin dans le repère virtuel de l'interface (W/uiK × H/uiK) : W et H prennent ces valeurs le temps
+  // du dessin, si bien que les projections du monde (worldToScreen) y tombent juste
+  function inUI(fn) {
+    const w = W, h = H;
+    W = w / uiK; H = h / uiK;
+    ctx.save(); ctx.scale(uiK, uiK);
+    try { fn(); } finally { ctx.restore(); W = w; H = h; }
+  }
+  // police réduite pour qu'un texte tienne dans une largeur
+  function fitFont(text, max, px, wt = 700) {
+    ctx.font = `${wt} ${px}px system-ui, sans-serif`;
+    const w = ctx.measureText(text).width;
+    if (w > max) ctx.font = `${wt} ${Math.max(8, px * max / w).toFixed(1)}px system-ui, sans-serif`;
+  }
+  const F = (wt, px) => `${wt} ${(px * uiK).toFixed(1)}px system-ui, sans-serif`; // police à l'échelle, hors du repère virtuel
+  const hudTitle = () => {
     const lv = L();
-    ctx.textAlign = 'center';
-    ctx.font = '600 14px system-ui, sans-serif';
-    ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(W / 2 - 190, 8, 380, 46);
-    ctx.fillStyle = '#e9d9a6';
-    ctx.fillText(mode === 'survie' ? `Survival · ${lv.name} · Wave ${survWave}${nextWaveT > 0 ? ` · next in ${Math.ceil(nextWaveT)} s` : ''}`
+    return mode === 'survie' ? `Survival · ${lv.name} · Wave ${survWave}${nextWaveT > 0 ? ` · next in ${Math.ceil(nextWaveT)} s` : ''}`
       : mode === 'duel' ? `Duel · ${lv.name} · Round ${duelScore[0] + duelScore[1] + 1} · ${duelScore[0]} – ${duelScore[1]}`
-      : `Sector ${levelIdx + 1} · ${lv.name} · Wave ${waveIdx + 1}/${WAVES}`, W / 2, 26);
-    if (DEV) { // ?debug : cadence et résolution dynamique du rendu 3D
-      ctx.textAlign = 'left'; ctx.font = '600 11px system-ui, sans-serif'; ctx.fillStyle = '#9fd0ff';
-      ctx.fillText(`${Math.round(1000 / dyn.ema)} fps · 3D ${Math.round(dyn.k * 100)}% · DPR ${DPR}`, 8, H - 8);
-      ctx.textAlign = 'center'; ctx.font = '600 14px system-ui, sans-serif';
+      : `Sector ${levelIdx + 1} · ${lv.name} · Wave ${waveIdx + 1}/${WAVES}`;
+  };
+  // Mise en page de l'image (repère virtuel) : mini-carte en haut à droite, bandeau du score entre les
+  // boutons tactiles et la mini-carte, panneau du char en bas (réduit à la lunette, resserré et décalé
+  // entre le manche et les boutons de tir en tactile), journal à gauche ou au-dessus du panneau,
+  // colonne centrale (messages, bandeaux) et caméra d'impact en incrustation
+  const ui = { mm: null, bar: null, panel: null, logY: 0, pip: null, half: 300, feedW: 300, feedY: 0 };
+  function layoutUI() {
+    const tch = touch.on && inBattle(), k = uiK, [, , sb, sl] = touch.safe;
+    const mw = Math.min(230, W * 0.22), mh = WH * mw / WW;
+    const mm = ui.mm = { x0: W - mw - 12, y0: 12, w: mw, h: mh, bottom: 15 + mh };
+    ctx.font = '600 14px system-ui, sans-serif';
+    const title = hudTitle(), tw = Math.max(250, ctx.measureText(title).width + 30);
+    let lt = 10;
+    if (tch) for (const q of touch.btns) if (q.b.row === 1) lt = Math.max(lt, (q.x + q.w) / k + 8);
+    const rt = mm.x0 - 10, bw = Math.min(tw, rt - lt), bc = clamp(W / 2, lt + bw / 2, rt - bw / 2);
+    ui.bar = { x0: bc - bw / 2, x1: bc + bw / 2, cx: bc, title };
+    // panneau : 560 de large, 380 au moins quand les boutons tactiles le serrent
+    const compact = sight.on, top = compact ? 48 : 120;
+    let pl = 10, pr = W - 10;
+    if (tch) {
+      pl = (sl + 166) / k;
+      for (const q of touch.btns) if (q.r && q.cy + q.r > (H - top) * k) pr = Math.min(pr, (q.cx - q.r - 10) / k);
     }
+    const pw = clamp(pr - pl, 380, 560);
+    if (pr - pl < pw) pl = Math.max(10, pr - pw);
+    const pcx = clamp(W / 2, pl + pw / 2, Math.max(pl + pw / 2, pr - pw / 2));
+    ui.panel = player ? { x0: pcx - pw / 2, x1: pcx + pw / 2, w: pw, top: H - top, by: compact ? H - 46 : H - 98, compact } : null;
+    // incrustation de la caméra d'impact : sous la mini-carte sur grand écran ; ailleurs à sa place,
+    // au-dessus des boutons de tir en tactile
+    ui.pip = null;
+    if (HitCam.active()) {
+      const big = W >= 1150 && !tch;
+      let cw, ch, x0, y0;
+      if (big) { cw = Math.min(420, W * 0.3); y0 = mm.bottom + 14; ch = Math.min(cw * 0.66, (ui.panel ? ui.panel.top : H) - 12 - y0); x0 = W - cw - 14; }
+      else {
+        cw = Math.min(300, W - 24 - ui.bar.x1); ch = cw * 0.66; y0 = 12;
+        if (tch) { let tb = H; for (const q of touch.btns) if (q.r) tb = Math.min(tb, (q.cy - q.r) / k); if (ch > tb - 8 - y0) { ch = Math.max(90, tb - 8 - y0); cw = ch / 0.66; } }
+        x0 = W - 12 - cw;
+      }
+      ui.pip = { x0, y0, w: cw, h: ch, big };
+    }
+    // colonne centrale (demi-largeur) et fil des destructions à sa gauche
+    ui.half = clamp(Math.min(mm.x0, ui.pip ? ui.pip.x0 : W) - 16 - W / 2, 160, 300);
+    ui.feedW = Math.max(150, Math.min(W / 2 - ui.half, tch ? W : ui.bar.x0) - 20);
+    ui.feedY = (tch ? touch.top / k : 0) + 24;
+    // journal : en bas à gauche, au-dessus du manche tactile, ou au-dessus du panneau s'il le toucherait
+    ctx.font = '600 12px system-ui, sans-serif';
+    const lw = logs.reduce((m, l) => Math.max(m, ctx.measureText(l.text).width), 0) + 24;
+    let ly = tch ? (H * k - sb - 176) / k : H - 20;
+    if (ui.panel && lw + 10 > ui.panel.x0 && ly > ui.panel.top - 34) ly = ui.panel.top - 34;
+    ui.logY = ly;
+  }
+
+  function drawHUD() {
+    inUI(() => { layoutUI(); drawHudBase(); });
+    drawAim();
+    inUI(drawHudOver);
+  }
+  // Bandeau du score, fil des destructions, mini-carte, journal et panneau du char
+  function drawHudBase() {
+    const b = ui.bar;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(b.x0, 8, b.x1 - b.x0, 46);
+    fitFont(b.title, b.x1 - b.x0 - 16, 14, 600);
+    ctx.fillStyle = '#e9d9a6'; ctx.fillText(b.title, b.cx, 26);
     for (let team = 0; team < 2; team++) {
-      const list = tanks.filter(t => t.team === team);
+      const list = tanks.filter(t => t.team === team), st = Math.min(18, ((b.x1 - b.x0) / 2 - 30) / Math.max(5, list.length));
       list.forEach((t, i) => {
-        const x = team === 0 ? W / 2 - 22 - (4 - i) * 18 - 14 : W / 2 + 22 + i * 18;
+        const x = team === 0 ? b.cx - 22 - (list.length - 1 - i) * st - 14 : b.cx + 22 + i * st, w = Math.min(14, st - 3);
         ctx.fillStyle = t.dead ? '#333' : TEAM[team].accent;
-        ctx.fillRect(x, 34, 14, 12);
-        if (t === player) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.strokeRect(x - 1, 33, 16, 14); }
-        if (t.dead) { ctx.strokeStyle = '#999'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x, 34); ctx.lineTo(x + 14, 46); ctx.moveTo(x + 14, 34); ctx.lineTo(x, 46); ctx.stroke(); }
+        ctx.fillRect(x, 34, w, 12);
+        if (t === player) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.strokeRect(x - 1, 33, w + 2, 14); }
+        if (t.dead) { ctx.strokeStyle = '#999'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x, 34); ctx.lineTo(x + w, 46); ctx.moveTo(x + w, 34); ctx.lineTo(x, 46); ctx.stroke(); }
       });
     }
-    ctx.fillStyle = '#ccc'; ctx.font = '700 13px system-ui, sans-serif'; ctx.fillText('VS', W / 2, 45);
-
-    // bandeaux des coups critiques (au centre, sous le score)
-    ctx.textAlign = 'center'; ctx.font = '700 13px system-ui, sans-serif';
-    ribbons.forEach((r, i) => {
-      const y = 80 + i * 24, w = ctx.measureText(r.t).width + 44;
-      ctx.globalAlpha = Math.min(1, r.life * 2);
-      ctx.fillStyle = 'rgba(0,0,0,0.62)'; ctx.fillRect(W / 2 - w / 2, y - 15, w, 21);
-      ctx.fillStyle = r.c; ctx.fillRect(W / 2 - w / 2, y - 15, 3, 21);
-      ctx.fillText(`${r.ic}  ${r.t}`, W / 2, y);
-      ctx.globalAlpha = 1;
-    });
+    ctx.fillStyle = '#ccc'; ctx.font = '700 13px system-ui, sans-serif'; ctx.fillText('VS', b.cx, 45);
     // fil des destructions (en haut à gauche)
-    ctx.textAlign = 'left'; ctx.font = '600 12px system-ui, sans-serif';
+    ctx.textAlign = 'left';
     feed.forEach((f, i) => {
-      const y = (touch.on && inBattle() ? touch.top : 0) + 24 + i * 20;
+      const y = ui.feedY + i * 20;
       ctx.globalAlpha = Math.min(1, f.life);
       const mid = f.ff ? ' ✖ FRIENDLY FIRE ✖ ' : f.det ? ' 💥 ' : ' ⟶ ', how = f.how ? ` · ${HOW[f.how]}` : '';
+      fitFont(f.a + mid + f.v + how, ui.feedW - 16, 12, 600);
       const wA = ctx.measureText(f.a).width, wM = ctx.measureText(mid).width, wV = ctx.measureText(f.v).width, wH = ctx.measureText(how).width;
       ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(10, y - 13, wA + wM + wV + wH + 16, 18);
       ctx.fillStyle = '#b8b2a0'; ctx.fillText(how, 18 + wA + wM + wV, y);
@@ -5217,101 +5301,110 @@ Meta.whenReady(() => {
       ctx.fillStyle = f.vt === 0 ? '#8cc4ff' : '#ff8c80'; ctx.fillText(f.v, 18 + wA + wM, y);
       ctx.globalAlpha = 1;
     });
-
-    const mm = drawMinimap();
-
-    // journal des dégâts subis (en bas à gauche)
+    if (!(ui.pip && !ui.pip.big)) drawMinimap();
+    if (DEV) { // ?debug : cadence et résolution dynamique du rendu 3D
+      ctx.textAlign = 'right'; ctx.font = '600 11px system-ui, sans-serif'; ctx.fillStyle = '#9fd0ff';
+      ctx.fillText(`${Math.round(1000 / dyn.ema)} fps · 3D ${Math.round(dyn.k * 100)}% · DPR ${DPR} · UI ×${uiK.toFixed(2)}`, ui.mm.x0 + ui.mm.w, ui.mm.bottom + 12);
+    }
+    // journal des dégâts subis
     ctx.textAlign = 'left'; ctx.font = '600 12px system-ui, sans-serif';
-    const logY = player && W / 2 - 280 * panelK() < 300 ? H - 104 * panelK() - 12 : H - 20;
-    logs.forEach((l, i) => {
-      const y = logY - i * 18;
+    const n = Math.max(1, Math.floor((ui.logY - ui.feedY - feed.length * 20) / 18));
+    logs.slice(0, n).forEach((l, i) => {
+      const y = ui.logY - i * 18;
       ctx.globalAlpha = Math.min(1, l.life);
       const w = ctx.measureText(l.text).width;
       ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(10, y - 13, w + 14, 17);
       ctx.fillStyle = l.color; ctx.fillText(l.text, 17, y);
       ctx.globalAlpha = 1;
     });
-
-    if (player) drawTankPanel();
-
-    // réticule
-    if (sight.on) drawSightReticle();
-    else if (player && !player.dead && (state === 'play' || state === 'intro' || state === 'ending')) {
-      const m = player.aim3 && W3D ? player.aim3 : screenToWorld(mouse.x, mouse.y), pv = pivot(player);
-      const d = Math.hypot(m.x - pv.x, m.y - pv.y), ta = player.angle + player.turret;
-      const gp = worldToScreen(pv.x + Math.cos(ta) * d, pv.y + Math.sin(ta) * d, m.z != null ? m.z : 1.6);
-      const rr = Math.max(4, d * Math.tan(player.disp) * 2 * S);
-      ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.arc(gp.x, gp.y, rr, 0, TAU); ctx.stroke();
-      const rf = player.reloadT > 0 ? 1 - player.reloadT / player.reloadMax : 1;
-      ctx.strokeStyle = rf >= 1 ? '#ffe27a' : 'rgba(255,200,90,0.8)'; ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.arc(gp.x, gp.y, rr + 5, -Math.PI / 2, -Math.PI / 2 + TAU * rf); ctx.stroke();
-      ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(mouse.x - 10, mouse.y); ctx.lineTo(mouse.x - 3, mouse.y); ctx.moveTo(mouse.x + 3, mouse.y); ctx.lineTo(mouse.x + 10, mouse.y);
-      ctx.moveTo(mouse.x, mouse.y - 10); ctx.lineTo(mouse.x, mouse.y - 3); ctx.moveTo(mouse.x, mouse.y + 3); ctx.lineTo(mouse.x, mouse.y + 10);
-      ctx.stroke();
-      // pénétration estimée à cette distance ; la lecture passe au-dessus du curseur près du panneau
-      // du char, et à sa gauche près du bord droit
-      const rdUp = mouse.y + 40 > H - 100 * panelK(), rdL = mouse.x > W - 230;
-      const rdX = rdL ? mouse.x - 14 : mouse.x + 14, rdY = rdUp ? mouse.y - 32 : mouse.y + 18;
-      ctx.font = '600 11px system-ui, sans-serif'; ctx.textAlign = rdL ? 'right' : 'left';
-      ctx.fillStyle = 'rgba(255,255,255,0.8)';
-      ctx.fillText(`${Math.round(d * RK)} m · ${Math.round(penAt(player.T, player.shell, d))} mm`, rdX, rdY);
-      // char visé : plaque, blindage effectif et verdict, comme à la lunette
-      if (W3D && m.tank && !m.tank.dead) {
-        player.probeT = (player.probeT || 0) - 1 / 60;
-        if (player.probeT <= 0 || !player.probe) {
-          player.probeT = 0.1;
-          const z0 = player.T.S.gun.z;
-          player.probe = sightProbe(Math.atan2(m.y - pv.y, m.x - pv.x), z0, (m.z - z0) / Math.max(1, d));
-        }
-        const pr = player.probe;
-        if (pr && pr.kind === 'tank' && pr.tank === m.tank && pr.plate) {
-          const { col, verdict } = verdictOf(pr);
-          ctx.font = '700 11px system-ui, sans-serif'; ctx.fillStyle = col;
-          ctx.fillText(`${pr.plate} · ${Math.round(pr.eff)} mm eff. · ${verdict}`, rdX, rdY + 14);
-        }
-      }
-    } else if (state !== 'menu') {
-      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(mouse.x, mouse.y, 3, 0, TAU); ctx.fill();
+    if (player && ui.panel) drawTankPanel(ui.panel);
+  }
+  // Réticules (à l'échelle de l'écran : ils suivent le monde)
+  function drawAim() {
+    if (sight.on) { drawSightReticle(); return; }
+    if (!(player && !player.dead && (state === 'play' || state === 'intro' || state === 'ending'))) {
+      if (state !== 'menu') { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(mouse.x, mouse.y, 3, 0, TAU); ctx.fill(); }
+      return;
     }
-
-    // caméra d'impact (à droite, sous la mini-carte)
-    if (HitCam.active()) {
-      const hev = HitCam.ev();
-      const cw = Math.min(hev && hev.metal ? 600 : 660, W * (hev && hev.metal ? 0.4 : 0.47)), ch = Math.round(cw * 0.66);
-      const cx = W - cw - 14, cy = Math.min(mm.bottom + 14, H - ch - 90);
-      HitCam.draw(ctx, cx, cy, cw, ch, DPR);
-      if (hev && hev.metal) {
-        let iw = Math.min(cw * 0.85, cx - 24), ih = ch, ix = cx - iw - 10, iy = cy;
-        if (iw < 260) { iw = cw * 0.55; ih = ch * 0.6; ix = cx + cw - iw; iy = cy + ch - ih; }
-        drawMetalPanel(ctx, hev.metal, ix, iy, iw, ih, clamp((HitCam.time() - HitCam.T_HIT) / HitCam.T_IN, 0, 1), Math.min(1, HitCam.time() / 0.15, (HitCam.DUR - HitCam.time()) / 0.4));
+    const m = player.aim3 && W3D ? player.aim3 : screenToWorld(mouse.x, mouse.y), pv = pivot(player);
+    const d = Math.hypot(m.x - pv.x, m.y - pv.y), ta = player.angle + player.turret;
+    const gp = worldToScreen(pv.x + Math.cos(ta) * d, pv.y + Math.sin(ta) * d, m.z != null ? m.z : 1.6);
+    const rr = Math.max(4, d * Math.tan(player.disp) * 2 * S);
+    ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(gp.x, gp.y, rr, 0, TAU); ctx.stroke();
+    const rf = player.reloadT > 0 ? 1 - player.reloadT / player.reloadMax : 1;
+    ctx.strokeStyle = rf >= 1 ? '#ffe27a' : 'rgba(255,200,90,0.8)'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(gp.x, gp.y, rr + 5, -Math.PI / 2, -Math.PI / 2 + TAU * rf); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(mouse.x - 10, mouse.y); ctx.lineTo(mouse.x - 3, mouse.y); ctx.moveTo(mouse.x + 3, mouse.y); ctx.lineTo(mouse.x + 10, mouse.y);
+    ctx.moveTo(mouse.x, mouse.y - 10); ctx.lineTo(mouse.x, mouse.y - 3); ctx.moveTo(mouse.x, mouse.y + 3); ctx.lineTo(mouse.x, mouse.y + 10);
+    ctx.stroke();
+    // pénétration estimée à cette distance ; la lecture passe au-dessus du curseur près du panneau
+    // du char, et à sa gauche près du bord droit
+    const rdUp = mouse.y + 40 * uiK > (ui.panel ? ui.panel.top * uiK : H), rdL = mouse.x > W - 230 * uiK;
+    const rdX = rdL ? mouse.x - 14 : mouse.x + 14, rdY = rdUp ? mouse.y - 32 * uiK : mouse.y + 18 * uiK;
+    ctx.font = F(600, 11); ctx.textAlign = rdL ? 'right' : 'left';
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    ctx.fillText(`${Math.round(d * RK)} m · ${Math.round(penAt(player.T, player.shell, d))} mm`, rdX, rdY);
+    // char visé : plaque, blindage effectif et verdict, comme à la lunette
+    if (W3D && m.tank && !m.tank.dead) {
+      player.probeT = (player.probeT || 0) - 1 / 60;
+      if (player.probeT <= 0 || !player.probe) {
+        player.probeT = 0.1;
+        const z0 = player.T.S.gun.z;
+        player.probe = sightProbe(Math.atan2(m.y - pv.y, m.x - pv.x), z0, (m.z - z0) / Math.max(1, d));
+      }
+      const pr = player.probe;
+      if (pr && pr.kind === 'tank' && pr.tank === m.tank && pr.plate) {
+        const { col, verdict } = verdictOf(pr);
+        ctx.font = F(700, 11); ctx.fillStyle = col;
+        ctx.fillText(`${pr.plate} · ${Math.round(pr.eff)} mm eff. · ${verdict}`, rdX, rdY + 14 * uiK);
       }
     }
-
+  }
+  // Caméra d'impact, messages et bandeaux du centre, carte d'introduction
+  function drawHudOver() {
+    const pp = ui.pip;
+    if (pp) {
+      HitCam.draw(ctx, pp.x0, pp.y0, pp.w, pp.h, DPR * uiK);
+      const hev = HitCam.ev(), my = pp.y0 + pp.h + 10, mh = Math.min(pp.w * 0.62, (ui.panel ? ui.panel.top : H) - 12 - my);
+      if (hev && hev.metal && pp.big && mh >= 150) drawMetalPanel(ctx, hev.metal, pp.x0, my, pp.w, mh, clamp((HitCam.time() - HitCam.T_HIT) / HitCam.T_IN, 0, 1), Math.min(1, HitCam.time() / 0.15, (HitCam.DUR - HitCam.time()) / 0.4));
+    }
+    // messages (deux lignes au plus), puis bandeaux des coups et des médailles
     ctx.textAlign = 'center';
+    msgs.forEach((m, i) => {
+      const y = 82 + i * 26;
+      ctx.globalAlpha = Math.min(1, m.life * 2);
+      fitFont(m.text, ui.half * 2, 20, 800);
+      ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillText(m.text, W / 2 + 2, y + 2);
+      ctx.fillStyle = m.color; ctx.fillText(m.text, W / 2, y);
+    });
+    ctx.globalAlpha = 1;
+    ribbons.forEach((r, i) => {
+      const y = 140 + i * 24;
+      fitFont(`${r.ic}  ${r.t}`, ui.half * 2 - 44, 13, 700);
+      const w = ctx.measureText(`${r.ic}  ${r.t}`).width + 44;
+      ctx.globalAlpha = Math.min(1, r.life * 2);
+      ctx.fillStyle = 'rgba(0,0,0,0.62)'; ctx.fillRect(W / 2 - w / 2, y - 15, w, 21);
+      ctx.fillStyle = r.c; ctx.fillRect(W / 2 - w / 2, y - 15, 3, 21);
+      ctx.fillText(`${r.ic}  ${r.t}`, W / 2, y);
+      ctx.globalAlpha = 1;
+    });
     if (state === 'intro') {
+      const lv = L();
       ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(0, H / 2 - 90, W, 150);
       // carte historique : lieu et date de la bataille
       ctx.fillStyle = '#a39d88'; ctx.font = '600 13px system-ui, sans-serif';
       ctx.fillText(lv.when.toUpperCase(), W / 2, H / 2 - 74);
-      ctx.fillStyle = '#e9d9a6'; ctx.font = '800 34px system-ui, sans-serif';
-      ctx.fillText(`${lv.name.toUpperCase()}`, W / 2, H / 2 - 45);
+      ctx.fillStyle = '#e9d9a6'; fitFont(lv.name.toUpperCase(), W - 40, 34, 800);
+      ctx.fillText(lv.name.toUpperCase(), W / 2, H / 2 - 45);
       ctx.font = '600 16px system-ui, sans-serif'; ctx.fillStyle = '#bdb7a2';
       ctx.fillText(mode === 'survie' ? `${lv.sub} · Survival · alone against all`
         : mode === 'duel' ? `${lv.sub} · Duel · round ${duelScore[0] + duelScore[1] + 1}`
         : `${lv.sub} · Wave ${waveIdx + 1}/${WAVES} · 5 vs 5`, W / 2, H / 2 - 18);
       ctx.font = '800 48px system-ui, sans-serif'; ctx.fillStyle = '#fff';
       ctx.fillText(String(Math.max(1, Math.ceil(introT))), W / 2, H / 2 + 38);
-    }
-    if (msg) {
-      const a = Math.min(1, msg.life * 2);
-      ctx.globalAlpha = a;
-      ctx.font = '800 22px system-ui, sans-serif';
-      ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillText(msg.text, W / 2 + 2, 92);
-      ctx.fillStyle = msg.color; ctx.fillText(msg.text, W / 2, 90);
-      ctx.globalAlpha = 1;
     }
   }
 
@@ -5354,117 +5447,123 @@ Meta.whenReady(() => {
 
   // Panneau du char : équipage, modules, obus. Réduit autour du bas de l'écran sur les petites
   // fenêtres (iframe 640×360 du portail), où il couvrirait sinon toute la largeur.
-  const panelK = () => clamp(Math.min((W - 24) / 560, H / 560), 0.6, 1);
-  function drawTankPanel() {
-    const k = panelK();
-    ctx.save(); ctx.translate(W / 2 * (1 - k), H * (1 - k)); ctx.scale(k, k);
-    drawTankPanelBody();
-    ctx.restore();
-  }
-  function drawTankPanelBody() {
-    const T = player.T, pw = 560, bx = W / 2 - pw / 2, by = H - 98;
-    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(bx, by, pw, 90);
-    ctx.textAlign = 'left'; ctx.font = '700 13px system-ui, sans-serif'; ctx.fillStyle = '#f0e6c8';
-    ctx.fillText(`${T.name} · ${T.cls}`, bx + 10, by + 17);
-    const g = player.mg;
-    ctx.font = '600 11px system-ui, sans-serif'; ctx.fillStyle = g.jam > 0 ? '#ff9a5c' : '#c9c4b2';
-    ctx.fillText(g.jam > 0 ? `MG: barrel change ${Math.ceil(g.jam)} s` : `MG${touch.on ? '' : ' (F/G)'} ${MG_AMMO[g.type].name} : ${g.type === 'SmKH' ? g.ammoH : g.ammo}`, bx + 175, by + 17);
-    const tag = k => SHELLS[k].tag || k;
-    ctx.fillStyle = '#e9d9a6';
-    ctx.fillText(player.nextShell ? `${tag(player.shell)} → next ${tag(player.nextShell)}` : `Loaded ${tag(player.shell)}`, bx + 468, by + 49);
-    ctx.fillStyle = player.ready > 0 ? '#c9c4b2' : '#ffb070';
-    ctx.fillText(`Ready rack ${player.ready}/${T.ready + player.up.ready}`, bx + 468, by + 64);
-    ctx.fillStyle = player.hatch ? '#ffcf7a' : '#8f8a77';
-    ctx.fillText(player.hatch ? (touch.on ? 'Commander out' : 'Commander out (U)') : (touch.on ? 'Buttoned up' : 'Buttoned up (U)'), bx + 468, by + 79);
-    if (!(g.jam > 0)) { ctx.fillStyle = '#2c3024'; ctx.fillRect(bx + 335, by + 9, 50, 6); ctx.fillStyle = g.heat > 180 ? '#ff6a3a' : '#c98a3a'; ctx.fillRect(bx + 335, by + 9, 50 * Math.min(1, g.heat / 250), 6); }
-    // équipage
-    let x = bx + 10;
-    for (const role of T.S.crew) {
-      const m = player.mods.find(q => q.kind === 'crew' && q.role === role);
-      const r = m.hp / m.max0, vacant = !roleOk(player, role) && m.hp > 0;
-      ctx.fillStyle = r <= 0 ? '#5a1510' : r < 1 ? '#c07a20' : '#3f7a4a';
-      ctx.fillRect(x, by + 24, 30, 20);
-      if (vacant || (player.roles[role] !== m.i && player.roles[role] >= 0)) { ctx.strokeStyle = '#8cc8ff'; ctx.lineWidth = 1.5; ctx.strokeRect(x + 0.5, by + 24.5, 29, 19); }
-      ctx.fillStyle = '#fff'; ctx.font = '700 11px system-ui, sans-serif'; ctx.textAlign = 'center';
-      ctx.fillText(CREW_ABBR[role], x + 15, by + 38);
-      if (r <= 0) { ctx.strokeStyle = '#ff6a5a'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x + 4, by + 27); ctx.lineTo(x + 26, by + 41); ctx.stroke(); }
-      // efficacité du poste (blessure, remplaçant) ; une croix rouge sur un blessé qui saigne
-      ctx.fillStyle = '#8cc8ff'; ctx.fillRect(x, by + 45, 30 * eff(player, role), 2);
-      if (m.hp > 0 && m.hp < 30 && !m.band) { ctx.fillStyle = '#ff4a3a'; ctx.fillRect(x + 24, by + 26, 4, 1.5); ctx.fillRect(x + 25.25, by + 24.75, 1.5, 4); }
-      x += 34;
+  // Panneau du char (repère virtuel) : 560 de large, resserré jusqu'à 380 entre les commandes tactiles
+  // (icônes d'équipage et de modules plus petites, colonne de droite dans la ligne du nom) ; à la
+  // lunette, seule la rangée des obus reste, sous l'oculaire
+  const MODS = [['engine', 'Engine', 'Eng'], ['trans', 'Transm.', 'Trans'], ['breech', 'Breech', 'Brch'], ['fuel', 'Fuel', 'Fuel'], ['ammo', 'Ammo', 'Ammo']];
+  function drawTankPanel(P) {
+    const T = player.T, { x0: bx, by, w: pw, compact } = P, wide = pw >= 540, g = player.mg;
+    const tag = k => SHELLS[k].tag || k, kb = !touch.on;
+    const rf = player.reloadT > 0 ? 1 - player.reloadT / player.reloadMax : 1;
+    const rw = wide ? 96 : 0, step = Math.floor((pw - 16 - rw) / 7), sw = step - 2, sy = compact ? by + 5 : by + 52;
+    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(bx, by, pw, compact ? 40 : 90);
+    if (!compact) {
+      ctx.textAlign = 'left'; ctx.font = '700 13px system-ui, sans-serif'; ctx.fillStyle = '#f0e6c8';
+      const name = wide ? `${T.name} · ${T.cls}` : T.name;
+      ctx.fillText(name, bx + 10, by + 17);
+      const mx = wide ? bx + 175 : bx + 18 + ctx.measureText(name).width;
+      ctx.font = '600 11px system-ui, sans-serif'; ctx.fillStyle = g.jam > 0 ? '#ff9a5c' : '#c9c4b2';
+      const mgn = g.type === 'SmKH' ? g.ammoH : g.ammo;
+      ctx.fillText(g.jam > 0 ? `MG: barrel change ${Math.ceil(g.jam)} s` : wide ? `MG${kb ? ` (${keyName('mg')}/${keyName('belt')})` : ''} ${MG_AMMO[g.type].name} : ${mgn}` : `MG ${mgn}`, mx, by + 17);
+      if (!(g.jam > 0) && wide) { ctx.fillStyle = '#2c3024'; ctx.fillRect(bx + 335, by + 9, 50, 6); ctx.fillStyle = g.heat > 180 ? '#ff6a3a' : '#c98a3a'; ctx.fillRect(bx + 335, by + 9, 50 * Math.min(1, g.heat / 250), 6); }
+      if (!wide) { ctx.textAlign = 'right'; ctx.fillStyle = player.ready > 0 ? '#c9c4b2' : '#ffb070'; ctx.fillText(`Ready ${player.ready}/${T.ready + player.up.ready}`, bx + pw - 98, by + 17); }
+      // équipage : efficacité du poste (blessure, remplaçant) ; une croix rouge sur un blessé qui saigne
+      const cw = wide ? 30 : 24, ch = wide ? 20 : 18;
+      let x = bx + 10;
+      for (const role of T.S.crew) {
+        const m = player.mods.find(q => q.kind === 'crew' && q.role === role);
+        const r = m.hp / m.max0, vacant = !roleOk(player, role) && m.hp > 0;
+        ctx.fillStyle = r <= 0 ? '#5a1510' : r < 1 ? '#c07a20' : '#3f7a4a';
+        ctx.fillRect(x, by + 24, cw, ch);
+        if (vacant || (player.roles[role] !== m.i && player.roles[role] >= 0)) { ctx.strokeStyle = '#8cc8ff'; ctx.lineWidth = 1.5; ctx.strokeRect(x + 0.5, by + 24.5, cw - 1, ch - 1); }
+        ctx.fillStyle = '#fff'; ctx.font = `700 ${wide ? 11 : 10}px system-ui, sans-serif`; ctx.textAlign = 'center';
+        ctx.fillText(CREW_ABBR[role], x + cw / 2, by + 24 + ch * 0.7);
+        if (r <= 0) { ctx.strokeStyle = '#ff6a5a'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x + 4, by + 27); ctx.lineTo(x + cw - 4, by + 21 + ch); ctx.stroke(); }
+        ctx.fillStyle = '#8cc8ff'; ctx.fillRect(x, by + 25 + ch, cw * eff(player, role), 2);
+        if (m.hp > 0 && m.hp < 30 && !m.band) { ctx.fillStyle = '#ff4a3a'; ctx.fillRect(x + cw - 6, by + 26, 4, 1.5); ctx.fillRect(x + cw - 4.75, by + 24.75, 1.5, 4); }
+        x += cw + 4;
+      }
+      // modules
+      const mw = wide ? 50 : 40;
+      x = wide ? bx + 200 : x + 6;
+      ctx.textAlign = 'center'; ctx.font = `600 ${wide ? 10 : 9}px system-ui, sans-serif`;
+      for (const [kind, label, short] of MODS) {
+        const ms = player.mods.filter(m => m.kind === kind), dead = ms.some(m => m.hp <= 0), hurt = ms.some(m => m.hp < m.max0), rep = player.rep[kind];
+        const l = wide ? label : short;
+        ctx.fillStyle = dead ? '#5a1510' : hurt ? '#8a5a18' : '#2c3a2c';
+        ctx.fillRect(x, by + 24, mw, 20);
+        ctx.fillStyle = '#eee'; ctx.fillText(rep != null ? `${l} ${Math.ceil(rep)}s` : l, x + mw / 2, by + 37);
+        x += mw + 3;
+      }
+      // bandeau d'état au-dessus du panneau : vitesse, avaries, feu, équipage
+      ctx.textAlign = 'left'; ctx.font = '700 11px system-ui, sans-serif';
+      const st = [];
+      const gr = player.shiftT > 0 ? '·' : player.gear > 0 ? String(player.gear) : player.gear < 0 ? 'R' + -player.gear : 'N';
+      st.push([`${Math.round(Math.abs(player.speed) / PX * 3.6)} km/h · ${gr} · ${Math.round(player.rpmA / 50) * 50} rpm`, '#d8d4c6']);
+      if (player.swap) st.push([`${CREW_ABBR[player.swap.from]} → ${CREW_ABBR[player.swap.role]} ${player.swap.t.toFixed(0)} s`, '#8cc8ff']);
+      else if (player.aid) st.push([`First aid ${player.aid.t.toFixed(0)} s`, '#8cc8ff']);
+      const K = a => kb ? keyName(a) : '';
+      if (player.trackT > 0) st.push([player.dismount ? `Repairing track ${Math.ceil(player.trackT)} s` : kb ? `Track broken · ${K('repair')}: repair` : 'Track broken', '#ffb070']);
+      if (player.gunT > 0) st.push([`Gun barrel damaged ${Math.ceil(player.gunT)} s`, '#ff8a6a']);
+      if (player.ringT > 0) st.push(['Turret ring jammed', '#ffb070']);
+      if (player.elevJamT > 0) st.push(['Elevation jammed', '#ffb070']);
+      if (player.stunT > 0) st.push(['Crew stunned', '#ffcf7a']);
+      if (Object.keys(player.rep).length && !player.repOk) st.push(['Repairs: stop the tank', '#ffcf7a']);
+      if ((player.wheelK || 1) < 1) st.push([`Wheels −${Math.round((1 - player.wheelK) * 100)}%`, '#ffb070']);
+      if (player.bentT > 0) st.push(['Barrel bent', '#ffb070']);
+      if (player.fires.length) st.push([`${FIRE_NAMES[player.fires[0].src].toUpperCase()}${player.extT > 0 ? ' · extinguishing' : player.extN > 0 && player.fires.some(f => f.src !== 'propellant') && kb ? ` · ${K('ext')}: extinguisher ×${player.extN}` : ''}`, '#ff6a3a']);
+      if (player.cookT > 0) st.push([`AMMO COOKING OFF ${Math.ceil(player.cookT)} s${kb ? ` · ${K('bail')}: bail out` : ''}`, '#ff4a2a']);
+      else if (player.fires.length && kb) st.push([`${K('bail')}: bail out`, '#ffb070']);
+      if (player.noFuel) st.push(['Out of fuel', '#ff6a5a']); else if (player.fuelOutT != null) st.push(['Fuel leak', '#ffb070']);
+      if (player.grind) st.push(['Gear stuck', '#ffb070']);
+      if (!radioOk(player)) st.push(['Radio out', '#ffb070']);
+      if (!roleOk(player, 'commander')) st.push(['No commander: reduced awareness', '#ffb070']);
+      if (!player.dead && player.revealT <= 0 && inBush(player)) st.push(['Concealed', '#a6f08a']);
+      ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(bx, by - 22, pw, 20);
+      let sx2 = bx + 10;
+      for (const [s, c] of st) {
+        const w = ctx.measureText(s).width;
+        if (sx2 + w > bx + pw - 6) break;
+        ctx.fillStyle = c; ctx.fillText(s, sx2, by - 8); sx2 += w + 12;
+      }
     }
-    const cs = player.swap ? `${CREW_ABBR[player.swap.from]}→${CREW_ABBR[player.swap.role]} ${player.swap.t.toFixed(0)} s` : player.aid ? `First aid ${player.aid.t.toFixed(0)} s` : '';
-    if (cs) { ctx.textAlign = 'left'; ctx.fillStyle = '#8cc8ff'; ctx.font = '600 10px system-ui, sans-serif'; ctx.fillText(cs, x + 2, by + 38); }
-    // modules
-    const MODS = [['engine', 'Engine'], ['trans', 'Transm.'], ['breech', 'Breech'], ['fuel', 'Fuel'], ['ammo', 'Ammo']];
-    x = bx + 200;
-    ctx.textAlign = 'center'; ctx.font = '600 10px system-ui, sans-serif';
-    const chip = (label, state, sub) => {
-      ctx.fillStyle = state === 2 ? '#5a1510' : state === 1 ? '#8a5a18' : '#2c3a2c';
-      ctx.fillRect(x, by + 24, 50, 20);
-      ctx.fillStyle = '#eee'; ctx.fillText(sub || label, x + 25, by + 37);
-      x += 53;
-    };
-    for (const [kind, label] of MODS) {
-      const ms = player.mods.filter(m => m.kind === kind);
-      const dead = ms.some(m => m.hp <= 0), hurt = ms.some(m => m.hp < m.max0);
-      const rep = player.rep[kind];
-      chip(label, dead ? 2 : hurt ? 1 : 0, rep != null ? `${label} ${Math.ceil(rep)}s` : null);
-    }
-    // chenilles et feu
-    ctx.textAlign = 'left'; ctx.font = '700 11px system-ui, sans-serif';
-    const st = [];
-    const gr = player.shiftT > 0 ? '·' : player.gear > 0 ? String(player.gear) : player.gear < 0 ? 'R' + -player.gear : 'N';
-    st.push([`${Math.round(Math.abs(player.speed) / PX * 3.6)} km/h · ${gr} · ${Math.round(player.rpmA / 50) * 50} rpm`, '#d8d4c6']);
-    if (player.trackT > 0) st.push([player.dismount ? `Repairing track ${Math.ceil(player.trackT)} s` : 'Track broken · R: repair', '#ffb070']);
-    if (player.gunT > 0) st.push([`Gun barrel damaged ${Math.ceil(player.gunT)} s`, '#ff8a6a']);
-    if (player.ringT > 0) st.push(['Turret ring jammed', '#ffb070']);
-    if (player.elevJamT > 0) st.push(['Elevation jammed', '#ffb070']);
-    if (player.stunT > 0) st.push(['Crew stunned', '#ffcf7a']);
-    if (Object.keys(player.rep).length && !player.repOk) st.push(['Repairs: stop the tank', '#ffcf7a']);
-    if ((player.wheelK || 1) < 1) st.push([`Wheels −${Math.round((1 - player.wheelK) * 100)}%`, '#ffb070']);
-    if (player.bentT > 0) st.push(['Barrel bent', '#ffb070']);
-    if (player.fires.length) st.push([`${FIRE_NAMES[player.fires[0].src].toUpperCase()}${player.extT > 0 ? ' · extinguishing' : player.extN > 0 && player.fires.some(f => f.src !== 'propellant') ? ` · T: extinguisher ×${player.extN}` : ''}`, '#ff6a3a']);
-    if (player.cookT > 0) st.push([`AMMO COOKING OFF ${Math.ceil(player.cookT)} s · B: bail out`, '#ff4a2a']);
-    else if (player.fires.length) st.push(['B: bail out', '#ffb070']);
-    if (player.noFuel) st.push(['Out of fuel', '#ff6a5a']); else if (player.fuelOutT != null) st.push(['Fuel leak', '#ffb070']);
-    if (player.grind) st.push(['Gear stuck', '#ffb070']);
-    if (!radioOk(player)) st.push(['Radio out', '#ffb070']);
-    if (!roleOk(player, 'commander')) st.push(['No commander: reduced awareness', '#ffb070']);
-    if (!player.dead && player.revealT <= 0 && inBush(player)) st.push(['Concealed', '#a6f08a']);
-    // bandeau d'état au-dessus du panneau : la ligne du nom et de la mitrailleuse est déjà pleine
-    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(bx, by - 22, pw, 20);
-    let sx2 = bx + 10;
-    for (const [s, c] of st) {
-      const w = ctx.measureText(s).width;
-      if (sx2 + w > bx + pw - 6) break;
-      ctx.fillStyle = c; ctx.fillText(s, sx2, by - 8); sx2 += w + 12;
+    // colonne de droite : obus chargé, râtelier, trappe
+    ctx.textAlign = 'left'; ctx.font = '600 11px system-ui, sans-serif';
+    if (wide) {
+      const rx = bx + pw - rw + 4;
+      ctx.fillStyle = '#e9d9a6';
+      ctx.fillText(player.nextShell ? `${tag(player.shell)} → ${tag(player.nextShell)}` : `Loaded ${tag(player.shell)}`, rx, compact ? sy + 12 : sy - 3);
+      ctx.fillStyle = player.ready > 0 ? '#c9c4b2' : '#ffb070';
+      ctx.fillText(`Ready rack ${player.ready}/${T.ready + player.up.ready}`, rx, compact ? sy + 26 : sy + 12);
+      if (!compact) { ctx.fillStyle = player.hatch ? '#ffcf7a' : '#8f8a77'; ctx.fillText((player.hatch ? 'Commander out' : 'Buttoned up') + (kb ? ` (${keyName('hatch')})` : ''), rx, sy + 27); }
     }
     // obus (emplacements touchables en mode tactile, dans le repère de l'écran)
-    x = bx + 10;
-    const pk = panelK();
+    let x = bx + 8;
     touch.slots.length = 0;
-    for (const k of SHELL_KEYS) {
-      if (touch.on) touch.slots.push({ key: k, x: W / 2 * (1 - pk) + x * pk, y: H * (1 - pk) + (by + 52) * pk, w: 62 * pk, h: 30 * pk });
+    SHELL_KEYS.forEach((k, i) => {
+      if (touch.on) touch.slots.push({ key: k, x: x * uiK, y: sy * uiK, w: sw * uiK, h: 30 * uiK });
       const sh = SHELLS[k], sel = player.shell === k, n = player.ammo[k];
       ctx.fillStyle = sel ? '#4a3f1a' : 'rgba(255,255,255,0.06)';
-      ctx.fillRect(x, by + 52, 62, 30);
-      if (sel) { ctx.strokeStyle = '#e9c46a'; ctx.lineWidth = 1.5; ctx.strokeRect(x + 0.5, by + 52.5, 61, 29); }
-      if (player.nextShell === k) { ctx.strokeStyle = '#e9c46a'; ctx.lineWidth = 1.2; ctx.setLineDash([3, 3]); ctx.strokeRect(x + 0.5, by + 52.5, 61, 29); ctx.setLineDash([]); }
+      ctx.fillRect(x, sy, sw, 30);
+      if (sel) { ctx.strokeStyle = '#e9c46a'; ctx.lineWidth = 1.5; ctx.strokeRect(x + 0.5, sy + 0.5, sw - 1, 29); }
+      if (player.nextShell === k) { ctx.strokeStyle = '#e9c46a'; ctx.lineWidth = 1.2; ctx.setLineDash([3, 3]); ctx.strokeRect(x + 0.5, sy + 0.5, sw - 1, 29); ctx.setLineDash([]); }
       ctx.fillStyle = n ? (sel ? '#ffe27a' : '#ddd') : '#666'; ctx.font = '700 10px system-ui, sans-serif';
-      ctx.fillText(`[${sh.n}] ${sh.tag || k}`, x + 4, by + 65);
+      ctx.fillText(kb ? `[${i + 1}] ${sh.tag || k}` : sh.tag || k, x + 4, sy + 13);
       ctx.font = '600 9.5px system-ui, sans-serif'; ctx.fillStyle = n ? '#aaa' : '#555';
-      ctx.fillText(sh.tag ? `${n} rds` : `${n} · ${Math.round(penAt(player.T, k, 200))}`, x + 4, by + 77);
-      x += 64;
-    }
+      ctx.fillText(sh.tag || !assisted() ? `${n} rds` : `${n} · ${Math.round(penAt(player.T, k, 200))}`, x + 4, sy + 25);
+      x += step;
+    });
     // rechargement
-    const rf = player.reloadT > 0 ? 1 - player.reloadT / player.reloadMax : 1;
-    ctx.fillStyle = '#2a2a24'; ctx.fillRect(bx + pw - 120, by + 8, 110, 8);
-    ctx.fillStyle = rf >= 1 ? '#ffe27a' : '#9a8a5a'; ctx.fillRect(bx + pw - 120, by + 8, 110 * rf, 8);
+    if (compact) { ctx.fillStyle = rf >= 1 ? '#ffe27a' : '#9a8a5a'; ctx.fillRect(bx, by, pw * rf, 3); }
+    else {
+      const rl = wide ? 110 : 80;
+      ctx.fillStyle = '#2a2a24'; ctx.fillRect(bx + pw - rl - 10, by + 8, rl, 8);
+      ctx.fillStyle = rf >= 1 ? '#ffe27a' : '#9a8a5a'; ctx.fillRect(bx + pw - rl - 10, by + 8, rl * rf, 8);
+    }
   }
 
   function drawMinimap() {
-    const mw = Math.min(230, W * 0.22), k = mw / WW, mh = WH * k, x0 = W - mw - 12, y0 = 12;
+    const { w: mw, h: mh, x0, y0 } = ui.mm, k = mw / WW;
     ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(x0 - 3, y0 - 3, mw + 6, mh + 6);
     ctx.fillStyle = L().ground[0]; ctx.globalAlpha = 0.6; ctx.fillRect(x0, y0, mw, mh); ctx.globalAlpha = 1;
     for (const o of obstacles) {
@@ -5494,12 +5593,17 @@ Meta.whenReady(() => {
     }
     ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1;
     if (W3D && cam3.vp) {
-      ctx.beginPath();
-      [[0, 0], [W, 0], [W, H], [0, H]].forEach((c, i) => { const q = screenToWorld(c[0], c[1]); const x = x0 + clamp(q.x, -200, WW + 200) * k, y = y0 + clamp(q.y, -200, WH + 200) * k; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
-      ctx.closePath(); ctx.save(); ctx.beginPath(); ctx.rect(x0, y0, mw, mh); ctx.clip(); ctx.restore();
-      ctx.stroke();
+      // champ de la caméra : coins de l'écran ramenés au sol, à 900 px au plus de la caméra (un coin
+      // au-dessus de l'horizon part à l'infini), découpé au cadre de la carte
+      const ex = cam3.eye[0] * PX, ey = -cam3.eye[1] * PX;
+      ctx.save(); ctx.beginPath(); ctx.rect(x0, y0, mw, mh); ctx.clip(); ctx.beginPath();
+      [[0, 0], [W, 0], [W, H], [0, H]].forEach((c, i) => {
+        const q = screenToWorld(c[0], c[1]), d = Math.hypot(q.x - ex, q.y - ey), f = d > 900 ? 900 / d : 1;
+        const x = x0 + (ex + (q.x - ex) * f) * k, y = y0 + (ey + (q.y - ey) * f) * k;
+        i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+      });
+      ctx.closePath(); ctx.stroke(); ctx.restore();
     } else ctx.strokeRect(x0 + (camX - W / 2 / S) * k, y0 + (camY - H / 2 / S) * k, W / S * k, H / S * k);
-    return { bottom: y0 + mh + 3 };
   }
 
   // ===================== Vitrine 3D du menu =====================
@@ -6096,6 +6200,20 @@ Meta.whenReady(() => {
   $('oQuality').onchange = e => { Meta.P.opts.quality = e.target.value; Meta.save(); dynReset(true); applyOptions(); };
   $('oHitcam').onchange = e => { Meta.P.opts.hitcam = e.target.checked; Meta.save(); applyOptions(); };
   $('oBallistics').onchange = e => { Meta.P.opts.ballistics = e.target.value; Meta.save(); applyOptions(); };
+  // Réassignation d'une commande : la touche déjà prise passe à l'action libérée (échange)
+  function setBind(a, code) {
+    rebinding = null;
+    const b = Meta.P.opts.binds = Meta.P.opts.binds || {};
+    if (code) {
+      const old = bind(a), other = Object.keys(BIND_DEF).find(k => k !== a && bind(k) === code);
+      if (other) b[other] = old;
+      b[a] = code;
+      for (const k in b) if (b[k] === BIND_DEF[k]) delete b[k];
+      Meta.save();
+    }
+    buildBinds();
+  }
+  function buildBinds() {}
   // Fenêtre de confirmation du jeu (les fenêtres natives sont bloquées dans l'iframe du portail
   // et font sortir du plein écran)
   function askConfirm(title, text, okLabel, onOk) {
@@ -6580,40 +6698,72 @@ Meta.whenReady(() => {
   const adOn = () => Meta.adActive();
   function releaseInput() { for (const k in keys) keys[k] = false; mouse.down = false; mouse.right = false; cam3.drag = null; }
   const SCROLL_KEYS = ['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab', 'PageUp', 'PageDown', 'Home', 'End'];
+  // Commandes du clavier, par codes physiques (AZERTY compris) : réglages par défaut, réassignables dans
+  // les options (opts.binds) ; flèches, Shift droit, V, Échap, P, Tab et les chiffres restent des doublons fixes
+  const BIND_DEF = { fwd: 'KeyW', back: 'KeyS', left: 'KeyA', right: 'KeyD', brake: 'KeyX', fire: 'Space', mg: 'KeyF', belt: 'KeyG', sight: 'ShiftLeft', zoom: 'KeyZ',
+    smoke: 'KeyE', cam: 'KeyC', hatch: 'KeyU', ext: 'KeyT', repair: 'KeyR', bail: 'KeyB', flare: 'KeyL', xray: 'KeyH', mute: 'KeyM', help: 'Slash',
+    rangeUp: 'PageUp', rangeDown: 'PageDown', attack: 'Digit8', follow: 'Digit9', hold: 'Digit0', move: 'KeyN' };
+  const BIND_ALT = { fwd: 'ArrowUp', back: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight' };
+  const FIXED = { ShiftRight: 'sight', KeyV: 'sight', Escape: 'pause', KeyP: 'pause', Backquote: 'pause', IntlBackslash: 'pause', Tab: 'command', Numpad8: 'attack', Numpad9: 'follow', Numpad0: 'hold' };
+  for (let i = 1; i <= 7; i++) FIXED['Digit' + i] = FIXED['Numpad' + i] = 'shell' + i;
+  const bind = a => (Meta.P.opts.binds || {})[a] || BIND_DEF[a];
+  const held = a => !!(keys[bind(a)] || keys[BIND_ALT[a]]);
+  function actionOf(code) {
+    for (const a in BIND_DEF) if (bind(a) === code) return a;
+    return FIXED[code] || null;
+  }
+  // nom d'une touche sur le clavier du joueur (disposition donnée par le navigateur quand il le peut)
+  let kbMap = null;
+  try { if (navigator.keyboard && navigator.keyboard.getLayoutMap) navigator.keyboard.getLayoutMap().then(m => { kbMap = m; }, () => {}); } catch (e) { /* API absente */ }
+  const KEY_NAMES = { Space: 'Space', ShiftLeft: 'Shift', ShiftRight: 'R.Shift', ControlLeft: 'Ctrl', ControlRight: 'R.Ctrl', AltLeft: 'Alt', AltRight: 'AltGr', Enter: 'Enter',
+    Backspace: '⌫', CapsLock: 'Caps', PageUp: 'PgUp', PageDown: 'PgDn', ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→', Escape: 'Esc', Slash: '?' };
+  function codeName(c) {
+    if (!c) return '—';
+    const m = kbMap && !KEY_NAMES[c] && kbMap.get(c);
+    if (m && m.trim()) return m.toUpperCase();
+    return KEY_NAMES[c] || c.replace(/^Key|^Digit/, '').replace(/^Numpad/, 'Num ');
+  }
+  const keyName = a => codeName(bind(a));
+  let rebinding = null; // action en attente d'une nouvelle touche (options)
   addEventListener('keydown', e => {
     // ces touches ne doivent jamais faire défiler la page du portail
     if (SCROLL_KEYS.includes(e.code) && !(e.target && e.target.closest && e.target.closest('input, select'))) e.preventDefault();
     if (adOn()) return;
+    if (rebinding) { e.preventDefault(); setBind(rebinding, e.code === 'Escape' ? null : e.code); return; }
     if (e.repeat && keys[e.code]) return;
     keys[e.code] = true;
     keyAction(e.code);
+    if (e.key === '?' && actionOf(e.code) !== 'help') doAction('help');
   });
-  // Action d'une touche, partagée par le clavier et les boutons tactiles (qui envoient le même code).
+  // Touche → action ; la même pression d'Échap peut libérer le curseur (pause automatique) puis arriver ici
+  function keyAction(code) { doAction(actionOf(code)); }
+  // Action d'une commande, partagée par le clavier, les boutons tactiles et la manette.
   // Les claviers d'iPad n'ont souvent pas d'Échap : ` (ou §) et P mettent aussi en pause.
-  function keyAction(code) {
-    // la même pression d'Échap peut libérer le curseur (pause automatique) puis arriver ici
-    if ((code === 'Escape' || code === 'KeyP' || code === 'Backquote' || code === 'IntlBackslash') && !(state === 'pause' && performance.now() - pausedAt < 400)) togglePause();
-    if (code === 'KeyM') {
+  function doAction(a) {
+    if (!a) return;
+    if (a === 'pause') { if (!(state === 'pause' && performance.now() - pausedAt < 400)) togglePause(); return; }
+    if (a === 'mute') {
       Meta.P.opts.mute = Sfx.toggle(); Meta.save();
       if (Meta.P.opts.mute) stopMusic(); else playMusic();
       if (state !== 'menu') showMsg(Meta.P.opts.mute ? 'Sound off' : 'Sound on', '#bcd8ff', 1);
     }
-    if (code === 'Tab') takeCommand();
-    if (code === 'KeyH' && state !== 'menu') { hitcamOn = !hitcamOn; if (!hitcamOn) HitCam.stop(); showMsg(hitcamOn ? 'Impact camera on' : 'Impact camera off', '#bcd8ff', 1.4); }
-    if ((code === 'ShiftLeft' || code === 'ShiftRight' || code === 'KeyV') && state !== 'menu') setSight(!sight.on);
-    if (code === 'KeyL' && state === 'play' && player && !player.dead && L().night && gameTime - (player.flareAt || -99) > 8) {
+    if (a === 'command') takeCommand();
+    if (a === 'xray' && state !== 'menu') xrayKey();
+    if (a === 'help' && inBattle()) helpT = helpT > 0 ? 0 : 8;
+    if (a === 'sight' && state !== 'menu') setSight(!sight.on);
+    if (a === 'flare' && state === 'play' && player && !player.dead && L().night && gameTime - (player.flareAt || -99) > 8) {
       player.flareAt = gameTime;
       const m = screenToWorld(mouse.x, mouse.y);
       launchFlare(player, m.x, m.y);
     }
-    if (code === 'KeyC' && W3D && state !== 'menu') {
+    if (a === 'cam' && W3D && state !== 'menu') {
       setSight(false);
       cam3.mode = (cam3.mode + 1) % CAM_MODES.length;
       cam3.dist = CAM_MODES[cam3.mode].dist; cam3.off = 0;
       showMsg(CAM_MODES[cam3.mode].name, '#bcd8ff', 1.2);
     }
     if (!player || player.dead || player.ai || !inBattle()) return;
-    const dm = code.match(/^(?:Digit|Numpad)([1-7])$/);
+    const dm = a.match(/^shell([1-7])$/);
     if (dm) {
       const key = SHELL_KEYS[Number(dm[1]) - 1];
       if (player.ammo[key] <= 0) showMsg(`Out of ${SHELLS[key].name.toLowerCase()} rounds`, '#ff9a7a', 1.2);
@@ -6623,29 +6773,31 @@ Meta.whenReady(() => {
         else if (r === 'unloaded') showMsg(`Unloading the gun: ${SHELLS[key].name.toLowerCase()} in ${player.reloadT.toFixed(1)} s`, '#ffcf7a', 1.6);
         else if (r === 'switched') showMsg(SHELLS[key].full, '#e9d9a6', 1.2);
         else if (r === 'cancelled') showMsg(`Keeping ${SHELLS[key].name.toLowerCase()}`, '#e9d9a6', 1.2);
+        if (r) tutDone('shell');
       }
     }
-    const ord = { Digit8: 'attack', Numpad8: 'attack', Digit9: 'follow', Numpad9: 'follow', Digit0: 'hold', Numpad0: 'hold', KeyN: 'move' }[code];
-    if (ord) giveOrder(ord);
-    if (code === 'KeyE' && state === 'play') deploySmoke(player);
+    if (a === 'attack' || a === 'follow' || a === 'hold' || a === 'move') giveOrder(a);
+    if (a === 'zoom' && sight.on) sight.mag = (sight.mag + 1) % MAGS.length;
+    if ((a === 'rangeUp' || a === 'rangeDown') && sight.on) setRange(a === 'rangeUp' ? 1 : -1);
+    if (a === 'smoke' && state === 'play') deploySmoke(player);
     // extincteur à main : 3 s pendant lesquelles le tireur ne tire pas ; inutile sur un feu de charges
-    if (code === 'KeyT' && state === 'play' && player.fires.length && !(player.extT > 0)) {
+    if (a === 'ext' && state === 'play' && player.fires.length && !(player.extT > 0)) {
       if (player.extN <= 0) showMsg('No extinguisher left', '#ff9a7a', 1.2);
       else { player.extN--; player.extT = 3; showMsg(`Extinguisher (${player.extN} left)`, '#bcd8ff', 1.4); }
     }
     // chenille : l'équipage descend la réparer (char arrêté), ou remonte
-    if (code === 'KeyR' && state === 'play' && player.trackT > 0) {
+    if (a === 'repair' && state === 'play' && player.trackT > 0) {
       if (!player.dismount && Math.abs(player.speed) > 0.5 * PX) showMsg('Stop the tank to repair the track', '#ffcf7a', 1.4);
       else { player.dismount = !player.dismount; showMsg(player.dismount ? 'Crew out: repairing the track' : 'Crew back inside', '#bcd8ff', 1.4); }
     }
     // abandon du char : l'équipage est sauvé, le char perdu
-    if (code === 'KeyB' && state === 'play' && (player.fires.length || player.cookT > 0)) bail(player);
-    if (code === 'KeyG') {
+    if (a === 'bail' && state === 'play' && (player.fires.length || player.cookT > 0)) bail(player);
+    if (a === 'belt') {
       const g = player.mg;
       if (g.type === 'SmK' && g.ammoH <= 0) showMsg('No S.m.K.H. belts left', '#ff9a7a', 1.2);
       else { g.type = g.type === 'SmK' ? 'SmKH' : 'SmK'; showMsg(`Machine gun: ${MG_AMMO[g.type].full}`, '#e9d9a6', 1.4); }
     }
-    if (code === 'KeyU' && roleOk(player, 'commander')) {
+    if (a === 'hatch' && roleOk(player, 'commander')) {
       player.hatch = !player.hatch;
       showMsg(player.hatch ? 'Commander out: better vision, but exposed to bullets' : 'Buttoned up', '#bcd8ff', 1.6);
     }
@@ -6728,30 +6880,30 @@ Meta.whenReady(() => {
 
   const alive = () => player && !player.dead && !player.ai && inBattle();
   const ownedShells = () => SHELL_KEYS.filter(k => player.ammo[k] > 0);
-  const shellKey = k => 'Digit' + (SHELL_KEYS.indexOf(k) + 1);
+  const shellAct = k => 'shell' + (SHELL_KEYS.indexOf(k) + 1);
   function cycleShell() {
     const l = ownedShells(), cur = player.nextShell || player.shell;
     const nx = l[(l.indexOf(cur) + 1) % l.length];
-    if (nx && nx !== cur) keyAction(shellKey(nx));
+    if (nx && nx !== cur) doAction(shellAct(nx));
   }
   // Boutons : grappe de droite (at : décalage depuis le coin inférieur droit, r : rayon ≥ 24 px) et
   // rangées en haut à gauche (row). key : même action que la touche ; hold : commande maintenue.
   const TBTN = [
     { at: [-84, -96], r: 44, label: 'FIRE', hold: v => { ctl.fire = v; if (v) ctl.tap = true; } },
     { at: [-186, -62], r: 28, label: 'MG', hold: v => { ctl.mg = v; } },
-    { at: [-176, -164], r: 28, label: () => sight.on ? 'OUT' : 'SIGHT', key: 'KeyV' },
+    { at: [-176, -164], r: 28, label: () => sight.on ? 'OUT' : 'SIGHT', key: 'sight' },
     { at: [-84, -206], r: 28, label: () => SHELLS[player.nextShell || player.shell].tag || (player.nextShell || player.shell), sub: 'AMMO', tap: cycleShell },
     { at: [-262, -150], r: 26, label: () => `×${MAGS[sight.mag]}`, sub: 'ZOOM', show: () => sight.on, tap: () => { sight.mag = (sight.mag + 1) % MAGS.length; } },
-    { row: 1, label: '❚❚', key: 'KeyP', any: true },
-    { row: 1, label: 'CAM', key: 'KeyC', show: () => W3D && !sight.on },
-    { row: 1, label: 'SMOKE', key: 'KeyE' },
-    { row: 1, label: () => player.hatch ? 'HATCH ▲' : 'HATCH', key: 'KeyU' },
-    { row: 1, label: 'FLARE', key: 'KeyL', show: () => L().night },
-    { row: 1, label: 'REPAIR', key: 'KeyR', warn: true, show: () => player.trackT > 0 },
-    { row: 1, label: 'EXTINGUISH', key: 'KeyT', warn: true, show: () => player.fires.length > 0 },
-    { row: 1, label: 'BAIL OUT', key: 'KeyB', warn: true, show: () => player.fires.length > 0 || player.cookT > 0 },
+    { row: 1, label: '❚❚', key: 'pause', any: true },
+    { row: 1, label: 'CAM', key: 'cam', show: () => W3D && !sight.on },
+    { row: 1, label: 'SMOKE', key: 'smoke' },
+    { row: 1, label: () => player.hatch ? 'HATCH ▲' : 'HATCH', key: 'hatch' },
+    { row: 1, label: 'FLARE', key: 'flare', show: () => L().night },
+    { row: 1, label: 'REPAIR', key: 'repair', warn: true, show: () => player.trackT > 0 },
+    { row: 1, label: 'EXTINGUISH', key: 'ext', warn: true, show: () => player.fires.length > 0 },
+    { row: 1, label: 'BAIL OUT', key: 'bail', warn: true, show: () => player.fires.length > 0 || player.cookT > 0 },
     { row: 1, label: 'ORDERS', show: () => mode === 'campagne', tap: () => { touch.menu = !touch.menu; } },
-    ...[['ATTACK', 'Digit8'], ['FOLLOW', 'Digit9'], ['HOLD', 'Digit0'], ['MOVE', 'KeyN']].map(([label, key]) =>
+    ...[['ATTACK', 'attack'], ['FOLLOW', 'follow'], ['HOLD', 'hold'], ['MOVE', 'move']].map(([label, key]) =>
       ({ row: 2, label, key, show: () => touch.menu && mode === 'campagne', after: () => { touch.menu = false; } })),
   ];
   const txt = v => typeof v === 'function' ? v() : v;
@@ -6775,13 +6927,13 @@ Meta.whenReady(() => {
     for (const q of touch.btns) {
       if (q.r ? Math.hypot(x - q.cx, y - q.cy) <= q.r + 6 : x >= q.x - 4 && x <= q.x + q.w + 4 && y >= q.y - 4 && y <= q.y + q.h + 4) return q.b;
     }
-    for (const s of touch.slots) if (alive() && x >= s.x && x <= s.x + s.w && y >= s.y && y <= s.y + s.h) return { key: shellKey(s.key) };
+    for (const s of touch.slots) if (alive() && x >= s.x && x <= s.x + s.w && y >= s.y && y <= s.y + s.h) return { key: shellAct(s.key) };
     return null;
   }
   function pressTouch(b, down) {
     if (b.hold) { b.hold(down); return; }
     if (!down) return;
-    if (b.tap) b.tap(); else if (b.key) keyAction(b.key);
+    if (b.tap) b.tap(); else if (b.key) doAction(b.key);
     if (b.after) b.after();
   }
   function tPos(e) {
