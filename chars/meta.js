@@ -714,7 +714,7 @@ const Meta = (() => {
   // tableau d'honneur de survie d'un secteur : as fictifs et meilleur score du joueur, triés
   function hallOfFame(level) {
     const k = HOF_K[level] || 1, me = P.rec.surv[level] || 0;
-    return ACES.map((n, i) => ({ name: n, v: Math.max(1, Math.round(ACE_W[i] * k)) })).concat([{ name: 'You', v: me, me: true }]).sort((a, b) => b.v - a.v || (a.me ? -1 : 1));
+    return ACES.map((n, i) => ({ name: n, v: Math.max(1, Math.round(ACE_W[i] * k)) })).concat([{ name: 'You', v: me, me: true }]).sort((a, b) => b.v - a.v || (b.me ? 1 : 0) - (a.me ? 1 : 0));
   }
 
   // ===================== Objectifs suivants =====================

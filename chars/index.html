@@ -176,6 +176,35 @@
   .day b { display: block; font-family: var(--head); font-size: 15px; color: var(--ink); margin-top: 3px; }
   .day.done { border-color: rgba(143, 212, 106, 0.4); color: var(--green); }
   .day.today { border-color: var(--gold); box-shadow: 0 0 18px rgba(233, 196, 106, 0.25); color: var(--gold); }
+  /* difficulté, secteurs, maîtrise, bon de guerre, médailles */
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { font-family: var(--head); font-size: 14px; letter-spacing: 0.06em; padding: 8px 14px; border-radius: 999px; background: var(--glass); border: 1px solid var(--line2); color: var(--ink); cursor: pointer; }
+  .chip small { margin-left: 6px; color: var(--gold); font-size: 11px; }
+  .chip.sel { border-color: var(--gold); box-shadow: 0 0 0 1px rgba(233, 196, 106, 0.3); color: var(--gold); }
+  .chip.locked { opacity: 0.55; }
+  .lvstars, .lvbest { display: block; margin: 2px 0; color: var(--gold); letter-spacing: 2px; font-size: 13px; }
+  .lvbest { letter-spacing: 0.04em; font-size: 11px; }
+  .tcard .mast { position: absolute; z-index: 3; left: 8px; top: 8px; min-width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; font-family: var(--head); font-size: 11px; color: #2a1d05; background: radial-gradient(circle at 35% 30%, #fff1b8, #c99a32 60%, #7a5614); }
+  .tcard.ace { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold), 0 0 22px rgba(233, 196, 106, 0.35); }
+  .mtag { margin-left: 8px; font-family: var(--head); font-size: 10px; letter-spacing: 0.08em; padding: 2px 6px; border-radius: 6px; border: 1px solid var(--line); color: var(--blue); }
+  .bondGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(74px, 1fr)); gap: 6px; }
+  .bt { position: relative; padding: 6px 4px; border-radius: 10px; background: var(--glass); border: 1px solid var(--line2); text-align: center; font-size: 10.5px; color: var(--mute); min-height: 54px; }
+  .bt small { display: block; font-family: var(--head); font-size: 11px; color: var(--dim, #8a836c); }
+  .bt b { display: block; color: var(--ink); font-weight: 600; line-height: 1.25; }
+  .bt.big b { color: var(--rc, var(--gold)); }
+  .bt.got { border-color: rgba(143, 212, 106, 0.4); opacity: 0.75; }
+  .bt.got::after { content: '✓'; position: absolute; right: 5px; top: 3px; color: var(--green); }
+  .bt.ready { border-color: var(--gold); box-shadow: 0 0 14px rgba(233, 196, 106, 0.3); cursor: pointer; animation: glow 2.4s ease-in-out infinite; }
+  .btn.tiny { padding: 3px 5px; font-size: 9.5px; letter-spacing: 0.02em; margin-top: 4px; border-radius: 6px; }
+  .btn.tiny::before { font-size: 8px; }
+  .medals { display: grid; grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); gap: 6px; }
+  .medal { text-align: center; padding: 8px 4px; border-radius: 10px; background: var(--glass); border: 1px solid var(--line2); font-size: 11px; color: var(--mute); opacity: 0.6; }
+  .medal span { display: block; font-size: 22px; filter: grayscale(1); }
+  .medal b { display: block; color: var(--ink); font-size: 11px; font-weight: 600; }
+  .medal.bronze, .medal.silver, .medal.gold { opacity: 1; } .medal.bronze span, .medal.silver span, .medal.gold span { filter: none; }
+  .medal.bronze { border-color: #a0683a; } .medal.silver { border-color: #c8ccd4; } .medal.gold { border-color: var(--gold); box-shadow: 0 0 14px rgba(233, 196, 106, 0.3); }
+  .hof { display: grid; gap: 2px; margin-top: 6px; } .hof span { color: var(--mute); } .hof span.me { color: var(--gold); font-weight: 600; }
+  #crate { margin-top: 0; }
   .wheelWrap { position: relative; width: min(420px, 90vw); margin: 4px auto 0; }
   #wheel { width: 100%; height: auto; display: block; }
   .wheelWrap .pin { position: absolute; left: 50%; top: -6px; transform: translateX(-50%); width: 0; height: 0; border-left: 16px solid transparent; border-right: 16px solid transparent; border-top: 34px solid var(--gold); filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.6)); }
@@ -405,6 +434,9 @@
         <div class="psub">Pick a mode and a battlefield, then roll out.</div>
         <h2>Game mode</h2>
         <div id="modeCards" class="cards"></div>
+        <h2>Difficulty</h2>
+        <div id="diffChips" class="chips"></div>
+        <div class="psub" id="diffHint" style="margin:6px 0 0"></div>
         <h2>Battlefield</h2>
         <div id="levelCards" class="cards"></div>
       </section>
@@ -415,6 +447,8 @@
         <div id="tankBuy" class="btns" style="justify-content:flex-start"></div>
         <h2>Upgrades</h2>
         <div id="partList"></div>
+        <h2>Crew</h2>
+        <div id="crewList"></div>
         <h2>Camo Collection</h2>
         <div class="psub" id="skinHint" style="margin:-4px 0 10px">Click a camo to try it on the showcase.</div>
         <div id="skinCards" class="skins"></div>
@@ -426,14 +460,26 @@
         <div class="wheelWrap"><canvas id="wheel" width="840" height="840"></canvas><div class="pin"></div></div>
         <div id="wheelPrize"></div>
         <div class="btns"><button class="btn" id="spinFree">Free spin</button><button class="btn ad" id="spinAd">Bonus spin</button></div>
+        <h2>Field Supply</h2>
+        <div class="part" id="crate"></div>
       </section>
       <section class="panel" id="tab-missions">
-        <div class="ptitle">Daily Orders</div>
-        <div class="psub">Three new missions every day. Come back daily to grow your login bonus.</div>
-        <h2>Missions</h2>
+        <div class="ptitle">Orders</div>
+        <div class="psub">Three new missions every day, three more every week. Come back daily to grow your login bonus.</div>
+        <h2>Daily missions</h2>
         <div id="missionList"></div>
+        <h2>Weekly orders</h2>
+        <div id="weeklyList"></div>
+        <h2>War Bond</h2>
+        <div id="bondTrack"></div>
         <h2>Login streak</h2>
         <div class="streak" id="streak"></div>
+        <div id="streakFix" class="btns" style="justify-content:flex-start"></div>
+        <h2>Medals and achievements</h2>
+        <div id="medalGrid" class="medals"></div>
+        <div id="achList"></div>
+        <h2>Records</h2>
+        <div id="records" class="help"></div>
         <h2>Service record</h2>
         <div id="career" class="help"></div>
       </section>
@@ -489,6 +535,7 @@
         <div class="opt"><span>Sound effects</span><input type="range" id="oSfx" min="0" max="1" step="0.05"></div>
         <div class="opt"><span>Music</span><input type="range" id="oMusic" min="0" max="1" step="0.05"></div>
         <div class="opt"><span>Graphics quality</span><select id="oQuality"><option value="haute">High</option><option value="moyenne">Medium</option><option value="basse">Low</option><option value="mobile">Mobile</option></select></div>
+        <div class="opt"><span>Difficulty</span><select id="oDiff"></select></div>
         <div class="opt"><span>X-ray impact camera</span><input type="checkbox" id="oHitcam"></div>
         <div class="opt"><span>Ballistics</span><select id="oBallistics"><option value="real">Realistic: true shell velocities</option><option value="arcade">Arcade: slower shells</option></select></div>
         <div class="btns" style="justify-content:flex-start"><button class="btn alt small" id="oReset">Erase progress</button></div>

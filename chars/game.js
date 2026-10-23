@@ -168,7 +168,7 @@ Meta.whenReady(() => {
       ground: ['#7b8446', '#6c763b', '#8a9352'], road: '#8d7d58', dust: '#a59a6a', track: 'rgba(40,35,20,0.16)',
       trees: 45, treeCl: 6, bushes: 34, buildings: 6, walls: 9, rocks: 8,
       tree: ['#36521f', '#4a6a2b'], bush: '#4c6b2a', wall: '#a59a86', roof: ['#8a4f3a', '#73402f'],
-      waves: [W_('light', 'light', 'medium', 'light', 'medium'), W_('pz4', 'light', 'medium', 'stug', 'light'), W_('pz4', 'medium', 'heavy', 'stug', 'medium')],
+      waves: [W_('light', 'light', 'medium', 'light', 'pz4'), W_('pz4', 'light', 'medium', 'stug', 'light'), W_('pz4', 'medium', 'heavy', 'stug', 'medium')],
       forms: [['line', 'wedge'], ['late', 'pincer'], ['wedge', 'ambush', 'late']],
     },
     {
@@ -829,7 +829,7 @@ Meta.whenReady(() => {
       player = makeTank(chosenType, 0, 200, WH / 2, 0, true, 'You', aSkill);
       tanks.push(player);
       if (mode === 'duel') {
-        const t = makeTank(chosenType, 1, WW - 200, WH / 2 + rnd(-300, 300), Math.PI, false, 'Enemy 1', aiSkill(0.85));
+        const t = makeTank(chosenType, 1, WW - 200, WH / 2 + rnd(-300, 300), Math.PI, false, 'Enemy 1', aiSkill(0.45 + 0.08 * levelIdx));
         t.ai.laneY = clamp(t.y + rnd(-200, 200), 150, WH - 150);
         tanks.push(t); enemyN = 1;
       } else { survWave = 1; nextWaveT = 0; survivalEnemies(survWave); }
@@ -5624,8 +5624,8 @@ Meta.whenReady(() => {
     $('rkLv').style.setProperty('--p', Math.round(P.xp / need * 100) + '%');
     $('rkName').textContent = Meta.rankName();
     $('rkXp').textContent = `${fmt(P.xp)} / ${fmt(need)} XP`;
-    $('dotWheel').classList.toggle('on', Meta.canSpinFree());
-    $('dotMissions').classList.toggle('on', P.missions.some(m => { const d = Meta.MISSIONS.find(k => k.id === m.id); return d && m.prog >= d.goal && !m.claimed; }));
+    $('dotWheel').classList.toggle('on', Meta.canSpinFree() || !Meta.crateLeft());
+    $('dotMissions').classList.toggle('on', Meta.claimable().length > 0 || Meta.bondReady() > 0 || Meta.achReady() > 0 || Meta.canRestore());
     const owned = P.tanks.includes(chosenType), T = TYPES[chosenType];
     $('sumTank').textContent = T.name;
     const cw = contWave();
@@ -5651,11 +5651,12 @@ Meta.whenReady(() => {
     for (const T of Object.values(TYPES)) {
       const d = document.createElement('div'), own = P.tanks.includes(T.id), inf = Meta.TANKS[T.id];
       const rar = TANK_RAR[T.id] || 'common';
-      d.className = `card tcard rar-${rar}` + (T.id === chosenType ? ' sel' : '') + (own ? '' : ' locked');
+      const ms = Meta.mastery(T.id);
+      d.className = `card tcard rar-${rar}` + (T.id === chosenType ? ' sel' : '') + (own ? '' : ' locked') + (ms >= Meta.MASTERY.length ? ' ace' : '');
       const lock = own ? '<span class="tag own">✓ Owned</span>' : P.level < inf.lvl
         ? `<div class="lockov"><span class="lk">🔒</span><span>Requires level ${inf.lvl}</span><b>✪ ${fmt(inf.price)}</b></div>`
         : `<div class="lockov"><span class="lk">🔓</span><span>Ready to unlock</span><b>✪ ${fmt(inf.price)}</b></div>`;
-      d.innerHTML = `${lock}<img class="thumb" alt="" src="${tankThumb(T.id)}"><b>${T.name}</b><small>${T.cls}${T.arc ? ' · turretless' : ''}</small><span class="rib">${Meta.RARITY[rar]}</span>`;
+      d.innerHTML = `${lock}<img class="thumb" alt="" src="${tankThumb(T.id)}"><b>${T.name}</b><small>${T.cls}${T.arc ? ' · turretless' : ''}</small><span class="rib">${Meta.RARITY[rar]}</span>${ms ? `<span class="mast" title="Mastery: ${Meta.MASTERY_N[ms - 1]}">${['III', 'II', 'I', '★'][ms - 1]}</span>` : ''}`;
       d.onclick = () => { chosenType = T.id; skinPreview = null; buildMenu(); };
       tc.appendChild(d);
     }
@@ -5672,7 +5673,7 @@ Meta.whenReady(() => {
       };
       tb.appendChild(b);
     }
-    buildParts();
+    buildParts(); buildCrew();
     // camouflages : aperçu au clic, achat en crédits, ou déblocage par publicités
     const sc = $('skinCards'); sc.innerHTML = '';
     const cur = Meta.skinOf(chosenType), feat = Meta.featured();
@@ -5688,7 +5689,8 @@ Meta.whenReady(() => {
         else skinPreview = skinPreview === sk.id ? null : sk.id;
         buildMenu();
       };
-      if (!own) {
+      if (!own && sk.bond) d.insertAdjacentHTML('beforeend', '<span class="st">War Bond reward</span>');
+      else if (!own) {
         const act = document.createElement('div'); act.className = 'act';
         if (!sk.adOnly) {
           const b = document.createElement('button'); b.className = 'btn buy';
@@ -5732,11 +5734,13 @@ Meta.whenReady(() => {
       const d = document.createElement('div');
       const locked = mode === 'campagne' && i > unlockedIdx();
       d.className = 'card' + (i === levelIdx ? ' sel' : '') + (locked ? ' locked' : '');
-      d.innerHTML = `<b>${i + 1}. ${lv.name}</b><small>${locked ? '🔒 Conquer the previous sector' : lv.sub}</small>`;
+      const st = Meta.starsOf(Meta.diffId(), i), best = Meta.P.rec.surv[i] || 0;
+      const extra = mode === 'campagne' ? `<span class="lvstars">${'★'.repeat(st)}${'☆'.repeat(3 - st)}</span>` : mode === 'survie' && best ? `<span class="lvbest">best: ${best} wave${best > 1 ? 's' : ''}</span>` : '';
+      d.innerHTML = `<b>${i + 1}. ${lv.name}</b>${extra}<small>${locked ? '🔒 Conquer the previous sector' : lv.sub}</small>`;
       d.onclick = () => { if (!locked) { levelIdx = i; buildMenu(); } };
       lc.appendChild(d);
     });
-    buildMissions();
+    buildDiff(); buildMissions(); buildCrate();
     drawWheel(wheelRot);
     $('spinFree').disabled = !Meta.canSpinFree() || wheelSpin;
     $('spinAd').hidden = !Meta.canSpinAd() && !wheelSpin;
@@ -5846,29 +5850,155 @@ Meta.whenReady(() => {
     if (!own) { const n = document.createElement('div'); n.className = 'psub'; n.textContent = 'Buy this tank to upgrade it.'; pl.prepend(n); }
   }
   function buildMissions() {
-    const P = Meta.P, ml = $('missionList'); ml.innerHTML = '';
-    for (const m of P.missions) {
-      const def = Meta.MISSIONS.find(k => k.id === m.id);
-      if (!def) continue;
-      const done = m.prog >= def.goal, d = document.createElement('div');
-      d.className = 'mission';
-      d.innerHTML = `<div class="mi"><b>${def.t}</b><div class="stat"><span>${Math.min(m.prog, def.goal)} / ${def.goal}</span><div class="bar"><i style="width:${Math.min(100, m.prog / def.goal * 100)}%"></i></div></div></div><span class="mrw">✪ ${fmt(def.reward)}</span>`;
-      const b = document.createElement('button');
-      b.className = 'btn small' + (done && !m.claimed ? '' : ' alt');
-      b.textContent = m.claimed ? 'Claimed' : done ? 'Claim' : 'In progress';
-      b.disabled = !done || m.claimed;
-      b.onclick = () => { const c = Meta.claim(m.id); if (c) { toast(`Mission complete: +✪ ${fmt(c)}`); Sfx.notify(); buildMenu(); } };
-      d.appendChild(b);
-      ml.appendChild(d);
-    }
+    const P = Meta.P, ml = $('missionList'), wl = $('weeklyList'); ml.innerHTML = ''; wl.innerHTML = '';
+    for (const m of P.missions) if (Meta.mDef(m.id)) ml.appendChild(missionRow(m, true));
+    for (const m of P.weekly) if (Meta.mDef(m.id)) wl.appendChild(missionRow(m, false));
+    buildBond();
+    // série : semaine du cycle en cours, 7e jour = caisse ; bouclier le jour d'une série perdue
     const st = $('streak'); st.innerHTML = '';
-    Meta.STREAK.forEach((c, i) => {
-      const d = document.createElement('div');
-      d.className = 'day' + (i < P.streak - 1 ? ' done' : i === P.streak - 1 ? ' today' : '');
-      d.innerHTML = `Day ${i + 1}<b>✪ ${fmt(c)}</b>`;
+    const cur = Math.max(1, P.streak), w0 = Math.floor((cur - 1) / 7) * 7;
+    for (let i = 0; i < 7; i++) {
+      const n = w0 + i + 1, r = Meta.streakReward(n), d = document.createElement('div');
+      d.className = 'day' + (n < P.streak ? ' done' : n === P.streak ? ' today' : '');
+      d.innerHTML = `Day ${n}<b>${i === 6 ? '📦' : '✪ ' + fmt(r.c)}</b>`;
+      if (i === 6) d.title = 'Supply Crate: ✪ 2,000, a repair kit and a chance of a camo';
       st.appendChild(d);
-    });
-    $('career').innerHTML = `<div>Battles: <b>${P.stats.battles}</b> · victories: <b>${P.stats.wins}</b> · tanks destroyed: <b>${P.stats.kills}</b></div><div>Rank: <b>${Meta.rankName()}</b> (level ${P.level}) · ×2 boosters in reserve: <b>${P.x2}</b></div>`;
+    }
+    const fx = $('streakFix'); fx.innerHTML = '';
+    if (Meta.canRestore()) {
+      const b = document.createElement('button'); b.className = 'btn ad small'; b.textContent = `Restore your ${P.streakLost}-day streak`;
+      b.onclick = () => Meta.rewarded(() => { const n = Meta.restoreStreak(); if (n) { toast(`Streak restored: day ${n}`); buildMenu(); } }, () => toast('Ad unavailable right now'));
+      fx.appendChild(b);
+    }
+    buildAch(); buildRecords();
+    $('career').innerHTML = `<div>Battles: <b>${P.stats.battles}</b> · victories: <b>${P.stats.wins}</b> · tanks destroyed: <b>${P.stats.kills}</b> · sector stars: <b>${Meta.starTotal()}</b></div><div>Rank: <b>${Meta.rankName()}</b> (level ${P.level}) · ×2 boosters in reserve: <b>${P.x2}</b> (used on victories worth ✪ 300 or more)</div>`;
+  }
+  // ----- difficulté, équipage, ravitaillement, bon de guerre, succès, records -----
+  const DIFF_TIP = { recruit: 'Slower, less accurate enemies. Rewards ×0.75.', regular: 'The intended experience.', veteran: 'Sharper enemies with Mk I upgrades. Rewards ×1.35.', ace: 'Elite enemies with Mk II upgrades, no field repair. Rewards ×1.8.' };
+  function buildDiff() {
+    const el = $('diffChips'); el.innerHTML = '';
+    for (const [id, d] of Object.entries(Meta.DIFF)) {
+      const ok = Meta.diffOk(id), b = document.createElement('button');
+      const lock = id === 'veteran' ? 'Reach the last campaign sector to unlock Veteran' : 'Conquer the campaign on Veteran to unlock Ace';
+      b.className = 'chip' + (Meta.diffId() === id ? ' sel' : '') + (ok ? '' : ' locked');
+      b.innerHTML = `${ok ? '' : '🔒 '}${d.name}<small>×${d.mul}</small>`;
+      b.title = ok ? DIFF_TIP[id] : lock;
+      b.onclick = () => { if (Meta.setDiff(id)) buildMenu(); else toast(lock); };
+      el.appendChild(b);
+    }
+    $('diffHint').textContent = DIFF_TIP[Meta.diffId()];
+    // même réglage dans les options
+    $('oDiff').innerHTML = Object.entries(Meta.DIFF).map(([id, d]) => `<option value="${id}"${Meta.diffOk(id) ? '' : ' disabled'}>${d.name}${Meta.diffOk(id) ? ` (rewards ×${d.mul})` : ' (locked)'}</option>`).join('');
+    $('oDiff').value = Meta.diffId();
+  }
+  $('oDiff').onchange = e => { if (!Meta.setDiff(e.target.value)) toast('This difficulty is still locked'); buildMenu(); };
+  // Équipage du char choisi : niveau (XP gagnée avec ce char), maîtrise, compétences par rôle
+  function buildCrew() {
+    const id = chosenType, el = $('crewList'), own = Meta.P.tanks.includes(id);
+    const lv = Meta.crewLevel(id), pts = Meta.perkPoints(id), ms = Meta.mastery(id), xp = Meta.tankXp(id), nx = Meta.MASTERY[ms];
+    el.innerHTML = `<div class="psub" style="margin:0 0 8px">Crew level <b>${lv}/10</b>${lv < 10 ? ` (next at ${fmt(250 * (lv + 1) * (lv + 1))} tank XP)` : ''} · <b>${pts}</b> skill point${pts !== 1 ? 's' : ''} · tank XP ${fmt(xp)} · ${ms ? `mastery <b>${Meta.MASTERY_N[ms - 1]}</b>` : 'no mastery yet'}${nx ? ` · next badge at ${fmt(nx)}` : ''}</div>`;
+    for (const k of Meta.PERKS) {
+      const r = Meta.perkRank(id, k.id), d = document.createElement('div');
+      d.className = 'part l' + r;
+      d.innerHTML = `<div class="pi">${k.ic}</div><div class="pt"><b>${k.role}: ${k.name}<span class="mk">Rank ${r}</span></b><small>${k.d}</small><div class="pips">${[0, 1, 2].map(i => `<i class="${i < r ? 'on' : i === r ? 'nx' : ''}"></i>`).join('')}</div></div><div class="pb"></div>`;
+      if (r < 3) {
+        const b = document.createElement('button'); b.className = 'btn buy'; b.textContent = '+1 rank';
+        b.disabled = !own || pts <= 0;
+        b.onclick = () => { if (Meta.buyPerk(id, k.id)) { Sfx.notify(); buildMenu(); } };
+        d.querySelector('.pb').appendChild(b);
+      } else d.querySelector('.pb').innerHTML = '<span class="maxed">★ MAX</span>';
+      el.appendChild(d);
+    }
+    if (Meta.PERKS.some(k => Meta.perkRank(id, k.id))) {
+      const b = document.createElement('button'); b.className = 'btn alt small'; b.textContent = 'Retrain crew · ✪ 500';
+      b.disabled = Meta.P.credits < 500;
+      b.onclick = () => { if (Meta.resetPerks(id)) { toast('Crew retrained: skill points refunded'); buildMenu(); } };
+      el.appendChild(b);
+    }
+    if (!own) el.insertAdjacentHTML('afterbegin', '<div class="psub">Buy this tank to train its crew.</div>');
+  }
+  // Caisse de campagne gratuite toutes les 4 heures (ou tout de suite par une publicité)
+  function buildCrate() {
+    const el = $('crate'), left = Meta.crateLeft();
+    if (!el) return;
+    const h = Math.floor(left / 3600e3), m = Math.ceil((left % 3600e3) / 60e3);
+    el.innerHTML = `<div class="pi">📦</div><div class="pt"><b>Field Supply Crate</b><small>${left ? `Next free crate in ${h ? h + ' h ' : ''}${m} min` : 'A free crate is waiting: 150 to 400 ✪'}</small></div><div class="pb"></div>`;
+    const b = document.createElement('button');
+    if (!left) { b.className = 'btn buy'; b.textContent = 'Open'; b.onclick = () => { const c = Meta.openCrate(false); if (c) { toast(`📦 Field Supply: +✪ ${fmt(c)}`); Sfx.notify(); buildMenu(); } }; }
+    else { b.className = 'btn ad'; b.textContent = 'Open now'; b.onclick = () => Meta.rewarded(() => { const c = Meta.openCrate(true); toast(`📦 Field Supply: +✪ ${fmt(c)}`); Sfx.notify(); buildMenu(); }, () => toast('Ad unavailable right now')); }
+    el.querySelector('.pb').appendChild(b);
+  }
+  setInterval(() => { if (state === 'menu') { buildCrate(); $('dotWheel').classList.toggle('on', Meta.canSpinFree() || !Meta.crateLeft()); } }, 30000);
+  // texte court d'une récompense de palier
+  const rwShort = r => r.skin ? `🎨 ${Meta.SKINS.find(k => k.id === r.skin).name}` : [r.c ? `✪ ${fmt(r.c)}` : '', r.kit ? '✚ kit' : '', r.x2 ? `${r.x2} ×2 boosts` : ''].filter(Boolean).join(' + ');
+  // Bon de guerre : 30 paliers du mois, ligne gratuite (réclamer) et commission de terrain (+50 % par publicité)
+  function buildBond() {
+    const bd = Meta.bond(), P = Meta.P, el = $('bondTrack');
+    el.innerHTML = `<div class="goal bond"><div class="gl"><b>Operation ${bd.name} · tier ${bd.tier}/${bd.n}</b><span>${bd.max ? 'track complete' : `${fmt(bd.xp)} / ${fmt(bd.need)} XP`}</span></div><div class="bar"><i style="width:${bd.max ? 100 : Math.round(bd.xp / bd.need * 100)}%"></i></div></div><div class="psub" style="margin:6px 0 8px">Battle XP and completed missions fill the War Bond. A new operation starts every month; unclaimed tiers are paid automatically.</div>`;
+    const g = document.createElement('div'); g.className = 'bondGrid';
+    for (let i = 1; i <= bd.n; i++) {
+      const r = Meta.bondReward(i), got = P.op.claimed.includes(i), ready = !got && i <= bd.tier, c = document.createElement('div');
+      const sk = r.skin && Meta.SKINS.find(k => k.id === r.skin);
+      c.className = 'bt' + (got ? ' got' : ready ? ' ready' : '') + (sk ? ` rar-${sk.rar} big` : '');
+      c.innerHTML = `<small>${i}</small><b>${rwShort(r)}</b>`;
+      c.title = `Tier ${i}: ${rwShort(r)}`;
+      if (ready) c.onclick = () => { const t = Meta.bondClaim(i); if (t) { toast(`War Bond tier ${i}: ${t}`); Sfx.notify(); celebrateGot('War Bond reward'); buildMenu(); } };
+      if (got && !P.op.bonus.includes(i)) {
+        const a = document.createElement('button'); a.className = 'btn ad tiny'; a.textContent = `+✪ ${fmt(Meta.bondBonusOf(i).c)}`;
+        a.title = 'Field Commission: watch an ad for a bonus on this tier';
+        a.onclick = e => { e.stopPropagation(); Meta.rewarded(() => { const t = Meta.bondBonus(i); if (t) { toast(`Field Commission: ${t}`); buildMenu(); } }, () => toast('Ad unavailable right now')); };
+        c.appendChild(a);
+      }
+      g.appendChild(c);
+    }
+    el.appendChild(g);
+  }
+  // Ordres du jour et de la semaine : progression, réclamation, nouvelle mission (gratuite une fois par jour)
+  function missionRow(m, daily) {
+    const def = Meta.mDef(m.id), done = m.prog >= def.goal, d = document.createElement('div');
+    d.className = 'mission';
+    const tag = def.m ? `<span class="mtag">${MODES[def.m].name}</span>` : '';
+    d.innerHTML = `<div class="mi"><b>${def.t}</b>${tag}<div class="stat"><span>${fmt(Math.min(m.prog, def.goal))} / ${fmt(def.goal)}</span><div class="bar"><i style="width:${Math.min(100, m.prog / def.goal * 100)}%"></i></div></div></div><span class="mrw">✪ ${fmt(def.reward)}${def.skin ? ' + camo' : ''}</span>`;
+    if (daily && !done && !m.claimed) {
+      const free = Meta.canReroll(m.id), r = document.createElement('button');
+      r.className = 'btn small ' + (free ? 'alt' : 'ad'); r.textContent = free ? '↻' : '↻ New'; r.title = free ? 'Swap for another mission (free once a day)' : 'Swap for another mission by watching an ad';
+      r.onclick = () => { const go = () => { if (Meta.reroll(m.id, !free)) buildMenu(); }; if (free) go(); else Meta.rewarded(go, () => toast('Ad unavailable right now')); };
+      d.appendChild(r);
+    }
+    const b = document.createElement('button');
+    b.className = 'btn small' + (done && !m.claimed ? '' : ' alt');
+    b.textContent = m.claimed ? 'Claimed' : done ? 'Claim' : 'In progress';
+    b.disabled = !done || m.claimed;
+    b.onclick = () => { const c = Meta.claim(m.id); if (c) { toast(`Mission complete: +✪ ${fmt(c)}`); Sfx.notify(); celebrateGot('Weekly order reward'); buildMenu(); } };
+    d.appendChild(b);
+    return d;
+  }
+  // Médailles (compteurs et rang de collection) et succès à réclamer
+  function buildAch() {
+    const P = Meta.P, all = Meta.achList(), mg = $('medalGrid'); mg.innerHTML = '';
+    for (const m of Meta.MEDALS) {
+      const n = P.medals[m.id] || 0, t = n >= 50 ? 'gold' : n >= 10 ? 'silver' : n >= 1 ? 'bronze' : '';
+      mg.insertAdjacentHTML('beforeend', `<div class="medal ${t}" title="${m.name}: ${m.d} (+✪ ${m.c} in battle)"><span>${m.ic}</span><b>${m.name}</b><small>×${n}</small></div>`);
+    }
+    const el = $('achList'); el.innerHTML = '';
+    const got = all.filter(a => a.claimed).length;
+    // à réclamer d'abord, puis le prochain rang de chaque famille
+    const fam = new Set(), list = all.filter(a => a.done && !a.claimed);
+    for (const a of all) { const f = a.id.split(':')[0]; if (!a.done && !fam.has(f)) { fam.add(f); list.push(a); } }
+    el.insertAdjacentHTML('beforeend', `<div class="psub" style="margin:8px 0">${got} / ${all.length} achievements earned</div>`);
+    for (const a of list.slice(0, 14)) {
+      const d = document.createElement('div'); d.className = 'mission';
+      d.innerHTML = `<div class="mi"><b>${a.ic} ${a.name}</b><small style="display:block;color:var(--mute)">${a.d}</small><div class="stat"><span>${fmt(Math.min(a.prog, a.goal))} / ${fmt(a.goal)}</span><div class="bar"><i style="width:${Math.min(100, a.prog / a.goal * 100)}%"></i></div></div></div><span class="mrw">✪ ${fmt(a.reward)}</span>`;
+      if (a.done) { const b = document.createElement('button'); b.className = 'btn small'; b.textContent = 'Claim'; b.onclick = () => { const c = Meta.claimAch(a.id); if (c) { toast(`Achievement: ${a.name} · +✪ ${fmt(c)}`); Sfx.unlock(1); buildMenu(); } }; d.appendChild(b); }
+      el.appendChild(d);
+    }
+  }
+  // Records personnels par mode et par champ de bataille, tableau d'honneur de survie du secteur choisi
+  function buildRecords() {
+    const R = Meta.P.rec, rows = LEVELS.map((lv, i) => `<div>${lv.name}: survival best <b>${R.surv[i] || 0}</b> wave${R.surv[i] === 1 ? '' : 's'} · sector best score <b>${fmt(R.sector[i] || 0)}</b></div>`).join('');
+    const hof = Meta.hallOfFame(levelIdx), me = hof.findIndex(e => e.me);
+    $('records').innerHTML = rows + `<div>Duel win streak: <b>${R.duelStreak}</b> (best ${R.duelBest}) · most kills in one battle: <b>${R.maxKills}</b> · longest kill: <b>${R.longest} m</b> · deepest penetration: <b>${R.maxPen} mm</b></div>` +
+      `<div class="hof"><b>Survival Hall of Fame · ${L().name}</b>${hof.slice(0, Math.max(5, me + 1)).map((e, i) => `<span class="${e.me ? 'me' : ''}">#${i + 1} ${e.name} · ${e.v} waves</span>`).join('')}</div>`;
   }
   function partsLine(id) {
     const m = Meta.mods(id), pc = v => (v >= 1 ? '+' : '−') + Math.round(Math.abs(v - 1) * 100) + '%';
@@ -6211,7 +6341,7 @@ Meta.whenReady(() => {
     requestAnimationFrame(() => requestAnimationFrame(() => el.querySelectorAll('.bar i[data-to]').forEach(i => { i.style.width = i.dataset.to + '%'; })));
   }
   // « Débloquer » depuis les résultats : garage ouvert sur le char visé
-  function goGarage(id) { leaveResult(() => { toMenu(); if (id && TYPES[id]) chosenType = id; openTab('garage'); }); }
+  function goGarage(id) { leaveResult(() => { toMenu(); if (id && TYPES[id]) chosenType = id; buildMenu(); openTab('garage'); }); }
   function statRows(ws) {
     const acc = ws.shots ? Math.round(ws.hits / ws.shots * 100) : 0;
     return `<tr><td>Enemy tanks destroyed</td><td>${ws.kills}</td></tr>` +
@@ -6795,7 +6925,7 @@ Meta.whenReady(() => {
   if (Q.has('debug')) {
     window.__fa = {
       get tanks() { return tanks; }, get state() { return state; }, get stats() { return waveStats; }, get shells() { return shells; },
-      get time() { return gameTime; }, get player() { return player; }, get bushes() { return bushes; }, get w3d() { return W3D; }, get falls3() { return falls3; }, damageObstacle, knockTree, get debris3() { return debris3; }, launchFlare, get flares() { return flares; }, get obstacles() { return obstacles; }, barrelHit, cam3, sight, setSight, sightProbe, get mode() { return mode; }, get survWave() { return survWave; }, dyn, hitcam: HitCam, TYPES, SHELLS, bench, benchFire,
+      get time() { return gameTime; }, get player() { return player; }, get bushes() { return bushes; }, get w3d() { return W3D; }, get falls3() { return falls3; }, damageObstacle, knockTree, get debris3() { return debris3; }, launchFlare, get flares() { return flares; }, get obstacles() { return obstacles; }, barrelHit, cam3, sight, setSight, sightProbe, get mode() { return mode; }, meta: Meta, medal, takeCommand, get survWave() { return survWave; }, dyn, hitcam: HitCam, TYPES, SHELLS, bench, benchFire,
       // test : tir forcé du joueur sur la cible la plus proche
       fireAt(i, key) {
         const e = tanks.filter(t => t.team === 1 && !t.dead)[i || 0];
