@@ -2173,6 +2173,17 @@ Meta.whenReady(() => {
     if (dep > T.S.ht + 0.2) { if (t === player) addLog('The tank is sinking: abandon ship!', '#ff6a5a'); bail(t); return true; }
     return false;
   }
+  // Garde-corps : un char engagé sur le tablier n'en sort que par les bouts
+  function bridgeRails(t) {
+    let on = null;
+    for (const b of terra.bridges) {
+      if (b.dead) continue;
+      const dx = t.x - b.x, dy = t.y - b.y, u = dx * b.ux + dy * b.uy, v = dy * b.ux - dx * b.uy, lim = b.hw - 3;
+      if (t.deck === b && Math.abs(u) < b.hl - 5 && Math.abs(v) > lim) { const w = Math.sign(v) * lim; t.x = b.x + b.ux * u - b.uy * w; t.y = b.y + b.uy * u + b.ux * w; on = b; }
+      else if (Math.abs(u) <= b.hl && Math.abs(v) <= b.hw) on = b;
+    }
+    t.deck = on;
+  }
   // Pont qui cède : la travée tombe à l'eau, le char avec ; le passage disparaît de l'itinéraire
   function collapseBridge(b, t) {
     b.dead = true;
@@ -2259,6 +2270,7 @@ Meta.whenReady(() => {
     t.y += (s2 * t.speed + c2 * t.vl) * dt;
     collideObstacles(t, vPre, lPre, a0);
     clampMap(t);
+    bridgeRails(t);
     // vitesse réelle : ce qu'un obstacle ou le bord de la carte a retenu est perdu, sans élan fantôme
     const mvx = (t.x - ox) / dt, mvy = (t.y - oy) / dt, va = mvx * c2 + mvy * s2, la = mvy * c2 - mvx * s2;
     t.spin = Math.abs(t.speed - va);

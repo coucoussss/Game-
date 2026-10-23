@@ -7,7 +7,7 @@ const World3D = (() => {
   const IDENT = M4.ident();
 
   const VS = `
-attribute vec3 aPos; attribute vec3 aNor; attribute vec3 aCol; attribute float aMat;
+attribute vec3 aPos; attribute vec3 aNor; attribute vec3 aCol; attribute float aMat; attribute float aGnd;
 uniform mat4 uVP; uniform mat4 uModel; uniform mat4 uLVP; uniform mat4 uLVPS; uniform float uTime; uniform vec2 uNOff; uniform vec4 uBlast[4]; uniform float uBase;
 // souffles (coup de canon, explosion, char qui traverse) : le feuillage s'écarte puis revient en oscillant
 vec3 blast(vec3 w, float g){
@@ -24,9 +24,9 @@ vec3 blast(vec3 w, float g){
 varying vec3 vW; varying vec3 vN; varying vec3 vC; varying vec3 vO; varying float vM; varying vec3 vNO; varying vec4 vL; varying vec4 vLS; varying float vG;
 void main(){
   vNO = aNor;
-  // hauteur du sol sous l'objet : décor posé sur le relief (fraction du matériau, voir buildScene),
-  // sinon celle de l'objet dessiné (uBase)
-  float g0 = fract(aMat) > 0.005 ? (fract(aMat) - 0.2) * 200.0 : uBase;
+  // hauteur du sol sous l'objet : décor posé sur le relief (octet aGnd, voir lift et pack), sinon celle
+  // de l'objet dessiné (uBase)
+  float g0 = aGnd > 0.5 ? aGnd / 6.0 - 8.0 : uBase;
   vec4 w = uModel * vec4(aPos, 1.0);
   vec3 nW = normalize(mat3(uModel) * aNor);
   // ombres décalées le long de la normale (pas d'acné sans gros biais) ; la carte statique est
@@ -243,8 +243,8 @@ void main(){
   } else if (vM < 15.5) {
     // eau : teinte selon la profondeur (couleur des sommets), rides qui courent, reflet du ciel d'autant
     // plus fort que le regard est rasant (Fresnel) ; peu de calcul, la plupart des pixels n'en sont pas
-    float r1 = sin(dot(vW.xy, vec2(1.7, 0.9)) + uTime * 1.9), r2 = sin(dot(vW.xy, vec2(-0.8, 2.3)) + uTime * 2.6);
-    N = normalize(vec3(r1 * 0.05 + r2 * 0.03, r2 * 0.05 - r1 * 0.02, 1.0));
+    float r1 = sin(dot(vW.xy, vec2(1.7, 0.9)) + uTime * 1.9), r2 = sin(dot(vW.xy, vec2(-0.8, 2.3)) + uTime * 2.6), r3 = sin(dot(vW.xy, vec2(3.1, -1.9)) + uTime * 3.7 + r1);
+    N = normalize(vec3(r1 * 0.04 + r2 * 0.02 + r3 * 0.025, r2 * 0.04 - r1 * 0.015 + r3 * 0.02, 1.0));
     float fr = 0.03 + 0.97 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
     emi = mix(uHorizon, uZenith, 0.3) * fr * 0.8;
     ks = 1.4; shin = 160.0;
@@ -450,7 +450,11 @@ void main(){
         const s = i * 10, o = i * 20;
         F[i * 5] = f[s]; F[i * 5 + 1] = f[s + 1]; F[i * 5 + 2] = f[s + 2];
         B[o + 12] = Math.round(f[s + 3] * 127); B[o + 13] = Math.round(f[s + 4] * 127); B[o + 14] = Math.round(f[s + 5] * 127);
-        C[o + 15] = f[s + 9]; C[o + 16] = f[s + 6] * 255; C[o + 17] = f[s + 7] * 255; C[o + 18] = f[s + 8] * 255;
+        // matériau entier ; sa fraction (posée par lift) porte la hauteur du sol sous l'objet, rangée dans
+        // l'octet libre : (z + 8) × 6, 0 si l'objet n'en a pas
+        const m = Math.floor(f[s + 9] + 1e-4), fr = f[s + 9] - m;
+        C[o + 15] = m; C[o + 16] = f[s + 6] * 255; C[o + 17] = f[s + 7] * 255; C[o + 18] = f[s + 8] * 255;
+        C[o + 19] = fr > 0.005 ? Math.max(1, Math.round(((fr - 0.2) * 200 + 8) * 6)) : 0;
       }
       return C;
     };
@@ -579,7 +583,7 @@ void main(){
       gl.bindBuffer(gl.ARRAY_BUFFER, m.buf);
       const A = prog.A;
       const at = (n, size, type, nrm, off) => { if (A[n] == null || A[n] < 0) return; gl.enableVertexAttribArray(A[n]); gl.vertexAttribPointer(A[n], size, type, nrm, 20, off); };
-      at('aPos', 3, gl.FLOAT, false, 0); at('aNor', 3, gl.BYTE, true, 12); at('aMat', 1, gl.UNSIGNED_BYTE, false, 15); at('aCol', 3, gl.UNSIGNED_BYTE, true, 16);
+      at('aPos', 3, gl.FLOAT, false, 0); at('aNor', 3, gl.BYTE, true, 12); at('aMat', 1, gl.UNSIGNED_BYTE, false, 15); at('aCol', 3, gl.UNSIGNED_BYTE, true, 16); at('aGnd', 1, gl.UNSIGNED_BYTE, false, 19);
     };
     // Texture du sol : recopiée à une taille puissance de deux pour avoir des mipmaps (pas de
     // scintillement au loin) et un filtrage anisotrope ; mise à jour par tuiles quand des traces s'y
@@ -1066,14 +1070,14 @@ void main(){
     return { b: [null, null, null, b] };
   }
   // Pose sur le relief : les sommets ajoutés par f (dans les constructeurs B) montent de la hauteur du sol
-  // au point d'ancrage (x, y) ; elle est aussi gardée dans la fraction du matériau, que le shader lit pour
-  // l'occlusion au pied des objets et le balancement du feuillage
+  // au point d'ancrage (x, y) ; elle est aussi gardée dans la fraction du matériau (pack la range dans un
+  // octet du sommet), que le shader lit pour l'occlusion au pied des objets et le balancement du feuillage
   function lift(B, x, y, f) {
     if (!HF) { f(); return; }
     const z = HF(x, y), st = B.map(q => q.n);
     f();
     if (Math.abs(z) < 0.002) return;
-    const fr = 0.2 + Math.max(-38, Math.min(38, z)) / 200;
+    const fr = 0.2 + Math.max(-7.8, Math.min(34, z)) / 200;
     B.forEach((q, k) => { for (let o = st[k]; o < q.n; o += 10) { q.a[o + 2] += z; q.a[o + 9] += fr; } });
   }
   // obstacles du jeu (pixels) → cellules statiques (mètres). px : pixels par mètre. only : clé d'une
