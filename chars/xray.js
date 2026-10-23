@@ -73,7 +73,8 @@ const HitCam = (() => {
     return pts[pts.length - 1].p;
   }
 
-  function draw(ctx, X, Y, w, h, dpr) {
+  // o.compact : incrustation réduite (en-tête court, une ligne de données) ; o.hint : rappel « passer »
+  function draw(ctx, X, Y, w, h, dpr, o = {}) {
     if (!cur || !R) return;
     const ev = cur.ev, ct = cur.t, I = TankModels.info(ev.typeId), Sd = I.S;
     const tp = phys(ct, ev), sim = ev.sim;
@@ -338,26 +339,35 @@ const HitCam = (() => {
     ctx.globalAlpha = fade;
     ctx.strokeStyle = ev.friendly ? '#ffaa44' : '#5fb4ff'; ctx.lineWidth = 2;
     ctx.strokeRect(X - 1, Y - 1, w + 2, h + 2);
+    ctx.beginPath(); ctx.rect(X, Y, w, h); ctx.clip();
     ctx.textAlign = 'left';
-    const lines = ev.data;
-    const show = ct < T_APP ? 2 : Math.min(lines.length, 2 + Math.floor((ct - T_APP) / 0.25));
+    const lines = ev.data, nl = o.compact ? Math.min(1, lines.length) : lines.length;
+    const show = ct < T_APP ? Math.min(2, nl) : Math.min(nl, 2 + Math.floor((ct - T_APP) / 0.25));
     const hh = 18 + show * 12.5;
     ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(X, Y, w, hh);
     ctx.font = '700 12.5px system-ui, sans-serif'; ctx.fillStyle = ev.friendly ? '#ffaa44' : '#8cc8ff';
-    ctx.fillText((ev.friendly ? 'FRIENDLY FIRE · ' : '') + 'IMPACT CAMERA · ' + ev.target, X + 9, Y + 15);
+    ctx.fillText((ev.friendly ? 'FRIENDLY FIRE · ' : '') + (o.compact ? '' : 'IMPACT CAMERA · ') + ev.target, X + 9, Y + 15);
+    if (o.hint) {
+      ctx.font = '600 10px system-ui, sans-serif'; ctx.textAlign = 'right';
+      const hw = ctx.measureText(o.hint).width + 12;
+      ctx.fillStyle = 'rgba(0,0,0,0.8)'; ctx.fillRect(X + w - hw, Y, hw, 20);
+      ctx.fillStyle = '#c9c4b2'; ctx.fillText(o.hint, X + w - 6, Y + 14);
+      ctx.textAlign = 'left';
+    }
     ctx.font = '600 10.5px system-ui, sans-serif';
     for (let i = 0; i < show; i++) { ctx.fillStyle = lines[i].c; ctx.fillText(lines[i].t, X + 9, Y + 28 + i * 12.5); }
     // horloge physique
     const slow = ct < T_APP ? T_APP / ev.tApp : T_IN / ev.tEnd;
     const tTxt = `t = ${tp >= 0 ? '+' : '−'}${fmt(Math.abs(tp) * 1000, 2)} ms`;
     ctx.font = '700 13px ui-monospace, monospace'; ctx.textAlign = 'right';
-    ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(X + w - 190, Y + h - 40, 190, 40);
+    const cbw = o.compact ? 132 : 190;
+    ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(X + w - cbw, Y + h - 40, cbw, 40);
     ctx.fillStyle = '#e9f4ff'; ctx.fillText(tTxt, X + w - 10, Y + h - 22);
     ctx.font = '600 11px system-ui, sans-serif'; ctx.fillStyle = '#9fc4e6';
     ctx.fillText(ct < T_APP + T_IN ? `slow-motion ×${Math.round(slow).toLocaleString('en-US')}` : 'freeze frame', X + w - 10, Y + h - 8);
     // bilan des modules, au fil des impacts
     if (tp >= 0 && ev.results.length) {
-      const items = ev.results.filter(r => r.time == null || tp >= r.time);
+      const items = ev.results.filter(r => r.time == null || tp >= r.time).slice(o.compact ? -4 : 0);
       const bh = items.length * 12.5 + 8;
       ctx.textAlign = 'left';
       ctx.fillStyle = 'rgba(0,0,0,0.42)'; ctx.fillRect(X, Y + h - bh, Math.min(w * 0.42, 230), bh);

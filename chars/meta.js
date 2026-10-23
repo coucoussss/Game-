@@ -240,6 +240,8 @@ const Meta = (() => {
     { id: 'untouched', name: 'Untouchable', ic: '✦', d: 'Win without being penetrated', c: 200 },
     { id: 'ace', name: 'Tank Ace', ic: '★', d: 'Destroy 3 enemy tanks in one battle', c: 300 },
     { id: 'comeback', name: 'Comeback', ic: '↺', d: 'Destroy a tank after a field repair', c: 100 },
+    { id: 'oneshot', name: 'One Shot', ic: '➊', d: 'Destroy a tank with your first hit on it', c: 60 },
+    { id: 'last_stand', name: 'Last Stand', ic: '⚑', d: 'Destroy a tank as the last one standing in your team', c: 200 },
   ];
   // Succès : rangs de collection des médailles (1, 10, 50) et états de service ; chacun paie une fois
   const MEDAL_TIERS = [[1, 500, 'Bronze'], [10, 1500, 'Silver'], [50, 4000, 'Gold']];
@@ -301,7 +303,12 @@ const Meta = (() => {
   const fresh = () => ({
     v: VERSION, credits: 600, xp: 0, level: 1, tanks: ['light', 'pz4'], skins: ['std'], skinSel: {}, kits: 1, x2: 0,
     wheelDay: '', streakDay: '', streak: 0, missionsDay: '', missions: [], stats: { battles: 0, kills: 0, wins: 0 },
-    opts: { sfx: 0.8, music: 0.6, quality: defQuality(), hitcam: true, mute: false, ballistics: 'real', difficulty: 'regular' }, parts: {}, adProg: {}, featDay: '', feat: '',
+    // réglages : caméra d'impact (off, high : moments forts, all : chaque coup), ralenti des destructions,
+    // sensibilités, axe vertical, secousses, taille de l'interface, visée assistée ou réaliste, palette
+    // pour daltoniens, mouvements réduits, commandes réassignées ; tut : tutoriel (étape suivante, fini)
+    opts: { sfx: 0.8, music: 0.6, quality: defQuality(), hitcam: 'high', mute: false, ballistics: 'real', difficulty: 'regular', slowmo: true,
+      sens: 1, sensSight: 1, invertY: false, shake: 1, hud: 1, assist: 'assist', cb: false, calm: false, binds: {} },
+    tut: { step: 0, done: false }, seen: [], parts: {}, adProg: {}, featDay: '', feat: '',
     unlocked: 0, survBest: 0,
     hist: [], camp: { recruit: {}, regular: {}, veteran: {}, ace: {} }, adapt: {}, medals: {}, ach: [],
     week: '', weekly: [], rerollDay: '', rerolls: [], tankXp: {}, perks: {}, mast: {},
@@ -316,6 +323,7 @@ const Meta = (() => {
   const isObj = o => !!o && typeof o === 'object' && !Array.isArray(o);
   const int = (v, d, lo, hi) => { const n = Math.floor(Number(v)); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : d; };
   const unit = (v, d) => { const n = Number(v); return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : d; };
+  const num = (v, d, lo, hi) => { const n = Number(v); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : d; };
   const str = (v, d) => typeof v === 'string' ? v : d;
   const ids = (a, ok) => Array.isArray(a) ? [...new Set(a.filter(x => typeof x === 'string' && ok(x)))] : [];
   // table { clé: entier } filtrée (clés acceptées par ok, valeurs bornées, zéros retirés)
@@ -349,11 +357,18 @@ const Meta = (() => {
     if (p.weekly.length < 3) p.week = '';
     p.rerolls = ids(o.rerolls, id => MISSIONS.some(d => d.id === id));
     if (isObj(o.stats)) for (const k of ['battles', 'kills', 'wins']) p.stats[k] = int(o.stats[k], 0, 0, 1e9);
+    // tutoriel : un ancien profil sans trace du tutoriel a déjà livré bataille, il ne le revoit pas
+    p.tut = isObj(o.tut) ? { step: int(o.tut.step, 0, 0, 99), done: o.tut.done === true } : { step: 0, done: p.stats.battles > 0 };
+    p.seen = ids(o.seen, () => true).slice(-300);
     if (isObj(o.opts)) {
       const q = o.opts;
       p.opts.sfx = unit(q.sfx, f.opts.sfx); p.opts.music = unit(q.music, f.opts.music);
       p.opts.quality = ['haute', 'moyenne', 'basse', 'mobile'].includes(q.quality) ? q.quality : f.opts.quality;
-      p.opts.hitcam = q.hitcam !== false; p.opts.mute = q.mute === true;
+      p.opts.hitcam = q.hitcam === false ? 'off' : ['off', 'high', 'all'].includes(q.hitcam) ? q.hitcam : 'high'; p.opts.mute = q.mute === true;
+      p.opts.slowmo = q.slowmo !== false; p.opts.invertY = q.invertY === true; p.opts.cb = q.cb === true; p.opts.calm = q.calm === true;
+      p.opts.sens = num(q.sens, 1, 0.2, 3); p.opts.sensSight = num(q.sensSight, 1, 0.2, 3); p.opts.shake = unit(q.shake, 1); p.opts.hud = num(q.hud, 1, 0.8, 1.3);
+      p.opts.assist = q.assist === 'real' ? 'real' : 'assist';
+      if (isObj(q.binds)) for (const [a, c] of Object.entries(q.binds)) if (/^[a-z][A-Za-z0-9]{1,15}$/.test(a) && typeof c === 'string' && /^[A-Za-z0-9]{2,24}$/.test(c)) p.opts.binds[a] = c;
       p.opts.ballistics = q.ballistics === 'arcade' ? 'arcade' : 'real';
       p.opts.difficulty = q.difficulty in DIFF ? q.difficulty : 'regular';
     }

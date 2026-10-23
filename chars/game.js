@@ -267,7 +267,7 @@ Meta.whenReady(() => {
   // retried : vagues déjà reprises dans la session (la prime de revanche ne vaut qu'à la première reprise)
   let sectorScore = 0, sectorTk = 0;
   const retried = new Set();
-  let tankId = 0, shellId = 0, hitcamOn = true;
+  let tankId = 0, shellId = 0, hitcamOn = true, hcLast = -99, slowT = 0;
   // modes de jeu : campagne 5 contre 5, survie seul contre des vagues, duel en 3 manches
   const MODES = {
     campagne: { name: 'Campaign', sub: '5 vs 5 · 3 waves per battlefield' },
@@ -814,7 +814,7 @@ Meta.whenReady(() => {
     if (W3D0) for (const t of tanks) if (t.scar3) { W3D0.free(t.scar3.hull); W3D0.free(t.scar3.turret); }
     reviveT = 0; reviveUsed = false;
     clearFalls3();
-    tanks = []; shells = []; bullets = []; smokes = []; texts = []; feed = []; parts = []; logs = []; runners = []; ribbons = []; flares = []; flareT = [rnd(15, 30), rnd(20, 40)];
+    tanks = []; shells = []; bullets = []; smokes = []; texts = []; feed = []; parts = []; logs = []; runners = []; ribbons = []; ribbonQ = []; flares = []; hitMk = null; slowT = 0; flareT = [rnd(15, 30), rnd(20, 40)];
     if (obstacles.some(o => o.type === 'wreck')) { obstacles = obstacles.filter(o => o.type !== 'wreck'); buildGrid(); }
     orders = { kind: 'free', pos: null, target: null, t: 0 }; reinf = []; veils = [];
     spotted[0].clear(); spotted[1].clear(); seenAt.clear(); artyMarks = []; contactT = [0, 0]; artyT = [0, 0];
@@ -1747,7 +1747,7 @@ Meta.whenReady(() => {
     startFire(t, 'propellant', m, by);
     if (t.cookT > 0) return;
     t.cookT = rnd(4, 30); t.cookBy = by;
-    if (t === player) showMsg('AMMUNITION COOKING OFF · B: bail out!', '#ff6a3a', 3);
+    if (t === player) showMsg(touch.on ? 'AMMUNITION COOKING OFF · BAIL OUT!' : `AMMUNITION COOKING OFF · ${keyName('bail')}: bail out!`, '#ff6a3a', 3, 3);
   }
   function fireLogic(t, dt) {
     if (t.cookT > 0 && (t.cookT -= dt) <= 0) { if (t === player) addLog('The ammunition cooks off!', '#ff6a5a'); destroyTank(t, t.cookBy, 'brewed'); return; }
@@ -2420,7 +2420,7 @@ Meta.whenReady(() => {
     }
     Sfx.ping(listenerDist(hx, hy));
     // caméra d'impact aux rayons X pour les balles du joueur qui font quelque chose
-    if (by === player && hitcamOn && R3 && !HitCam.active() && gameTime - (mgCamT || -99) > 5) {
+    if (by === player && hitcamOn && Meta.P.opts.hitcam === 'all' && R3 && !HitCam.active() && gameTime - (mgCamT || -99) > 5) {
       mgCamT = gameTime;
       const f = (v, k = 0) => v.toFixed(k);
       const ev = {
@@ -2444,7 +2444,7 @@ Meta.whenReady(() => {
       if (best.exposed) ev.data.push({ t: 'Target: commander standing in the cupola, head and torso above the armor', c: '#d8d4c6' });
       else if (kind === 'pen') ev.data.push({ t: `${plate}: ${mm} mm · ${Math.round(eff)} mm effective`, c: '#d8d4c6' });
       else ev.data.push({ t: `${plate}: ${mm} mm, but the bullet strikes a weak spot (optics)`, c: '#d8d4c6' });
-      startHitCam(ev);
+      startHitCam(ev, false);
     }
     return 'stop';
   }
@@ -2890,7 +2890,7 @@ Meta.whenReady(() => {
       const a = Math.atan2(-s.vy, -s.vx) + gauss() * 10 * D2R, d = dist(t, by) * rnd(0.7, 1.3);
       t.ai.lastKnown = { x: clamp(t.x + Math.cos(a) * d, 60, WW - 60), y: clamp(t.y + Math.sin(a) * d, 60, WH - 60) };
     }
-    if (by === player && t.team !== by.team) waveStats.hits++;
+    if (by === player && t.team !== by.team) { waveStats.hits++; t.pHits = (t.pHits || 0) + 1; }
     if (by.team !== t.team) t.underFire = 8;
     // Géométrie 3D de l'impact (repère du modèle : y vers la gauche), avec la vraie pente balistique de
     // la trajectoire (la vue 3D écrase les distances, pas les angles d'incidence)
@@ -2904,7 +2904,7 @@ Meta.whenReady(() => {
   function barrelStrike(s, t, h, hx, hy) {
     const sb = s.sb, by = s.by, pen = sb.he || sb.heat ? 99 : Ballistics.penVel(sb, s.V);
     if (by.team !== t.team) t.underFire = 8;
-    if (by === player && t.team !== by.team) waveStats.hits++;
+    if (by === player && t.team !== by.team) { waveStats.hits++; t.pHits = (t.pHits || 0) + 1; }
     Fx.armorHit(hx, hy, h.z, 'non', s.vx / s.sp, s.vy / s.sp); Sfx.clang(listenerDist(hx, hy));
     if (pen >= 15) {
       const muzzle = h.along > t.T.S.gun.fx + t.T.S.gun.len * 0.75, l = muzzle ? 'Gun barrel holed near the muzzle' : 'Gun barrel damaged';
@@ -2913,6 +2913,7 @@ Meta.whenReady(() => {
       if (t === player) addLog(muzzle ? `${l}: dispersion × 3 (40 s)` : `${l}: the gun cannot fire (25 s of repairs, stopped)`, '#ff8a6a');
       else if (by === player) ribbon(l);
     }
+    if (by === player && t.team !== by.team) hitMark(pen >= 15 ? 'crit' : 'nopen', pen >= 15 ? 'Critical: gun barrel hit' : null);
     if (sb.he) explode(hx, hy, s, null);
     return 'stop';
   }
@@ -2920,7 +2921,7 @@ Meta.whenReady(() => {
   // trap nomme la plaque qui vient de dévier l'obus sur celle-ci (piège à obus), sinon null
   function strike(s, t, h, hx, hy, d, E, trap) {
     const T = t.T, Sd = T.S, A = Sd.armor, by = s.by, sb = s.sb;
-    const show = visibleToPlayer(t) || by === player;
+    const show = visibleToPlayer(t) || by === player, mine = by === player && t.team !== by.team, hp0 = mine ? t.mods.map(m => m.hp) : null;
     const tAng = -t.turret;
     const { face, plate, mm: mm0, slope, dd, low, extra, extraOf, heatK, gear, n } = platePick(t, h, d, s.key, sb.cal);
     const scf = scarFrame(t, h, E), scw = scarWeak(t, scf.frame, scf.p, plate);
@@ -3053,8 +3054,9 @@ Meta.whenReady(() => {
         ev.data.push({ t: `RICOCHET: incidence ${Math.round(angle)}° > critical angle (probability ${Math.round(ricP * 100)}%)`, c: '#9fd0ff' });
         if (burst) ev.data.push({ t: 'The base fuze armed on the plate: the round bursts just after the ricochet', c: '#ffcf7a' });
         ev.results.push({ t: 'No damage', c: '#9fd0ff', time: 0 });
-        startHitCam(ev);
+        startHitCam(ev, false);
       }
+      if (mine) hitMark('ric');
       return burst ? 'stop' : 'continue';
     }
 
@@ -3087,6 +3089,7 @@ Meta.whenReady(() => {
       if (by === player && t.team === by.team) waveStats.ffPens++;
       else if (by === player) {
         waveStats.pens++; waveStats.maxPen = Math.max(waveStats.maxPen, pen);
+        if (show && !t.dead) floatText(hx, hy - 30, '+✪ 20', '#e9c46a', 0.9);
         const dp = Meta.track('pen'), df = /side|rear/i.test(plate) && Meta.track('flank');
         if (dp || df) missionToast();
       }
@@ -3174,7 +3177,14 @@ Meta.whenReady(() => {
       if (t.dead && !ev.results.some(r => /DESTROYED/.test(r.t))) ev.results.push({ t: 'TANK DESTROYED', c: '#ff4a2a', time: ev.tEnd || 0 });
       ev.outcome = penetrated ? 'pen' : 'nopen';
       ev.metal = metalFor(sb, mm, angle, pen, eff, penetrated);
-      startHitCam(ev);
+      // moment fort : char détruit, munitions, équipage tué, premier perforant de la bataille, tir lointain
+      startHitCam(ev, penetrated && (t.dead || out.detonate || out.crewKilled > 0 || !waveStats.pipPen || xm >= 600));
+    }
+    if (penetrated && mine) waveStats.pipPen = true;
+    if (mine && !t.dead) {
+      const k = t.mods.find((m, i) => hp0[i] > 0 && m.hp <= 0);
+      if (k || crit.length) hitMark('crit', `Critical: ${k ? `${k.name.toLowerCase()} ${k.kind === 'crew' ? 'knocked out' : 'destroyed'}` : crit[0].toLowerCase()}`);
+      else hitMark(penetrated ? 'pen' : 'nopen');
     }
     if (s.key === 'HE') explode(hx, hy, s, t);
     else if (sb.heat) blastNear(hx, hy, s, t);
@@ -3496,8 +3506,10 @@ Meta.whenReady(() => {
     feed.unshift({ a: by ? by.name : '—', at: by ? by.team : -1, v: t.name, vt: t.team, ff, det: how === 'brewed', how, life: 7 });
     if (feed.length > 6) feed.pop();
     if (by === player) {
-      if (ff) { waveStats.tk++; showMsg('Ally destroyed by your fire!', '#ff7a4a'); }
-      else if (by !== t) { waveStats.kills++; floatText(t.x, t.y - 26, '+✪ 150', '#e9c46a', 1.3); playerKill(t, how); showMsg(how === 'brewed' ? 'Enemy tank destroyed: ammo detonated!' : how === 'abandoned' ? 'Enemy crew bailed out!' : how === 'burning' ? 'Enemy tank knocked out and burning' : 'Enemy tank knocked out', '#ffe27a'); }
+      if (ff) { waveStats.tk++; showMsg('Ally destroyed by your fire!', '#ff7a4a', 2.5, 2); }
+      else if (by !== t) {
+        waveStats.kills++; floatText(t.x, t.y - 26, '+✪ 150', '#e9c46a', 1.3); hitMark('kill');
+        if (Meta.P.opts.slowmo && !Meta.P.opts.calm) slowT = 0.5; playerKill(t, how); showMsg(how === 'brewed' ? 'Enemy tank destroyed: ammo detonated!' : how === 'abandoned' ? 'Enemy crew bailed out!' : how === 'burning' ? 'Enemy tank knocked out and burning' : 'Enemy tank knocked out', '#ffe27a', 2, 2); }
     }
     if (t.team !== (player ? player.team : 0) && waveStats && !waveStats.firstKill) { waveStats.firstKill = true; if (enemy) medal('first_blood'); }
     if (enemy && how === 'brewed' && Meta.track('det')) missionToast();
@@ -3506,7 +3518,7 @@ Meta.whenReady(() => {
       waveStats.streak = 0;
       if (!reviveUsed && mode !== 'duel' && state === 'play' && !Meta.diff().noRevive) reviveT = 1.8;
       addLog(how === 'brewed' ? 'Your ammunition exploded.' : how === 'abandoned' ? 'Your crew bailed out.' : 'Your crew is out of action.', '#ff6a5a');
-      showMsg(`Your tank is destroyed. Spectating an ally (${touch.on ? 'tap' : 'click'} to switch)`, '#ff7a5c', 4);
+      showMsg(`Your tank is destroyed. Spectating an ally (${touch.on ? 'tap' : 'click'} to switch)`, '#ff7a5c', 4, 3);
     }
   }
   // Char ennemi détruit par le joueur : missions, série de destructions (prime × 1,1 à 2, × 1,25 à 3,
@@ -3522,23 +3534,27 @@ Meta.whenReady(() => {
     ws.killT.push(now); ws.streak++;
     const k = ws.streak >= 5 ? 1.5 : ws.streak >= 3 ? 1.25 : ws.streak >= 2 ? 1.1 : 1;
     if (k > 1) { ws.streakCr += Math.round(150 * (k - 1)); floatText(t.x, t.y - 44, `Streak ×${k}`, '#ffd76a', 1); }
+    if (ws.streak === 3 || ws.streak === 5 || ws.streak === 8) goldRibbon(`🔥 KILL STREAK ${ws.streak}`, `rewards ×${k}`);
     const n = s => ws.killT.filter(x => now - x <= s).length;
     if (n(15) === 3) medal('blitz'); else if (n(10) === 2) medal('double');
     if (how === 'brewed') medal('fireworks');
-    if (m >= 500) medal('sniper');
+    if (m >= 500) medal('sniper', false, `${Math.round(m / 10) * 10} m`);
     if (ws.revived) medal('comeback');
+    if (t.pHits === 1) medal('oneshot');
+    if (mode === 'campagne' && !tanks.some(a => a.team === 0 && a !== player && !a.dead)) medal('last_stand');
   }
   // Médaille de bataille : bandeau et fanfare (quiet : décernée sur l'écran de résultats) ; la plupart
   // une fois par bataille, les doublés, blitz, tirs lointains et explosions à chaque fois
-  const MEDAL_REP = { double: 1, blitz: 1, sniper: 1, fireworks: 1, headhunter: 1 };
-  function medal(id, quiet) {
+  const MEDAL_REP = { double: 1, blitz: 1, sniper: 1, fireworks: 1, headhunter: 1, oneshot: 1 };
+  function medal(id, quiet, extra) {
     const m = Meta.MEDALS.find(k => k.id === id), ws = waveStats;
     if (!m || !ws || (ws.medals.includes(id) && !MEDAL_REP[id])) return;
     ws.medals.push(id);
     if (quiet) return;
-    showMsg(`${m.ic} ${m.name.toUpperCase()} · +✪ ${m.c}`, '#ffd76a', 2.4); Sfx.unlock(1);
-    addLog(`Medal: ${m.name} (+✪ ${m.c})`, '#ffd76a');
+    goldRibbon(`${m.ic} ${m.name.toUpperCase()}${extra ? ' · ' + extra : ''}`, `+✪ ${m.c}`);
+    if (performance.now() - medalSnd > 700) { medalSnd = performance.now(); Sfx.unlock(1); } // une fanfare pour plusieurs médailles d'un coup
   }
+  let medalSnd = -1e9;
   // Explosion des munitions : boule de feu, cratère, tourelle arrachée (sur une casemate, le toit)
   function brewUp(t) {
     t.wreck = 'brewed'; t.deadT = 0; t.burnT = Math.max(t.burnT, 12); t.wFireT = 0;
@@ -3723,15 +3739,22 @@ Meta.whenReady(() => {
   const RIB = [[/detonat|cook|rack|round/i, 'ammo', '✹', '#ff6a3a'], [/fire/i, 'fire', '🔥', '#ff9a3a'], [/track|drive|wheel/i, 'track', '⛓', '#ffcf7a'],
     [/engine|transmission|fuel/i, 'engine', '⚙', '#ffcf7a'], [/breech|barrel|ring|elevation/i, 'gun', '⌖', '#ffcf7a'], [/radio set/i, 'radio', '⌁', '#bcd8ff'],
     [/visor|sight|periscope|stunned/i, 'optic', '◉', '#bcd8ff'], [/./, 'crew', '✚', '#ff8a6a']];
-  let ribbons = [];
+  // File des bandeaux : quatre à l'écran, les suivants attendent leur tour (aucun ne chasse l'autre) ;
+  // ceux des médailles et des séries sont dorés
+  let ribbons = [], ribbonQ = [];
+  function pushRibbon(r) {
+    r.life = r.max = r.gold ? 2.6 : 2.5; r.y = null;
+    if (ribbons.length < 4) ribbons.push(r);
+    else { ribbonQ.push(r); if (ribbonQ.length > 6) ribbonQ.splice(Math.max(0, ribbonQ.findIndex(q => !q.gold)), 1); }
+  }
+  const goldRibbon = (t, sub) => pushRibbon({ t, sub, gold: true, ic: '', c: '#ffd76a' });
   function ribbon(text) {
     if (/: damaged|: wounded|No module|DESTROYED|^Fire!$|hit$/.test(text)) return;
     const lab = text.replace(/^(.*): knocked out$/, '$1 knocked out').replace(/^(.*): destroyed$/, '$1 destroyed').replace(/^AMMO RACK: DETONATION$/, 'Ammo rack detonated')
       .replace(/^Propellant charges ignited.*/, 'Ammo cooking off').replace(/^Fuel ignited$/, 'Set on fire');
-    if (ribbons.some(r => r.t === lab && r.life > 2)) return;
+    if (ribbons.some(r => r.t === lab && r.life > 2) || ribbonQ.some(r => r.t === lab)) return;
     const k = RIB.find(r => r[0].test(lab));
-    ribbons.unshift({ t: lab, ic: k[2], c: k[3], life: 2.5 });
-    if (ribbons.length > 4) ribbons.pop();
+    pushRibbon({ t: lab, ic: k[2], c: k[3] });
     waveStats.crits++;
     if (lab === 'Driver knocked out' && Meta.track('drv')) missionToast();
     Sfx.critical(k[1]);
@@ -3752,11 +3775,57 @@ Meta.whenReady(() => {
   }
   function addLog(text, color) { logs.unshift({ text, color, life: 6 }); if (logs.length > 6) logs.pop(); if (inBattle()) Sfx.intercom(); }
 
-  function xrayKey() { hitcamOn = !hitcamOn; if (!hitcamOn) HitCam.stop(); showMsg(hitcamOn ? 'Impact camera on' : 'Impact camera off', '#bcd8ff', 1.4); }
+  // Touche de la caméra d'impact : passe la séquence en cours, sinon change de mode (réglage sauvegardé)
+  const HC_MODES = { off: 'off', high: 'highlights only', all: 'every hit' };
+  function xrayKey() {
+    if (HitCam.active()) { HitCam.stop(); return; }
+    const o = Meta.P.opts, l = Object.keys(HC_MODES);
+    o.hitcam = l[(l.indexOf(o.hitcam) + 1) % l.length]; Meta.save(); applyOptions();
+    showMsg(`Impact camera: ${HC_MODES[o.hitcam]}`, '#bcd8ff', 1.4);
+  }
   function tutDone() {}
-  function startHitCam(ev) {
+  // un obus arrive sur le joueur : la caméra d'impact s'efface
+  const threatened = () => player && !player.dead && shells.some(s => s.warned && s.by !== player);
+  // Caméra d'impact : en « moments forts », seulement les coups marquants (destruction, munitions,
+  // équipage tué, premier perforant, tir lointain), pas plus d'une fois toutes les 25 s
+  function startHitCam(ev, notable) {
+    const m = Meta.P.opts.hitcam;
+    if (m === 'off' || (m === 'high' && (!notable || gameTime - hcLast < 25)) || threatened()) return;
     if (!ev.after) ev.after = ev.before.slice();
+    hcLast = gameTime;
     HitCam.play(ev);
+  }
+  // Repère de coup au réticule (obus du joueur sur un ennemi) : forme, couleur et son selon l'issue ; un
+  // repère plus fort n'est pas remplacé par un moindre tant qu'il s'affiche. [rang, annonce, couleur,
+  // couleur de la palette pour daltoniens]
+  const HITMK = { ric: [0, 'Ricochet!', '#9fd0ff', '#9fd0ff'], nopen: [1, 'Didn\'t penetrate', '#e8e8e8', '#e8e8e8'], pen: [2, 'Penetration!', '#ffa040', '#ffb000'],
+    crit: [3, 'Critical hit!', '#ff4a3a', '#ff4ad2'], kill: [4, 'Target destroyed!', '#ffd23a', '#fff06a'] };
+  let hitMk = null;
+  function hitMark(kind, text) {
+    const d = HITMK[kind];
+    if (hitMk && hitMk.life > 0.5 && HITMK[hitMk.kind][0] > d[0]) return;
+    hitMk = { kind, t: 0, life: kind === 'kill' ? 1.8 : 1.3, text: text || d[1], col: d[Meta.P.opts.cb ? 3 : 2] };
+    Sfx.confirm(kind);
+  }
+  function drawHitMark(x, y, above) {
+    const h = hitMk, k = uiK * (1 + 0.4 * Math.max(0, 1 - h.t / 0.12)), big = h.kind === 'pen' || h.kind === 'crit' || h.kind === 'kill';
+    ctx.save(); ctx.globalAlpha = Math.min(1, h.life / 0.4); ctx.strokeStyle = h.col; ctx.fillStyle = h.col; ctx.lineCap = 'round';
+    ctx.shadowColor = 'rgba(0,0,0,0.85)'; ctx.shadowBlur = 3;
+    ctx.lineWidth = (big ? 3 : 2) * uiK;
+    const r0 = 7 * k, r1 = (big ? 16 : 13) * k, rot = h.kind === 'ric' ? 0 : Math.PI / 4;
+    ctx.beginPath();
+    for (let i = 0; i < 4; i++) { const a = rot + i * Math.PI / 2, c = Math.cos(a), sn = Math.sin(a); ctx.moveTo(x + c * r0, y + sn * r0); ctx.lineTo(x + c * r1, y + sn * r1); }
+    ctx.stroke();
+    ctx.lineWidth = 1.8 * uiK;
+    if (h.kind === 'kill') { ctx.beginPath(); ctx.arc(x, y, 21 * k, 0, TAU); ctx.stroke(); }
+    if (h.kind === 'ric') for (const a of [0, Math.PI]) { ctx.beginPath(); ctx.arc(x, y, 18 * k, a - 0.5, a + 0.5); ctx.stroke(); }
+    if (h.kind === 'crit') { const q = 4 * k; ctx.beginPath(); ctx.moveTo(x, y - q); ctx.lineTo(x + q, y); ctx.lineTo(x, y + q); ctx.lineTo(x - q, y); ctx.closePath(); ctx.fill(); }
+    // annonce de l'équipage, du côté opposé à la lecture de distance
+    ctx.shadowBlur = 0; ctx.textAlign = 'center'; ctx.font = F(800, 13);
+    const ty = above ? y - 30 * uiK : y + 40 * uiK;
+    ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillText(h.text, x + 1, ty + 1);
+    ctx.fillStyle = h.col; ctx.fillText(h.text, x, ty);
+    ctx.restore();
   }
 
   function updateParts(dt) {
@@ -3802,8 +3871,11 @@ Meta.whenReady(() => {
     for (let i = texts.length - 1; i >= 0; i--) { const t = texts[i]; t.life -= dt; t.y -= 22 * dt; if (t.life <= 0) texts.splice(i, 1); }
     for (let i = feed.length - 1; i >= 0; i--) { feed[i].life -= dt; if (feed[i].life <= 0) feed.splice(i, 1); }
     for (let i = ribbons.length - 1; i >= 0; i--) if ((ribbons[i].life -= dt) <= 0) ribbons.splice(i, 1);
+    while (ribbons.length < 4 && ribbonQ.length) ribbons.push(ribbonQ.shift());
+    ribbons.forEach((r, i) => { r.y = r.y == null ? i * 24 - 12 : r.y + (i * 24 - r.y) * Math.min(1, dt * 14); });
     for (let i = logs.length - 1; i >= 0; i--) { logs[i].life -= dt; if (logs[i].life <= 0) logs.splice(i, 1); }
     for (let i = msgs.length - 1; i >= 0; i--) if ((msgs[i].life -= dt) <= 0) msgs.splice(i, 1);
+    if (hitMk && (hitMk.t += dt, hitMk.life -= dt) <= 0) hitMk = null;
   }
 
   // ===================== Boucle =====================
@@ -3863,16 +3935,16 @@ Meta.whenReady(() => {
         navT = 0;
       }
       const e = tanks.some(t => t.team === 1 && !t.dead);
-      if (player.dead && !revivePending()) { state = 'ending'; endT = 3.5; waveResult = 'lose'; showMsg('TANK DESTROYED', '#ff7a5c', 3); Sfx.sting('lose'); }
+      if (player.dead && !revivePending()) { state = 'ending'; endT = 3.5; waveResult = 'lose'; showMsg('TANK DESTROYED', '#ff7a5c', 3, 4); Sfx.sting('lose'); }
       else if (!e) {
         if (nextWaveT <= 0) {
           nextWaveT = 8; resupply(player);
-          showMsg(`WAVE ${survWave} REPELLED · resupply`, '#b8e07a', 3); Sfx.sting('win');
+          showMsg(`WAVE ${survWave} REPELLED · resupply`, '#b8e07a', 3, 3); Sfx.sting('win');
           addLog('Resupply: ammunition topped up, modules repaired', '#b8e07a');
         } else if ((nextWaveT -= dt) <= 0) {
           survWave++;
           const k = survivalEnemies(survWave);
-          showMsg(`WAVE ${survWave} · ${k} enemy tank${k > 1 ? 's' : ''}`, '#ffb070', 2.5);
+          showMsg(`WAVE ${survWave} · ${k} enemy tank${k > 1 ? 's' : ''}`, '#ffb070', 2.5, 3);
         }
       }
     } else if (state === 'play') {
@@ -3888,7 +3960,7 @@ Meta.whenReady(() => {
         if (!i) addLog(`Radio: enemy reinforcements to the ${r.y < WH / 2 ? 'north' : 'south'}-east`, '#ff9a7a');
       }
       const a = tanks.some(t => t.team === 0 && !t.dead) || revivePending(), e = reinf.length || tanks.some(t => t.team === 1 && !t.dead);
-      if (!a || !e) { state = 'ending'; endT = 3.5; waveResult = a ? 'win' : 'lose'; showMsg(a ? 'WAVE WON' : 'WAVE LOST', a ? '#b8e07a' : '#ff7a5c', 3); Sfx.sting(a ? 'win' : 'lose'); }
+      if (!a || !e) { state = 'ending'; endT = 3.5; waveResult = a ? 'win' : 'lose'; showMsg(a ? 'WAVE WON' : 'WAVE LOST', a ? '#b8e07a' : '#ff7a5c', 3, 4); Sfx.sting(a ? 'win' : 'lose'); }
     } else if (state === 'ending') {
       endT -= dt;
       if (endT <= 0 && !HitCam.active()) showResult();
@@ -4039,9 +4111,11 @@ Meta.whenReady(() => {
     last = now;
     if (W3D && state === 'play' && ms > 0 && ms < 1000) dynRes(Math.min(ms, 100), ms / 1000);
     if ((state === 'intro' || state === 'play' || state === 'ending') && !dbgFreeze) {
-      // ralenti pendant la caméra d'impact, sauf en jeu automatique (personne ne regarde, et les tests
-      // tournent en rendu logiciel où la caméra d'impact se dessine à une image par seconde)
-      const slow = HitCam.active() && HitCam.time() < HitCam.phys && !AUTO ? 0.1 : 1;
+      // ralenti bref quand le joueur détruit un char (réglable, coupé par les mouvements réduits), sauf en
+      // jeu automatique ; la caméra d'impact ne ralentit plus la bataille et s'efface sous le feu
+      const slow = slowT > 0 && !AUTO ? 0.3 : 1;
+      slowT -= dt;
+      if (HitCam.active() && threatened()) HitCam.stop();
       acc += dt * timeScale * slow * ffK;
       let n = 0;
       while (acc >= STEP && n++ < 40) { step(STEP); acc -= STEP; }
@@ -5044,8 +5118,9 @@ Meta.whenReady(() => {
       ctx.moveTo(mx - 15, my); ctx.lineTo(mx - 11, my); ctx.moveTo(mx + 11, my); ctx.lineTo(mx + 15, my);
       ctx.moveTo(mx, my - 15); ctx.lineTo(mx, my - 11); ctx.moveTo(mx, my + 11); ctx.lineTo(mx, my + 15);
       ctx.stroke();
-      ctx.fillStyle = pr && pr.kind === 'tank' && !sight.dust ? verdictOf(pr).col : '#fff';
+      ctx.fillStyle = pr && pr.kind === 'tank' && !sight.dust && assisted() ? verdictOf(pr).col : '#fff';
       ctx.beginPath(); ctx.arc(mx, my, 1.8, 0, TAU); ctx.fill();
+      if (hitMk) drawHitMark(mx, my, true);
       if (dm != null) {
         ctx.font = F(600, 11); ctx.textAlign = 'left';
         const tx = `${Math.round(dm)} m · ${Math.round(penAt(player.T, player.shell, pr.dist))} mm`;
@@ -5330,10 +5405,22 @@ Meta.whenReady(() => {
     const d = Math.hypot(m.x - pv.x, m.y - pv.y), ta = player.angle + player.turret;
     const gp = worldToScreen(pv.x + Math.cos(ta) * d, pv.y + Math.sin(ta) * d, m.z != null ? m.z : 1.6);
     const rr = Math.max(4, d * Math.tan(player.disp) * 2 * S);
-    ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 1.5;
+    // char visé : plaque, blindage effectif et verdict (préréglage assisté), qui colorent aussi le réticule
+    let vr = null, pr = null;
+    if (W3D && m.tank && !m.tank.dead && assisted()) {
+      player.probeT = (player.probeT || 0) - 1 / 60;
+      if (player.probeT <= 0 || !player.probe) {
+        player.probeT = 0.1;
+        const z0 = player.T.S.gun.z;
+        player.probe = sightProbe(Math.atan2(m.y - pv.y, m.x - pv.x), z0, (m.z - z0) / Math.max(1, d));
+      }
+      pr = player.probe;
+      if (pr && pr.kind === 'tank' && pr.tank === m.tank && pr.plate) vr = verdictOf(pr); else pr = null;
+    }
+    ctx.strokeStyle = vr ? vr.col : 'rgba(255,255,255,0.8)'; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.arc(gp.x, gp.y, rr, 0, TAU); ctx.stroke();
     const rf = player.reloadT > 0 ? 1 - player.reloadT / player.reloadMax : 1;
-    ctx.strokeStyle = rf >= 1 ? '#ffe27a' : 'rgba(255,200,90,0.8)'; ctx.lineWidth = 3;
+    ctx.strokeStyle = vr ? vr.col : rf >= 1 ? '#ffe27a' : 'rgba(255,200,90,0.8)'; ctx.lineWidth = 3;
     ctx.beginPath(); ctx.arc(gp.x, gp.y, rr + 5, -Math.PI / 2, -Math.PI / 2 + TAU * rf); ctx.stroke();
     ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 1.5;
     ctx.beginPath();
@@ -5346,28 +5433,18 @@ Meta.whenReady(() => {
     const rdX = rdL ? mouse.x - 14 : mouse.x + 14, rdY = rdUp ? mouse.y - 32 * uiK : mouse.y + 18 * uiK;
     ctx.font = F(600, 11); ctx.textAlign = rdL ? 'right' : 'left';
     ctx.fillStyle = 'rgba(255,255,255,0.8)';
-    ctx.fillText(`${Math.round(d * RK)} m · ${Math.round(penAt(player.T, player.shell, d))} mm`, rdX, rdY);
-    // char visé : plaque, blindage effectif et verdict, comme à la lunette
-    if (W3D && m.tank && !m.tank.dead) {
-      player.probeT = (player.probeT || 0) - 1 / 60;
-      if (player.probeT <= 0 || !player.probe) {
-        player.probeT = 0.1;
-        const z0 = player.T.S.gun.z;
-        player.probe = sightProbe(Math.atan2(m.y - pv.y, m.x - pv.x), z0, (m.z - z0) / Math.max(1, d));
-      }
-      const pr = player.probe;
-      if (pr && pr.kind === 'tank' && pr.tank === m.tank && pr.plate) {
-        const { col, verdict } = verdictOf(pr);
-        ctx.font = F(700, 11); ctx.fillStyle = col;
-        ctx.fillText(`${pr.plate} · ${Math.round(pr.eff)} mm eff. · ${verdict}`, rdX, rdY + 14 * uiK);
-      }
+    if (assisted()) ctx.fillText(`${Math.round(d * RK)} m · ${Math.round(penAt(player.T, player.shell, d))} mm`, rdX, rdY);
+    if (vr) {
+      ctx.font = F(700, 11); ctx.fillStyle = vr.col;
+      ctx.fillText(`${pr.plate} · ${Math.round(pr.eff)} mm eff. · ${vr.verdict}`, rdX, rdY + 14 * uiK);
     }
+    if (hitMk) drawHitMark(mouse.x, mouse.y, !rdUp);
   }
   // Caméra d'impact, messages et bandeaux du centre, carte d'introduction
   function drawHudOver() {
     const pp = ui.pip;
     if (pp) {
-      HitCam.draw(ctx, pp.x0, pp.y0, pp.w, pp.h, DPR * uiK);
+      HitCam.draw(ctx, pp.x0, pp.y0, pp.w, pp.h, DPR * uiK, { compact: !pp.big, hint: touch.on ? 'Tap to skip' : `${keyName('xray')}: skip` });
       const hev = HitCam.ev(), my = pp.y0 + pp.h + 10, mh = Math.min(pp.w * 0.62, (ui.panel ? ui.panel.top : H) - 12 - my);
       if (hev && hev.metal && pp.big && mh >= 150) drawMetalPanel(ctx, hev.metal, pp.x0, my, pp.w, mh, clamp((HitCam.time() - HitCam.T_HIT) / HitCam.T_IN, 0, 1), Math.min(1, HitCam.time() / 0.15, (HitCam.DUR - HitCam.time()) / 0.4));
     }
@@ -5381,16 +5458,23 @@ Meta.whenReady(() => {
       ctx.fillStyle = m.color; ctx.fillText(m.text, W / 2, y);
     });
     ctx.globalAlpha = 1;
-    ribbons.forEach((r, i) => {
-      const y = 140 + i * 24;
-      fitFont(`${r.ic}  ${r.t}`, ui.half * 2 - 44, 13, 700);
-      const w = ctx.measureText(`${r.ic}  ${r.t}`).width + 44;
-      ctx.globalAlpha = Math.min(1, r.life * 2);
-      ctx.fillStyle = 'rgba(0,0,0,0.62)'; ctx.fillRect(W / 2 - w / 2, y - 15, w, 21);
-      ctx.fillStyle = r.c; ctx.fillRect(W / 2 - w / 2, y - 15, 3, 21);
-      ctx.fillText(`${r.ic}  ${r.t}`, W / 2, y);
+    for (const r of ribbons) {
+      const y = 140 + (r.y || 0), tx = r.gold ? `${r.t}${r.sub ? '  ·  ' + r.sub : ''}` : `${r.ic}  ${r.t}`;
+      fitFont(tx, ui.half * 2 - 44, r.gold ? 14 : 13, r.gold ? 800 : 700);
+      const w = ctx.measureText(tx).width + 44;
+      ctx.globalAlpha = Math.min(1, r.life * 2, (r.max - r.life) / 0.2);
+      if (r.gold) {
+        const g = ctx.createLinearGradient(W / 2 - w / 2, 0, W / 2 + w / 2, 0);
+        g.addColorStop(0, '#9a7428'); g.addColorStop(0.5, '#ffe39a'); g.addColorStop(1, '#9a7428');
+        ctx.fillStyle = g; ctx.fillRect(W / 2 - w / 2, y - 15, w, 21);
+        ctx.fillStyle = '#2a1d05';
+      } else {
+        ctx.fillStyle = 'rgba(0,0,0,0.62)'; ctx.fillRect(W / 2 - w / 2, y - 15, w, 21);
+        ctx.fillStyle = r.c; ctx.fillRect(W / 2 - w / 2, y - 15, 3, 21);
+      }
+      ctx.fillText(tx, W / 2, y);
       ctx.globalAlpha = 1;
-    });
+    }
     if (state === 'intro') {
       const lv = L();
       ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(0, H / 2 - 90, W, 150);
@@ -6187,18 +6271,18 @@ Meta.whenReady(() => {
   function stopMusic() { if (Sfx.stopMusic) Sfx.stopMusic(); }
   function applyOptions() {
     const o = Meta.P.opts;
-    Sfx.setVolume(o.sfx); Sfx.setUserMute(o.mute); Sfx.setPortalMute(Meta.platformMute); hitcamOn = o.hitcam;
+    Sfx.setVolume(o.sfx); Sfx.setUserMute(o.mute); Sfx.setPortalMute(Meta.platformMute); hitcamOn = o.hitcam !== 'off';
     const q = QL();
     QDPR = q.dpr; PCAP = q.pcap;
     if (W3D0 && W3D0.q !== q) { const leaf = W3D0.q && W3D0.q.leaf !== q.leaf; W3D0.q = q; W3D0.setQuality(q.r3); if (leaf && scene3On) build3DScene(); }
     resize();
     TOF = o.ballistics === 'arcade' ? 0.6 : 1;
-    $('oSfx').value = o.sfx; $('oMusic').value = o.music; $('oQuality').value = o.quality; $('oHitcam').checked = o.hitcam; $('oBallistics').value = o.ballistics || 'real';
+    $('oSfx').value = o.sfx; $('oMusic').value = o.music; $('oQuality').value = o.quality; $('oHitcam').value = o.hitcam; $('oBallistics').value = o.ballistics || 'real';
   }
   $('oSfx').oninput = e => { Meta.P.opts.sfx = +e.target.value; Meta.save(); applyOptions(); };
   $('oMusic').oninput = e => { Meta.P.opts.music = +e.target.value; Meta.save(); applyOptions(); playMusic(); };
   $('oQuality').onchange = e => { Meta.P.opts.quality = e.target.value; Meta.save(); dynReset(true); applyOptions(); };
-  $('oHitcam').onchange = e => { Meta.P.opts.hitcam = e.target.checked; Meta.save(); applyOptions(); };
+  $('oHitcam').onchange = e => { Meta.P.opts.hitcam = e.target.value; Meta.save(); applyOptions(); };
   $('oBallistics').onchange = e => { Meta.P.opts.ballistics = e.target.value; Meta.save(); applyOptions(); };
   // Réassignation d'une commande : la touche déjà prise passe à l'action libérée (échange)
   function setBind(a, code) {
@@ -6304,7 +6388,7 @@ Meta.whenReady(() => {
     t.smoke = Math.max(t.smoke, 2); t.invulnT = 3; t.reloadT = 0;
     if (t.ammo[t.shell] <= 0) t.shell = nextShell(t);
     for (let i = 0; i < 20; i++) P3({ x: t.x + rnd(-12, 12), y: t.y + rnd(-12, 12), z: rnd(0.2, 2), vz: rnd(0.5, 2), size: 0.08, glow: true, life: rnd(0.4, 0.9), c: [0.6, 0.85, 1, 2] });
-    showMsg('TANK REPAIRED!', '#8fd46a', 2.2); waveStats.revived = true;
+    showMsg('TANK REPAIRED!', '#8fd46a', 2.2, 3); waveStats.revived = true;
     addLog('Field repair: crew and modules restored', '#8fd46a');
     Sfx.notify();
   }
@@ -6829,9 +6913,12 @@ Meta.whenReady(() => {
     sight.cx += e.movementX || 0; sight.cy += e.movementY || 0;
   });
   addEventListener('pointerdown', trackMouse);
+  // clic (curseur libre) ou toucher sur l'incrustation de la caméra d'impact : elle s'efface
+  const pipHit = (x, y) => { const p = ui.pip; return !!p && HitCam.active() && x >= p.x0 * uiK && x <= (p.x0 + p.w) * uiK && y >= p.y0 * uiK && y <= (p.y0 + p.h) * uiK; };
   cv.addEventListener('mousedown', e => {
     if (adOn() || synthMouse()) return;
     Sfx.init();
+    if (e.button === 0 && document.pointerLockElement !== cv && pipHit(mouse.x, mouse.y)) { HitCam.stop(); return; }
     if (e.button === 0) {
       mouse.down = true;
       if (state === 'play' || state === 'intro') lockPointer();
@@ -6957,6 +7044,7 @@ Meta.whenReady(() => {
     touch.t = performance.now(); setTouchMode(true); Sfx.init();
     try { cv.setPointerCapture(e.pointerId); } catch (err) { /* capture refusée */ }
     const [x, y] = tPos(e);
+    if (pipHit(x, y)) { HitCam.stop(); return; }
     if (player && player.dead && inBattle()) { specIdx++; return; }
     layoutTouch();
     const b = hitTouch(x, y), kind = b ? 'btn' : x < W * 0.4 && !touch.stick ? 'stick' : 'aim';

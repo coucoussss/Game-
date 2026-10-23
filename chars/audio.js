@@ -452,6 +452,17 @@ const Sfx = (() => {
     // chargement du joueur, de a à b (fractions du temps de rechargement écoulées)
     loading(a, b) { for (const [at, fn] of LOAD) if (a < at && b >= at) inner(fn); },
     intercom() { if (ok()) intercom(ac.currentTime); },
+    // confirmation d'un coup du joueur, sans distance : perforé (choc sourd et éclat), non perforé (bruit
+    // mat), ricochet (sifflement aigu), coup critique (tintement en plus), destruction (deux notes de cuivre)
+    confirm(kind) {
+      play(null, (t, a) => {
+        if (kind === 'ric') { tone(t, 0.14, 3000, 1800, 0.06 * a, 'triangle'); return; }
+        if (kind === 'nopen') { tone(t, 0.1, 140, 120, 0.14 * a, 'sine'); noise(t, 0.05, 900, 1, 0.05 * a, 'lowpass'); return; }
+        tone(t, 0.12, 220, 110, 0.12 * a, 'square'); noise(t, 0.06, 2500, 2, 0.1 * a, 'bandpass');
+        if (kind === 'crit') tone(t + 0.07, 0.12, 1250, 1180, 0.05 * a, 'triangle');
+        if (kind === 'kill') for (const [f, at, d] of [[392, 0.1, 0.22], [587, 0.3, 0.55]]) { tone(t + at, d, f, f * 0.995, 0.06 * a, 'sawtooth'); tone(t + at, d, f, f, 0.06 * a, 'triangle'); }
+      });
+    },
     // avis d'interface (mission, roue, réparation)
     notify() {
       play(null, (t, a) => { tone(t, 0.08, 900, 700, 0.12 * a, 'square'); tone(t + 0.09, 0.12, 400, 300, 0.15 * a, 'square'); });
