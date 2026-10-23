@@ -1042,15 +1042,21 @@ Meta.whenReady(() => {
     if (o.type === 'tree') return 16 * o.size;     // tronc d'environ 40 cm
     return Infinity;
   }
-  function losClear(x0, y0, x1, y1, vision, blast, self) {
+  // z0, z1 : hauteurs absolues des deux bouts (par défaut 2,2 m et 1,8 m au-dessus du sol). Le relief
+  // coupe la ligne (une crête cache ce qui est derrière elle) ; un obstacle ne la coupe que s'il dépasse
+  // sa hauteur à cet endroit (un rocher bas laisse voir une tourelle)
+  function losClear(x0, y0, x1, y1, vision, blast, self, z0, z1) {
     const dx = x1 - x0, dy = y1 - y0;
+    if (z0 == null) z0 = hAt(x0, y0) + 2.2;
+    if (z1 == null) z1 = hAt(x1, y1) + 1.8;
     const minx = Math.min(x0, x1), maxx = Math.max(x0, x1), miny = Math.min(y0, y1), maxy = Math.max(y0, y1);
     for (const o of obstacles) {
       if (o.dead || ((o.type === 'wall' || o.type === 'wreck') && !blast)) continue;
       if (o.x > maxx || o.x + o.w < minx || o.y > maxy || o.y + o.h < miny) continue;
       const h = segAABB(x0, y0, dx, dy, o.x, o.y, o.x + o.w, o.y + o.h);
-      if (h && h.t < 1) return false;
+      if (h && h.t < 1 && z0 + (z1 - z0) * h.t <= obsTop(o)) return false;
     }
+    if (terra && terra.cut(x0, y0, z0, x1, y1, z1) >= 0) return false;
     if (vision) {
       const l2 = dx * dx + dy * dy || 1;
       for (const s of smokes) {
@@ -1067,6 +1073,10 @@ Meta.whenReady(() => {
     return true;
   }
   // Corde traversée dans un disque (en rayons, de 0 à 2) par le segment (x0, y0) + k·(dx, dy)
+  // Hauteurs de vue : œil du chef (sorti de sa coupole ou aux épiscopes), haut de la tourelle, milieu de
+  // la caisse ; caisse défilée : vue du canon de a, une crête ou un obstacle cache la caisse de e
+  const eyeZ = a => a.gz + a.T.I.totalH + (a.hatch ? 0.6 : 0.1), topZ = e => e.gz + e.T.I.totalH - 0.1;
+  const hullMasked = (a, e) => !losClear(a.x, a.y, e.x, e.y, false, true, a, a.gz + a.T.S.gun.z, e.gz + e.T.S.ht * 0.6);
   function chord(x0, y0, dx, dy, l2, cx, cy, r) {
     const k = clamp(((cx - x0) * dx + (cy - y0) * dy) / l2, 0, 1), h = Math.hypot(x0 + dx * k - cx, y0 + dy * k - cy);
     return h < r ? 2 * Math.sqrt(1 - h * h / (r * r)) : 0;
@@ -1090,7 +1100,7 @@ Meta.whenReady(() => {
     for (const w of tanks) {
       if (!w.dead || w === e) continue;
       const k = ((w.x - a.x) * dx + (w.y - a.y) * dy) / l2;
-      if (k > 0 && k < 1 && Math.hypot(a.x + dx * k - w.x, a.y + dy * k - w.y) < w.r && e.T.I.totalH < wreckTop(w) + 0.3) return true;
+      if (k > 0 && k < 1 && Math.hypot(a.x + dx * k - w.x, a.y + dy * k - w.y) < w.r && e.gz + e.T.I.totalH < w.gz + wreckTop(w) + 0.3) return true;
     }
     return false;
   }
@@ -1117,7 +1127,7 @@ Meta.whenReady(() => {
           const d = dist(a, e);
           let rate = -0.5;
           // tout près, on entend et on voit le char, sauf derrière une maison
-          if (d < 90 && losClear(a.x, a.y, e.x, e.y, false)) rate = 9;
+          if (d < 90 && losClear(a.x, a.y, e.x, e.y, false, false, a, eyeZ(a), topZ(e))) rate = 9;
           else {
             let range = a.T.view * a.up.view * (a.team === 0 && player && a !== player && !player.dead ? player.up.relay : 1) * (night && !flareLit(e) ? 0.6 : 1) * (0.75 + 0.25 * eff(a, 'commander')) * (a.hatch ? 1.15 : 1) * (a.optic.cmd > 0 && !a.hatch ? 0.8 : 1);
             if (e.revealT > 0) range *= 1.3;
@@ -1125,8 +1135,9 @@ Meta.whenReady(() => {
             if (!night && !L().snow && Math.abs(e.speed) > e.T.speed * 0.5) range *= 1.2;
             if (d < range && wreckCover(a, e)) range *= 0.5;
             // la lueur et la poussière d'un coup de feu se voient même à travers la poussière soulevée
-            if (d < range && e.revealT > 0 && losClear(a.x, a.y, e.x, e.y, false)) rate = 9;
-            else if (d < range && losClear(a.x, a.y, e.x, e.y, true, false, a)) rate = clamp(1.6 * (1 - d / range), 0.05, 1.6) * vis;
+            if (d < range && e.revealT > 0 && losClear(a.x, a.y, e.x, e.y, false, false, a, eyeZ(a), topZ(e))) rate = 9;
+            // caisse défilée derrière une crête : seule la tourelle dépasse, elle se repère moins vite
+            else if (d < range && losClear(a.x, a.y, e.x, e.y, true, false, a, eyeZ(a), topZ(e))) rate = clamp(1.6 * (1 - d / range), 0.05, 1.6) * vis * (hullMasked(a, e) ? 0.6 : 1);
           }
           const v = clamp((a.det.get(e) || 0) + rate * dt, 0, 1.5);
           if (v > 0) a.det.set(e, v); else a.det.delete(e);
@@ -1172,7 +1183,7 @@ Meta.whenReady(() => {
     for (const w of tanks) {
       if (!w.dead) continue;
       const k = clamp(((w.x - a.x) * dx + (w.y - a.y) * dy) / l2, 0, 1);
-      if (k <= 0 || k >= 1 || b.T.S.ht - 0.25 >= wreckTop(w) + 0.2) continue;
+      if (k <= 0 || k >= 1 || b.gz + b.T.S.ht - 0.25 >= w.gz + wreckTop(w) + 0.2) continue;
       if (Math.hypot(a.x + dx * k - w.x, a.y + dy * k - w.y) < w.r * 0.9) return false;
     }
     return true;
@@ -1268,6 +1279,7 @@ Meta.whenReady(() => {
   // caisse haute ou tourelle) ; l'explosif vise le train de roulement, la mitraille le chef de char
   function aiAimZ(t, e, d) {
     const S = e.T.S, A = S.armor;
+    if (t.shell !== 'HE' && hullMasked(t, e)) return (S.ht + e.T.I.totalH) / 2;
     if (t.shell === 'HE') return S.gc + 0.3;
     if (t.shell === 'CAN') return e.T.I.totalH;
     if (t.ai.skill <= 0.6 || !AI_SHELLS.includes(t.shell)) return S.ht - 0.25;
@@ -1293,6 +1305,29 @@ Meta.whenReady(() => {
       if (s < bs) { bs = s; best = p; }
     }
     return best;
+  }
+  // Caisse défilée face à e (aide pour l'IA) : parmi des points à moins de rmax px (anneaux de 12), le plus
+  // proche où une crête ou un obstacle bas cache la caisse au canon de e tandis que notre canon voit encore
+  // la sienne, au sec et sur une maille praticable ; null s'il n'y en a pas
+  function hullDown(t, e, rmax = 140) {
+    let best = null, bs = 1e9;
+    const T = t.T, ez = e.gz + e.T.S.gun.z, eh = e.gz + e.T.S.ht * 0.6;
+    for (let k = 0; k < 37; k++) {
+      const ring = k ? 1 + Math.floor((k - 1) / 12) : 0, a = (k - 1) / 12 * TAU + ring * 0.26, R = rmax * ring / 3;
+      const p = k ? { x: clamp(t.x + Math.cos(a) * R, 60, WW - 60), y: clamp(t.y + Math.sin(a) * R, 60, WH - 60) } : { x: t.x, y: t.y };
+      if (blocked(cellOf(p.x, p.y)) || terra.depth(p.x, p.y) > 0.3) continue;
+      const g = terra.ground(p.x, p.y), sc = R + (Math.hypot(p.x - e.x, p.y - e.y) > e.T.range * 1.3 ? 400 : 0);
+      if (sc >= bs || losClear(e.x, e.y, p.x, p.y, false, true, e, ez, g + T.S.ht * 0.6)) continue;
+      if (!losClear(p.x, p.y, e.x, e.y, false, true, t, g + T.S.gun.z, eh)) continue;
+      bs = sc; best = p;
+    }
+    return best;
+  }
+  // position défilée retenue quelques secondes (pas d'hésitation entre deux crêtes)
+  function hdSpot(t, e, rmax) {
+    const ai = t.ai;
+    if (ai.hdT <= 0 || ai.hdE !== e) { ai.hd = hullDown(t, e, rmax); ai.hdE = e; ai.hdT = ai.hd ? 6 : 3; }
+    return ai.hd;
   }
   // Poste d'embuscade : un buisson sur l'axe d'approche, à environ « ahead » px en avant vers l'objectif
   function ambushPost(t, goalX, ahead, not) {
@@ -1373,6 +1408,7 @@ Meta.whenReady(() => {
 
   function aiThink(t, dt) {
     const ai = t.ai, T = t.T, role = ROLES[T.id] || 'line';
+    ai.hdT = (ai.hdT || 0) - dt;
     ai.thinkT -= dt; ai.reactT -= dt; ai.unstickT -= dt; ai.pathT -= dt; ai.pushT -= dt; ai.evadeT -= dt; ai.evCd -= dt; ai.flankT -= dt; ai.wdT -= dt; ai.wdCd -= dt;
     ai.noFireT = canFire(t) ? 0 : ai.noFireT + dt;
     if (ai.waitT > 5) { ai.waitT = 0; if (role !== 'ambush') ai.pushT = 3; } // impossible de tirer d'ici : on se rapproche
@@ -1389,7 +1425,7 @@ Meta.whenReady(() => {
       let best = null, bs = 0, curS = 0, threat = null, ts = 0, tk = 0, pens = 0, aimed = false, bWreck = false;
       for (const e of seen) {
         if (e.dead) continue;
-        const d = dist(t, e), lo = losClear(t.x, t.y, e.x, e.y, true, false, t), wc = wreckClear(t, e), vis = own.has(e), los = lo && wc && vis;
+        const d = dist(t, e), lo = losClear(t.x, t.y, e.x, e.y, true, false, t, t.gz + t.T.S.gun.z, e.gz + (e.T.S.ht + e.T.I.totalH) / 2), wc = wreckClear(t, e), vis = own.has(e), los = lo && wc && vis;
         const pen = penRatio(t, e, d), th = threatOf(t, e, d);
         let focus = 0;
         for (const a of tanks) if (a !== t && !a.dead && a.team === t.team && a.ai && a.ai.target === e) focus++;
@@ -1417,7 +1453,7 @@ Meta.whenReady(() => {
       }
       ai.target = best; ai.threat = threat; ai.threatK = tk;
       const d = best ? dist(t, best) : 0;
-      ai.los = !!best && own.has(best) && losClear(t.x, t.y, best.x, best.y, true, false, t) && wreckClear(t, best);
+      ai.los = !!best && own.has(best) && losClear(t.x, t.y, best.x, best.y, true, false, t, t.gz + t.T.S.gun.z, best.gz + (best.T.S.ht + best.T.I.totalH) / 2) && wreckClear(t, best);
       ai.side = bWreck ? sideStep(t, best) : null;
       ai.pen = best ? penRatio(t, best, d) : 0;
       if (best) {
@@ -1457,10 +1493,12 @@ Meta.whenReady(() => {
       else if (best && ai.mode === 'flank') { dest = ai.flankPt; if (dist(t, dest) < 50 || ai.flankT <= 0 || ai.flankE !== best) { ai.mode = null; dest = null; } }
       else if (best && ai.pushT > 0) dest = { x: best.x, y: best.y };
       else if (best && amb) {
-        // embuscade : on reste au poste et on en change après deux coups ; sans poste, on approche à 80 %
-        // de la portée sans jamais poursuivre
+        // embuscade : caisse défilée derrière une crête proche s'il y en a une, sinon on reste au poste et
+        // on en change après deux coups ; sans poste, on approche à 80 % de la portée sans jamais poursuivre
         if (ai.shots >= 2 && ai.post) { ai.post = ambushPost(t, goalX, 0, ai.post) || ai.post; ai.shots = 0; }
-        if (ai.post) dest = dist(t, ai.post) > 25 ? ai.post : null;
+        const hd = hdSpot(t, best, 160);
+        if (hd) dest = dist(t, hd) > 18 ? hd : null;
+        else if (ai.post) dest = dist(t, ai.post) > 25 ? ai.post : null;
         else if (!ai.los && d > range * 0.8) { const k = (d - range * 0.8) / d; dest = { x: t.x + (best.x - t.x) * k, y: t.y + (best.y - t.y) * k }; }
       } else if (best && role === 'scout' && ai.pen < 1.2) {
         // éclaireur : il ne gaspille pas d'obus sur un blindage trop épais, il observe depuis un buisson
@@ -1476,7 +1514,8 @@ Meta.whenReady(() => {
           if (p) { ai.mode = 'flank'; ai.flankE = best; ai.flankPt = p; ai.flankT = 25; dest = p; }
         }
         if (!dest) {
-          if (ai.los && d < range * 1.25 && d > range * 0.5) dest = null;
+          // à bonne distance : on tient, caisse défilée si une crête est à portée de chenilles
+          if (ai.los && d < range * 1.25 && d > range * 0.5) { const hd = hdSpot(t, best, 110); dest = hd && dist(t, hd) > 18 ? hd : null; }
           else if (ai.los && d <= range * 0.5) {
             const a = Math.atan2(t.y - best.y, t.x - best.x);
             dest = { x: clamp(t.x + Math.cos(a) * 160, 60, WW - 60), y: clamp(t.y + Math.sin(a) * 160, 60, WH - 60) };
@@ -2221,7 +2260,7 @@ Meta.whenReady(() => {
     {
       const sb = Ballistics.shell(T.id, t.shell), pv = pivot(t), ta = t.angle + t.turret, hp = hullPitch(t);
       const ap = aimPoint(t, pv.x + Math.cos(ta) * T.gunEnd, pv.y + Math.sin(ta) * T.gunEnd);
-      const want = Math.atan(aimSlope(sb, ap.D, T.S.gun.z, ap.z) * PX * RK), er = D.elevRate * D2R * eG * (t.elevJamT > 0 ? 0 : 1);
+      const want = Math.atan(aimSlope(sb, ap.D, t.gz + T.S.gun.z, ap.z) * PX * RK), er = D.elevRate * D2R * eG * (t.elevJamT > 0 ? 0 : 1);
       // le tireur corrige le tangage qu'il voit dans la lunette, avec un temps de réaction (≈ 0,5 s)
       t.hpSeen = (t.hpSeen || 0) + (hp - (t.hpSeen || 0)) * Math.min(1, dt / 0.5);
       t.elev = clamp(t.elev + clamp(want - t.hpSeen - t.elev, -er * dt, er * dt), D.elev[0] * D2R, D.elev[1] * D2R);
@@ -2266,17 +2305,17 @@ Meta.whenReady(() => {
       if (t.aim3) return { D: Math.hypot(t.aim3.x - mx, t.aim3.y - my), z: t.aim3.z };
     }
     const a = t.ai, e = a && a.target;
-    if (e && !e.dead) return a.ax != null ? { D: Math.hypot(a.ax - mx, a.ay - my) * a.rngK, z: a.az != null ? a.az : e.T.S.ht - 0.25 } : { D: Math.hypot(e.x - mx, e.y - my), z: e.T.S.ht - 0.25 };
-    return { D: 600, z: 1.4 };
+    if (e && !e.dead) return a.ax != null ? { D: Math.hypot(a.ax - mx, a.ay - my) * a.rngK, z: e.gz + (a.az != null ? a.az : e.T.S.ht - 0.25) } : { D: Math.hypot(e.x - mx, e.y - my), z: e.gz + e.T.S.ht - 0.25 };
+    return { D: 600, z: t.gz + 1.4 };
   }
   // Tube du canon, du pivot à la bouche, à hauteur de tourillons : premier obstacle (assez haut) ou char
   // qu'il traverse ; trees : les arbres comptent (sinon ils plient sous le tube)
   function barrelHit(t, ta, trees) {
-    const pv = pivot(t), z = t.T.S.gun.z, dx = Math.cos(ta) * t.T.gunEnd, dy = Math.sin(ta) * t.T.gunEnd;
+    const pv = pivot(t), z = t.gz + t.T.S.gun.z, dx = Math.cos(ta) * t.T.gunEnd, dy = Math.sin(ta) * t.T.gunEnd;
     const minx = Math.min(pv.x, pv.x + dx), maxx = Math.max(pv.x, pv.x + dx), miny = Math.min(pv.y, pv.y + dy), maxy = Math.max(pv.y, pv.y + dy);
     let best = null;
     for (const o of obstacles) {
-      if (o.dead || (o.type === 'tree' && !trees) || o.x > maxx || o.x + o.w < minx || o.y > maxy || o.y + o.h < miny || obsH(o) < z) continue;
+      if (o.dead || (o.type === 'tree' && !trees) || o.x > maxx || o.x + o.w < minx || o.y > maxy || o.y + o.h < miny || obsTop(o) < z) continue;
       const h = segAABB(pv.x, pv.y, dx, dy, o.x, o.y, o.x + o.w, o.y + o.h);
       if (h && h.t < 1 && (!best || h.t < best.t)) best = { t: h.t, o, nx: h.nx, ny: h.ny };
     }
@@ -2301,7 +2340,7 @@ Meta.whenReady(() => {
     const sb = Ballistics.shell(T.id, key), v0 = Ballistics.muzzle(sb), pxk = shellPxK(), sp = v0 * pxk;
     // vertical : élévation du tube, caisse comprise, et dispersion, isotrope avec l'horizontale ; la bouche
     // monte ou descend avec le tangage
-    const z0 = T.S.gun.z + Math.sin(hp) * T.S.gun.len, k3 = PX * RK;
+    const z0 = t.gz + T.S.gun.z + Math.sin(hp) * T.S.gun.len, k3 = PX * RK;
     let slope = Math.tan(t.elev + hp) / k3 + gauss() * t.disp / k3;
     // recul : la caisse bascule vers l'arrière du tir (canon au-dessus du centre de gravité)
     t.fireAge = 0;
@@ -2394,14 +2433,14 @@ Meta.whenReady(() => {
     if (g.heat > 250) { g.jam = 7; if (t === player) addLog('Machine gun overheated: changing barrel', '#ffb070'); }
     const T = t.T, ta = t.angle + t.turret, pv = pivot(t), side = -0.3 * PX;
     const mx = pv.x + Math.cos(ta) * T.gunEnd * 0.45 - Math.sin(ta) * side, my = pv.y + Math.sin(ta) * T.gunEnd * 0.45 + Math.cos(ta) * side;
-    const a = ta + gauss() * (0.0035 + t.disp * 0.35), sp = MG_V * 0.92, z0 = T.S.gun.z - 0.05;
+    const a = ta + gauss() * (0.0035 + t.disp * 0.35), sp = MG_V * 0.92, zl = T.S.gun.z - 0.05, z0 = t.gz + zl;
     const ap = aimPoint(t, mx, my), X = Math.max(5, ap.D * RK), vm = MG_V * Math.exp(-X * 0.5 / 900);
     const slope = (ap.z - z0) / X + 0.5 * G * X / (vm * vm) + gauss() * (0.0035 + t.disp * 0.35) / (PX * RK);
     let type = 'SmK';
     if (g.type === 'SmKH' && g.ammoH > 0) { type = 'SmKH'; g.ammoH--; if (g.ammoH === 0 && t === player) { g.type = 'SmK'; addLog('Out of S.m.K.H.: back to S.m.K.', '#e9d9a6'); } }
     bullets.push({ x: mx, y: my, z: z0, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, sp, slope, dist: 0, tracer: g.n % 5 === 0, by: t, team: t.team, type });
     t.revealT = Math.max(t.revealT, 1.5);
-    if (Math.random() < 0.5) parts.push({ k: 'flash', x: mx, y: my, life: 0.03, max: 0.03, size: 6, z: z0 });
+    if (Math.random() < 0.5) parts.push({ k: 'flash', x: mx, y: my, life: 0.03, max: 0.03, size: 6, z: zl });
     Sfx.mg(listenerDist(mx, my));
   }
   function updateBullets(dt) {
@@ -2413,7 +2452,7 @@ Meta.whenReady(() => {
       for (const o of obstacles) {
         if (o.dead || o.x > maxx || o.x + o.w < minx || o.y > maxy || o.y + o.h < miny) continue;
         const h = segAABB(b.x, b.y, dx, dy, o.x, o.y, o.x + o.w, o.y + o.h);
-        if (h && b.z + (zNext - b.z) * h.t <= obsH(o) && (!best || h.t < best.t)) best = { t: h.t, o };
+        if (h && b.z + (zNext - b.z) * h.t <= obsTop(o) && (!best || h.t < best.t)) best = { t: h.t, o };
       }
       for (const t of tanks) {
         if (t === b.by || t.x > maxx || t.x < minx || t.y > maxy || t.y < miny) continue;
@@ -2426,21 +2465,22 @@ Meta.whenReady(() => {
         // hommes descendus réparer une chenille, à côté de la caisse
         if (t.dismount) {
           const q = worldOf(t, [0, -t.trackSide * (t.T.S.W / 2 + 0.45), 0]), k2 = clamp(((q.x - b.x) * dx + (q.y - b.y) * dy) / l2, 0, 1);
-          if (Math.hypot(b.x + dx * k2 - q.x, b.y + dy * k2 - q.y) < 0.5 * PX && b.z + (zNext - b.z) * k2 < 1.6 && (!best || k2 < best.t)) best = { t: k2, tank: t, z: 0.8, crewOut: true };
+          if (Math.hypot(b.x + dx * k2 - q.x, b.y + dy * k2 - q.y) < 0.5 * PX && b.z + (zNext - b.z) * k2 < t.gz + 1.6 && (!best || k2 < best.t)) best = { t: k2, tank: t, z: 0.8, crewOut: true };
         }
         // chef de char debout dans sa coupole : la tête et le buste dépassent du blindage
         if (t.hatch && roleOk(t, 'commander')) {
           const hp = hatchPos(t), qx = hp.x - b.x, qy = hp.y - b.y, k2 = clamp((qx * dx + qy * dy) / l2, 0, 1);
-          const zz = b.z + (zNext - b.z) * k2;
+          const zz = b.z + (zNext - b.z) * k2 - t.gz;
           if (Math.hypot(b.x + dx * k2 - hp.x, b.y + dy * k2 - hp.y) < 0.26 * PX && zz > hp.z0 && zz < hp.z0 + 0.6 && (!best || k2 < best.t)) best = { t: k2, tank: t, z: zz, exposed: hp };
         }
       }
       for (const r of runners) {
         if (r.team === b.team) continue;
         const l2 = dx * dx + dy * dy || 1, k2 = clamp(((r.x - b.x) * dx + (r.y - b.y) * dy) / l2, 0, 1);
-        if (b.z + (zNext - b.z) * k2 < 1.7 && Math.hypot(b.x + dx * k2 - r.x, b.y + dy * k2 - r.y) < 0.3 * PX && (!best || k2 < best.t)) best = { t: k2, runner: r };
+        if (b.z + (zNext - b.z) * k2 < hAt(r.x, r.y) + 1.7 && Math.hypot(b.x + dx * k2 - r.x, b.y + dy * k2 - r.y) < 0.3 * PX && (!best || k2 < best.t)) best = { t: k2, runner: r };
       }
-      if (zNext <= 0) { const tg = b.z / Math.max(1e-6, b.z - zNext); if (!best || tg < best.t) best = { t: tg, ground: true }; }
+      const tg = terra.cut(b.x, b.y, b.z, b.x + dx, b.y + dy, zNext);
+      if (tg >= 0 && (!best || tg < best.t)) best = { t: tg, ground: true };
       if (!best) {
         b.x += dx; b.y += dy; b.z = zNext; b.dist += b.sp * dt;
         const vr = mgVel(b.type, b.dist * RK);
@@ -2449,12 +2489,12 @@ Meta.whenReady(() => {
         if (b.dist > 2400 || b.x < -50 || b.y < -50 || b.x > WW + 50 || b.y > WH + 50) bullets.splice(i, 1);
         continue;
       }
-      const hx = b.x + dx * best.t, hy = b.y + dy * best.t, hz = Math.max(0, b.z + (zNext - b.z) * best.t), ux = b.vx / b.sp, uy = b.vy / b.sp;
+      const hx = b.x + dx * best.t, hy = b.y + dy * best.t, hz = Math.max(0, b.z + (zNext - b.z) * best.t - hAt(hx, hy)), ux = b.vx / b.sp, uy = b.vy / b.sp;
       if (best.tank) {
         mgNow = b.by === player; const mr = mgHitTank(b, best.tank, best, hx, hy); mgNow = false;
         if (mr === 'continue') continue;
       } else if (best.runner) { best.runner.hp -= rnd(60, 130); Fx.bulletGround(hx, hy, ux, uy); }
-      else if (best.ground) Fx.bulletGround(hx, hy, ux, uy);
+      else if (best.ground) { if (terra.depth(hx, hy) > 0.1) Fx.splash(hx, hy, 0.12); else Fx.bulletGround(hx, hy, ux, uy); }
       else Fx.chips(hx, hy, hz, best.o.type === 'tree');
       // une traçante qui frappe l'acier ou le sol en rasant repart en chandelle, souvent vers le ciel
       if (b.tracer && (best.tank || (best.ground && Math.random() < 0.55))) {
@@ -2620,13 +2660,13 @@ Meta.whenReady(() => {
       const dX = s.sp * dt * RK, kd = Ballistics.kDrag(s.sb, s.V) * dX * Math.hypot(1, s.slope);
       const vr = s.V * Math.exp(-0.5 * kd) / Math.hypot(1, s.slope), gk = G / (vr * vr);
       const zNext = s.z + s.slope * dX - 0.5 * gk * dX * dX;
-      if (best && s.z + (zNext - s.z) * best.t > obsH(best.o)) best = null; // passe au-dessus
+      if (best && s.z + (zNext - s.z) * best.t > obsTop(best.o)) best = null; // passe au-dessus
       if (!best) {
         // un obstacle plus loin sur le pas peut encore être touché s'il est assez haut
         for (const o of obstacles) {
           if (o.dead || o.x > maxx || o.x + o.w < minx || o.y > maxy || o.y + o.h < miny || o === s.skipObs) continue;
           const h = segAABB(s.x, s.y, dx, dy, o.x, o.y, o.x + o.w, o.y + o.h);
-          if (h && s.z + (zNext - s.z) * h.t <= obsH(o) && (!best || h.t < best.t)) best = { t: h.t, o, nx: h.nx, ny: h.ny };
+          if (h && s.z + (zNext - s.z) * h.t <= obsTop(o) && (!best || h.t < best.t)) best = { t: h.t, o, nx: h.nx, ny: h.ny };
         }
       }
       for (const t of tanks) {
@@ -2638,12 +2678,11 @@ Meta.whenReady(() => {
       const ew = s.exitWall;
       if (ew && ew.o === s.skipObs && !ew.o.dead) {
         const o = ew.o, h = segAABB(s.x, s.y, dx, dy, o.x, o.y, o.x + o.w, o.y + o.h);
-        if (h && h.t1 < 1 && s.z + (zNext - s.z) * h.t1 <= obsH(o) && (!best || h.t1 < best.t)) best = { t: h.t1, exit: true };
+        if (h && h.t1 < 1 && s.z + (zNext - s.z) * h.t1 <= obsTop(o) && (!best || h.t1 < best.t)) best = { t: h.t1, exit: true };
       }
-      if (zNext <= 0) {
-        const tg = s.z / Math.max(1e-6, s.z - zNext);
-        if (!best || tg < best.t) best = { t: tg, ground: true };
-      }
+      // relief ou surface de l'eau sur le pas
+      const tg = terra.cut(s.x, s.y, s.z, s.x + dx, s.y + dy, zNext);
+      if (tg >= 0 && (!best || tg < best.t)) best = { t: tg, ground: true };
       // fusée de culot armée par un obstacle traversé : l'APHE éclate au bout du délai, là où il est
       if (s.fuzeAt) {
         const tf = Math.max(0, (s.fuzeAt - s.dist * RK) / dX);
@@ -2665,7 +2704,7 @@ Meta.whenReady(() => {
         const hx = s.x + dx * best.t, hy = s.y + dy * best.t;
         if (!best.burst && !best.exit) aiObserve(s, hx, hy, best.tank);
         s.dist += s.sp * dt * best.t;
-        s.x = hx; s.y = hy; s.z = Math.max(0, s.z + (zNext - s.z) * best.t);
+        s.x = hx; s.y = hy; s.z = Math.max(hAt(hx, hy), s.z + (zNext - s.z) * best.t);
         const res = best.burst ? apheBurst(s) : best.exit ? exitWall(s, hx, hy) : best.ground ? hitGround(s, hx, hy) : best.tank ? hitTank(s, best.tank, best, hx, hy) : hitObstacle(s, best.o, best, hx, hy);
         if (res === 'stop') remove = true;
       } else {
@@ -2686,7 +2725,7 @@ Meta.whenReady(() => {
       }
       // l'obus vole jusqu'au sol (traité plus haut), hors de la carte ou très haut après un ricochet ;
       // un compteur de sécurité borne son trajet
-      if (!remove && (s.z > 60 || s.dist > 8000 || s.x < -50 || s.y < -50 || s.x > WW + 50 || s.y > WH + 50)) remove = true;
+      if (!remove && (s.z > 70 || s.dist > 8000 || s.x < -50 || s.y < -50 || s.x > WW + 50 || s.y > WH + 50)) remove = true;
       if (remove) {
         if (s.tgt && !s.obs && s.by.ai && s.tgt === s.by.ai.target) { s.obs = true; s.by.ai.rngK = Math.max(0.7, s.by.ai.rngK * 0.95); } // passé au-dessus : on raccourcit
         if (player && !player.dead && s.by !== player && s.warned && !s.hitPlayer) waveStats.dodged++;
@@ -2703,6 +2742,7 @@ Meta.whenReady(() => {
   // Impact du segment (x, y, z0) → (x + dx, y + dy, z1) sur un char : face de caisse ou de tourelle à la
   // hauteur où l'obus y entre, ou toit qu'il crève en descendant. Rien s'il passe à côté ou au-dessus.
   function tankCand(t, x, y, dx, dy, z0, z1 = z0) {
+    z0 -= t.gz; z1 -= t.gz; // hauteurs absolues ramenées à l'appui du char
     const c = Math.cos(t.angle), sn = Math.sin(t.angle);
     const lx = (x - t.x) * c + (y - t.y) * sn, ly = -(x - t.x) * sn + (y - t.y) * c;
     const ldx = dx * c + dy * sn, ldy = -dx * sn + dy * c;
@@ -2748,21 +2788,25 @@ Meta.whenReady(() => {
   // (« ricochet de sol », bien connu des artilleurs) : souvent sur un sol sec et dur, deux fois moins
   // dans la boue ou la neige, encore moins dans le sable ; il repart plus haut, ralenti et en tumbling.
   // Sinon il s'enfonce en soulevant une gerbe de terre.
+  // L'angle de chute se compte par rapport au sol : la pente du relief le long du tir s'y ajoute. Dans
+  // l'eau, l'obus ricoche aussi en rasant (sinon l'eau l'arrête : la caisse immergée est à l'abri).
   function hitGround(s, x, y, forced) {
     if (s.key === 'SMOKE') { stampCrater(x, y, 4); return smokeShell(s, x, y); }
-    const ux = s.vx / s.sp, uy = s.vy / s.sp, fall = Math.atan(-s.slope) / D2R;
-    const pRic = clamp(1 - fall / 8, 0, 0.85) * (L().gRic || 1);
+    const ux = s.vx / s.sp, uy = s.vy / s.sp, wet = terra.depth(x, y) > 0.15;
+    const gs = (hAt(x + ux * 7, y + uy * 7) - hAt(x - ux * 7, y - uy * 7)) / (14 * RK), fall = Math.atan(gs - s.slope) / D2R;
+    const pRic = clamp(1 - fall / 8, 0, 0.85) * (wet ? 1 : L().gRic || 1);
     if (!forced && !s.sb.he && !s.sb.heat && s.ric < 3 && Math.random() < pRic) {
-      s.slope = -s.slope * rnd(1.2, 2.5) + rnd(0, 0.01); s.z = 0.05; s.ric++; s.yaw = true;
+      s.slope = gs + (gs - s.slope) * rnd(1.2, 2.5) + rnd(0, 0.01); s.z = hAt(x, y) + 0.05; s.ric++; s.yaw = true;
       s.V *= 0.6; shellAim(s, ux, uy);
-      Fx.groundHit(x, y, ux, uy, 0.4, true);
-      stampCrater(x, y, 4);
+      if (wet) Fx.splash(x, y, 0.5); else { Fx.groundHit(x, y, ux, uy, 0.4, true); stampCrater(x, y, 4); }
       Sfx.ricochet(listenerDist(x, y));
       return 'continue';
     }
-    if (s.key === 'HE') explode(x, y, s, null);
+    const k = Math.sqrt(s.by.T.caliber / 75);
+    if (wet) { Fx.splash(x, y, k * (s.sb.he ? 1.6 : 1)); if (s.key === 'HE' || s.key === 'HEAT') blastNear(x, y, s, null); Sfx.impact(listenerDist(x, y)); }
+    else if (s.key === 'HE') explode(x, y, s, null);
     else if (s.key === 'HEAT') { Fx.blast(x, y, 0.2, 0.45); stampCrater(x, y, 9); Sfx.explosion(listenerDist(x, y), false); blastNear(x, y, s, null); }
-    else { Fx.groundHit(x, y, ux, uy, Math.sqrt(s.by.T.caliber / 75), false); stampCrater(x, y, 7); Sfx.impact(listenerDist(x, y)); }
+    else { Fx.groundHit(x, y, ux, uy, k, false); stampCrater(x, y, 7); Sfx.impact(listenerDist(x, y)); }
     return 'stop';
   }
 
@@ -3140,7 +3184,7 @@ Meta.whenReady(() => {
       const Rh = norm3(h.part === 'turret' ? rotZ(R0, tAng) : R0);
       const c = Math.cos(t.angle), sn = Math.sin(t.angle), wx = Rh[0] * c + Rh[1] * sn, wy = Rh[0] * sn - Rh[1] * c, wl = Math.hypot(wx, wy);
       const ux = wl > 1e-6 ? wx / wl : s.vx / s.sp, uy = wl > 1e-6 ? wy / wl : s.vy / s.sp;
-      s.slope = Rh[2] / Math.max(0.05, wl); s.z = h.z;
+      s.slope = Rh[2] / Math.max(0.05, wl); s.z = t.gz + h.z;
       s.V *= 0.72; s.ric++; s.yaw = true;
       s.x += ux * 2; s.y += uy * 2;
       shellAim(s, ux, uy);
@@ -3477,12 +3521,12 @@ Meta.whenReady(() => {
     if (o.type === 'tree') {
       // tronc (sous le houppier, s'il est sur la ligne de tir) ou feuillage
       const cx = o.x + 8, cy = o.y + 8, miss = Math.abs((cx - hx) * -uy + (cy - hy) * ux) / PX, r = 0.3 * o.size + sb.cal / 2000;
-      const trunk = s.z < 3 * o.size && miss < r, crown = s.z >= 2.2 * o.size;
+      const zo = s.z - obsBase(o), trunk = zo < 3 * o.size && miss < r, crown = zo >= 2.2 * o.size;
       if (!trunk && !crown) { s.skipObs = o; return 'continue'; }
       if (sb.he || sb.heat) {
         if (Math.random() < (trunk ? (sb.he ? 0.9 : 0.7) : (sb.he ? 0.5 : 0.3))) {
           if (trunk) knockTree(o, ang);
-          if (sb.he) explode(hx, hy, s, null); else { Fx.blast(hx, hy, s.z, 0.3); Sfx.explosion(listenerDist(hx, hy), false); }
+          if (sb.he) explode(hx, hy, s, null); else { Fx.blast(hx, hy, zo, 0.3); Sfx.explosion(listenerDist(hx, hy), false); }
           return 'stop';
         }
         s.skipObs = o; return 'continue';
@@ -3491,10 +3535,10 @@ Meta.whenReady(() => {
       knockTree(o, ang);
       eq *= Math.sqrt(Math.max(0.05, 1 - Math.pow(miss / r, 2))); cosI = 1; // corde du tronc
     }
-    const chips = () => { for (let k = 0; k < 5; k++) Fx.chips(hx, hy, Math.min(obsH(o), s.z || 1), o.type === 'tree'); };
+    const zr = Math.max(0.2, s.z - obsBase(o)), chips = () => { for (let k = 0; k < 5; k++) Fx.chips(hx, hy, Math.min(obsH(o), zr), o.type === 'tree'); };
     if (sb.he) { explode(hx, hy, s, null); return 'stop'; }
     if (sb.heat) {
-      chips(); Fx.blast(hx, hy, s.z, 0.3); Sfx.explosion(listenerDist(hx, hy), false);
+      chips(); Fx.blast(hx, hy, zr, 0.3); Sfx.explosion(listenerDist(hx, hy), false);
       if (o.hp !== Infinity) damageObstacle(o, s.by.T.obs * 0.5);
       return 'stop';
     }
@@ -3528,7 +3572,7 @@ Meta.whenReady(() => {
     s.exitWall = null;
     Sfx.impact(listenerDist(x, y));
     if (!(Ballistics.penVel(s.sb, s.V) > los)) {
-      Fx.chips(x, y, Math.min(obsH(o), s.z || 1), false);
+      Fx.chips(x, y, Math.min(obsH(o), Math.max(0.2, s.z - obsBase(o))), false);
       damageObstacle(o, s.by.T.obs * 0.5);
       return 'stop';
     }
@@ -3541,7 +3585,7 @@ Meta.whenReady(() => {
   // dans une maison, il en souffle l'intérieur
   function apheBurst(s) {
     const o = s.skipObs;
-    Fx.blast(s.x, s.y, s.z, 0.3); Sfx.explosion(listenerDist(s.x, s.y), false); stampCrater(s.x, s.y, 4);
+    Fx.blast(s.x, s.y, s.z - hAt(s.x, s.y), 0.3); Sfx.explosion(listenerDist(s.x, s.y), false); stampCrater(s.x, s.y, 4);
     if (o && o.type === 'building' && !o.dead && s.x >= o.x && s.x <= o.x + o.w && s.y >= o.y && s.y <= o.y + o.h) damageObstacle(o, s.by.T.obs);
     return 'stop';
   }
@@ -3553,7 +3597,7 @@ Meta.whenReady(() => {
       if (t.dead || t === direct) continue;
       const d = Math.hypot(t.x - x, t.y - y);
       if (d < 30 * PX) t.underFire = Math.max(t.underFire, 2);
-      if (d > 25 * PX + t.r || !losClear(x, y, t.x, t.y, false, true)) continue;
+      if (d > 25 * PX + t.r || !losClear(x, y, t.x, t.y, false, true, null, hAt(x, y) + 0.6, t.gz + t.T.S.ht * 0.5)) continue;
       heBlast(t, x, y, s.sb, s.by, null, null);
     }
     for (const r of runners) if (Math.random() < fragP(s.sb.cal, Math.hypot(r.x - x, r.y - y) / PX, 0.5)) r.hp = 0;
@@ -3793,6 +3837,11 @@ Meta.whenReady(() => {
       for (let i = 0; i < 6; i++) P3({ x, y, z, vx: -ux * rnd(1, 4) + rnd(-1, 1), vy: -uy * rnd(1, 4) + rnd(-1, 1), vz: rnd(0, 1.5), drag: 2, wind: 1, size: rnd(0.2, 0.4), grow: 0.8, life: rnd(0.8, 1.6), c: [0.5, 0.47, 0.42, 0.4] });
       if (kind === 'heat') for (let i = 0; i < 9; i++) P3({ x: x - ux * PX * 0.6, y: y - uy * PX * 0.6, z, vx: -ux * rnd(1, 5) + rnd(-2, 2), vy: -uy * rnd(1, 5) + rnd(-2, 2), vz: rnd(0.5, 2), drag: 1.5, g: -0.2, wind: 1, size: rnd(0.4, 0.8), grow: 1.4, life: rnd(2, 3.5), c: [0.1, 0.09, 0.08, 0.6] });
       if (kind === 'pen') for (let i = 0; i < 12; i++) P3({ x: x + rnd(-6, 6), y: y + rnd(-6, 6), z: z + 0.6, delay: rnd(0.25, 1.2), vz: rnd(1, 2.5), drag: 0.6, g: -0.3, wind: 1, size: rnd(0.25, 0.5), grow: 0.9, life: rnd(1.8, 3), c: [0.55, 0.53, 0.5, 0.45] });
+    },
+    // Coup dans l'eau : gerbe qui monte et retombe, embruns qui dérivent
+    splash(x, y, k) {
+      for (let i = 0; i < 26 * k; i++) { const a = Math.random() * TAU, v = rnd(0.5, 2.5) * k; P3({ x, y, z: 0.05, vx: Math.cos(a) * v, vy: Math.sin(a) * v, vz: rnd(4, 11) * Math.sqrt(k), g: G, drag: 0.4, size: rnd(0.08, 0.2) * k, life: rnd(0.9, 1.6), c: [0.78, 0.84, 0.86, 0.9] }); }
+      for (let i = 0; i < 8 * k; i++) P3({ x: x + rnd(-3, 3), y: y + rnd(-3, 3), z: rnd(0.3, 1.5) * k, vz: rnd(0.5, 1.5), drag: 1.2, wind: 1, size: rnd(0.5, 1) * k, grow: 1.2, life: rnd(1.5, 2.5), c: [0.85, 0.88, 0.9, 0.35] });
     },
     // Balle de mitrailleuse au sol : petit jet de terre et de poussière
     bulletGround(x, y, ux, uy) {
@@ -4774,21 +4823,22 @@ Meta.whenReady(() => {
     const pv = pivot(player), ux = Math.cos(a), uy = Math.sin(a), L0 = 1600, key = player.shell, sb = Ballistics.shell(player.T.id, key);
     const kin = !sb.heat && !sb.he;
     let best = { t: 1, kind: 'sky' };
-    if (sv < 0) { const tg = (z0 / -sv) / L0; if (tg < 1) best = { t: tg, kind: 'ground' }; }
+    const tg = terra.cut(pv.x, pv.y, z0, pv.x + ux * L0, pv.y + uy * L0, z0 + sv * L0);
+    if (tg >= 0) best = { t: tg, kind: 'ground' };
     // obstacles sur la ligne : le premier qui arrête l'obus la termine ; un perforant traverse les murs et
     // les troncs qu'il perce, en y perdant de la vitesse (comme hitObstacle)
     const hits = [];
     for (const o of obstacles) {
       if (o.dead) continue;
       const h = segAABB(pv.x, pv.y, ux * L0, uy * L0, o.x, o.y, o.x + o.w, o.y + o.h);
-      if (h && h.t < best.t && z0 + sv * h.t * L0 <= obsH(o)) hits.push({ t: h.t, o, h });
+      if (h && h.t < best.t && z0 + sv * h.t * L0 <= obsTop(o)) hits.push({ t: h.t, o, h });
     }
     hits.sort((p, q) => p.t - q.t);
     let V = null, walls = [];
     for (const { t: k, o, h } of hits) {
       let eq = obsEq(o), cosI = Math.max(0.2, Math.abs(ux * h.nx + uy * h.ny));
       if (o.type === 'tree') {
-        const z = z0 + sv * k * L0, miss = Math.abs((o.x + 8 - pv.x) * -uy + (o.y + 8 - pv.y) * ux) / PX, r = 0.3 * o.size + sb.cal / 2000;
+        const z = z0 + sv * k * L0 - obsBase(o), miss = Math.abs((o.x + 8 - pv.x) * -uy + (o.y + 8 - pv.y) * ux) / PX, r = 0.3 * o.size + sb.cal / 2000;
         // un perforant ne s'arrête que sur le tronc ; la fusée d'un explosif fonctionne aussi dans le feuillage
         const trunk = z < 3 * o.size && miss < r;
         if (!trunk && (kin || z < 2.2 * o.size)) continue;
@@ -5774,7 +5824,7 @@ Meta.whenReady(() => {
       player.probeT = (player.probeT || 0) - 1 / 60;
       if (player.probeT <= 0 || !player.probe) {
         player.probeT = 0.1;
-        const z0 = player.T.S.gun.z;
+        const z0 = player.gz + player.T.S.gun.z;
         player.probe = sightProbe(Math.atan2(m.y - pv.y, m.x - pv.x), z0, (m.z - z0) / Math.max(1, d));
       }
       pr = player.probe;
@@ -7678,7 +7728,7 @@ Meta.whenReady(() => {
         const pv = pivot(player);
         player.turret = angNorm(Math.atan2(e.y - pv.y, e.x - pv.x) - player.angle);
         player.aim3 = { x: e.x, y: e.y, z: e.T.S.ht - 0.3 };
-        { const sb = Ballistics.shell(player.T.id, player.shell); player.elev = Math.atan(aimSlope(sb, Math.hypot(e.x - pv.x, e.y - pv.y), player.T.S.gun.z, e.T.S.ht - 0.3) * PX * RK); }
+        { const sb = Ballistics.shell(player.T.id, player.shell); player.elev = Math.atan(aimSlope(sb, Math.hypot(e.x - pv.x, e.y - pv.y), player.gz + player.T.S.gun.z, e.gz + e.T.S.ht - 0.3) * PX * RK); }
         player.disp = 0; player.reloadT = 0; fireShell(player);
         return true;
       },
