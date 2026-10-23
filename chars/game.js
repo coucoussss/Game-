@@ -172,6 +172,8 @@ Meta.whenReady(() => {
       tree: ['#36521f', '#4a6a2b'], bush: '#4c6b2a', wall: '#a59a86', roof: ['#8a4f3a', '#73402f'],
       waves: [W_('light', 'light', 'medium', 'light', 'pz4'), W_('pz4', 'light', 'medium', 'stug', 'light'), W_('pz4', 'medium', 'heavy', 'stug', 'medium')],
       forms: [['line', 'wedge'], ['late', 'pincer'], ['wedge', 'ambush', 'late']],
+      // houle de la steppe (± 2 m), deux balkas, et le Psel : un pont de bois de 30 t et deux gués
+      relief: { oct: [[900, 2.2], [380, 1], [150, 0.3]], balkas: { n: 2, depth: 2.5, hw: 75 }, water: { wl: -0.9, river: { x: 0.76, hw: 36, depth: 2.6, bank: 0.09, fords: 2, bridge: 30 } } },
     },
     {
       forest: true, name: 'Ardennes Forest', when: 'Ardennes · 16 December 1944', soils: ['forest', 'track'], mud: 14, dustK: 0.2, soil: 'muddy undergrowth', gRic: 0.5, atm: { T: 8, rho: 1.25, wind: 1.5 }, sub: 'Dense undergrowth, close-quarters fighting',
@@ -180,6 +182,8 @@ Meta.whenReady(() => {
       tree: ['#24401a', '#335726'], bush: '#3a5a22', wall: '#8f8a7a', roof: ['#5a4a3a', '#4a3c30'],
       waves: [W_('medium', 'light', 'medium', 'light', 'medium'), W_('pz4', 'medium', 'heavy', 'stug', 'destroyer'), W_('heavy', 'medium', 'medium', 'destroyer', 'stug')],
       forms: [['line', 'pincer'], ['ambush', 'late'], ['ambush', 'wedge']],
+      // collines boisées (± 8 m), un ruisseau guéable partout et une mare profonde
+      relief: { oct: [[1100, 6.5], [450, 3], [180, 0.9]], water: { wl: -1.5, river: { x: 0.47, hw: 22, depth: 0.7, bank: 0.04 }, ponds: { n: 1, r: [60, 80], depth: 1.8 } } },
     },
     {
       name: 'Stalingrad Ruins', when: 'Stalingrad · January 1943', soils: ['rubble', 'road'], dustK: 0.5, soil: 'rubble', gRic: 1, atm: { T: -5, rho: 1.31, wind: 4 }, sub: 'Ruined streets, destructible buildings', city: true,
@@ -188,6 +192,8 @@ Meta.whenReady(() => {
       tree: ['#3c4a2a', '#4a5a34'], bush: '#4a5530', wall: '#8f877b', roof: ['#7a7268', '#686057'],
       waves: [W_('medium', 'heavy', 'medium', 'light', 'medium'), W_('heavy', 'pz4', 'destroyer', 'medium', 'kingtiger'), W_('heavy', 'heavy', 'destroyer', 'medium', 'medium')],
       forms: [['line', 'pincer'], ['wedge', 'late'], ['pincer', 'ambush']],
+      // ville presque plate, buttes de gravats
+      relief: { oct: [[800, 0.35]], mounds: { n: 14, h: [1, 2.2], r: [45, 90] } },
     },
     {
       desert: true, name: 'El Alamein Desert', when: 'Tel el Aqqaqir · 2 November 1942', soils: ['sand', 'track'], dustK: 1, soil: 'sand', gRic: 0.4, atm: { T: 35, rho: 1.15, wind: 5 }, sub: 'Open terrain, long-range shooting',
@@ -196,6 +202,8 @@ Meta.whenReady(() => {
       tree: ['#5a6a2a', '#6a7a3a'], bush: '#8c8a4a', wall: '#d8c7a0', roof: ['#e0d2ad', '#cdbd96'],
       waves: [W_('destroyer', 'medium', 'light', 'destroyer', 'medium'), W_('heavy', 'destroyer', 'stug', 'destroyer', 'pz4'), W_('heavy', 'heavy', 'destroyer', 'destroyer', 'medium')],
       forms: [['ambush', 'line'], ['ambush', 'late'], ['wedge', 'pincer']],
+      // dunes en crêtes nord-sud et l'escarpement de Tel el Aqqaqir (5 m), tenu par l'ennemi à l'est
+      relief: { oct: [[520, 1.8, 1], [200, 0.5]], st: 2.5, escarp: { x: 0.62, h: 5, w: 260 } },
     },
     {
       name: 'Bastogne Night', when: 'Bastogne · 26 December 1944', soils: ['snow', 'packed'], dustK: 0.6, soil: 'snow', gRic: 0.5, atm: { T: -10, rho: 1.34, wind: 2.5 }, sub: 'Snow and darkness, reduced vision', night: true,
@@ -204,6 +212,8 @@ Meta.whenReady(() => {
       tree: ['#203828', '#2c4a36'], bush: '#3c5a46', wall: '#9a958c', roof: ['#eef3f6', '#d8e0e6'], snow: true,
       waves: [W_('medium', 'heavy', 'medium', 'light', 'heavy'), W_('heavy', 'heavy', 'destroyer', 'medium', 'medium'), W_('kingtiger', 'heavy', 'kingtiger', 'destroyer', 'destroyer')],
       forms: [['wedge', 'line'], ['late', 'ambush'], ['wedge', 'ambush']],
+      // collines enneigées et mares gelées : la glace cède sous plus de 30 t
+      relief: { oct: [[1000, 3.5], [400, 1.2]], water: { wl: -0.6, ponds: { n: 4, r: [60, 110], depth: 1.8 }, ice: true } },
     },
   ];
   const WAVES = 3;
@@ -362,11 +372,33 @@ Meta.whenReady(() => {
     const R = mulberry32(1000 + levelIdx * 7919);
     const rr = (a, b) => a + R() * (b - a);
     obstacles = []; bushes = [];
+    // routes tracées d'abord : le relief s'adoucit le long des routes et le pont porte la première
+    roads = [];
+    if (!lv.city) {
+      const RR = mulberry32(3000 + levelIdx * 7919);
+      for (let k = 0; k < 2; k++) {
+        let y = WH * (0.3 + k * 0.4) + (RR() - 0.5) * 200;
+        const pts = [[-20, y]];
+        for (let x = 0; x <= WW + 200; x += 200) { y = clamp(y + (RR() - 0.5) * 160, 120, WH - 120); pts.push([x, y]); }
+        roads.push(pts);
+      }
+    }
+    terra = Terrain.make(lv.relief || {}, WW, WH, 5000 + levelIdx * 7919, roads, 23);
+    // ni dans l'eau, ni à cheval sur une forte pente (maisons et murets sont ensuite aplanis)
+    const dry = r => {
+      let lo = 1e9, hi = -1e9;
+      for (const [fx, fy] of [[0.5, 0.5], [0, 0], [1, 0], [0, 1], [1, 1]]) {
+        const x = r.x + r.w * fx, y = r.y + r.h * fy, z = terra.bed(x, y);
+        if (terra.wetAt(x, y)) return false;
+        lo = Math.min(lo, z); hi = Math.max(hi, z);
+      }
+      return hi - lo < (r.type === 'building' ? 1.6 : r.type === 'wall' ? 1.2 : 9);
+    };
     const spawnA = { x: 0, y: WH / 2 - 420, w: 460, h: 840 };
     const spawnB = { x: WW - 460, y: WH / 2 - 420, w: 460, h: 840 };
     const free = (r, m) => {
       if (r.x < 20 || r.y < 20 || r.x + r.w > WW - 20 || r.y + r.h > WH - 20) return false;
-      if (rectOverlap(r, spawnA, 0) || rectOverlap(r, spawnB, 0)) return false;
+      if (rectOverlap(r, spawnA, 0) || rectOverlap(r, spawnB, 0) || !dry(r)) return false;
       for (const o of obstacles) {
         const mm = (o.type === 'tree' && r.type === 'tree') ? 2 : m;
         if (rectOverlap(r, o, mm)) return false;
@@ -437,8 +469,9 @@ Meta.whenReady(() => {
     for (let i = 0; i < lv.bushes; i++) {
       const cx = rr(80, WW - 80), cy = rr(80, WH - 80);
       const n = 2 + Math.floor(R() * 3);
-      for (let k = 0; k < n; k++) bushes.push({ x: cx + rr(-30, 30), y: cy + rr(-20, 20), r: rr(22, 38) });
+      for (let k = 0; k < n; k++) { const b = { x: cx + rr(-30, 30), y: cy + rr(-20, 20), r: rr(22, 38) }; if (!terra.wetAt(b.x, b.y)) bushes.push(b); }
     }
+    for (const o of obstacles) if (o.type === 'building' || o.type === 'wall') terra.flatten(o.x - 4, o.y - 4, o.x + o.w + 4, o.y + o.h + 4);
     buildGround(R);
     buildGrid();
   }
@@ -479,11 +512,9 @@ Meta.whenReady(() => {
       gctx.globalAlpha = 1;
     } else {
       gctx.globalAlpha = 0.55; gctx.lineWidth = 46;
-      for (let k = 0; k < 2; k++) {
+      for (const pts of roads) {
         gctx.beginPath();
-        let y = WH * (0.3 + k * 0.4) + (R() - 0.5) * 200, px = -20, py = y;
-        gctx.moveTo(-20, y);
-        for (let x = 0; x <= WW + 200; x += 200) { y += (R() - 0.5) * 160; y = clamp(y, 120, WH - 120); gctx.lineTo(x, y); soilSeg(px, py, x, y, 23, road); px = x; py = y; }
+        pts.forEach(([x, y], i) => { if (i) { gctx.lineTo(x, y); soilSeg(pts[i - 1][0], pts[i - 1][1], x, y, 23, road); } else gctx.moveTo(x, y); });
         gctx.stroke();
       }
       gctx.globalAlpha = 1;
@@ -501,11 +532,44 @@ Meta.whenReady(() => {
         gctx.beginPath(); gctx.moveTo(x, y); gctx.quadraticCurveTo(x + 60, y - 18, x + 130, y + 4); gctx.stroke();
       }
     }
+    paintTerrain();
     for (const o of obstacles) {
       if (o.type === 'tree' || W3D) continue;
       gctx.fillStyle = 'rgba(0,0,0,0.22)';
       gctx.fillRect(o.x + 6, o.y + 7, o.w, o.h);
     }
+  }
+  // Relief vu de dessus : ombrage des pentes (vue 2D seulement, la 3D éclaire son maillage), eau teintée
+  // selon la profondeur, glace, ponts ; peint à 1 px pour 7 puis agrandi en lissant
+  const waterCol = () => terra.ice ? [214, 228, 238] : L().forest ? [38, 52, 44] : [52, 70, 72];
+  function paintTerrain() {
+    const T = terra, k = 7, w = Math.ceil(WW / k), h = Math.ceil(WH / k), cv = document.createElement('canvas'), wc = waterCol();
+    cv.width = w; cv.height = h;
+    const c2 = cv.getContext('2d'), im = c2.createImageData(w, h), d = im.data;
+    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+      const x = (i + 0.5) * k, y = (j + 0.5) * k, o = (j * w + i) * 4, dep = T.wl - T.bed(x, y);
+      if (dep > 0) { d[o] = wc[0]; d[o + 1] = wc[1]; d[o + 2] = wc[2]; d[o + 3] = 255 * (T.ice ? 0.85 : clamp(0.35 + dep * 0.5, 0, 0.92)); continue; }
+      if (W3D) continue;
+      const g = T.grad(x, y), sh = clamp((g[0] * 0.6 + g[1] * 0.8) * PX * 1.6, -0.5, 0.5); // soleil au nord-ouest
+      d[o] = d[o + 1] = d[o + 2] = sh < 0 ? 255 : 0; d[o + 3] = Math.abs(sh) * 130;
+    }
+    c2.putImageData(im, 0, 0);
+    gctx.imageSmoothingEnabled = true;
+    gctx.drawImage(cv, 0, 0, w * k, h * k);
+    for (const b of T.bridges) paintBridge(b);
+  }
+  // pont de bois vu de dessus ; effondré : l'eau reprend la travée, deux moignons restent aux berges
+  function paintBridge(b) {
+    gctx.save(); gctx.translate(b.x, b.y); gctx.rotate(Math.atan2(b.uy, b.ux));
+    const span = terra.spec.water.river.hw + 6;
+    if (b.dead) { const wc = waterCol(); gctx.fillStyle = `rgb(${wc[0]},${wc[1]},${wc[2]})`; gctx.fillRect(-span, -b.hw - 2, 2 * span, 2 * b.hw + 4); }
+    for (let x = -b.hl; x < b.hl; x += 3.5) {
+      if (b.dead && Math.abs(x) < span) continue;
+      gctx.fillStyle = (Math.round(x / 3.5) & 1) ? '#6b5236' : '#5e4830'; gctx.fillRect(x, -b.hw, 3.2, 2 * b.hw);
+    }
+    if (!b.dead) { gctx.fillStyle = '#3e2e1c'; gctx.fillRect(-b.hl, -b.hw, 2 * b.hl, 2.5); gctx.fillRect(-b.hl, b.hw - 2.5, 2 * b.hl, 2.5); }
+    gctx.restore();
+    markDirty(b.x, b.y, b.hl + 10);
   }
 
   // ===================== Grille de navigation =====================
@@ -525,12 +589,21 @@ Meta.whenReady(() => {
   }
   // Sol sous un point : hauteur, normale et nature. Terrain plat pour l'instant : un relief remplira z et
   // la normale (nx, ny, nz) sans toucher à la conduite, qui en tire déjà la pente
-  const GND = { z: 0, nx: 0, ny: 0, nz: 1, type: Vehicle.SOIL.steppe };
-  function groundAt(x, y) { GND.type = soil ? Vehicle.SOILS[soil[cellOf(x, y)]] : Vehicle.SOIL.steppe; return GND; }
+  const GND = { z: 0, type: Vehicle.SOIL.steppe };
+  function groundAt(x, y) { GND.type = soil ? Vehicle.SOILS[soil[cellOf(x, y)]] : Vehicle.SOIL.steppe; GND.z = terra ? terra.ground(x, y) : 0; return GND; }
+  // Relief (terrain.js), la même hauteur partout : conduite et assiette des chars, obus et balles, vue et
+  // repérage, décor 3D, effets et itinéraire. Conventions des hauteurs (m) : obus et balles en altitude
+  // absolue ; un char à t.gz (son appui) plus sa hauteur propre ; un obstacle à sa base obsBase ;
+  // particules, fumées, fusées et éclats au-dessus du sol sous eux (le rendu ajoute hAt).
+  let terra = null, roads = [];
+  const hAt = (x, y) => terra ? terra.surf(x, y) : 0;
+  const obsBase = o => o.gz != null ? o.gz : (o.gz = o.type === 'tree' ? hAt(o.x + 8, o.y + 8) : hAt(o.x + o.w / 2, o.y + o.h / 2));
+  const obsTop = o => obsBase(o) + obsH(o);
   function buildGrid() {
     GC = Math.ceil(WW / CELL); GR = Math.ceil(WH / CELL);
     grid = new Uint8Array(GC * GR); wgrid = new Uint8Array(GC * GR); navBlocks = [];
     for (const o of obstacles) markGrid(o);
+    terrainGrid();
   }
   // Couche mobile du pathfinding, refaite toutes les 0,5 s : épaves (contournées, ou seulement coûteuses
   // quand elles sont assez légères pour qu'on les pousse) et passages où un char s'est bloqué deux fois
@@ -550,6 +623,19 @@ Meta.whenReady(() => {
     for (const b of navBlocks) stampW(b.x, b.y, b.r, 1);
   }
   const blocked = i => grid[i] === 1 || wgrid[i] === 1;
+  // Relief et eau dans l'itinéraire : coût selon la pente (m/m) ; infranchissables au-delà de 28° ou de
+  // 0,75 m d'eau (le gué le plus bas, celui du StuG, est de 0,8 m) ; tcost garde le coût de chaque maille
+  let tcost = null;
+  function terrainGrid() {
+    tcost = new Float32Array(GC * GR).fill(1);
+    if (!terra) return;
+    for (let r = 0; r < GR; r++) for (let c = 0; c < GC; c++) {
+      const i = r * GC + c, x = (c + 0.5) * CELL, y = (r + 0.5) * CELL, e = CELL / 2, G0 = terra.ground;
+      const sl = Math.hypot(G0(x + e, y) - G0(x - e, y), G0(x, y + e) - G0(x, y - e)) / (2 * e) * PX;
+      if (sl > 0.53 || terra.depth(x, y) > 0.75) { grid[i] = 1; continue; }
+      tcost[i] = 1 + 4 * sl * sl + (terra.depth(x, y) > 0 ? 1.5 : 0);
+    }
+  }
   function markGrid(o) {
     if (o.dead) return;
     const tree = o.type === 'tree';
@@ -629,7 +715,7 @@ Meta.whenReady(() => {
         const ni = nr * GC + nc;
         if (blocked(ni) || closedId[ni] === searchId) continue;
         if (dx && dy && (blocked(r * GC + nc) || blocked(nr * GC + c))) continue;
-        const cost = (dx && dy ? 1.414 : 1) * (grid[ni] === 2 || wgrid[ni] === 2 ? 2.5 : 1) * (soil ? Vehicle.SOILS[soil[ni]].path : 1);
+        const cost = (dx && dy ? 1.414 : 1) * (grid[ni] === 2 || wgrid[ni] === 2 ? 2.5 : 1) * (soil ? Vehicle.SOILS[soil[ni]].path : 1) * tcost[ni];
         const ng = gScore[cur] + cost;
         if (seenId[ni] !== searchId || ng < gScore[ni]) {
           seenId[ni] = searchId; gScore[ni] = ng; came[ni] = cur;
@@ -692,13 +778,14 @@ Meta.whenReady(() => {
       morale: isPlayer ? 1 : 0.6 + 0.4 * (skill || 0.5), wreck: null, dismount: false, aid: null, leak: 0,
       mg: { ammo: 2700, ammoH: 150, type: 'SmK', heat: 0, jam: 0, cd: 0, n: 0, burst: 0, wait: rnd(1, 4) },
       // chef de char sorti de la coupole (meilleure vue, mais exposé aux balles), optiques endommagées
-      sus: { p: 0, vp: 0, r: 0, vr: 0, v0: 0 }, wd: [0, 0], trackSide: 1, up, ready: T.ready + up.ready, readyT: 0, reloadMax: T.reload, elev: 0, fireAge: 9, scars: [], scarDirty: false, scarT: 0, scar3: null,
+      sus: { p: 0, vp: 0, r: 0, vr: 0, v0: 0 }, gz: 0, vz: 0, gp: 0, gr: 0, wd: [0, 0], trackSide: 1, up, ready: T.ready + up.ready, readyT: 0, reloadMax: T.reload, elev: 0, fireAge: 9, scars: [], scarDirty: false, scarT: 0, scar3: null,
       hatch: !isPlayer, underFire: 0, calm: 20, optic: { driver: 0, gunner: 0, cmd: 0 },
       revealT: 0, recoil: 0, flash: 0, trackAcc: 0, treadPhase: 0, hitFlash: 0, turretGone: false,
       in: { throttle: 0, turn: 0, brake: false, aim: angle, fire: false },
       ai: (isPlayer && !AUTO) ? null : makeAI(skill),
     };
     stowAmmo(t);
+    tankPose(t, 0); t.sus.p = t.gp; t.sus.r = t.gr;
     return t;
   }
   // Soutes : chaque râtelier reçoit sa part de chaque obus au prorata de son volume (m.rounds) ; t.ammo en
@@ -1927,14 +2014,24 @@ Meta.whenReady(() => {
   // Suspension à barres de torsion : caisse en tangage et en roulis, ressort amorti (≈ 1,2 Hz,
   // amortissement 0,3). Elle s'accroupit à l'accélération, plonge au freinage, se couche dans les
   // virages, encaisse les bosses, le recul du canon et les coups reçus.
+  // Appui sur le relief : hauteur (moyenne) et assiette (tangage gp, nez en haut > 0 ; roulis gr, flanc
+  // gauche en haut > 0) tirées du sol sous les quatre coins des chenilles. Un pont qui cède ou une glace
+  // qui se brise laissent le char tomber.
+  function tankPose(t, dt) {
+    const c = Math.cos(t.angle), s = Math.sin(t.angle), hl = t.T.len * 0.4, hb = t.T.D.B / 2 * PX, g = (u, v) => groundAt(t.x + c * u + s * v, t.y + s * u - c * v).z;
+    const fl = g(hl, hb), fr = g(hl, -hb), rl = g(-hl, hb), rr = g(-hl, -hb), z = (fl + fr + rl + rr) / 4;
+    t.gp = Math.atan((fl + fr - rl - rr) / 2 / (2 * hl / PX)); t.gr = Math.atan((fl + rl - fr - rr) / 2 / (2 * hb / PX));
+    if (dt > 0 && z < t.gz - 0.05) { t.vz -= G * dt; t.gz = Math.max(z, t.gz + t.vz * dt); }
+    else { t.gz = z; t.vz = 0; }
+  }
   function suspension(t, dt) {
     const T = t.T, u = t.sus, K = 57, C = 4.5;
     const acc = (t.speed - u.v0) / dt / PX; u.v0 = t.speed;
     const lat = (t.speed / PX) * t.turnRate, sp = Math.abs(t.speed) / T.speed, ph = t.treadPhase / PX;
     const bump = sp * (t.bumpK || 1) * (Math.sin(ph * 2.3) * 0.6 + Math.sin(ph * 5.1 + 1.3) * 0.4 + Math.sin(ph * 9.7) * 0.25);
     const fp = K * (0.005 * clamp(acc, -6, 6) + 0.008 * bump), fr = K * (0.006 * clamp(lat, -4, 4) + 0.005 * Math.sin(ph * 3.7 + 0.5) * sp * (t.bumpK || 1));
-    u.vp += (-K * u.p - C * u.vp + fp) * dt; u.p += u.vp * dt;
-    u.vr += (-K * u.r - C * u.vr + fr) * dt; u.r += u.vr * dt;
+    u.vp += (-K * (u.p - t.gp) - C * u.vp + fp) * dt; u.p += u.vp * dt;
+    u.vr += (-K * (u.r - t.gr) - C * u.vr + fr) * dt; u.r += u.vr * dt;
   }
   // Impulsion angulaire sur la caisse : quantité de mouvement × bras de levier / inertie
   function rock(t, J, dirX, dirY, h) {
@@ -1993,7 +2090,7 @@ Meta.whenReady(() => {
     if (t.dead) {
       t.deadT += dt;
       t.speed = t.vl = t.turnRate = t.vx = t.vy = 0;
-      if (t.x !== t.lx || t.y !== t.ly) { collideObstacles(t, 0, 0, t.angle, true); clampMap(t); t.lx = t.x; t.ly = t.y; }
+      if (t.x !== t.lx || t.y !== t.ly || t.vz) { collideObstacles(t, 0, 0, t.angle, true); clampMap(t); t.lx = t.x; t.ly = t.y; tankPose(t, dt); t.sus.p = t.gp; t.sus.r = t.gr; }
       wreckLogic(t, dt);
       return;
     }
@@ -2018,8 +2115,12 @@ Meta.whenReady(() => {
     if (!roleOk(t, 'commander')) t.hatch = false;
     // Conduite (vehicle.js) : sol sous chaque chenille, pression au sol ; la chenille la plus freinée tire
     // la caisse de son côté. Le moteur préparé (régulateur retiré) monte vers son régime nominal.
-    const ca = Math.cos(t.angle), sa = Math.sin(t.angle), hb = D.B / 2 * PX, gc = groundAt(t.x, t.y);
-    const slope = -(gc.nx * ca + gc.ny * sa) / gc.nz;
+    const ca = Math.cos(t.angle), sa = Math.sin(t.angle), hb = D.B / 2 * PX;
+    // pente : la pesanteur tire le long de la caisse (montée > 0) et en travers, où seule l'adhérence
+    // latérale retient le char ; au-delà de sa pente limite (30 à 35°), les chenilles patinent
+    tankPose(t, dt);
+    const slope = Math.sin(t.gp);
+    t.vl += Math.sin(t.gr) * G * PX * dt;
     const gR = groundAt(t.x - sa * hb, t.y + ca * hb).type, gL = groundAt(t.x + sa * hb, t.y - ca * hb).type;
     const crrR = Vehicle.crrOf(gR, D.press), crrL = Vehicle.crrOf(gL, D.press), broken = t.trackT > 0 && canDrive;
     const c = DRV, gov = D.gov + (D.rated - D.gov) * clamp((t.up.hp - 1) / 0.24, 0, 1);
@@ -2028,6 +2129,7 @@ Meta.whenReady(() => {
     const eD = 0.6 + 0.4 * eff(t, 'driver');
     c.turn *= eD; c.P = T.hp * 735.5 * t.up.hp * engK * eD; c.gov = gov;
     c.crr = (crrR + crrL) / 2; c.crrD = crrR - crrL; c.mu = (gR.mu + gL.mu) / 2; c.lat = (gR.lat + gL.lat) / 2; c.slope = slope; c.grip = t.up.grip;
+    if (Math.abs(slope) > 0.25) c.mu = Math.min(c.mu, Math.tan(D.climb * D2R));
     c.drive = canDrive; c.driver = driverOk; c.engine = engOn; c.broken = broken ? t.trackSide : 0;
     c.vCap = D.top * gov / D.gov * (t.wheelK || 1) * (t.optic.driver > 0 ? 0.7 : 1) * 1.02;
     // chenille cassée : la chenille intacte entraîne seule, ses roues labourent le sol
@@ -4084,8 +4186,8 @@ Meta.whenReady(() => {
   }
 
   // ===================== Boucle =====================
-  function screenToWorld(x, y) { if (W3D && cam3.vp) return ray3(x, y, 1.6); return { x: camX + (x - W / 2) / S, y: camY + (y - H / 2) / S }; }
-  function worldToScreen(x, y, z = 1.6) { if (W3D && cam3.vp) return project3(x, y, z); return { x: (x - camX) * S + W / 2, y: (y - camY) * S + H / 2 }; }
+  function screenToWorld(x, y) { if (W3D && cam3.vp) return ray3(x, y, 1.6 + (cam3.tz || 0)); return { x: camX + (x - W / 2) / S, y: camY + (y - H / 2) / S }; }
+  function worldToScreen(x, y, z = 1.6) { if (W3D && cam3.vp) return project3(x, y, z + hAt(x, y)); return { x: (x - camX) * S + W / 2, y: (y - camY) * S + H / 2 }; }
 
   function playerInput() {
     let thr = 0, turn = 0;
@@ -4193,7 +4295,7 @@ Meta.whenReady(() => {
   function fallTree(o) {
     if (!W3D || !scene3On) return;
     const a = -(o.fall || 0);
-    falls3.push({ o, mm: soloMesh(o).map(b => W3D.upload(b, false)), x: (o.x + 8) / PX, y: -(o.y + 8) / PX, k: [-Math.sin(a), Math.cos(a), 0], th: 0.04, w: 0, L: 8 * o.size, t: 0 });
+    falls3.push({ o, mm: soloMesh(o).map(b => W3D.upload(b, false)), x: (o.x + 8) / PX, y: -(o.y + 8) / PX, z: obsBase(o), k: [-Math.sin(a), Math.cos(a), 0], th: 0.04, w: 0, L: 8 * o.size, t: 0 });
     o.falling = true;
   }
   // La maison s'enfonce de 70 % de sa hauteur en 1,2 s en penchant de 3° vers le souffle ; 25 à 40
@@ -4202,9 +4304,9 @@ Meta.whenReady(() => {
     if (!W3D || !scene3On) return false;
     const bs = soloMesh(o), cx = (o.x + o.w / 2) / PX, cy = -(o.y + o.h / 2) / PX, lv = L();
     let H = 3;
-    for (const b of bs) for (let i = 2; i < b.n; i += 10) H = Math.max(H, b.a[i]);
+    for (const b of bs) for (let i = 2; i < b.n; i += 10) H = Math.max(H, b.a[i] - obsBase(o));
     const a = Math.random() * TAU;
-    falls3.push({ house: true, mm: bs.map(b => W3D.upload(b, false)), x: cx, y: cy, k: [-Math.sin(a), Math.cos(a), 0], H, t: 0 });
+    falls3.push({ house: true, mm: bs.map(b => W3D.upload(b, false)), x: cx, y: cy, z: obsBase(o), k: [-Math.sin(a), Math.cos(a), 0], H, t: 0 });
     if (!cube3) { const g = new G3.Builder(); g.box(0, 0, 0, 1, 1, 1, [1, 1, 1], 12); cube3 = W3D.upload(g); }
     const wc = G3.hex(lv.wall), rc = G3.hex(lv.roof[0]), hw = o.w / PX / 2, hh = o.h / PX / 2;
     for (let i = 0, n = 25 + Math.floor(Math.random() * 16); i < n; i++) {
@@ -4228,7 +4330,7 @@ Meta.whenReady(() => {
     return L4.sort((a, b) => b[2] * Math.exp(-(now - b[3]) * 3) - a[2] * Math.exp(-(now - a[3]) * 3)).slice(0, 4);
   }
   function fallModel(f) {
-    const T = M4.trs(f.x, f.y, 0, 0), Ti = M4.trs(-f.x, -f.y, 0, 0);
+    const T = M4.trs(f.x, f.y, f.z || 0, 0), Ti = M4.trs(-f.x, -f.y, -(f.z || 0), 0);
     if (!f.house) return M4.mul(T, M4.mul(rotAxis(f.k[0], f.k[1], 0, f.th), Ti));
     const e = Math.min(1, f.t / 1.2) ** 2;
     return M4.mul(T, M4.mul(rotAxis(f.k[0], f.k[1], 0, 0.052 * e), M4.mul(M4.trs(0, 0, -0.7 * f.H * e, 0), Ti)));
@@ -4518,7 +4620,9 @@ Meta.whenReady(() => {
   function build3DScene() {
     W3D.clearCells();
     const lv = L(), wm = WW / PX, hm = WH / PX, seed = 1000 + levelIdx * 7919;
-    W3D.putCell('g', World3D.buildGround(wm, hm));
+    World3D.setTerrain(terra, PX);
+    for (const [k, c] of World3D.buildGround(terra, PX, wm, hm)) W3D.putCell(k, c);
+    W3D.putCell('w', World3D.buildWater(terra, PX, lv)); W3D.putCell('br', World3D.buildBridges(terra, PX));
     for (const [k, c] of World3D.buildScene(lv, obstacles, PX, wm, hm, seed, null, true)) W3D.putCell('x' + k, c);
     for (const [k, c] of World3D.buildBushes(lv, bushes, PX, 4242 + levelIdx * 131, QL().leaf)) W3D.putCell('b' + k, c);
     for (const [k, c] of World3D.buildScene(lv, obstacles, PX, wm, hm, seed)) W3D.putCell('s' + k, c);
@@ -4562,16 +4666,18 @@ Meta.whenReady(() => {
     const e = cam3.eye;
     const dm = [f[0] + r[0] * nx * fx + u[0] * ny * fy, f[1] + r[1] * nx * fx + u[1] * ny * fy, f[2] + r[2] * nx * fx + u[2] * ny * fy];
     const O = [e[0] * PX, -e[1] * PX, e[2]], D = [dm[0] * PX, -dm[1] * PX, dm[2]];
-    let best = dm[2] < 0 ? -e[2] / dm[2] : 400, hit = null;
+    let best = 400, hit = null;
+    const tg = terra ? terra.cut(O[0], O[1], O[2], O[0] + D[0] * 400, O[1] + D[1] * 400, O[2] + D[2] * 400) : -1;
+    if (tg >= 0) best = tg * 400; else if (dm[2] < 0 && !terra) best = -e[2] / dm[2];
     for (const o of obstacles) {
       if (o.dead) continue;
-      const t = slab(O, D, [o.x, o.y, 0], [o.x + o.w, o.y + o.h, obsH(o)]);
+      const t = slab(O, D, [o.x, o.y, obsBase(o)], [o.x + o.w, o.y + o.h, obsTop(o)]);
       if (t >= 0 && t < best) { best = t; hit = null; }
     }
     for (const t of tanks) {
       if (t === player || (!t.dead && !visibleToPlayer(t))) continue;
       const c = Math.cos(t.angle), sn = Math.sin(t.angle), qx = O[0] - t.x, qy = O[1] - t.y;
-      const lo = [qx * c + qy * sn, -qx * sn + qy * c, O[2]], ld = [D[0] * c + D[1] * sn, -D[0] * sn + D[1] * c, D[2]];
+      const lo = [qx * c + qy * sn, -qx * sn + qy * c, O[2] - t.gz], ld = [D[0] * c + D[1] * sn, -D[0] * sn + D[1] * c, D[2]];
       const hl = t.T.len / 2, hw = t.T.wid / 2, Sd = t.T.S;
       let tt = slab(lo, ld, [-hl, -hw, 0], [hl, hw, Sd.ht]);
       if (t.T.tb && !t.turretGone) {
@@ -4584,11 +4690,12 @@ Meta.whenReady(() => {
       // chef de char debout dans sa coupole : on peut le viser
       if (t.hatch && !t.dead && roleOk(t, 'commander')) {
         const hp = hatchPos(t), r = 0.22 * PX;
-        const t3 = slab(O, D, [hp.x - r, hp.y - r, hp.z0], [hp.x + r, hp.y + r, hp.z0 + 0.62]);
+        const t3 = slab(O, D, [hp.x - r, hp.y - r, t.gz + hp.z0], [hp.x + r, hp.y + r, t.gz + hp.z0 + 0.62]);
         if (t3 >= 0 && t3 < best) { best = t3; hit = t; }
       }
     }
-    return { x: O[0] + D[0] * best, y: O[1] + D[1] * best, z: Math.max(0, O[2] + D[2] * best), tank: hit };
+    const x = O[0] + D[0] * best, y = O[1] + D[1] * best;
+    return { x, y, z: Math.max(hAt(x, y), O[2] + D[2] * best), tank: hit };
   }
   function project3(x, y, z) {
     const q = G3.M4.apply(cam3.vp, to3(x, y, z));
@@ -4647,7 +4754,7 @@ Meta.whenReady(() => {
     const so = shakeOff(), yaw = sight.yaw + so.yaw, pitch = sight.pitch + (player.elevErr || 0) + player.recoil * 0.03 + so.pitch, roll = gunCant(player) + so.roll;
     sight.gunPitch = sight.aimPitch;
     const fx = pv.x + Math.cos(ta) * 0.9 * PX - Math.sin(ta) * 0.35 * PX, fy = pv.y + Math.sin(ta) * 0.9 * PX + Math.cos(ta) * 0.35 * PX;
-    sight.z0 = Sd.gun.z + 0.08;
+    sight.z0 = Sd.gun.z + 0.08 + player.gz;
     const eye = to3(fx, fy, sight.z0), cp = Math.cos(pitch);
     const dir = [Math.cos(yaw) * cp, -Math.sin(yaw) * cp, Math.sin(pitch)];
     const tgt = [eye[0] + dir[0] * 60, eye[1] + dir[1] * 60, eye[2] + dir[2] * 60];
@@ -4756,10 +4863,15 @@ Meta.whenReady(() => {
     const lx = mx * reach * (W / H) * 0.5, ly = cam3.dist * md.ahead + my * reach;
     const kl = 1 - Math.pow(0.08, dt);
     cam3.lx += (lx - cam3.lx) * kl; cam3.ly += (ly - cam3.ly) * kl;
-    const tgt = [cam3.tx + fw[0] * cam3.ly + fw[1] * cam3.lx, cam3.ty + fw[1] * cam3.ly - fw[0] * cam3.lx, 1.2];
+    const tgt = [cam3.tx + fw[0] * cam3.ly + fw[1] * cam3.lx, cam3.ty + fw[1] * cam3.ly - fw[0] * cam3.lx, 0];
+    // le regard suit le relief en douceur : hauteur du sol au point visé, sans descendre sous le char
+    const gz = Math.max(hAt(tgt[0] * PX, -tgt[1] * PX), f.gz != null ? f.gz : hAt(f.x, f.y));
+    cam3.tz = cam3.tz == null ? gz : cam3.tz + (gz - cam3.tz) * (1 - Math.pow(0.02, dt));
+    tgt[2] = cam3.tz + 1.2;
     cam3.pitch += (md.pitch - cam3.pitch) * (1 - Math.pow(0.02, dt));
     const cp = Math.cos(cam3.pitch), sp = Math.sin(cam3.pitch);
     const eye = [tgt[0] - Math.cos(cam3.yaw) * cp * cam3.dist, tgt[1] - Math.sin(cam3.yaw) * cp * cam3.dist, tgt[2] + sp * cam3.dist];
+    eye[2] = Math.max(eye[2], hAt(eye[0] * PX, -eye[1] * PX) + 1.5);
     // secousse : rotation du regard (lacet, tangage, roulis) ; recul du tir : le regard monte, le champ s'ouvre
     const so = shakeOff(), dd = cam3.dist, rx = Math.sin(cam3.yaw), ry = -Math.cos(cam3.yaw);
     tgt[0] += rx * so.yaw * dd; tgt[1] += ry * so.yaw * dd; tgt[2] += (so.pitch + cam3.kick) * dd;
@@ -4787,9 +4899,9 @@ Meta.whenReady(() => {
     for (const t of tanks) {
       if (!t.dead && !visibleToPlayer(t)) continue;
       if (sight.on && t === player) continue;
-      const p = to3(t.x, t.y), hm = M4.mul(M4.trs(p[0], p[1], 0, -t.angle), susM(t));
+      const p = to3(t.x, t.y), hm = M4.mul(M4.trs(p[0], p[1], t.gz, -t.angle), susM(t));
       const psk = t === player ? Meta.skinOf(t.T.id) : null;
-      const o = { camo: psk ? psk.camo : TEAM[t.team].camo, pat: psk ? psk.pat : 0, seed: t.team * 3.7 + t.id * 0.37, burnt: t.dead ? clamp(t.burnT / 25, 0, 1) : 0, tread: -t.treadPhase / PX, tint: t.hitFlash > 0 ? [1, 0.9, 0.7, t.hitFlash * 2.5] : null };
+      const o = { gz: t.gz, camo: psk ? psk.camo : TEAM[t.team].camo, pat: psk ? psk.pat : 0, seed: t.team * 3.7 + t.id * 0.37, burnt: t.dead ? clamp(t.burnT / 25, 0, 1) : 0, tread: -t.treadPhase / PX, tint: t.hitFlash > 0 ? [1, 0.9, 0.7, t.hitFlash * 2.5] : null };
       const MS = MESH3[t.T.id];
       items.push({ mesh: MS.hull, model: hm, o });
       const ad = t.up.armorLv ? addon3(t.T.id, t.up.armorLv) : null;
@@ -4802,18 +4914,18 @@ Meta.whenReady(() => {
         items.push({ mesh: MS.wheel, model: M4.mul(hm, M4.mul(M4.trs(w.x, w.y, w.z + bz, 0), M4.mul(rotYm(d / w.r), M4.trs(0, 0, 0, 0, w.r, w.w, w.r)))), o });
       });
       updateScarMeshes(t, 1 / 60);
-      if (t.scar3) items.push({ mesh: t.scar3.hull, model: hm, o: { burnt: o.burnt } });
+      if (t.scar3) items.push({ mesh: t.scar3.hull, model: hm, o: { burnt: o.burnt, gz: t.gz } });
       if (t.hatch && !t.dead && CMDR3 && roleOk(t, 'commander')) {
         const hp = hatchPos(t), I = t.T.I;
         const base = t.T.S.turret ? M4.mul(hm, M4.mul(M4.trs(I.pivotX, I.pivotY, 0, -t.turret), M4.trs(hp.m[0], hp.m[1], hp.z0 - 0.05, 0))) : M4.mul(hm, M4.trs(hp.m[0], hp.m[1], hp.z0 - 0.05, 0));
-        items.push({ mesh: CMDR3, model: base, o: {} });
+        items.push({ mesh: CMDR3, model: base, o: { gz: t.gz } });
       }
       if (!t.turretGone) {
         const I = t.T.I;
         const tmm = M4.mul(hm, M4.trs(I.pivotX, I.pivotY, 0, -t.turret));
         items.push({ mesh: MS.body, model: tmm, o });
         if (ad) items.push({ mesh: ad.turret, model: tmm, o });
-        if (t.scar3) items.push({ mesh: t.scar3.turret, model: tmm, o: { burnt: o.burnt } });
+        if (t.scar3) items.push({ mesh: t.scar3.turret, model: tmm, o: { burnt: o.burnt, gz: t.gz } });
         // canon : élévation autour des tourillons, recul rapide (≈ 0,05 s) puis retour en batterie
         const fa = t.fireAge, rc = fa < 0.05 ? fa / 0.05 : Math.exp(-(fa - 0.05) * 4.5), gp = MS.gunPivot;
         const gm = M4.mul(tmm, M4.mul(M4.trs(gp[0], gp[1], gp[2], 0), M4.mul(rotYm(-t.elev), M4.trs(-T3recoil(t) * rc, 0, 0, 0))));
@@ -4822,34 +4934,35 @@ Meta.whenReady(() => {
     }
     // tourelles arrachées, au sol (retournées ou non)
     for (const o of obstacles) if (o.type === 'wreck') {
-      const P = to3(o.x + o.w / 2, o.y + o.h / 2), up = Math.abs(o.flip || 0) < 1;
-      const model = o.zc == null ? M4.trs(P[0], P[1], -TYPES[o.tid].S.ht + 0.05, -o.rot)
-        : M4.mul(M4.trs(P[0], P[1], up ? o.zc - TYPES[o.tid].S.ht + 0.05 : o.rest + 0.05, -o.rot), M4.mul(rotXm(o.flip), M4.trs(0, 0, -o.zc, 0)));
-      items.push({ mesh: MESH3[o.tid].turret, model, o: { burnt: 1 }, cull: [P[0], P[1], 1, 4] });
+      const P = to3(o.x + o.w / 2, o.y + o.h / 2), up = Math.abs(o.flip || 0) < 1, gz = obsBase(o);
+      const model = o.zc == null ? M4.trs(P[0], P[1], gz - TYPES[o.tid].S.ht + 0.05, -o.rot)
+        : M4.mul(M4.trs(P[0], P[1], gz + (up ? o.zc - TYPES[o.tid].S.ht + 0.05 : o.rest + 0.05), -o.rot), M4.mul(rotXm(o.flip), M4.trs(0, 0, -o.zc, 0)));
+      items.push({ mesh: MESH3[o.tid].turret, model, o: { burnt: 1, gz }, cull: [P[0], P[1], gz + 1, 4] });
     }
     // arbres qui tombent, maisons qui s'affaissent, éclats
     for (const f of falls3) { const m = fallModel(f); for (const mm of f.mm) items.push({ mesh: mm, model: m, o: {} }); }
-    for (const d of debris3) items.push({ mesh: cube3, model: M4.mul(M4.trs(d.x, d.y, d.z, d.az, d.s), M4.mul(rotXm(d.ax), rotYm(d.ay))), o: { tint: d.c }, cull: [d.x, d.y, d.z, d.s] });
+    for (const d of debris3) { const gz = hAt(d.x * PX, -d.y * PX); items.push({ mesh: cube3, model: M4.mul(M4.trs(d.x, d.y, gz + d.z, d.az, d.s), M4.mul(rotXm(d.ax), rotYm(d.ay))), o: { tint: d.c, gz }, cull: [d.x, d.y, gz + d.z, d.s] }); }
     if (CMDR3) for (const r of runners) {
       const P = to3(r.x, r.y), dir = Math.sign(r.tx - r.x) || 1;
-      items.push({ mesh: CMDR3, model: M4.trs(P[0], P[1], 0.84 + Math.abs(Math.sin(r.ph)) * 0.05, -Math.atan2(Math.sin(r.a), dir * Math.cos(r.a))), o: {} });
+      const gz = hAt(r.x, r.y);
+      items.push({ mesh: CMDR3, model: M4.trs(P[0], P[1], gz + 0.84 + Math.abs(Math.sin(r.ph)) * 0.05, -Math.atan2(Math.sin(r.a), dir * Math.cos(r.a))), o: { gz } });
     }
     // particules et lumières
     const soft = [], glow = [], lights = [];
     const night = !!L().night;
     for (const p of parts) {
       const a = p.life / p.max, age = 1 - a;
-      const P = to3(p.x, p.y);
+      const P = to3(p.x, p.y), g = hAt(p.x, p.y);
       switch (p.k) {
         case 'p3': {
           if (p.delay > 0) break;
           if (p.glow) {
-            const g = { p: [P[0], P[1], p.z], s: p.size, c: [p.c[0], p.c[1], p.c[2], p.c[3] * a] };
-            if (p.line) g.a2 = [P[0] - p.vx / PX * p.line, P[1] + p.vy / PX * p.line, p.z - p.vz * p.line];
-            glow.push(g);
+            const q = { p: [P[0], P[1], g + p.z], s: p.size, c: [p.c[0], p.c[1], p.c[2], p.c[3] * a], g };
+            if (p.line) q.a2 = [P[0] - p.vx / PX * p.line, P[1] + p.vy / PX * p.line, g + p.z - p.vz * p.line];
+            glow.push(q);
           } else {
             const fin = Math.min(1, (p.max - p.life) * 12) * Math.pow(a, 0.8);
-            soft.push({ p: [P[0], P[1], Math.max(p.z, p.size * 0.2)], s: p.size, c: [p.c[0], p.c[1], p.c[2], p.c[3] * fin], rot: p.x * 0.13 + p.y * 0.07 });
+            soft.push({ p: [P[0], P[1], g + Math.max(p.z, p.size * 0.2)], s: p.size, c: [p.c[0], p.c[1], p.c[2], p.c[3] * fin], rot: p.x * 0.13 + p.y * 0.07, g });
           }
           break;
         }
@@ -4857,23 +4970,23 @@ Meta.whenReady(() => {
           const dark = p.color.indexOf('30,28') > 0 || p.color.indexOf('45,40') > 0;
           const c = dark ? [0.09, 0.085, 0.08] : [0.55, 0.53, 0.5];
           const sz = p.size / PX * 1.25;
-          soft.push({ p: [P[0], P[1], Math.max(sz * 0.7, 1.2 + age * (dark ? 7 : 3))], s: sz, c: [c[0], c[1], c[2], a * 0.5], rot: p.x * 0.1 });
+          soft.push({ p: [P[0], P[1], g + Math.max(sz * 0.7, 1.2 + age * (dark ? 7 : 3))], s: sz, c: [c[0], c[1], c[2], a * 0.5], rot: p.x * 0.1, g });
           break;
         }
-        case 'dust': { const sz = p.size / PX * 1.3; soft.push({ p: [P[0], P[1], Math.max(sz * 0.65, 0.4 + age * 1.2)], s: sz, c: [0.5, 0.45, 0.36, a * 0.3], rot: p.y * 0.1 }); break; }
-        case 'fire': glow.push({ p: [P[0], P[1], 0.8 + age * 2.2], s: p.size / PX * 1.6, c: [1.0, 0.45 + a * 0.35, 0.12, a * 1.4] }); break;
-        case 'spark': glow.push({ p: [P[0], P[1], 1.4], a2: [P[0] - p.vx / PX * 0.03, P[1] + p.vy / PX * 0.03, 1.4], s: 0.05, c: [1, 0.8, 0.4, a * 1.5] }); break;
-        case 'debris': soft.push({ p: [P[0], P[1], 0.3 + Math.sin(age * Math.PI) * 3], s: 0.18, c: [0.05, 0.05, 0.05, a] }); break;
-        case 'leaf': soft.push({ p: [P[0], P[1], 2 + age * 1.5], s: 0.12, c: [0.2, 0.3, 0.1, a] }); break;
+        case 'dust': { const sz = p.size / PX * 1.3; soft.push({ p: [P[0], P[1], g + Math.max(sz * 0.65, 0.4 + age * 1.2)], s: sz, c: [0.5, 0.45, 0.36, a * 0.3], rot: p.y * 0.1, g }); break; }
+        case 'fire': glow.push({ p: [P[0], P[1], g + 0.8 + age * 2.2], s: p.size / PX * 1.6, c: [1.0, 0.45 + a * 0.35, 0.12, a * 1.4], g }); break;
+        case 'spark': glow.push({ p: [P[0], P[1], g + 1.4], a2: [P[0] - p.vx / PX * 0.03, P[1] + p.vy / PX * 0.03, g + 1.4], s: 0.05, c: [1, 0.8, 0.4, a * 1.5], g }); break;
+        case 'debris': soft.push({ p: [P[0], P[1], g + 0.3 + Math.sin(age * Math.PI) * 3], s: 0.18, c: [0.05, 0.05, 0.05, a], g }); break;
+        case 'leaf': soft.push({ p: [P[0], P[1], g + 2 + age * 1.5], s: 0.12, c: [0.2, 0.3, 0.1, a], g }); break;
         case 'flash': {
-          const fz = p.z != null ? p.z : 1.8;
-          glow.push({ p: [P[0], P[1], fz], s: p.size / PX * 1.6, c: [1, 0.75, 0.4, a * 2.2] });
+          const fz = g + (p.z != null ? p.z : 1.8);
+          glow.push({ p: [P[0], P[1], fz], s: p.size / PX * 1.6, c: [1, 0.75, 0.4, a * 2.2], g });
           lights.push({ p: [P[0], P[1], fz + 0.4], r: p.size / PX * 7, c: [6 * a, 3.8 * a, 1.6 * a] });
           break;
         }
         case 'turret': {
           // modèle à la hauteur du toit de caisse : recentré sur son milieu pour culbuter
-          items.push({ mesh: MESH3[p.tank.T.id].turret, model: M4.mul(M4.trs(P[0], P[1], p.z, -p.rot), M4.mul(rotXm(p.ax), M4.mul(rotYm(p.ay), M4.trs(0, 0, -p.zc, 0)))), o: { burnt: 1 } });
+          items.push({ mesh: MESH3[p.tank.T.id].turret, model: M4.mul(M4.trs(P[0], P[1], g + p.z, -p.rot), M4.mul(rotXm(p.ax), M4.mul(rotYm(p.ay), M4.trs(0, 0, -p.zc, 0)))), o: { burnt: 1, gz: g } });
           break;
         }
       }
@@ -4883,27 +4996,28 @@ Meta.whenReady(() => {
       // traceur au culot : il brûle derrière l'obus, la traînée suit la vraie trajectoire
       const head = to3(s.x, s.y, s.z), tail = s.trail.length >= 3 ? to3(s.trail[0], s.trail[1], s.trail[2]) : head;
       const hot = s.key === 'HE' || s.key === 'HEAT';
-      glow.push({ p: tail, a2: head, s: 0.09, c: hot ? [1, 0.45, 0.2, 1.6] : s.key === 'APCR' ? [0.7, 0.85, 1, 1.6] : [1, 0.85, 0.55, 1.6] });
-      glow.push({ p: head, s: 0.55, c: [1, 0.8, 0.5, 1.2] });
+      const g = hAt(s.x, s.y) - 1;
+      glow.push({ p: tail, a2: head, s: 0.09, c: hot ? [1, 0.45, 0.2, 1.6] : s.key === 'APCR' ? [0.7, 0.85, 1, 1.6] : [1, 0.85, 0.55, 1.6], g });
+      glow.push({ p: head, s: 0.55, c: [1, 0.8, 0.5, 1.2], g });
       lights.push({ p: head, r: 7, c: [1.6, 1.1, 0.6] });
     }
     for (const b of bullets) {
       if (!b.tracer) continue;
       const head = to3(b.x, b.y, b.z), L2 = 0.035;
-      glow.push({ p: head, a2: [head[0] - b.vx / PX * L2, head[1] + b.vy / PX * L2, head[2] - b.slope * b.sp * RK * L2], s: 0.05, c: b.team === 0 ? [1, 0.55, 0.25, 2.4] : [1, 0.32, 0.2, 2.4] });
+      glow.push({ p: head, a2: [head[0] - b.vx / PX * L2, head[1] + b.vy / PX * L2, head[2] - b.slope * b.sp * RK * L2], s: 0.05, c: b.team === 0 ? [1, 0.55, 0.25, 2.4] : [1, 0.32, 0.2, 2.4], g: hAt(b.x, b.y) - 1 });
     }
     for (const t of tanks) {
       const P = to3(t.x, t.y);
       // flammes : la lumière dure autant qu'elles (même intensité que burnFx), vacillement continu
       const fk = t.dead ? (t.wreck === 'burning' || (t.wreck === 'brewed' && t.deadT < 12) ? 1.4 : t.wreck === 'brewed' && t.deadT < 45 ? 0.6 : 0) : t.fires.length ? 0.6 + 0.6 * Math.max(...t.fires.map(f => f.I)) : 0;
-      if (fk) { const fl = (0.85 + 0.1 * Math.sin(17 * gameTime + t.id) + 0.05 * Math.sin(41 * gameTime + 2 * t.id)) * (0.5 + 0.36 * fk); lights.push({ p: [P[0], P[1], 2], r: 8 + 3 * fk, c: [3.2 * fl, 1.4 * fl, 0.35 * fl] }); }
+      if (fk) { const fl = (0.85 + 0.1 * Math.sin(17 * gameTime + t.id) + 0.05 * Math.sin(41 * gameTime + 2 * t.id)) * (0.5 + 0.36 * fk); lights.push({ p: [P[0], P[1], t.gz + 2], r: 8 + 3 * fk, c: [3.2 * fl, 1.4 * fl, 0.35 * fl] }); }
       // phares des alliés la nuit : un projecteur à l'avant de la caisse, légèrement plongeant
-      if (night && !t.dead && t.team === 0) { const c = Math.cos(t.angle), sn = Math.sin(t.angle), hl = t.T.S.L / 2; lights.push({ p: [P[0] + c * hl, P[1] - sn * hl, 1.4], r: 45, c: [1.3, 1.2, 0.95], d: [c * 0.99, -sn * 0.99, -0.1], cone: 0.92 }); }
+      if (night && !t.dead && t.team === 0) { const c = Math.cos(t.angle), sn = Math.sin(t.angle), hl = t.T.S.L / 2; lights.push({ p: [P[0] + c * hl, P[1] - sn * hl, t.gz + 1.4], r: 45, c: [1.3, 1.2, 0.95], d: [c * 0.99, -sn * 0.99, -0.1], cone: 0.92 }); }
     }
     for (const f of flares) {
-      const P = to3(f.x, f.y), k = Math.min(1, f.age / 0.6) * Math.min(1, (f.life - f.age) / 2), fl = (0.9 + 0.07 * Math.sin(23 * gameTime + f.seed) + 0.04 * Math.sin(57 * gameTime)) * k;
-      glow.push({ p: [P[0], P[1], f.z], s: 0.8, c: [1, 1, 0.92, 1.6 * k] });
-      if (f.age > 1.5) lights.push({ p: [P[0], P[1], f.z], r: 220, c: [2.2 * fl, 2.3 * fl, 2.1 * fl] });
+      const P = to3(f.x, f.y), k = Math.min(1, f.age / 0.6) * Math.min(1, (f.life - f.age) / 2), fl = (0.9 + 0.07 * Math.sin(23 * gameTime + f.seed) + 0.04 * Math.sin(57 * gameTime)) * k, g = hAt(f.x, f.y);
+      glow.push({ p: [P[0], P[1], g + f.z], s: 0.8, c: [1, 1, 0.92, 1.6 * k], g });
+      if (f.age > 1.5) lights.push({ p: [P[0], P[1], g + f.z], r: 220, c: [2.2 * fl, 2.3 * fl, 2.1 * fl] });
     }
     // ombre de contact des chars les plus proches de la zone regardée
     const tg = cam3.target, contacts = [];
@@ -4935,13 +5049,13 @@ Meta.whenReady(() => {
       if (Math.abs(rx * -uy + ry * ux) > T.len * 0.6 + 16) continue;
       s.warned = true;
       const ix = s.x + ux * along, iy = s.y + uy * along, a = clamp(1.3 - tt, 0.25, 1);
-      const p0 = project3(s.x, s.y, s.z), p1 = project3(ix, iy, Math.max(0, s.z + s.slope * along * RK));
+      const gi = hAt(ix, iy), p0 = project3(s.x, s.y, s.z), p1 = project3(ix, iy, Math.max(gi, s.z + s.slope * along * RK));
       if (p0.behind || p1.behind) continue;
       ctx.strokeStyle = `rgba(255,60,40,${a * 0.85})`; ctx.lineWidth = 2;
       ctx.setLineDash([8, 6]); ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke(); ctx.setLineDash([]);
       const rr = (1.6 + 0.6 * Math.sin(gameTime * 20)) * PX;
       ctx.beginPath();
-      for (let k = 0; k <= 24; k++) { const q = project3(ix + Math.cos(k / 24 * TAU) * rr, iy + Math.sin(k / 24 * TAU) * rr, 0.05); k ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); }
+      for (let k = 0; k <= 24; k++) { const q = project3(ix + Math.cos(k / 24 * TAU) * rr, iy + Math.sin(k / 24 * TAU) * rr, gi + 0.05); k ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); }
       ctx.stroke();
     }
   }
@@ -7555,7 +7669,7 @@ Meta.whenReady(() => {
   if (Q.has('debug')) {
     window.__fa = {
       get tanks() { return tanks; }, get state() { return state; }, get stats() { return waveStats; }, get shells() { return shells; },
-      get time() { return gameTime; }, get player() { return player; }, get bushes() { return bushes; }, get w3d() { return W3D; }, get falls3() { return falls3; }, damageObstacle, knockTree, get debris3() { return debris3; }, launchFlare, get flares() { return flares; }, get obstacles() { return obstacles; }, barrelHit, cam3, sight, setSight, sightProbe, get mode() { return mode; }, meta: Meta, medal, takeCommand, get survWave() { return survWave; }, dyn, hitcam: HitCam, TYPES, SHELLS, bench, benchFire,
+      get time() { return gameTime; }, get player() { return player; }, get bushes() { return bushes; }, get w3d() { return W3D; }, get terra() { return terra; }, get falls3() { return falls3; }, damageObstacle, knockTree, get debris3() { return debris3; }, launchFlare, get flares() { return flares; }, get obstacles() { return obstacles; }, barrelHit, cam3, sight, setSight, sightProbe, get mode() { return mode; }, meta: Meta, medal, takeCommand, get survWave() { return survWave; }, dyn, hitcam: HitCam, TYPES, SHELLS, bench, benchFire,
       // test : tir forcé du joueur sur la cible la plus proche
       fireAt(i, key) {
         const e = tanks.filter(t => t.team === 1 && !t.dead)[i || 0];

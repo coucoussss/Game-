@@ -8,10 +8,10 @@ const World3D = (() => {
 
   const VS = `
 attribute vec3 aPos; attribute vec3 aNor; attribute vec3 aCol; attribute float aMat;
-uniform mat4 uVP; uniform mat4 uModel; uniform mat4 uLVP; uniform mat4 uLVPS; uniform float uTime; uniform vec2 uNOff; uniform vec4 uBlast[4];
+uniform mat4 uVP; uniform mat4 uModel; uniform mat4 uLVP; uniform mat4 uLVPS; uniform float uTime; uniform vec2 uNOff; uniform vec4 uBlast[4]; uniform float uBase;
 // souffles (coup de canon, explosion, char qui traverse) : le feuillage s'écarte puis revient en oscillant
-vec3 blast(vec3 w){
-  float h = clamp(w.z, 0.0, 3.0);
+vec3 blast(vec3 w, float g){
+  float h = clamp(w.z - g, 0.0, 3.0);
   for (int i = 0; i < 4; i++) {
     vec4 b = uBlast[i];
     if (b.z <= 0.0) continue;
@@ -21,31 +21,34 @@ vec3 blast(vec3 w){
   }
   return w;
 }
-varying vec3 vW; varying vec3 vN; varying vec3 vC; varying vec3 vO; varying float vM; varying vec3 vNO; varying vec4 vL; varying vec4 vLS;
+varying vec3 vW; varying vec3 vN; varying vec3 vC; varying vec3 vO; varying float vM; varying vec3 vNO; varying vec4 vL; varying vec4 vLS; varying float vG;
 void main(){
   vNO = aNor;
+  // hauteur du sol sous l'objet : décor posé sur le relief (fraction du matériau, voir buildScene),
+  // sinon celle de l'objet dessiné (uBase)
+  float g0 = fract(aMat) > 0.005 ? (fract(aMat) - 0.2) * 200.0 : uBase;
   vec4 w = uModel * vec4(aPos, 1.0);
   vec3 nW = normalize(mat3(uModel) * aNor);
   // ombres décalées le long de la normale (pas d'acné sans gros biais) ; la carte statique est
   // calculée sans le vent : on la lit à la position au repos pour que l'ombre suive la feuille
   vLS = uLVPS * vec4(w.xyz + nW * uNOff.y, 1.0);
   if (aMat > 7.5 && aMat < 8.5) {
-    float h = max(0.0, w.z - 0.8);
+    float h = max(0.0, w.z - g0 - 0.8);
     w.x += sin(uTime * 1.3 + w.x * 0.15 + w.y * 0.11) * 0.035 * h;
     w.y += cos(uTime * 1.1 + w.y * 0.13 + w.x * 0.07) * 0.025 * h;
-    w.xyz = blast(w.xyz);
+    w.xyz = blast(w.xyz, g0);
   }
-  if (aMat > 13.5) {
+  if (aMat > 13.5 && aMat < 14.5) {
     // feuilles : balancement de la plante et frémissement de chaque feuille
-    float h = max(0.0, w.z - 0.15);
+    float h = max(0.0, w.z - g0 - 0.15);
     float g = sin(uTime * 1.6 + w.x * 0.4 + w.y * 0.3);
     float fl = sin(uTime * 7.0 + aPos.x * 23.0 + aPos.y * 17.0 + aPos.z * 11.0);
     w.x += g * 0.04 * h + fl * 0.012;
     w.y += g * 0.025 * h + fl * 0.01;
     w.z += fl * 0.008;
-    w.xyz = blast(w.xyz);
+    w.xyz = blast(w.xyz, g0);
   }
-  vW = w.xyz; vO = aPos; vN = nW; vC = aCol; vM = aMat; vL = uLVP * vec4(w.xyz + nW * uNOff.x, 1.0);
+  vW = w.xyz; vO = aPos; vN = nW; vC = aCol; vM = aMat; vG = g0; vL = uLVP * vec4(w.xyz + nW * uNOff.x, 1.0);
   gl_Position = uVP * w;
 }`;
   // Brume : exponentielle au carré selon la distance, plus une nappe basse dont la densité décroît
@@ -70,7 +73,7 @@ vec3 tm(vec3 c){
 `;
   const FS = `
 precision highp float;
-varying vec3 vW; varying vec3 vN; varying vec3 vC; varying vec3 vO; varying float vM; varying vec3 vNO; varying vec4 vL; varying vec4 vLS;
+varying vec3 vW; varying vec3 vN; varying vec3 vC; varying vec3 vO; varying float vM; varying vec3 vNO; varying vec4 vL; varying vec4 vLS; varying float vG;
 uniform vec3 uEye; uniform vec3 uSun; uniform vec3 uSunCol; uniform vec3 uSkyCol; uniform vec3 uBounce;
 uniform vec3 uFogCol; uniform float uFogD; uniform vec3 uZenith; uniform vec3 uHorizon;
 uniform vec3 uCamo0; uniform vec3 uCamo1; uniform vec3 uCamo2; uniform float uPat;
@@ -225,18 +228,30 @@ void main(){
     float mortar = smoothstep(0.0, 0.06, bx) * smoothstep(0.0, 0.08, bz);
     base *= (0.86 + 0.14 * mortar) * (0.88 + 0.24 * h3(floor(vec3(q.x, q.y, row))));
     base *= 0.85 + 0.25 * fbm(vW * 0.8);
-    base *= 1.0 - 0.25 * smoothstep(0.5, 0.0, vW.z);
+    base *= 1.0 - 0.25 * smoothstep(0.5, 0.0, vW.z - vG);
   } else if (vM < 13.5) {
     ks = 0.8; shin = 120.0;
     // la nuit, quelques fenêtres restent éclairées
     if (uNight > 0.5 && h3(floor(vW * 0.4)) > 0.85) emi = vec3(1.0, 0.62, 0.3) * 0.5;
   }
-  else {
+  else if (vM < 14.5) {
     // feuille : éclairée des deux faces, translucide, cireuse, parfois enneigée sur le dessus
     if (dot(N, V) < 0.0) N = -N;
     base *= 0.82 + 0.36 * n3(vW * 9.0);
     base = mix(base, vec3(0.93, 0.95, 0.98), uSnow * smoothstep(0.3, 0.85, N.z) * 0.9);
     trans = 0.55; ks = 0.18; shin = 28.0;
+  } else if (vM < 15.5) {
+    // eau : teinte selon la profondeur (couleur des sommets), rides qui courent, reflet du ciel d'autant
+    // plus fort que le regard est rasant (Fresnel) ; peu de calcul, la plupart des pixels n'en sont pas
+    float r1 = sin(dot(vW.xy, vec2(1.7, 0.9)) + uTime * 1.9), r2 = sin(dot(vW.xy, vec2(-0.8, 2.3)) + uTime * 2.6);
+    N = normalize(vec3(r1 * 0.05 + r2 * 0.03, r2 * 0.05 - r1 * 0.02, 1.0));
+    float fr = 0.03 + 0.97 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
+    emi = mix(uHorizon, uZenith, 0.3) * fr * 0.8;
+    ks = 1.4; shin = 160.0;
+  } else {
+    // glace : bleutée, veinée de fissures
+    base *= 1.0 - 0.35 * smoothstep(0.03, 0.0, abs(n3(vec3(vW.xy * 1.3, 1.0)) - 0.5));
+    ks = 0.7; shin = 90.0;
   }
   if (uTint.w > 0.0) { base = mix(base, uTint.rgb, uTint.w); paint = 0.0; }
   float grime = (vM < 3.5 || uBurnt > 0.0) ? fbm(P * 5.0) : 0.5;
@@ -256,7 +271,7 @@ void main(){
   float sh = shadowAt(uShadowS, vLS, uShT.y, bm * uSR.y);
   if (sh > 0.0) sh = min(sh, shadowAt(uShadow, vL, uShT.x, bm * uSR.x));
   float hemi = 0.5 + 0.5 * N.z;
-  float ao = 0.55 + 0.45 * smoothstep(-0.1, 1.4, vW.z);
+  float ao = 0.55 + 0.45 * smoothstep(-0.1, 1.4, vW.z - vG);
   if (vM > 8.5 && vM < 9.5) {
     // sol : assombri au contact des chars (occlusion sous la caisse)
     ao = 1.0;
@@ -310,13 +325,13 @@ void main(){
 }`;
   // particules : billboards doux (fumée éclairée) ou lumineux (flammes, éclairs, traceurs)
   const PVS = `
-attribute vec3 aP; attribute vec2 aUV; attribute vec4 aC; attribute float aS;
+attribute vec3 aP; attribute vec2 aUV; attribute vec4 aC; attribute float aS; attribute float aG;
 uniform mat4 uVP;
-varying vec2 vUV; varying vec4 vC; varying vec3 vW; varying float vS;
-void main(){ vUV = aUV; vC = aC; vW = aP; vS = aS; gl_Position = uVP * vec4(aP, 1.0); }`;
+varying vec2 vUV; varying vec4 vC; varying vec3 vW; varying float vS; varying float vG;
+void main(){ vUV = aUV; vC = aC; vW = aP; vS = aS; vG = aG; gl_Position = uVP * vec4(aP, 1.0); }`;
   const PFS = `
 precision highp float;
-varying vec2 vUV; varying vec4 vC; varying vec3 vW; varying float vS;
+varying vec2 vUV; varying vec4 vC; varying vec3 vW; varying float vS; varying float vG;
 uniform float uGlow; uniform vec3 uSunCol; uniform vec3 uSkyCol; uniform vec3 uFogCol; uniform float uFogD; uniform vec3 uEye; uniform vec3 uSun; uniform vec2 uFogH;
 uniform vec4 uLP[4]; uniform vec3 uLC[4]; uniform float uNL;
 ` + FOG + `
@@ -336,7 +351,7 @@ void main(){
   }
   float nz = 0.55 + 0.45 * n2(vUV * 5.0 + vec2(vC.a * 31.0, vW.z));
   // fondu au contact du sol : pas de coupure nette là où le sprite le traverse
-  float a = smoothstep(1.0, 0.25, r) * nz * vC.a * smoothstep(0.0, 0.5 * vS, vW.z);
+  float a = smoothstep(1.0, 0.25, r) * nz * vC.a * smoothstep(0.0, 0.5 * vS, vW.z - vG);
   vec3 c = vC.rgb * vC.rgb * (uSkyCol * 1.3 + uSunCol * (0.32 + 0.18 * q.y));
   // fumée éclairée par les flammes, les éclairs et les fusées proches
   for (int i = 0; i < 4; i++) {
@@ -599,7 +614,7 @@ void main(){
     }
     // particules
     const PCAP = 4000;
-    const pData = new Float32Array(PCAP * 6 * 10);
+    const pData = new Float32Array(PCAP * 6 * 11);
     let env = null;
 
     function setEnv(e) { env = e; slvp = null; }
@@ -635,7 +650,7 @@ void main(){
       const sd = norm(env.sun), c = [mapW / 2, -mapH / 2, 0];
       const view = M4.lookAt([c[0] + sd[0] * 500, c[1] + sd[1] * 500, c[2] + sd[2] * 500], c, Math.abs(sd[2]) > 0.95 ? [0, 1, 0] : [0, 0, 1]);
       const r = [1e9, 1e9, 1e9, -1e9, -1e9, -1e9];
-      corners([-50, -mapH - 50, -2, mapW + 50, 50, 24], p => { const q = M4.apply(view, p); for (let k = 0; k < 3; k++) { r[k] = Math.min(r[k], q[k]); r[k + 3] = Math.max(r[k + 3], q[k]); } });
+      corners([-50, -mapH - 50, -8, mapW + 50, 50, 32], p => { const q = M4.apply(view, p); for (let k = 0; k < 3; k++) { r[k] = Math.min(r[k], q[k]); r[k + 3] = Math.max(r[k + 3], q[k]); } });
       slvp = M4.mul(M4.ortho(r[0], r[3], r[1], r[4], -r[5] - 1, -r[2] + 1), view);
       sRange = r[5] - r[2] + 2; sTexel = Math.max(r[3] - r[0], r[4] - r[1]) / shS.size;
       for (const cl of cells.values()) cl.lr = lightRect(cl.box);
@@ -688,7 +703,7 @@ void main(){
       const dc = [[0.6, 0.55, 0.35], [0.4, 0.3, 0.2], [0.3, 0.35, 0.2]];
       gl.uniform3fv(U.uCamo0, dc[0]); gl.uniform3fv(U.uCamo1, dc[1]); gl.uniform3fv(U.uCamo2, dc[2]);
       if (U.uPat) gl.uniform1f(U.uPat, 0);
-      gl.uniform1f(U.uBurnt, 0); gl.uniform4fv(U.uTint, [0, 0, 0, 0]); gl.uniform1f(U.uTread, 0); gl.uniform1f(U.uSeed, 0);
+      gl.uniform1f(U.uBurnt, 0); gl.uniform4fv(U.uTint, [0, 0, 0, 0]); gl.uniform1f(U.uTread, 0); gl.uniform1f(U.uSeed, 0); gl.uniform1f(U.uBase, 0);
       // la lunette grossit : le détail se garde plus loin
       const lodK = Math.tan(0.45) / Math.tan((cam.fov || 0.9) / 2) * Q.lod;
       vis.length = 0;
@@ -757,6 +772,7 @@ void main(){
       gl.uniform4fv(U.uTint, o.tint || [0, 0, 0, 0]);
       gl.uniform1f(U.uTread, o.tread || 0);
       gl.uniform1f(U.uSeed, o.seed || 0);
+      gl.uniform1f(U.uBase, o.gz || 0);
       gl.drawArrays(gl.TRIANGLES, 0, m.count);
     }
     function drawShadow(m, model) {
@@ -868,10 +884,10 @@ void main(){
           }
           const c = q.c;
           for (let vi = 0; vi < 6; vi++) {
-            const k = QI[vi] * 3, o = (n * 6 + vi) * 10;
+            const k = QI[vi] * 3, o = (n * 6 + vi) * 11;
             pData[o] = QC[k]; pData[o + 1] = QC[k + 1]; pData[o + 2] = QC[k + 2];
             pData[o + 3] = QU[vi * 2]; pData[o + 4] = QU[vi * 2 + 1];
-            pData[o + 5] = c[0]; pData[o + 6] = c[1]; pData[o + 7] = c[2]; pData[o + 8] = c[3]; pData[o + 9] = s;
+            pData[o + 5] = c[0]; pData[o + 6] = c[1]; pData[o + 7] = c[2]; pData[o + 8] = c[3]; pData[o + 9] = s; pData[o + 10] = q.g || 0;
           }
           n++;
         }
@@ -881,12 +897,13 @@ void main(){
         if (!list.length) return 0;
         const n = fill(list);
         gl.bindBuffer(gl.ARRAY_BUFFER, pBuf);
-        gl.bufferData(gl.ARRAY_BUFFER, pData.subarray(0, n * 60), gl.DYNAMIC_DRAW);
+        gl.bufferData(gl.ARRAY_BUFFER, pData.subarray(0, n * 66), gl.DYNAMIC_DRAW);
         const A = P.A;
-        gl.enableVertexAttribArray(A.aP); gl.vertexAttribPointer(A.aP, 3, gl.FLOAT, false, 40, 0);
-        gl.enableVertexAttribArray(A.aUV); gl.vertexAttribPointer(A.aUV, 2, gl.FLOAT, false, 40, 12);
-        gl.enableVertexAttribArray(A.aC); gl.vertexAttribPointer(A.aC, 4, gl.FLOAT, false, 40, 20);
-        if (A.aS >= 0) { gl.enableVertexAttribArray(A.aS); gl.vertexAttribPointer(A.aS, 1, gl.FLOAT, false, 40, 36); }
+        gl.enableVertexAttribArray(A.aP); gl.vertexAttribPointer(A.aP, 3, gl.FLOAT, false, 44, 0);
+        gl.enableVertexAttribArray(A.aUV); gl.vertexAttribPointer(A.aUV, 2, gl.FLOAT, false, 44, 12);
+        gl.enableVertexAttribArray(A.aC); gl.vertexAttribPointer(A.aC, 4, gl.FLOAT, false, 44, 20);
+        if (A.aS >= 0) { gl.enableVertexAttribArray(A.aS); gl.vertexAttribPointer(A.aS, 1, gl.FLOAT, false, 44, 36); }
+        if (A.aG >= 0) { gl.enableVertexAttribArray(A.aG); gl.vertexAttribPointer(A.aG, 1, gl.FLOAT, false, 44, 40); }
         gl.uniform1f(P.U.uGlow, glow ? 1 : 0);
         gl.enable(gl.BLEND);
         if (glow) gl.blendFunc(gl.ONE, gl.ONE); else gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
@@ -894,6 +911,7 @@ void main(){
         gl.drawArrays(gl.TRIANGLES, 0, n * 6);
         gl.depthMask(true);
         gl.disable(gl.BLEND);
+        if (A.aG >= 0) gl.disableVertexAttribArray(A.aG);
         return n;
       };
       // fumées triées de la plus lointaine à la plus proche
@@ -934,18 +952,117 @@ void main(){
     const m = new Map();
     return { m, at(x, y) { const k = cellKey(x, y); let c = m.get(k); if (!c) m.set(k, c = { k, b: [new Builder(), new Builder(), new Builder(), new Builder()] }); return c.b; } };
   }
-  // sol : grandes dalles débordant de la carte (la texture s'étire au-delà des bords) ; un relief
-  // viendra déplacer ces sommets, d'où une cellule à part
-  function buildGround(WWm, WHm) {
-    const b = new Builder();
+  // Relief (terrain.js) : hauteur du sol en mètres du repère 3D, pour poser le décor ; wet : eau
+  let HF = null, WET = null;
+  function setTerrain(T, px) {
+    HF = T ? (x, y) => T.surf(x * px, -y * px) : null;
+    WET = T ? (x, y) => T.wetAt(x * px, -y * px) : null;
+  }
+  // sol : grille du relief en blocs de 16 × 16 mailles (seuls ceux du champ sont dessinés), normales
+  // lissées aux sommets, une maille sur deux puis sur quatre au loin, avec une jupe de 1,5 m au bord de
+  // chaque bloc contre les fentes entre niveaux de détail ; au-delà de la marge, grandes dalles plates
+  // (la texture s'étire hors de la carte)
+  function buildGround(T, px, WWm, WHm) {
+    const out = new Map(), { C, M, nx, ny, h } = T, s = C / px, X0 = -M / px, Y0 = M / px, BK = 16;
+    const nor = (i, j) => {
+      const a = h[j * nx + Math.max(0, i - 1)], b = h[j * nx + Math.min(nx - 1, i + 1)], c = h[Math.max(0, j - 1) * nx + i], d = h[Math.min(ny - 1, j + 1) * nx + i];
+      const nx_ = -(b - a) / (2 * s), ny_ = (d - c) / (2 * s), l = Math.hypot(nx_, ny_, 1);
+      return [nx_ / l, ny_ / l, 1 / l];
+    };
+    const P = (i, j) => [X0 + i * s, Y0 - j * s, h[j * nx + i]], W1 = [1, 1, 1];
+    for (let bj = 0; bj < ny - 1; bj += BK) for (let bi = 0; bi < nx - 1; bi += BK) {
+      const ie = Math.min(nx - 1, bi + BK), je = Math.min(ny - 1, bj + BK), LB = [0, 1, 2].map(L => {
+        const b = new Builder(), st = 1 << L;
+        for (let j = bj; j < je; j += st) for (let i = bi; i < ie; i += st) {
+          const i2 = Math.min(ie, i + st), j2 = Math.min(je, j + st), A = P(i, j2), B = P(i2, j2), Cc = P(i2, j), D = P(i, j);
+          b.triN(A, B, Cc, nor(i, j2), nor(i2, j2), nor(i2, j), W1, 9);
+          b.triN(A, Cc, D, nor(i, j2), nor(i2, j), nor(i, j), W1, 9);
+        }
+        const edge = (i0, j0, di, dj, n) => {
+          for (let k = 0; k < n; k += st) {
+            const a = [i0 + di * k, j0 + dj * k], c = [i0 + di * Math.min(n, k + st), j0 + dj * Math.min(n, k + st)];
+            const pa = P(a[0], a[1]), pc = P(c[0], c[1]), na = nor(a[0], a[1]), nc = nor(c[0], c[1]);
+            b.triN(pa, pc, [pc[0], pc[1], pc[2] - 1.5], na, nc, nc, W1, 9);
+            b.triN(pa, [pc[0], pc[1], pc[2] - 1.5], [pa[0], pa[1], pa[2] - 1.5], na, nc, na, W1, 9);
+          }
+        };
+        { edge(bi, bj, 1, 0, ie - bi); edge(bi, je, 1, 0, ie - bi); edge(bi, bj, 0, 1, je - bj); edge(ie, bj, 0, 1, je - bj); }
+        return b;
+      });
+      out.set('g' + bi + '_' + bj, { b: [LB[0], LB[1], LB[2], null] });
+    }
+    const b = new Builder(), n = [0, 0, 1], gx0 = X0, gx1 = X0 + (nx - 1) * s, gy1 = Y0, gy0 = Y0 - (ny - 1) * s;
     const g0 = -WWm * 0.6, g1 = WWm * 1.6, h0 = -WHm * 1.6, h1 = WHm * 0.6;
-    const GN = 8, n = [0, 0, 1];
-    for (let i = 0; i < GN; i++) for (let j = 0; j < GN; j++) {
-      const x0 = g0 + (g1 - g0) * i / GN, x1 = g0 + (g1 - g0) * (i + 1) / GN, y0 = h0 + (h1 - h0) * j / GN, y1 = h0 + (h1 - h0) * (j + 1) / GN;
-      b.triN([x0, y0, 0], [x1, y0, 0], [x1, y1, 0], n, n, n, [1, 1, 1], 9);
-      b.triN([x0, y0, 0], [x1, y1, 0], [x0, y1, 0], n, n, n, [1, 1, 1], 9);
+    const slab = (x0, y0, x1, y1) => {
+      for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) {
+        const a = x0 + (x1 - x0) * i / 4, c = x0 + (x1 - x0) * (i + 1) / 4, e = y0 + (y1 - y0) * j / 4, f = y0 + (y1 - y0) * (j + 1) / 4;
+        b.triN([a, e, 0], [c, e, 0], [c, f, 0], n, n, n, W1, 9);
+        b.triN([a, e, 0], [c, f, 0], [a, f, 0], n, n, n, W1, 9);
+      }
+    };
+    slab(g0, h0, gx0, h1); slab(gx1, h0, g1, h1); slab(gx0, h0, gx1, gy0); slab(gx0, gy1, gx1, h1);
+    out.set('go', { b: [null, null, null, b] });
+    return out;
+  }
+  // Eau et glace : une dalle au niveau de l'eau sur chaque maille mouillée, teintée selon la profondeur
+  // aux sommets (la berge cache le reste) ; mailles de glace intactes en glace, brisées en eau
+  function buildWater(T, px, lv) {
+    const b = new Builder(), { C, M, nx, ny, h, wl } = T, s = C / px, X0 = -M / px, Y0 = M / px, n = [0, 0, 1];
+    if (!(wl > -1e9)) return { b: [null, null, null, null] };
+    const sh = lv.forest ? [0.2, 0.22, 0.14] : [0.22, 0.27, 0.22], dp = lv.forest ? [0.04, 0.06, 0.05] : [0.05, 0.09, 0.1];
+    const col = q => { const k = Math.min(1, Math.max(0, (wl - h[q]) / 1.6)); return [sh[0] + (dp[0] - sh[0]) * k, sh[1] + (dp[1] - sh[1]) * k, sh[2] + (dp[2] - sh[2]) * k]; };
+    for (let j = 0; j < ny - 1; j++) for (let i = 0; i < nx - 1; i++) {
+      const q = j * nx + i, qs = [q + nx, q + nx + 1, q + 1, q];
+      if (Math.min(h[q], h[q + 1], h[q + nx], h[q + nx + 1]) >= wl) continue;
+      const iced = T.ice && T.ice[j * (nx - 1) + i] === 1, z = wl + (iced ? 0.04 : 0), m = iced ? 16 : 15;
+      const p = [[i, j + 1], [i + 1, j + 1], [i + 1, j], [i, j]].map(([a, c]) => [X0 + a * s, Y0 - c * s, z]);
+      const cs = qs.map(k => iced ? [0.74, 0.82, 0.88] : col(k));
+      b.put(...p[0], ...n, ...cs[0], m); b.put(...p[1], ...n, ...cs[1], m); b.put(...p[2], ...n, ...cs[2], m);
+      b.put(...p[0], ...n, ...cs[0], m); b.put(...p[2], ...n, ...cs[2], m); b.put(...p[3], ...n, ...cs[3], m);
     }
     return { b: [null, null, null, b] };
+  }
+  // Ponts de bois : tablier de madriers sur longerons, garde-corps et pieux ; effondré, deux moignons
+  // aux berges et des madriers qui flottent
+  function buildBridges(T, px) {
+    const b = new Builder(), wood = [0.36, 0.27, 0.18], dark = [0.22, 0.16, 0.1];
+    for (const g of T.bridges) {
+      const ux = g.ux / px, uy = -g.uy / px, cx = g.x / px, cy = -g.y / px, L = g.hl / px, Wd = g.hw / px, a = Math.atan2(uy, ux);
+      const at = (u, v) => [cx + Math.cos(a) * u - Math.sin(a) * v, cy + Math.sin(a) * u + Math.cos(a) * v];
+      const plank = (u0, u1, v, w, z, hz, c) => {
+        const p = at((u0 + u1) / 2, v), l = u1 - u0;
+        // boîte orientée : quatre coins en bas, quatre en haut
+        const cs = [[-l / 2, -w / 2], [l / 2, -w / 2], [l / 2, w / 2], [-l / 2, w / 2]].map(([du, dv]) => [p[0] + Math.cos(a) * du - Math.sin(a) * dv, p[1] + Math.sin(a) * du + Math.cos(a) * dv]);
+        const lo = cs.map(q => [q[0], q[1], z]), hi = cs.map(q => [q[0], q[1], z + hz]), ctr = [p[0], p[1], z + hz / 2];
+        b.quad(hi[0], hi[1], hi[2], hi[3], c, 6, ctr);
+        for (let k = 0; k < 4; k++) b.quad(lo[k], lo[(k + 1) % 4], hi[(k + 1) % 4], hi[k], c, 6, ctr);
+      };
+      const span = (T.spec.water.river.hw + 6) / px;
+      for (let u = -L; u < L; u += 0.5) {
+        if (g.dead && Math.abs(u + 0.25) < span) continue;
+        plank(u, u + 0.46, 0, Wd * 2, g.z - 0.12, 0.12, (Math.round(u * 2) & 1) ? wood : [wood[0] * 0.9, wood[1] * 0.9, wood[2] * 0.85]);
+      }
+      for (const v of [-Wd + 0.15, Wd - 0.15]) {
+        if (!g.dead) plank(-L, L, v, 0.12, g.z + 0.75, 0.12, dark);
+        for (let u = -L + 0.3; u <= L; u += 2.2) {
+          if (!g.dead || Math.abs(u) > span) plank(u - 0.08, u + 0.08, v, 0.16, g.z, 0.9, dark);
+          plank(u - 0.12, u + 0.12, v, 0.24, T.wl - 2.5, g.z - T.wl + 2.4, dark);
+        }
+      }
+      if (g.dead) for (let k = 0; k < 9; k++) { const u = (k / 8 - 0.5) * span * 1.6; plank(u, u + 0.45, ((k * 7) % 5 - 2) * 0.5, 1.6 + (k % 3) * 0.6, T.wl - 0.06, 0.1, wood); }
+    }
+    return { b: [null, null, null, b] };
+  }
+  // Pose sur le relief : les sommets ajoutés par f (dans les constructeurs B) montent de la hauteur du sol
+  // au point d'ancrage (x, y) ; elle est aussi gardée dans la fraction du matériau, que le shader lit pour
+  // l'occlusion au pied des objets et le balancement du feuillage
+  function lift(B, x, y, f) {
+    if (!HF) { f(); return; }
+    const z = HF(x, y), st = B.map(q => q.n);
+    f();
+    if (Math.abs(z) < 0.002) return;
+    const fr = 0.2 + Math.max(-38, Math.min(38, z)) / 200;
+    B.forEach((q, k) => { for (let o = st[k]; o < q.n; o += 10) { q.a[o + 2] += z; q.a[o + 9] += fr; } });
   }
   // obstacles du jeu (pixels) → cellules statiques (mètres). px : pixels par mètre. only : clé d'une
   // seule cellule à reconstruire. extras : herbe et lisière hors carte (construites une fois).
@@ -1085,16 +1202,19 @@ void main(){
       if (only != null && obstacleCell(o, px) !== only) continue;
       if (o.falling) continue; // arbre en train de tomber : dessiné à part par le jeu
       s = ((Math.round(o.x) * 73856093) ^ (Math.round(o.y) * 19349663)) >>> 0 || 1;
-      if (o.type === 'tree') cellAt(M(o.x + 8), Yv(o.y + 8)); else cellAt(M(o.x + o.w / 2), Yv(o.y + o.h / 2));
-      if (o.type === 'tree') tree(M(o.x + 8), Yv(o.y + 8), o.size, o.dead, -(o.fall || 0));
-      else if (o.type === 'rock') rock(M(o.x + o.w / 2), Yv(o.y + o.h / 2), M(o.w) * 0.55, M(o.h) * 0.55, M(Math.min(o.w, o.h)) * 0.45, snow ? [0.55, 0.57, 0.6] : desert ? [0.6, 0.5, 0.38] : [0.47, 0.45, 0.42]);
-      else if (o.type === 'wall') {
-        const x0 = M(o.x), x1 = M(o.x + o.w), y1 = Yv(o.y), y0 = Yv(o.y + o.h);
-        if (o.dead) { for (let k = 0; k < 8; k++) b.box(rr(x0, x1), rr(y0, y1), 0.15, rr(0.3, 0.8), rr(0.3, 0.8), 0.3, wallCol, 12); continue; }
-        b.box((x0 + x1) / 2, (y0 + y1) / 2, 0.6, x1 - x0, y1 - y0, 1.2, [wallCol[0] * 0.9, wallCol[1] * 0.9, wallCol[2] * 0.88], 12);
-        b.box((x0 + x1) / 2, (y0 + y1) / 2, 1.25, x1 - x0 + 0.1, y1 - y0 + 0.1, 0.12, [wallCol[0] * 0.75, wallCol[1] * 0.75, wallCol[2] * 0.72], 12);
-        if (snow) b.box((x0 + x1) / 2, (y0 + y1) / 2, 1.33, x1 - x0, y1 - y0, 0.05, [0.92, 0.94, 0.97], 7);
-      } else building(o);
+      const ax = o.type === 'tree' ? M(o.x + 8) : M(o.x + o.w / 2), ay = o.type === 'tree' ? Yv(o.y + 8) : Yv(o.y + o.h / 2);
+      cellAt(ax, ay);
+      lift(B, ax, ay, () => {
+        if (o.type === 'tree') tree(ax, ay, o.size, o.dead, -(o.fall || 0));
+        else if (o.type === 'rock') rock(ax, ay, M(o.w) * 0.55, M(o.h) * 0.55, M(Math.min(o.w, o.h)) * 0.45, snow ? [0.55, 0.57, 0.6] : desert ? [0.6, 0.5, 0.38] : [0.47, 0.45, 0.42]);
+        else if (o.type === 'wall') {
+          const x0 = M(o.x), x1 = M(o.x + o.w), y1 = Yv(o.y), y0 = Yv(o.y + o.h);
+          if (o.dead) { for (let k = 0; k < 8; k++) b.box(rr(x0, x1), rr(y0, y1), 0.15, rr(0.3, 0.8), rr(0.3, 0.8), 0.3, wallCol, 12); return; }
+          b.box((x0 + x1) / 2, (y0 + y1) / 2, 0.6, x1 - x0, y1 - y0, 1.2, [wallCol[0] * 0.9, wallCol[1] * 0.9, wallCol[2] * 0.88], 12);
+          b.box((x0 + x1) / 2, (y0 + y1) / 2, 1.25, x1 - x0 + 0.1, y1 - y0 + 0.1, 0.12, [wallCol[0] * 0.75, wallCol[1] * 0.75, wallCol[2] * 0.72], 12);
+          if (snow) b.box((x0 + x1) / 2, (y0 + y1) / 2, 1.33, x1 - x0, y1 - y0, 0.05, [0.92, 0.94, 0.97], 7);
+        } else building(o);
+      });
     }
     if (only != null) return cs.m.get(only) || { k: only, b: [null, null, null, null] };
     if (!extras) return cs.m;
@@ -1103,15 +1223,15 @@ void main(){
     if (!city && !snow) {
       const gc = desert ? [0.5, 0.44, 0.27] : forest ? [0.2, 0.28, 0.1] : [0.32, 0.38, 0.15];
       for (let k = 0; k < (desert ? 900 : 3200); k++) {
-        const x = rr(0, WWm), y = -rr(0, WHm);
+        const x = rr(0, WWm), y = -rr(0, WHm), wet = WET && WET(x, y);
         cellAt(x, y);
         const cc = [gc[0] * rr(0.75, 1.15), gc[1] * rr(0.75, 1.15), gc[2] * rr(0.75, 1.15)];
-        for (let q = 0; q < 3; q++) {
+        if (!wet) lift(B, x, y, () => { for (let q = 0; q < 3; q++) {
           const a = R() * Math.PI * 2, hgt = rr(0.25, 0.65), w = 0.05, lean = rr(0.05, 0.2);
           const c = Math.cos(a), sn = Math.sin(a), bx = x + rr(-0.12, 0.12), by = y + rr(-0.12, 0.12);
           const n = [0, 0, 1];
           for (let q = 0; q < 2; q++) B[q].triN([bx - sn * w, by + c * w, 0], [bx + sn * w, by - c * w, 0], [bx + c * lean, by + sn * lean, hgt], n, n, n, cc, 8);
-        }
+        } });
       }
     }
     // lisière de forêt au-delà de la carte (évite le bord du monde)
@@ -1121,8 +1241,10 @@ void main(){
         let x, y;
         if (side === 0) { x = t * WWm; y = rr(8, 40); } else if (side === 1) { x = t * WWm; y = -WHm - rr(8, 40); }
         else if (side === 2) { x = -rr(8, 40); y = -t * WHm; } else { x = WWm + rr(8, 40); y = -t * WHm; }
+        const sc = rr(1.0, 1.5);
+        if (WET && WET(x, y)) continue;
         cellAt(x, y);
-        tree(x, y, rr(1.0, 1.5), false, 0);
+        lift(B, x, y, () => tree(x, y, sc, false, 0));
       }
     }
     return cs.m;
@@ -1203,12 +1325,12 @@ void main(){
       const n = Math.max(2, Math.min(4, Math.round((r / 1.4) * (r / 1.4) * 0.6)));
       for (let k = 0; k < n; k++) {
         const a = R() * Math.PI * 2, d = Math.sqrt(R()) * r * 0.65;
-        const pr = rr(0.85, 1.5) * (desert ? 0.75 : 1), ph = pr * rr(0.9, 1.25);
-        plant(x + Math.cos(a) * d, y + Math.sin(a) * d, pr, ph);
+        const pr = rr(0.85, 1.5) * (desert ? 0.75 : 1), ph = pr * rr(0.9, 1.25), qx = x + Math.cos(a) * d, qy = y + Math.sin(a) * d;
+        lift(B, qx, qy, () => plant(qx, qy, pr, ph));
       }
     }
     return cs.m;
   }
 
-  return { create, buildScene, buildBushes, buildGround, cellKey, obstacleCell };
+  return { create, buildScene, buildBushes, buildGround, buildWater, buildBridges, setTerrain, cellKey, obstacleCell };
 })();

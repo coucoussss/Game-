@@ -14,28 +14,29 @@ const Vehicle = (() => {
   const geo = (a, b, n) => Array.from({ length: n }, (_, i) => +(a * Math.pow(b / a, i / (n - 1))).toFixed(1));
   // boîtes synchronisées (passage ≈ 0,8 s, marche arrière ≈ 1,2 s) et présélectives Maybach Olvar
   const SYNC = { name: 'synchromesh', shift: 0.8, rs: 1.2 }, OLVAR = { name: 'Olvar preselector', shift: 0.45, rs: 0.8 };
-  const PZ3 = { gears: [4.2, 8.3, 14.4, 21.5, 29.8, 40.8], rev: [5.4], rated: 3000, gov: 2800, box: SYNC, press: 0.89 };
-  const PANTHER = { gears: geo(4.8, 55, 7), rev: [4.8], rated: 3000, gov: 2500, box: SYNC, steer: { kind: 'regen', r: [5, 80], neutral: 25 }, press: 0.88, ext: 1 };
+  // climb : pente franchissable (°) ; ford : profondeur de gué sans préparation (m)
+  const PZ3 = { gears: [4.2, 8.3, 14.4, 21.5, 29.8, 40.8], rev: [5.4], rated: 3000, gov: 2800, box: SYNC, press: 0.89, climb: 30 };
+  const PANTHER = { gears: geo(4.8, 55, 7), rev: [4.8], rated: 3000, gov: 2500, box: SYNC, steer: { kind: 'regen', r: [5, 80], neutral: 25 }, press: 0.88, ext: 1, climb: 35 };
   // trav : vitesse de tourelle en °/s. hyd : pompe entraînée par le moteur, de idle (ralenti) à max au
   // régime rpm ; elec : génératrice auxiliaire, indépendante du moteur ; hand : manivelle seule.
   // elev : débattement du canon (°) ; elevRate : volant de pointage en hauteur (°/s)
   const DATA = {
     // Pz.Kpfw. II L Luchs : HL 66 P, 180 ch à 3200 tr/min, boîte 6+1, embrayages et freins
-    light: { gears: geo(5, 60, 6), rev: [7], rated: 3200, gov: 3200, box: SYNC, steer: { kind: 'clutch', max: 45 }, trav: { kind: 'hand', hand: 9 }, elev: [-9, 18], elevRate: 5, press: 0.8 },
+    light: { gears: geo(5, 60, 6), rev: [7], rated: 3200, gov: 3200, box: SYNC, steer: { kind: 'clutch', max: 45 }, trav: { kind: 'hand', hand: 9 }, elev: [-9, 18], elevRate: 5, press: 0.8, climb: 30, ford: 1.4 },
     // Pz.Kpfw. IV H : HL 120 TRM, 300 ch, SSG 76 6+1, tourelle électrique (groupe DKW)
-    pz4: Object.assign({}, PZ3, { steer: { kind: 'clutch', max: 36 }, trav: { kind: 'elec', max: 14, hand: 3 }, elev: [-8, 20], elevRate: 4 }),
+    pz4: Object.assign({}, PZ3, { steer: { kind: 'clutch', max: 36 }, trav: { kind: 'elec', max: 14, hand: 3 }, elev: [-8, 20], elevRate: 4, ford: 1.0 }),
     // StuG III G : même moteur, SSG 77 6+1, casemate pointée à la main (±10°)
-    stug: Object.assign({}, PZ3, { steer: { kind: 'clutch', max: 36 }, trav: { kind: 'hand', hand: 3 }, elev: [-6, 20], elevRate: 4, press: 0.93 }),
+    stug: Object.assign({}, PZ3, { steer: { kind: 'clutch', max: 36 }, trav: { kind: 'hand', hand: 3 }, elev: [-6, 20], elevRate: 4, press: 0.93, ford: 0.8 }),
     // Panther A/G : HL 230 P30, 700 ch à 3000 tr/min régulé à 2500, ZF AK 7-200 7+1, direction MAN à un
     // rayon par rapport, tourelle hydraulique à deux vitesses
-    medium: Object.assign({}, PANTHER, { trav: { kind: 'hyd', idle: 5, max: 18, rpm: 3000, hand: 1 }, elev: [-8, 18], elevRate: 4 }),
+    medium: Object.assign({}, PANTHER, { trav: { kind: 'hyd', idle: 5, max: 18, rpm: 3000, hand: 1 }, elev: [-8, 18], elevRate: 4, ford: 1.7 }),
     // Jagdpanther : châssis du Panther, casemate pointée à la main (±11°)
-    destroyer: Object.assign({}, PANTHER, { trav: { kind: 'hand', hand: 3 }, elev: [-8, 14], elevRate: 4 }),
+    destroyer: Object.assign({}, PANTHER, { trav: { kind: 'hand', hand: 3 }, elev: [-8, 14], elevRate: 4, ford: 1.55 }),
     // Tiger I : HL 230 P45, Olvar 40 12 16 8+4 (marches arrière = 4 premiers rapports), direction
     // Henschel L 600 C, tourelle hydraulique sur le moteur (≈ 6 °/s à 2000 tr/min, 2 °/s au ralenti)
-    heavy: { gears: [2.8, 4.3, 6.2, 9.2, 14.1, 20.0, 30.5, 45.4], rev: [2.8, 4.3, 6.2, 9.2], rated: 3000, gov: 2500, box: OLVAR, steer: { kind: 'regen', r: [3.4, 165], neutral: 20 }, trav: { kind: 'hyd', idle: 2, max: 7, rpm: 2500, hand: 0.7 }, elev: [-8, 15], elevRate: 4, press: 1.05, ext: 1 },
+    heavy: { gears: [2.8, 4.3, 6.2, 9.2, 14.1, 20.0, 30.5, 45.4], rev: [2.8, 4.3, 6.2, 9.2], rated: 3000, gov: 2500, box: OLVAR, steer: { kind: 'regen', r: [3.4, 165], neutral: 20 }, trav: { kind: 'hyd', idle: 2, max: 7, rpm: 2500, hand: 0.7 }, elev: [-8, 15], elevRate: 4, press: 1.05, ext: 1, climb: 35, ford: 1.5 },
     // Tiger II : HL 230 P30, Olvar B 8+4, direction L 801, tourelle : 360° en 19 s à 2000 tr/min, 77 s à 1000
-    kingtiger: { gears: geo(2.6, 41.5, 8), rev: geo(2.6, 41.5, 8).slice(0, 4), rated: 3000, gov: 2500, box: OLVAR, steer: { kind: 'regen', r: [3.5, 165], neutral: 15 }, trav: { kind: 'hyd', idle: 1.9, max: 19, rpm: 2000, hand: 0.6 }, elev: [-8, 15], elevRate: 4, press: 1.0, ext: 1 },
+    kingtiger: { gears: geo(2.6, 41.5, 8), rev: geo(2.6, 41.5, 8).slice(0, 4), rated: 3000, gov: 2500, box: OLVAR, steer: { kind: 'regen', r: [3.5, 165], neutral: 15 }, trav: { kind: 'hyd', idle: 1.9, max: 19, rpm: 2000, hand: 0.6 }, elev: [-8, 15], elevRate: 4, press: 1.0, ext: 1, climb: 35, ford: 1.6 },
   };
   // Sols : crr, résistance au roulement ; mu, adhérence (traction, freinage) ; lat, adhérence latérale ;
   // sink, sensibilité à la pression au sol ; path, coût pour l'itinéraire ; bump, bosses (lisse < 0 < cahoteux)
@@ -51,6 +52,8 @@ const Vehicle = (() => {
     { id: 'rubble', name: 'rubble', crr: 0.1, mu: 0.6, lat: 0.55, sink: 0.2, path: 1.2, bump: 1 },
     { id: 'crater', name: 'crater', crr: 0.14, mu: 0.6, lat: 0.5, sink: 0.4, path: 1.3, bump: 1.5 },
     { id: 'trunk', name: 'fallen trunk', crr: 0.25, mu: 0.6, lat: 0.5, sink: 0, path: 1.5, bump: 2 },
+    { id: 'water', name: 'ford', crr: 0.15, mu: 0.5, lat: 0.4, sink: 0.5, path: 2.5, bump: -0.5 },
+    { id: 'ice', name: 'ice', crr: 0.03, mu: 0.12, lat: 0.1, sink: 0, path: 1.5, bump: -0.8 },
   ];
   const SOIL = {};
   SOILS.forEach((s, i) => { s.i = i; SOIL[s.id] = s; });
