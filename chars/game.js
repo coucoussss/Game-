@@ -825,7 +825,8 @@ Meta.whenReady(() => {
     if (W3D0) for (const t of tanks) if (t.scar3) { W3D0.free(t.scar3.hull); W3D0.free(t.scar3.turret); }
     reviveT = 0; reviveUsed = false;
     clearFalls3();
-    tanks = []; shells = []; bullets = []; smokes = []; texts = []; feed = []; parts = []; logs = []; runners = []; ribbons = []; ribbonQ = []; flares = []; hitMk = null; slowT = 0; flareT = [rnd(15, 30), rnd(20, 40)];
+    tanks = []; shells = []; bullets = []; smokes = []; texts = []; feed = []; parts = []; logs = []; runners = []; ribbons = []; ribbonQ = []; flares = []; hitMk = null; slowT = 0;
+    dmgDirs = []; radio = null; radioQ = []; chat = {}; deathCamT = 0; killCard = null; flareT = [rnd(15, 30), rnd(20, 40)];
     if (obstacles.some(o => o.type === 'wreck')) { obstacles = obstacles.filter(o => o.type !== 'wreck'); buildGrid(); }
     orders = { kind: 'free', pos: null, target: null, t: 0 }; reinf = []; veils = [];
     spotted[0].clear(); spotted[1].clear(); seenAt.clear(); artyMarks = []; contactT = [0, 0]; artyT = [0, 0];
@@ -1015,7 +1016,7 @@ Meta.whenReady(() => {
   let contactT = [0, 0], artyT = [0, 0], artyMarks = [];
   const seenAt = new Map();
   function updateSpotting(dt) {
-    const night = !!L().night;
+    const night = !!L().night, prev0 = new Set(spotted[0]);
     for (const a of tanks) { (a.sees || (a.sees = new Set())).clear(); if (!a.det) a.det = new Map(); }
     for (let team = 0; team < 2; team++) {
       const set = spotted[team], net = new Set();
@@ -1061,7 +1062,19 @@ Meta.whenReady(() => {
       }
     }
     // sixième sens du chef de char (compétence) : alerte quand l'ennemi repère le joueur
-    if (player && !player.dead && player.up.sixth) { const sp = spotted[1].has(player); if (sp && !player.spottedB && state === 'play') { showMsg('👁 Sixth sense: you have been spotted!', '#ffcf7a', 1.6); Sfx.notify(); } player.spottedB = sp; }
+    if (player && !player.dead && player.up.sixth) {
+      const sp = spotted[1].has(player);
+      if (sp && !player.spottedB && state === 'play') { chatter('Commander: we\'ve been spotted!', 2); Sfx.alarm(); }
+      if (!sp && player.spottedB) player.lostT = gameTime;
+      player.spottedB = sp;
+    }
+    // chef de char : ennemis nouvellement repérés, en position horaire par rapport à la caisse
+    if (player && !player.dead && !player.ai && state === 'play') for (const e of spotted[0]) {
+      const g = seenAt.get(e);
+      if (prev0.has(e) || (g && gameTime - g.t < 8)) continue;
+      const a = angNorm(Math.atan2(e.y - player.y, e.x - player.x) - player.angle), clock = (Math.round(a / (TAU / 12)) + 12) % 12 || 12;
+      chatter(`${player.sees.has(e) && roleOk(player, 'commander') ? 'Commander' : 'Radio'}: ${e.T.name}, ${clock} o'clock, ${Math.round(dist(player, e) * RK / 50) * 50} m!`, 2);
+    }
     // dernière position vue de chaque ennemi (repère fantôme 6 s pour le joueur)
     for (const e of (player && player.knows) || spotted[0]) seenAt.set(e, { x: e.x, y: e.y, t: gameTime });
   }
@@ -3039,7 +3052,7 @@ Meta.whenReady(() => {
       Sfx.ricochet(listenerDist(hx, hy));
       if (show) floatText(hx, hy - 10, 'Ricochet', '#cfe3ff');
       if (by === player) waveStats.ric++;
-      if (t === player) { addLog(`Ricochet off ${plate.toLowerCase()}`, '#cfe3ff'); if (Meta.track('ricself')) missionToast(); if (++waveStats.ricSelf === 5) medal('steel_wall'); }
+      if (t === player) { hitFrom(by, false); addLog(`Ricochet off ${plate.toLowerCase()}`, '#cfe3ff'); if (Meta.track('ricself')) missionToast(); if (++waveStats.ricSelf === 5) medal('steel_wall'); }
       // piège à obus : la moitié basse d'un masque arrondi renvoie l'obus vers le bas, à travers le toit de
       // caisse mince au-dessus du pilote et du radio (d'où le masque « à menton » du Panther G) ; à
       // l'inverse, un ricochet qui remonte du glacis peut frapper la face avant de la tourelle
@@ -3124,7 +3137,7 @@ Meta.whenReady(() => {
       }
       Fx.armorHit(hx, hy, h.z, s.key === 'HEAT' ? 'heat' : 'pen', s.vx / s.sp, s.vy / s.sp);
       Sfx.penetrate(listenerDist(hx, hy));
-      if (t === player) addTrauma(0.5);
+      if (t === player) { addTrauma(0.5); hitFrom(by, true); }
     } else {
       // explosif ou charge creuse qui éclate contre la plaque, sans la percer
       if (s.key === 'HE' || (sb.heat && pen > 0)) heBlast(t, hx, hy, sb, by, E, face);
@@ -3136,7 +3149,7 @@ Meta.whenReady(() => {
       }
       Fx.armorHit(hx, hy, h.z, s.key === 'HEAT' ? 'heat' : 'non', s.vx / s.sp, s.vy / s.sp);
       Sfx.clang(listenerDist(hx, hy));
-      if (t === player) addTrauma(0.25);
+      if (t === player) { addTrauma(0.25); hitFrom(by, false); }
       // masque frappé fort : le berceau du canon se bloque en hauteur
       if (plate === 'Gun mantlet' && pen / eff > 0.6 && Math.random() < 0.5) { t.elevJamT = 8; crit.push('Gun elevation jammed'); }
       // choc d'un gros obus qui ne perce pas (plus de 1,5 MJ) : l'équipage est sonné 2 à 3 s
@@ -3534,8 +3547,8 @@ Meta.whenReady(() => {
     if (enemy && how === 'brewed' && Meta.track('det')) missionToast();
     if (enemy && how === 'abandoned') { waveStats.bailed++; if (Meta.track('bail')) missionToast(); }
     if (t === player) {
-      waveStats.streak = 0;
-      if (!reviveUsed && mode !== 'duel' && state === 'play' && !Meta.diff().noRevive) reviveT = 1.8;
+      waveStats.streak = 0; killedBy(by, how); msgs = msgs.filter(m => !/COOKING OFF/.test(m.text));
+      if (!reviveUsed && mode !== 'duel' && state === 'play' && !Meta.diff().noRevive) reviveT = deathCamT + 0.3; // après la caméra sur l'épave
       addLog(how === 'brewed' ? 'Your ammunition exploded.' : how === 'abandoned' ? 'Your crew bailed out.' : 'Your crew is out of action.', '#ff6a5a');
       showMsg(`Your tank is destroyed. Spectating an ally (${touch.on ? 'tap' : 'click'} to switch)`, '#ff7a5c', 4, 3);
     }
@@ -3895,6 +3908,99 @@ Meta.whenReady(() => {
     for (let i = msgs.length - 1; i >= 0; i--) if ((msgs[i].life -= dt) <= 0) msgs.splice(i, 1);
     if (hitMk && (hitMk.t += dt, hitMk.life -= dt) <= 0) hitMk = null;
     if (helpT > 0) helpT -= dt;
+    for (let i = dmgDirs.length - 1; i >= 0; i--) if ((dmgDirs[i].life -= dt) <= 0) dmgDirs.splice(i, 1);
+    if (radio && (radio.life -= dt) <= 0) radio = null;
+    if (radioQ.length && (!radio || radio.max - radio.life > 1.2)) { radio = radioQ.shift(); radio.max = radio.life; Sfx.intercom(); }
+  }
+
+  // Radio de l'équipage : une ligne à la fois au-dessus du panneau, chacune au moins 1,2 s, la plus
+  // importante d'abord ; les moins importantes sont abandonnées quand la file déborde
+  let radio = null, radioQ = [], chat = {};
+  function chatter(text, pri = 1) {
+    if (!player || player.dead || player.ai || (radio && radio.text === text) || radioQ.some(r => r.text === text)) return;
+    radioQ.push({ text, pri, life: 3.2 });
+    radioQ.sort((a, b) => b.pri - a.pri);
+    if (radioQ.length > 3) radioQ.length = 3;
+  }
+  const ROLE_NAME = { driver: 'driver', radio: 'radio operator', gunner: 'gunner', commander: 'commander', loader: 'loader' };
+  // annonces nées de l'état du char : obus d'un autre type chargé, chenille, feu, équipier tué ou remplacé
+  function crewChatter() {
+    const p = player, c = chat;
+    if (!p || p.dead || p.ai) return;
+    if (c.p !== p) { chat = { p, rl: 0, sh: p.shell, tr: 0, fi: 0, dead: new Set(p.mods.filter(m => m.kind === 'crew' && m.hp <= 0)), sw: null }; return; }
+    if (c.rl > 0 && p.reloadT <= 0 && p.shell !== c.sh) chatter(`Loader: ${SHELLS[p.shell].tag || p.shell} up!`, 1);
+    c.rl = p.reloadT; if (p.reloadT <= 0) c.sh = p.shell;
+    if (p.trackT > 0 && !(c.tr > 0) && !p.dismount) chatter('Driver: track\'s broken!', 2);
+    c.tr = p.trackT;
+    if (p.fires.length && !c.fi) chatter(`Radio op: we're on fire! ${p.extN > 0 && !touch.on ? `${keyName('ext')}: extinguisher!` : p.extN > 0 ? 'Extinguisher!' : 'Get ready to bail out!'}`, 3);
+    c.fi = p.fires.length;
+    for (const m of p.mods) if (m.kind === 'crew' && m.hp <= 0 && !c.dead.has(m)) { c.dead.add(m); chatter(`${m.name} is down!`, 3); }
+    if (p.swap && p.swap !== c.sw) chatter(`The ${ROLE_NAME[p.swap.from]} takes over as ${ROLE_NAME[p.swap.role]}`, 2);
+    c.sw = p.swap;
+  }
+  // Indicateur de direction des coups reçus : arc rouge (perforé) ou orange autour du centre de l'écran
+  let dmgDirs = [];
+  function hitFrom(by, pen) {
+    if (!by || by === player) return;
+    const a = Math.atan2(by.y - player.y, by.x - player.x), d = dmgDirs.find(q => Math.abs(angNorm(q.a - a)) < 0.35);
+    if (d) { d.a = a; d.life = 1.6; d.pen = d.pen || pen; } else dmgDirs.push({ a, pen, life: 1.6 });
+  }
+  function drawDmgDirs() {
+    if (!player || player.dead || !dmgDirs.length) return;
+    const R = Math.min(W, H) * 0.28, head = sight.on ? sight.yaw : W3D && cam3.vp ? -cam3.yaw : -Math.PI / 2;
+    ctx.save(); ctx.lineCap = 'butt'; ctx.lineWidth = 9 * uiK;
+    for (const d of dmgDirs) {
+      const ca = d.a - head - Math.PI / 2;
+      ctx.globalAlpha = Math.min(1, d.life / 0.6) * 0.85;
+      ctx.strokeStyle = d.pen ? (Meta.P.opts.cb ? '#ff4ad2' : '#ff3a2a') : '#ffa040';
+      ctx.beginPath(); ctx.arc(W / 2, H / 2, R, ca - 0.35, ca + 0.35); ctx.stroke();
+    }
+    ctx.restore();
+  }
+  // Fin du joueur : la caméra reste sur l'épave puis se tourne vers le tireur ; fiche « détruit par »
+  let deathCamT = 0, killCard = null;
+  function killedBy(by, how) {
+    const lh = player.lastHit && player.lastHit.by === by && gameTime - player.lastHit.time < 30 ? player.lastHit : null;
+    const l2 = [by && by !== player ? `${Math.round(dist(by, player) * RK)} m` : '', lh ? SHELLS[lh.key] ? SHELLS[lh.key].tag || lh.key : lh.key : '', lh && lh.plate ? lh.plate.toLowerCase() : '',
+      how === 'brewed' ? 'ammo rack detonated' : HOW[how]].filter(Boolean).join(' · ');
+    killCard = { by, l1: by && by !== player ? `${by.T.name} (${by.name})` : 'Knocked out', l2, life: 7 };
+    deathCamT = 2.5;
+  }
+  function drawKillCard(y) {
+    const k = killCard, w = Math.min(ui.half * 2, 460);
+    ctx.globalAlpha = Math.min(1, k.life);
+    ctx.fillStyle = 'rgba(30,8,6,0.82)'; ctx.fillRect(W / 2 - w / 2, y, w, 52);
+    ctx.fillStyle = '#ff6a50'; ctx.fillRect(W / 2 - w / 2, y, 3, 52);
+    ctx.textAlign = 'center'; ctx.font = '700 10px system-ui, sans-serif'; ctx.fillStyle = '#c9a29a'; ctx.fillText('DESTROYED BY', W / 2, y + 14);
+    fitFont(k.l1, w - 20, 16, 800); ctx.fillStyle = '#ffd0c4'; ctx.fillText(k.l1, W / 2, y + 32);
+    fitFont(k.l2, w - 20, 12, 600); ctx.fillStyle = '#e8d8d0'; ctx.fillText(k.l2, W / 2, y + 47);
+    ctx.globalAlpha = 1;
+  }
+  // Lampe « repéré » (sixième sens du chef) au-dessus du panneau, à droite ; « caché » 2 s, 3 s après
+  // la fin du repérage ; ligne radio à gauche
+  function drawRadioRow() {
+    const P = ui.panel;
+    if (!P || !player || player.dead) return;
+    const y = P.top - 10;
+    const sp = player.spottedB, hid = !sp && player.lostT != null && gameTime - player.lostT > 3 && gameTime - player.lostT < 5;
+    let lw = 0;
+    if (sp || hid) {
+      const on = !sp || Math.sin(gameTime * 9) > -0.3, col = sp ? '#ffb020' : '#7ad06a', tx = sp ? 'SPOTTED!' : 'HIDDEN';
+      ctx.font = '800 12px system-ui, sans-serif'; ctx.textAlign = 'right';
+      lw = ctx.measureText(tx).width + 34;
+      ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(P.x1 - lw, y - 13, lw, 18);
+      ctx.fillStyle = on ? col : 'rgba(120,90,40,0.6)'; ctx.beginPath(); ctx.arc(P.x1 - 11, y - 4, 5, 0, TAU); ctx.fill();
+      ctx.fillStyle = col; ctx.fillText(tx, P.x1 - 22, y);
+    }
+    if (radio) {
+      ctx.textAlign = 'left'; ctx.font = '600 12px ui-monospace, Menlo, monospace';
+      ctx.globalAlpha = Math.min(1, radio.life * 2);
+      fitFont(radio.text, P.w - lw - 30, 12, 600); ctx.font = ctx.font.replace('system-ui, sans-serif', 'ui-monospace, Menlo, monospace');
+      const w = ctx.measureText(radio.text).width + 16;
+      ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(P.x0, y - 13, w, 18);
+      ctx.fillStyle = '#bfe3a0'; ctx.fillText(radio.text, P.x0 + 8, y);
+      ctx.globalAlpha = 1;
+    }
   }
 
   // ===================== Tutoriel et aide =====================
@@ -3940,8 +4046,8 @@ Meta.whenReady(() => {
   }
   function skipTut() { Meta.P.tut.done = true; Meta.save(); toast('Tutorial skipped: replay it any time from Options'); $('tutSkip').hidden = true; }
   // Consigne en cours : pastille sous les messages, qui pulse à son apparition
-  function drawTut(s) {
-    const tx = (s.text[device()] || s.text.kb)(), y = 140, w = Math.min(ui.half * 2, Math.max(300, (fitFont(tx, ui.half * 2 - 30, 15, 700), ctx.measureText(tx).width + 34)));
+  function drawTut(s, y) {
+    const tx = (s.text[device()] || s.text.kb)(), w = Math.min(ui.half * 2, Math.max(300, (fitFont(tx, ui.half * 2 - 30, 15, 700), ctx.measureText(tx).width + 34)));
     const pulse = 0.55 + 0.45 * Math.max(0, Math.cos(Math.min(tut.t, 1.5) * 6));
     ctx.fillStyle = 'rgba(12,14,9,0.85)'; ctx.fillRect(W / 2 - w / 2, y - 18, w, 40);
     ctx.strokeStyle = `rgba(233,196,106,${pulse})`; ctx.lineWidth = 1.5; ctx.strokeRect(W / 2 - w / 2 + 0.5, y - 17.5, w - 1, 39);
@@ -4005,7 +4111,9 @@ Meta.whenReady(() => {
     if (state === 'play') waveTime += dt;
     if (state === 'intro') { introT -= dt; if (introT <= 0) { state = 'play'; showMsg('ADVANCE!', '#ffe27a', 1.2); } }
     if (player && !player.dead && !player.ai) playerInput();
-    tutStep(dt);
+    tutStep(dt); crewChatter();
+    if (deathCamT > 0) deathCamT -= dt;
+    if (killCard && (killCard.life -= dt) <= 0) killCard = null;
     spotTimer -= dt;
     if (spotTimer <= 0) { spotTimer = 0.2; updateSpotting(0.2); }
     for (let i = artyMarks.length - 1; i >= 0; i--) if ((artyMarks[i].life -= dt) <= 0) artyMarks.splice(i, 1);
@@ -4265,7 +4373,7 @@ Meta.whenReady(() => {
 
   // ===================== Rendu =====================
   function camFocus() {
-    if (player && !player.dead) return player;
+    if (player && (!player.dead || deathCamT > 0)) return player;
     const allies = tanks.filter(t => t.team === 0 && !t.dead);
     if (!allies.length) return player;
     return allies[specIdx % allies.length];
@@ -4623,7 +4731,9 @@ Meta.whenReady(() => {
     const T = to3(f.x, f.y, 0);
     // la caméra suit la tourelle (la direction du canon), pas la caisse : on peut pivoter la caisse
     // sans que la vue bouge ; le clic droit glissé la décale
-    const heading = -(f.angle + (f.turretGone ? 0 : f.turret));
+    const kb = deathCamT > 0 && f === player && killCard && killCard.by && killCard.by !== player ? killCard.by : null;
+    const heading = kb ? -Math.atan2(kb.y - f.y, kb.x - f.x) : -(f.angle + (f.turretGone ? 0 : f.turret));
+    if (kb) cam3.dist += (30 - cam3.dist) * (1 - Math.pow(0.2, dt)); // la caméra se rapproche de l'épave
     if (!cam3.init) { cam3.yaw = heading; cam3.tx = T[0]; cam3.ty = T[1]; cam3.init = true; }
     const dyaw = angNorm(heading + cam3.off - cam3.yaw) * (1 - Math.pow(0.08, dt));
     cam3.yaw += dyaw;
@@ -5521,10 +5631,11 @@ Meta.whenReady(() => {
       ctx.fillStyle = l.color; ctx.fillText(l.text, 17, y);
       ctx.globalAlpha = 1;
     });
-    if (player && ui.panel) drawTankPanel(ui.panel);
+    if (player && ui.panel) { drawTankPanel(ui.panel); drawRadioRow(); }
   }
   // Réticules (à l'échelle de l'écran : ils suivent le monde)
   function drawAim() {
+    drawDmgDirs();
     if (sight.on) { drawSightReticle(); return; }
     if (!(player && !player.dead && (state === 'play' || state === 'intro' || state === 'ending'))) {
       if (state !== 'menu') { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(mouse.x, mouse.y, 3, 0, TAU); ctx.fill(); }
@@ -5587,11 +5698,14 @@ Meta.whenReady(() => {
       ctx.fillStyle = m.color; ctx.fillText(m.text, W / 2, y);
     });
     ctx.globalAlpha = 1;
+    // colonne centrale : consigne du tutoriel ou fiche « détruit par », puis les bandeaux
+    let cy = 140;
     const ts = tutCur();
-    if (ts) drawTut(ts);
+    if (ts) { drawTut(ts, cy); cy += 44; }
+    else if (killCard && player && player.dead) { drawKillCard(cy - 18); cy += 60; }
     drawHints();
     for (const r of ribbons) {
-      const y = (ts ? 184 : 140) + (r.y || 0), tx = r.gold ? `${r.t}${r.sub ? '  ·  ' + r.sub : ''}` : `${r.ic}  ${r.t}`;
+      const y = cy + (r.y || 0), tx = r.gold ? `${r.t}${r.sub ? '  ·  ' + r.sub : ''}` : `${r.ic}  ${r.t}`;
       fitFont(tx, ui.half * 2 - 44, r.gold ? 14 : 13, r.gold ? 800 : 700);
       const w = ctx.measureText(tx).width + 44;
       ctx.globalAlpha = Math.min(1, r.life * 2, (r.max - r.life) / 0.2);
@@ -6493,6 +6607,7 @@ Meta.whenReady(() => {
   function openRevive() {
     if (!player || !player.dead || state !== 'play') return;
     state = 'revive'; freePointer(); setSight(false);
+    $('revWho').textContent = killCard ? `Destroyed by ${killCard.l1} · ${killCard.l2}` : '';
     Meta.sdk.gameplayStop();
     show('revive');
     reviveAd = false; reviveButtons(true);
