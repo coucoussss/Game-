@@ -213,6 +213,9 @@ const Meta = (() => {
     { id: 'mod10', t: 'Destroy 10 enemy modules', ev: 'mod', goal: 10, reward: 600 },
     { id: 'fight4', t: 'Fight 4 battles', ev: 'battle', goal: 4, reward: 500 },
     { id: 'star3', t: 'Earn 3 stars on a campaign sector', ev: 'star3', goal: 1, reward: 1500, m: 'campagne' },
+    { id: 'obj2', t: 'Complete 2 battle objectives', ev: 'objective', goal: 2, reward: 1000, m: 'campagne' },
+    { id: 'atgun3', t: 'Destroy 3 AT guns', ev: 'atgun', goal: 3, reward: 900, m: 'campagne' },
+    { id: 'arty3', t: 'Call in 3 artillery strikes', ev: 'arty', goal: 3, reward: 600 },
   ];
   // Ordres de la semaine (trois chaque lundi) ; skin : rareté du camouflage offert en plus
   const WEEKLY = [
@@ -799,8 +802,8 @@ const Meta = (() => {
     const part = !r.win && M !== 'survie' && (r.time == null || r.time >= 30) ? 60 : 0;
     const medalCr = medals.reduce((s, id) => s + (MEDALS.find(m => m.id === id) || { c: 0 }).c, 0);
     const k = D.mul * (r.revenge && r.win ? 1.5 : 1) * (r.real ? 1.1 : 1); // visée réaliste : +10 %
-    let credits = Math.round((r.kills * 150 + r.pens * 20 + r.crew * 12 + (r.streakCr || 0) + bonus + part) * k) + medalCr;
-    let xp = Math.round((r.kills * 60 + r.pens * 8 + r.crew * 5 + (r.win ? 150 : 40) + waves * 50) * D.mul);
+    let credits = Math.round((r.kills * 150 + r.pens * 20 + r.crew * 12 + (r.streakCr || 0) + (r.objCr || 0) + bonus + part) * k) + medalCr;
+    let xp = Math.round((r.kills * 60 + r.pens * 8 + r.crew * 5 + (r.win ? 150 : 40) + waves * 50 + (r.objCr || 0) / 3) * D.mul);
     const penalty = 60 * (r.ffCrew || 0) + 300 * (r.tk || 0);
     credits = Math.max(0, credits - penalty); xp = Math.max(0, xp - 25 * (r.ffCrew || 0) - 120 * (r.tk || 0));
     let boosted = false, x2kept = false;
