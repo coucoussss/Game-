@@ -35,6 +35,13 @@ const Sfx = (() => {
   };
   ENGINES.stug = ENGINES.pz4;
   ENGINES.heavy = ENGINES.destroyer = ENGINES.kingtiger = ENGINES.medium;
+  // Alliés : diesel V-2 (V12 de 38,9 l, claquant), radial Continental R975 (9 cylindres, sec et aigu),
+  // V8 Ford GAA, Chrysler Multibank (30 cylindres, bourdonnant), deux diesels deux-temps GM 6-71 (hurlants)
+  Object.assign(ENGINES, {
+    t34: { cyl: 12, lp: 460, rumble: 1.0, exh: 0.6 }, m4a1: { cyl: 9, lp: 640, rumble: 0.55, exh: 0.55 },
+    m4a3e8: { cyl: 8, lp: 480, rumble: 1.1, exh: 0.45 }, firefly: { cyl: 30, lp: 560, rumble: 0.6, exh: 0.4 }, m10: { cyl: 24, lp: 700, rumble: 0.7, exh: 0.6 },
+  });
+  ENGINES.t3485 = ENGINES.kv1s = ENGINES.is2 = ENGINES.t34;
   // Chenilles selon le sol : [hauteur, niveau] du claquement (sol dur : clair et fort ; boue, neige : sourd)
   const GROUND = { road: [1.5, 1.25], packed: [1.25, 1], track: [1, 1], steppe: [0.9, 0.9], forest: [0.75, 0.8], mud: [0.6, 0.7],
     sand: [0.7, 0.75], snow: [0.65, 0.7], rubble: [1.3, 1.3], crater: [0.9, 1], trunk: [1.1, 1.2] };

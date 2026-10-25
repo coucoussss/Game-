@@ -230,6 +230,262 @@ const TankModels = (() => {
     },
   };
 
+  // ===================== Chars alliés =====================
+  // Modules : soutes et réservoirs à leur place historique ; 'wet' : soute noyée (eau glycolée) des
+  // Sherman « W ». fuel : 'diesel' (moins inflammable que l'essence). Tourelles coulées : round lisse le
+  // polygone (Chaikin), mid bombe les flancs ; q dans un blindage : qualité de l'acier coulé (≈ 0,9 RHA).
+  const T34HULL = {
+    L: 5.92, W: 3.0, tw: 0.55, gc: 0.4, tt: 1.0, ht: 1.6, zn: 0.86, xn: 2.96,
+    sUp: 60, sLow: 53, sRear: 47, sideSlope: 40, rearX: -2.25, rearV: [-2.94, 0.95, 45],
+    wheels: { n: 5, r: 0.415, x0: 1.78, x1: -1.68, inter: false }, rollers: [], rollerR: 0,
+    spr: { x: -2.6, z: 0.62, r: 0.34 }, idl: { x: 2.48, z: 0.6, r: 0.3 },
+    exhaust: [], exhRear: [[0.55, 1.05], [-0.55, 1.05]], mg: true, fuel: 'diesel', drums: [[-0.9, 0.85, 0.2], [-1.9, 0.85, 0.2]],
+  };
+  const T34MODS = [
+    ['crew', 'driver', 'hull', 2.1, 0.45, 0.85, 0.55, 0.45, 0.8],
+    ['crew', 'radio', 'hull', 2.05, -0.45, 0.85, 0.55, 0.45, 0.8],
+    ['ammo', null, 'hull', 0.45, 0, 0.55, 1.3, 1.1, 0.22],
+    ['ammo', null, 'hull', 0.6, 0.85, 1.25, 0.8, 0.22, 0.45],
+    ['ammo', null, 'hull', 0.6, -0.85, 1.25, 0.8, 0.22, 0.45],
+    ['fuel', null, 'hull', 0.0, 1.08, 1.25, 1.2, 0.22, 0.4],
+    ['fuel', null, 'hull', 0.0, -1.08, 1.25, 1.2, 0.22, 0.4],
+    ['engine', null, 'hull', -1.45, 0, 1.0, 1.25, 1.1, 0.85],
+    ['trans', null, 'hull', -2.45, 0, 0.8, 0.5, 1.4, 0.55],
+  ];
+  const SHERMAN = {
+    W: 2.62, tw: 0.42, gc: 0.43, tt: 1.03, ht: 1.9, zn: 1.0, sLow: 45, sRear: 10, sideSlope: 0, nose: 0.3,
+    wheels: { n: 6, r: 0.254, x0: 1.72, x1: -1.74, inter: false, vvss: true, xs: [1.72, 1.16, 0.27, -0.29, -1.18, -1.74] }, rollers: [1.2, -0.25, -1.7], rollerR: 0.12,
+    spr: { x: 2.48, z: 0.68, r: 0.29 }, idl: { x: -2.42, z: 0.4, r: 0.27 }, exhaust: [], mg: true,
+  };
+  const SH75T = {
+    x: 0.2, h: 0.72, ts: 0.8, round: 2, mid: [0.45, 1.0],
+    poly: [[0.8, 0.5], [0.55, 0.86], [0.0, 0.96], [-0.6, 0.88], [-1.05, 0.62], [-1.22, 0.3], [-1.22, -0.3], [-1.05, -0.62], [-0.6, -0.88], [0.0, -0.96], [0.55, -0.86], [0.8, -0.5]],
+    mantlet: { type: 'box', d: 0.2, w: 0.42, h: 0.25 }, cupola: [-0.42, -0.42, 0.3, 0.05, 0], lhatch: null,
+  };
+  const SH75A = { front: [76, 30, 0.92], side: [51, 5, 0.92], rear: [51, 0, 0.92], mantlet: [89, 0, 0.92] };
+  const SHMODS = (dryRacks) => [
+    ['crew', 'driver', 'hull', 1.85, 0.45, 1.0, 0.5, 0.45, 0.85],
+    ['trans', null, 'hull', 2.45, 0, 0.75, 0.55, 1.0, 0.5],
+    ['crew', 'gunner', 'turret', 0.15, -0.42, 1.85, 0.42, 0.4, 0.85],
+    ['crew', 'commander', 'turret', -0.55, -0.45, 2.0, 0.42, 0.42, 0.85],
+    ['crew', 'loader', 'turret', -0.15, 0.5, 1.8, 0.42, 0.42, 0.85],
+    ['breech', null, 'turret', 0.3, 0, 2.22, 0.85, 0.26, 0.28],
+    ['engine', null, 'hull', -1.95, 0, 1.2, 1.2, 1.15, 1.05],
+    ['fuel', null, 'hull', -1.7, 0.95, 1.25, 1.0, 0.3, 0.85],
+    ['fuel', null, 'hull', -1.7, -0.95, 1.25, 1.0, 0.3, 0.85],
+  ].concat(dryRacks);
+  Object.assign(SPECS, {
+    t34: Object.assign({}, T34HULL, {
+      inspired: 'Based on the T-34/76 Model 1943', real: '6.7 × 3.0 × 2.4 m · 30.9 t · 4 crew',
+      turret: {
+        x: 0.55, h: 0.72, ts: 0.78,
+        poly: [[0.82, 0.5], [0.3, 0.95], [-0.75, 0.88], [-1.0, 0.45], [-1.0, -0.45], [-0.75, -0.88], [0.3, -0.95], [0.82, -0.5]],
+        mantlet: { type: 'box', d: 0.25, w: 0.32, h: 0.2 }, cupola: [-0.42, 0.42, 0.27, 0.04, 0], hatches: [[-0.42, -0.42, 0.27]], lhatch: null,
+      },
+      gun: { z: 1.95, fx: 1.0, len: 2.2, r: 0.045, sleeve: [0.07, 0.45], brake: null, name: '76.2 mm F-34 L/41.5' },
+      armor: {
+        hull: { up: [45, 60], low: [45, 53], side: [45, 40], lowSide: [45, 0], rear: [40, 47], roof: 20 },
+        turret: { front: [52, 20, 0.9], side: [52, 30, 0.9], rear: [52, 15, 0.9], mantlet: [52, 0, 0.9] },
+      },
+      // équipage de quatre : le chef de char sert aussi le canon
+      crew: ['driver', 'radio', 'gunner', 'loader'], names: { gunner: 'Commander-gunner', radio: 'Hull gunner' },
+      modules: T34MODS.concat([
+        ['crew', 'gunner', 'turret', 0.0, 0.42, 1.55, 0.42, 0.4, 0.85],
+        ['crew', 'loader', 'turret', -0.15, -0.42, 1.5, 0.42, 0.4, 0.85],
+        ['breech', null, 'turret', 0.15, 0, 1.95, 0.85, 0.24, 0.26],
+      ]),
+    }),
+    t3485: Object.assign({}, T34HULL, {
+      inspired: 'Based on the T-34-85 Model 1944', real: '8.1 × 3.0 × 2.7 m · 32 t · 5 crew', L: 6.05, xn: 3.02,
+      turret: {
+        x: 0.3, h: 0.8, ts: 0.84, round: 2, mid: [0.45, 1.02],
+        poly: [[0.95, 0.55], [0.75, 0.95], [-0.2, 1.02], [-1.2, 0.85], [-1.45, 0.5], [-1.45, -0.5], [-1.2, -0.85], [-0.2, -1.02], [0.75, -0.95], [0.95, -0.55]],
+        mantlet: { type: 'cyl', r: 0.25, w: 0.38 }, cupola: [-0.65, 0.45, 0.31, 0.2, 5], lhatch: [-0.5, -0.45],
+      },
+      gun: { z: 2.0, fx: 1.05, len: 3.75, r: 0.05, sleeve: [0.08, 0.55], brake: null, name: '85 mm ZiS-S-53 L/54.6' },
+      armor: {
+        hull: { up: [45, 60], low: [45, 53], side: [45, 40], lowSide: [45, 0], rear: [45, 47], roof: 20 },
+        // masque de 40 mm devant la face de 90 mm : 90 mm retenus sur toute sa surface
+        turret: { front: [90, 20, 0.9], side: [75, 20, 0.9], rear: [52, 10, 0.9], mantlet: [90, 0, 0.9] },
+      },
+      crew: ['driver', 'radio', 'gunner', 'commander', 'loader'], names: { radio: 'Hull gunner' },
+      modules: T34MODS.concat([
+        ['crew', 'gunner', 'turret', 0.1, 0.45, 1.6, 0.42, 0.4, 0.85],
+        ['crew', 'commander', 'turret', -0.65, 0.45, 1.8, 0.42, 0.42, 0.85],
+        ['crew', 'loader', 'turret', -0.2, -0.5, 1.55, 0.42, 0.42, 0.85],
+        ['breech', null, 'turret', 0.1, 0, 2.0, 1.0, 0.28, 0.3],
+        ['ammo', null, 'turret', -1.2, 0, 1.95, 0.4, 1.3, 0.35],
+      ]),
+    }),
+    kv1s: {
+      inspired: 'Based on the KV-1S', real: '6.9 × 3.3 × 2.6 m · 42.5 t · 5 crew',
+      L: 6.75, W: 3.25, tw: 0.7, gc: 0.45, tt: 1.02, ht: 1.75, zn: 1.05, xn: 3.37,
+      sUp: 30, sLow: 25, sRear: 30, sideSlope: 0, rearX: -3.15,
+      wheels: { n: 6, r: 0.3, x0: 2.15, x1: -2.3, inter: false }, rollers: [1.3, 0, -1.3], rollerR: 0.12,
+      spr: { x: -2.95, z: 0.7, r: 0.35 }, idl: { x: 2.9, z: 0.65, r: 0.32 },
+      turret: {
+        x: 0.2, h: 0.78, ts: 0.82, round: 1, mid: [0.5, 1.0],
+        poly: [[0.85, 0.5], [0.6, 0.85], [-0.4, 0.9], [-1.0, 0.7], [-1.25, 0.35], [-1.25, -0.35], [-1.0, -0.7], [-0.4, -0.9], [0.6, -0.85], [0.85, -0.5]],
+        mantlet: { type: 'box', d: 0.28, w: 0.33, h: 0.22 }, cupola: [-0.7, 0.25, 0.3, 0.15, 6], lhatch: [-0.3, -0.45],
+      },
+      gun: { z: 2.15, fx: 1.0, len: 2.3, r: 0.045, sleeve: [0.075, 0.5], brake: null, name: '76.2 mm ZiS-5 L/41.5' },
+      exhaust: [], exhRear: [[0.6, 1.3], [-0.6, 1.3]], mg: true, fuel: 'diesel',
+      armor: {
+        hull: { up: [75, 30], low: [75, 25], side: [60, 0], lowSide: [60, 0], rear: [60, 30], roof: 30 },
+        turret: { front: [82, 15, 0.9], side: [82, 15, 0.9], rear: [82, 15, 0.9], mantlet: [82, 0, 0.9] },
+      },
+      crew: ['driver', 'radio', 'gunner', 'commander', 'loader'],
+      modules: [
+        ['crew', 'driver', 'hull', 2.4, 0.3, 0.95, 0.55, 0.5, 0.85],
+        ['crew', 'radio', 'hull', 2.35, -0.55, 0.95, 0.55, 0.5, 0.85],
+        ['crew', 'gunner', 'turret', 0.1, 0.45, 1.75, 0.42, 0.4, 0.85],
+        ['crew', 'commander', 'turret', -0.7, 0.25, 1.95, 0.42, 0.42, 0.85],
+        ['crew', 'loader', 'turret', -0.2, -0.5, 1.7, 0.42, 0.42, 0.85],
+        ['breech', null, 'turret', 0.15, 0, 2.15, 0.85, 0.26, 0.28],
+        ['ammo', null, 'hull', 0.6, 0, 0.62, 1.4, 1.2, 0.24],
+        ['ammo', null, 'hull', 0.7, 0.95, 1.3, 1.0, 0.25, 0.5],
+        ['ammo', null, 'hull', 0.7, -0.95, 1.3, 1.0, 0.25, 0.5],
+        ['fuel', null, 'hull', -0.4, 0.85, 1.0, 0.8, 0.4, 0.6],
+        ['fuel', null, 'hull', -0.4, -0.85, 1.0, 0.8, 0.4, 0.6],
+        ['engine', null, 'hull', -1.7, 0, 1.1, 1.4, 1.1, 0.9],
+        ['trans', null, 'hull', -2.75, 0, 0.85, 0.6, 1.4, 0.6],
+      ],
+    },
+    is2: {
+      inspired: 'Based on the IS-2 Model 1944', real: '9.9 × 3.1 × 2.7 m · 46 t · 4 crew',
+      L: 6.77, W: 3.07, tw: 0.65, gc: 0.42, tt: 1.0, ht: 1.75, zn: 0.98, xn: 3.35,
+      sUp: 60, sLow: 30, sRear: 49, sideSlope: 15, rearX: -3.0,
+      wheels: { n: 6, r: 0.275, x0: 2.25, x1: -2.3, inter: false }, rollers: [1.4, 0, -1.4], rollerR: 0.12,
+      spr: { x: -3.0, z: 0.72, r: 0.34 }, idl: { x: 3.0, z: 0.62, r: 0.32 },
+      turret: {
+        x: 0.0, h: 0.82, ts: 0.8, round: 2, mid: [0.45, 1.03],
+        poly: [[1.0, 0.6], [0.75, 1.0], [-0.3, 1.08], [-1.1, 0.9], [-1.4, 0.5], [-1.4, -0.5], [-1.1, -0.9], [-0.3, -1.08], [0.75, -1.0], [1.0, -0.6]],
+        mantlet: { type: 'cyl', r: 0.3, w: 0.45 }, cupola: [-0.55, 0.48, 0.3, 0.18, 6], lhatch: [-0.4, -0.5],
+      },
+      gun: { z: 2.12, fx: 1.15, len: 4.9, r: 0.075, sleeve: [0.11, 0.7], brake: { r: 0.15, len: 0.45 }, name: '122 mm D-25T L/43' },
+      exhaust: [], exhRear: [[0.6, 1.25], [-0.6, 1.25]], fuel: 'diesel', drums: [[-2.55, 0.9, 0.2, true]],
+      armor: {
+        hull: { up: [100, 60], low: [100, 30], side: [90, 15], lowSide: [90, 0], rear: [60, 49], roof: 30 },
+        turret: { front: [100, 20, 0.9], side: [90, 20, 0.9], rear: [90, 30, 0.9], mantlet: [100, 0, 0.9] },
+      },
+      crew: ['driver', 'gunner', 'commander', 'loader'],
+      modules: [
+        ['crew', 'driver', 'hull', 2.3, 0, 0.95, 0.55, 0.5, 0.85],
+        ['crew', 'gunner', 'turret', 0.15, 0.5, 1.7, 0.42, 0.4, 0.85],
+        ['crew', 'commander', 'turret', -0.55, 0.5, 1.9, 0.42, 0.42, 0.85],
+        ['crew', 'loader', 'turret', -0.2, -0.5, 1.65, 0.42, 0.42, 0.85],
+        ['breech', null, 'turret', 0.2, 0, 2.12, 1.2, 0.38, 0.4],
+        ['ammo', null, 'turret', -1.15, 0, 1.95, 0.4, 1.4, 0.35],
+        ['ammo', null, 'hull', 0.4, 1.0, 1.2, 1.2, 0.28, 0.5],
+        ['ammo', null, 'hull', 0.4, -1.0, 1.2, 1.2, 0.28, 0.5],
+        ['fuel', null, 'hull', 1.6, -0.7, 1.0, 0.8, 0.45, 0.6],
+        ['fuel', null, 'hull', -1.0, 0.9, 1.05, 0.7, 0.35, 0.6],
+        ['engine', null, 'hull', -1.8, 0, 1.1, 1.4, 1.1, 0.9],
+        ['trans', null, 'hull', -2.85, 0, 0.85, 0.55, 1.4, 0.6],
+      ],
+    },
+    m4a1: Object.assign({}, SHERMAN, {
+      inspired: 'Based on the M4A1 Sherman (75 mm)', real: '5.8 × 2.6 × 2.7 m · 30.3 t · 5 crew',
+      L: 5.84, xn: 2.88, sUp: 53, rearX: -2.92, hoods: true,
+      turret: SH75T,
+      gun: { z: 2.22, fx: 0.95, len: 2.0, r: 0.045, sleeve: null, brake: null, name: '75 mm M3 L/40' },
+      armor: {
+        // caisse coulée : glacis de 51 mm arrondi de 37 à 55°, carter de différentiel en trois pièces
+        hull: { up: [51, 53, 0.92], low: [51, 45, 0.92], side: [38, 0, 0.92], lowSide: [38, 0], rear: [38, 10, 0.92], roof: 19 },
+        turret: SH75A,
+      },
+      crew: ['driver', 'radio', 'gunner', 'commander', 'loader'], names: { radio: 'Bow gunner' },
+      modules: SHMODS([
+        ['crew', 'radio', 'hull', 1.85, -0.45, 1.0, 0.5, 0.45, 0.85],
+        ['ammo', null, 'hull', 0.25, 1.0, 1.25, 1.1, 0.3, 0.45],
+        ['ammo', null, 'hull', 0.25, -1.0, 1.25, 1.1, 0.3, 0.45],
+        ['ammo', null, 'hull', -0.6, 0, 0.62, 0.5, 0.8, 0.3],
+      ]),
+    }),
+    firefly: Object.assign({}, SHERMAN, {
+      inspired: 'Based on the Sherman VC Firefly', real: '7.9 × 2.6 × 2.7 m · 35.3 t · 4 crew',
+      L: 6.06, xn: 3.0, sUp: 56, rearX: -3.03, th: 0.07,
+      wheels: Object.assign({}, SHERMAN.wheels, { x0: 1.86, x1: -1.82, xs: [1.86, 1.28, 0.31, -0.27, -1.24, -1.82] }), rollers: [1.33, -0.21, -1.78],
+      spr: { x: 2.6, z: 0.68, r: 0.29 }, idl: { x: -2.55, z: 0.4, r: 0.27 }, mg: false,
+      turret: Object.assign({}, SH75T, { x: 0.25, boxes: [[-1.42, 0, 0.32, 0.42, 0.78, 0.4]], lhatch: [-0.3, 0.45] }),
+      gun: { z: 2.22, fx: 0.95, len: 3.45, r: 0.05, sleeve: null, brake: { r: 0.085, len: 0.3 }, name: 'OQF 17-pdr Mk IV L/55' },
+      armor: {
+        hull: { up: [51, 56], low: [51, 45, 0.92], side: [38, 0], lowSide: [38, 0], rear: [38, 10], roof: 19 },
+        turret: SH75A,
+      },
+      // le servant de mitrailleuse de caisse a cédé sa place à une soute de 17-pdr
+      crew: ['driver', 'gunner', 'commander', 'loader'],
+      modules: SHMODS([
+        ['ammo', null, 'hull', 1.85, -0.45, 0.95, 0.5, 0.45, 0.6],
+        ['ammo', null, 'hull', 0.2, 0, 0.62, 1.1, 0.9, 0.3],
+        ['ammo', null, 'hull', 0.25, 1.0, 1.25, 1.0, 0.3, 0.45],
+      ]),
+    }),
+    m4a3e8: Object.assign({}, SHERMAN, {
+      inspired: 'Based on the M4A3(76)W HVSS Sherman', real: '7.5 × 3.0 × 3.0 m · 33.7 t · 5 crew',
+      L: 6.0, W: 2.98, tw: 0.58, tt: 1.05, ht: 1.95, zn: 1.02, xn: 2.95, sUp: 47, rearX: -2.98, nose: 0.28,
+      wheels: { n: 6, r: 0.26, x0: 1.82, x1: -1.82, inter: false, dual: true, hvss: true, xs: [1.82, 1.22, 0.3, -0.3, -1.22, -1.82] }, rollers: [1.52, 0, -1.52], rollerR: 0.11,
+      spr: { x: 2.55, z: 0.7, r: 0.3 }, idl: { x: -2.48, z: 0.42, r: 0.28 },
+      turret: {
+        x: 0.2, h: 0.8, ts: 0.82, round: 2, mid: [0.45, 1.01],
+        poly: [[0.82, 0.55], [0.6, 0.92], [0.0, 1.0], [-0.7, 0.92], [-1.2, 0.65], [-1.42, 0.3], [-1.42, -0.3], [-1.2, -0.65], [-0.7, -0.92], [0.0, -1.0], [0.6, -0.92], [0.82, -0.55]],
+        mantlet: { type: 'box', d: 0.22, w: 0.38, h: 0.24 }, cupola: [-0.45, -0.45, 0.33, 0.18, 6], lhatch: [-0.35, 0.45],
+      },
+      gun: { z: 2.32, fx: 0.92, len: 3.15, r: 0.042, sleeve: [0.065, 0.35], brake: { r: 0.07, len: 0.22 }, name: '76 mm M1A2 L/52' },
+      armor: {
+        // carter de différentiel coulé d'une pièce : 51 à 108 mm de 0 à 56°, valeur moyenne
+        hull: { up: [64, 47], low: [76, 40, 0.92], side: [38, 0], lowSide: [38, 0], rear: [38, 10], roof: 19 },
+        turret: { front: [64, 10, 0.92], side: [64, 5, 0.92], rear: [64, 0, 0.92], mantlet: [89, 0, 0.92] },
+      },
+      crew: ['driver', 'radio', 'gunner', 'commander', 'loader'], names: { radio: 'Bow gunner' },
+      // « W » : obus rangés sous le plancher dans des bacs d'eau glycolée, quelques coups prêts à sec
+      modules: SHMODS([
+        ['crew', 'radio', 'hull', 1.85, -0.45, 1.0, 0.5, 0.45, 0.85],
+        ['ammo', 'wet', 'hull', 0.35, 0.42, 0.58, 1.25, 0.62, 0.36],
+        ['ammo', 'wet', 'hull', 0.35, -0.42, 0.58, 1.25, 0.62, 0.36],
+        ['ammo', null, 'turret', -0.75, 0.45, 1.95, 0.45, 0.3, 0.3],
+      ]).map(m => m[1] === 'gunner' || m[1] === 'commander' || m[1] === 'loader' || m[0] === 'breech' ? m.slice(0, 5).concat([m[5] + 0.1], m.slice(6)) : m),
+    }),
+    m10: Object.assign({}, SHERMAN, {
+      inspired: 'Based on the 3-inch GMC M10', real: '6.8 × 3.1 × 2.6 m · 29.6 t · 5 crew',
+      L: 5.97, W: 3.05, tt: 1.0, ht: 1.85, xn: 2.95, sUp: 55, sRear: 38, sideSlope: 38, rearX: -2.7, mg: false, fuel: 'diesel',
+      turret: {
+        x: 0.0, h: 0.62, ts: 0.75, open: true,
+        poly: [[0.85, 0.42], [0.45, 0.9], [-0.9, 0.85], [-1.1, 0.55], [-1.1, -0.55], [-0.9, -0.85], [0.45, -0.9], [0.85, -0.42]],
+        mantlet: { type: 'box', d: 0.25, w: 0.32, h: 0.22 }, cupola: [-0.4, -0.4, 0.3, 0, 0],
+        boxes: [[-1.32, 0.42, 0.3, 0.42, 0.5, 0.45], [-1.32, -0.42, 0.3, 0.42, 0.5, 0.45]],
+      },
+      gun: { z: 2.15, fx: 0.95, len: 2.8, r: 0.045, sleeve: [0.07, 0.4], brake: null, name: '3-inch M7 L/50' },
+      armor: {
+        // tourelle ouverte : rien au-dessus de l'équipage
+        hull: { up: [38, 55], low: [51, 45, 0.92], side: [25, 38], lowSide: [25, 0], rear: [25, 38], roof: 19 },
+        turret: { front: [57, 45], side: [25, 20], rear: [25, 0], mantlet: [57, 0], roof: 0 },
+      },
+      crew: ['driver', 'radio', 'gunner', 'commander', 'loader'], names: { radio: 'Assistant driver' },
+      modules: [
+        ['crew', 'driver', 'hull', 1.85, 0.45, 1.0, 0.5, 0.45, 0.85],
+        ['crew', 'radio', 'hull', 1.85, -0.45, 1.0, 0.5, 0.45, 0.85],
+        ['trans', null, 'hull', 2.45, 0, 0.75, 0.55, 1.0, 0.5],
+        ['crew', 'gunner', 'turret', 0.15, -0.42, 1.75, 0.42, 0.4, 0.85],
+        ['crew', 'commander', 'turret', -0.55, -0.45, 1.9, 0.42, 0.42, 0.85],
+        ['crew', 'loader', 'turret', -0.15, 0.5, 1.75, 0.42, 0.42, 0.85],
+        ['breech', null, 'turret', 0.25, 0, 2.15, 0.85, 0.26, 0.28],
+        ['ammo', null, 'turret', -0.85, 0, 1.95, 0.35, 0.9, 0.3],
+        ['ammo', null, 'hull', 0.2, 0.95, 1.2, 1.1, 0.28, 0.5],
+        ['ammo', null, 'hull', 0.2, -0.95, 1.2, 1.1, 0.28, 0.5],
+        ['engine', null, 'hull', -1.95, 0, 1.15, 1.2, 1.15, 0.95],
+        ['fuel', null, 'hull', -1.7, 0.92, 1.2, 1.0, 0.3, 0.8],
+        ['fuel', null, 'hull', -1.7, -0.92, 1.2, 1.0, 0.3, 0.8],
+      ],
+    }),
+  });
+  // tourelles coulées : coins arrondis par subdivision de Chaikin
+  for (const S of Object.values(SPECS)) if (S.turret && S.turret.round) {
+    let p = S.turret.poly;
+    for (let i = 0; i < S.turret.round; i++) p = p.flatMap((a, j) => { const b = p[(j + 1) % p.length]; return [[a[0] * 0.75 + b[0] * 0.25, a[1] * 0.75 + b[1] * 0.25], [a[0] * 0.25 + b[0] * 0.75, a[1] * 0.25 + b[1] * 0.75]]; });
+    S.turret = Object.assign({}, S.turret, { poly: p, round: 0 });
+  }
+
   // Tourelle en fer à cheval du Tiger : avant plat, arrière arrondi
   (() => {
     const p = [[0.95, -0.92], [0.95, 0.92]];
@@ -293,7 +549,7 @@ const TankModels = (() => {
       i, kind: m[0], role: m[1], frame: m[2],
       c: [m[3], m[4], m[5]], s: [m[6], m[7], m[8]],
       min: [m[3] - m[6] / 2, m[4] - m[7] / 2, m[5] - m[8] / 2], max: [m[3] + m[6] / 2, m[4] + m[7] / 2, m[5] + m[8] / 2],
-      name: m[0] === 'crew' ? NAMES[m[1]] : m[0] === 'radio' ? 'Radio set' : NAMES[m[0]], hp: HP[m[0]], max0: HP[m[0]],
+      name: m[0] === 'crew' ? (SPECS[id].names || {})[m[1]] || NAMES[m[1]] : m[0] === 'radio' ? 'Radio set' : m[1] === 'wet' ? 'Wet ammo rack' : NAMES[m[0]], hp: HP[m[0]], max0: HP[m[0]],
     }));
   }
 
@@ -306,22 +562,24 @@ const TankModels = (() => {
     const { L, W, tw, gc, tt, ht, zn, xn } = S;
     const tanU = Math.tan(S.sUp * D2R), tanL = Math.tan(S.sLow * D2R), tanR = Math.tan(S.sRear * D2R), tanS = Math.tan(S.sideSlope * D2R);
     const xUp = z => xn - (z - zn) * tanU, xLow = z => xn - (zn - z) * tanL;
-    const rearAt = z => S.rearX + (ht - z) * tanR;
+    // plaque arrière droite, ou en V (rearV : sommet [x, z] et inclinaison de la plaque basse)
+    const RV = S.rearV, rearAt = z => !RV ? S.rearX + (ht - z) * tanR : z >= RV[1] ? S.rearX + (ht - z) / (ht - RV[1]) * (RV[0] - S.rearX) : RV[0] + (RV[1] - z) * Math.tan(RV[2] * D2R);
+    const rearPts = z0 => [[S.rearX, ht]].concat(RV && RV[1] > z0 ? [[RV[0], RV[1]]] : [], [[rearAt(z0), z0]]);
     const hwIn = W / 2 - tw - 0.03;
     const hwAt = z => W / 2 - Math.max(0, z - tt) * tanS;
     // Zimmerit (pâte antimagnétique striée, 1943-1944) : matériau 1.25, relief dans le shader
     const ZM = S.zim ? 1.25 : 1;
 
     // Caisse inférieure entre les chenilles
-    hb.loftXZ([[xLow(gc), gc], [xn, zn], [xUp(ht), ht], [S.rearX, ht], [rearAt(gc), gc]], () => hwIn, CAMO, ZM);
+    hb.loftXZ([[xLow(gc), gc], [xn, zn], [xUp(ht), ht]].concat(rearPts(gc)), () => hwIn, CAMO, ZM);
     // Superstructure au-dessus des chenilles (flancs éventuellement inclinés)
     const sp = [];
     if (tt < zn) sp.push([xLow(tt), tt], [xn, zn]); else sp.push([xUp(tt), tt]);
-    sp.push([xUp(ht), ht], [S.rearX, ht], [rearAt(tt), tt]);
+    sp.push([xUp(ht), ht], ...rearPts(tt));
     hb.loftXZ(sp, hwAt, CAMO, ZM);
 
     // Train de roulement et chenilles
-    const th = id === 'light' ? 0.06 : 0.075;
+    const th = S.th || (id === 'light' ? 0.06 : 0.075);
     const ws = [];
     if (S.wheels.xs) ws.push(...S.wheels.xs);
     else for (let k = 0; k < S.wheels.n; k++) ws.push(S.wheels.x0 + (S.wheels.x1 - S.wheels.x0) * k / (S.wheels.n - 1));
@@ -345,7 +603,8 @@ const TankModels = (() => {
         for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2; hb.box(x + Math.cos(a) * r * 0.48, yc, z + Math.sin(a) * r * 0.48, r * 0.09, w + 0.035, r * 0.09, DARK, 3); }
       };
       ws.forEach((x, k) => {
-        if (S.wheels.inter) {
+        if (S.wheels.dual) for (const o of [0.25, 0.75]) wheelAt(x, side * (W / 2 - tw * o), tw * 0.4, rw);
+        else if (S.wheels.inter) {
           const outer = k % 2 === 0;
           wheelAt(x, side * (W / 2 - tw * (outer ? 0.27 : 0.73)), tw * 0.42, rw);
         } else wheelAt(x, side * (W / 2 - tw / 2), tw * 0.78, rw);
@@ -356,10 +615,10 @@ const TankModels = (() => {
       hb.cyl([S.spr.x, yc - tw * 0.45, S.spr.z], [S.spr.x, yc + tw * 0.45, S.spr.z], S.spr.r * 0.55, S.spr.r * 0.55, 10, CAMO, 1);
       hb.cyl([S.idl.x, yc - tw * 0.4, S.idl.z], [S.idl.x, yc + tw * 0.4, S.idl.z], S.idl.r, S.idl.r, 16, CAMO, 1);
       // garde-boue avant et arrière
-      const ff = sp[0][0];
-      if (S.spr.x + S.spr.r * 0.9 > ff) hb.box((ff + S.spr.x + S.spr.r * 0.9) / 2, yc, tt + 0.01, S.spr.x + S.spr.r * 0.9 - ff, tw + 0.04, 0.03, CAMO, 1);
+      const ff = sp[0][0], FW = S.spr.x > S.idl.x ? S.spr : S.idl, BW = FW === S.spr ? S.idl : S.spr;
+      if (FW.x + FW.r * 0.9 > ff) hb.box((ff + FW.x + FW.r * 0.9) / 2, yc, tt + 0.01, FW.x + FW.r * 0.9 - ff, tw + 0.04, 0.03, CAMO, 1);
       const rr = rearAt(tt);
-      if (rr > S.idl.x - S.idl.r * 0.9) hb.box((rr + S.idl.x - S.idl.r * 0.9) / 2, yc, tt + 0.01, rr - (S.idl.x - S.idl.r * 0.9), tw + 0.04, 0.03, CAMO, 1);
+      if (rr > BW.x - BW.r * 0.9) hb.box((rr + BW.x - BW.r * 0.9) / 2, yc, tt + 0.01, rr - (BW.x - BW.r * 0.9), tw + 0.04, 0.03, CAMO, 1);
       // jupes latérales (Schürzen), un panneau manque d'un côté
       if (I.skirt) {
         const sk = I.skirt, { n, x0, x1, pw } = sk, ys = side * (W / 2 + sk.off);
@@ -380,12 +639,37 @@ const TankModels = (() => {
         hb.box(xm, yb, zb + 0.16, Math.abs(ws[k] - ws[k + 1]) * 0.9, 0.1, 0.05, DARK, 3);
         hb.cyl([xm, yb, zb], [xm, side * (W / 2 - tw * 0.2), zb], 0.05, 0.05, 8, STEEL, 3);
       }
+      // bogies des Sherman : ressorts à volute verticaux (VVSS) entre deux roues, sous un support boulonné
+      // à la caisse ; ou ressorts horizontaux et amortisseur (HVSS) entre deux essieux à roues jumelées
+      if (S.wheels.vvss || S.wheels.hvss) for (let k = 0; k + 1 < ws.length; k += 2) {
+        const xm = (ws[k] + ws[k + 1]) / 2, zb = rw + th, yt = side * (W / 2 - tw / 2), yh = side * (W / 2 - tw - 0.06);
+        hb.box(xm, yh, zb + 0.12, 0.5, 0.12, 0.42, CAMO, 1);
+        hb.cyl([ws[k], yh, zb], [ws[k], yt, zb], 0.06, 0.06, 8, STEEL, 3); hb.cyl([ws[k + 1], yh, zb], [ws[k + 1], yt, zb], 0.06, 0.06, 8, STEEL, 3);
+        if (S.wheels.vvss) {
+          hb.cyl([xm, yt, zb - 0.02], [xm, yt, zb + 0.22], 0.09, 0.09, 10, DARK, 3);
+          hb.box(xm, yt, zb + 0.25, 0.22, tw * 0.5, 0.06, CAMO, 1);
+        } else {
+          hb.box(xm, yt, zb + 0.08, Math.abs(ws[k] - ws[k + 1]) * 0.85, 0.1, 0.12, DARK, 3);
+          hb.cyl([xm - 0.15, side * (W / 2 + 0.02), zb + 0.05], [xm + 0.12, side * (W / 2 + 0.02), zb + 0.42], 0.04, 0.04, 8, STEEL, 3);
+        }
+      }
+      // réservoirs extérieurs (fûts soviétiques) sur le flanc incliné ou sur le garde-boue
+      if (S.drums) for (const [x, len, r, fender] of S.drums) {
+        const z = fender ? tt + r + 0.01 : tt + 0.22, y = side * (fender ? W / 2 - tw / 2 : hwAt(z) + r * 0.7);
+        hb.cyl([x - len / 2, y, z], [x + len / 2, y, z], r, r, 14, CAMO, 1);
+        for (const e of [-0.32, 0.32]) hb.cyl([x + e * len, y, z], [x + e * len + 0.03, y, z], r * 1.04, r * 1.04, 14, DARK, 3);
+      }
       // outils et câble de remorquage sur les flancs
       hb.cyl([-1.2, side * (hwAt(ht) - 0.12), ht + 0.03], [1.0, side * (hwAt(ht) - 0.12), ht + 0.03], 0.025, 0.025, 6, DARK, 3);
       hb.box(-0.1, side * (hwAt(ht) - 0.25), ht + 0.025, 1.1, 0.07, 0.04, '#4a3a2a', 6);
     }
 
     // Détails de caisse
+    // carter de différentiel arrondi (Sherman) : cylindre en travers sous l'arête du nez
+    if (S.nose) hb.cyl([xn - S.nose, -hwIn, zn - S.nose * 0.75], [xn - S.nose, hwIn, zn - S.nose * 0.75], S.nose, S.nose, 16, CAMO, 1);
+    // capots saillants du pilote et de l'aide-pilote sur le glacis (premiers Sherman)
+    if (S.hoods) for (const sy of [1, -1]) hb.box(xUp(ht - 0.12) + 0.08, sy * hwIn * 0.5, ht - 0.08, 0.36, 0.42, 0.2, CAMO, 1);
+    if (S.exhRear) for (const [y, z] of S.exhRear) hb.cyl([rearAt(z) + 0.05, y, z], [rearAt(z) - 0.16, y, z - 0.06], 0.075, 0.07, 10, RUST, 0);
     const zv = ht - 0.22;
     if (S.sUp > 30) hb.box(xUp(zv) - 0.02, hwIn * 0.45, zv, 0.06, 0.22, 0.06, GLASS, 5);
     else hb.box(xUp(zv) + 0.01, hwIn * 0.45, zv, 0.04, 0.25, 0.07, GLASS, 5);
@@ -449,7 +733,17 @@ const TankModels = (() => {
     const T = S.turret, g = S.gun;
     if (T) {
       const z1 = ht + T.h;
-      tb.prism(T.poly, ht, z1, T.ts, CAMO, ZM);
+      // tourelle coulée : flancs bombés, deux tronçons de prisme (mid : [fraction de hauteur, échelle])
+      if (T.mid) {
+        let cx = 0, cy = 0; for (const p of T.poly) { cx += p[0] / T.poly.length; cy += p[1] / T.poly.length; }
+        const zm = ht + T.h * T.mid[0], k = T.mid[1];
+        tb.prism(T.poly, ht, zm, k, CAMO, ZM);
+        tb.prism(T.poly.map(p => [cx + (p[0] - cx) * k, cy + (p[1] - cy) * k]), zm, z1, T.ts / k, CAMO, ZM);
+      } else tb.prism(T.poly, ht, z1, T.ts, CAMO, ZM);
+      // tourelle ouverte (M10) : intérieur sombre sous le bord du toit
+      if (T.open) { let cx = 0, cy = 0; for (const p of T.poly) { cx += p[0] / T.poly.length; cy += p[1] / T.poly.length; } tb.poly(T.poly.map(p => [cx + (p[0] - cx) * T.ts * 0.88, cy + (p[1] - cy) * T.ts * 0.88, z1 + 0.004]), '#1b1a17', 7); }
+      if (T.hatches) for (const [x, y, r] of T.hatches) tb.cyl([x, y, z1 - 0.02], [x, y, z1 + 0.05], r, r * 0.96, 16, CAMO, 1);
+      if (T.boxes) for (const [x, y, zo, sx, sy, sz] of T.boxes) tb.box(x, y, ht + zo, sx, sy, sz, CAMO, 1);
       tb.cyl([0, 0, ht - 0.05], [0, 0, ht + 0.02], 0.95 * Math.min(1, W / 3.4), 0.95 * Math.min(1, W / 3.4), 24, CAMO, 1);
       const fx = Math.max(...T.poly.map(p => p[0]));
       const m = T.mantlet;
@@ -468,17 +762,20 @@ const TankModels = (() => {
         tb.box(fx + m.r - 0.08, -0.22, g.z + 0.02, 0.05, 0.06, 0.05, DARK, 3);
         tb.box(fx + m.r - 0.1, 0.22, g.z + 0.06, 0.05, 0.05, 0.05, DARK, 3);
       }
-      const c = T.cupola;
+      const c = T.open ? null : T.cupola;
+      if (c) {
       tb.cyl([c[0], c[1], z1 - 0.05], [c[0], c[1], z1 + c[3]], c[2], c[2] * 0.95, 18, CAMO, 1);
       tb.cyl([c[0], c[1], z1 + c[3]], [c[0], c[1], z1 + c[3] + 0.04], c[2] * 0.8, c[2] * 0.75, 18, CAMO, 1);
-      const np = c[4] || 6;
+      const np = c[4] != null ? c[4] : 6;
       for (let k = 0; k < np; k++) {
         const a = k / np * Math.PI * 2;
         tb.box(c[0] + Math.cos(a) * c[2] * 0.98, c[1] + Math.sin(a) * c[2] * 0.98, z1 + Math.max(0.03, c[3] * 0.6), 0.07, 0.07, 0.05, GLASS, 5);
       }
       // trappe de la coupole, ouverte (le chef se tient debout)
       tb.cyl([c[0], c[1] + c[2] * 0.95, z1 + c[3] + c[2] * 0.8], [c[0], c[1] + c[2] * 0.95 + 0.035, z1 + c[3] + c[2] * 0.8], c[2] * 0.78, c[2] * 0.78, 16, CAMO, 1);
-      tb.box(-0.2, -0.45, z1 + 0.02, 0.45, 0.4, 0.04, CAMO, 1); // trappe du chargeur
+      }
+      const lh = T.lhatch === undefined ? [-0.2, -0.45] : T.lhatch;
+      if (lh && !T.open) tb.box(lh[0], lh[1], z1 + 0.02, 0.45, 0.4, 0.04, CAMO, 1); // trappe du chargeur
       tb.box(fx - 0.35, 0.42, z1 + 0.03, 0.1, 0.1, 0.07, GLASS, 5); // viseur
       if (T.bin) { const bx = Math.min(...T.poly.map(p => p[0])); tb.box(bx - 0.22, 0, ht + 0.42, 0.45, 1.25, 0.45, CAMO, 1); }
       if (T.smoke) for (const sy of [1, -1]) for (let k = 0; k < 3; k++) {
