@@ -97,9 +97,81 @@ const Ballistics = (() => {
         HE: { name: '8.8 cm Sprgr. 43 (HE)', m: 9.4, v0: 750, cd: 0.33, filler: 1.0, re: 1, ric: [85, 89], len: 4.6 },
       },
     },
+    // ===== Alliés =====
+    // Un obus absent de la liste n'a pas existé pour ce canon (0 coup en soute). Les tables soviétiques
+    // sont données à incidence normale, les américaines et britanniques contre une plaque à 30° : k est
+    // calé pour que la loi de de Marre rende environ 1,1 fois ces valeurs à 500 m, l'écart que gardent
+    // les obus allemands sur leurs propres tables. obl : loi d'obliquité d'un autre type (obus soviétique
+    // à ogive pointue et sans coiffe : celle du perforant non coiffé ; plein coiffé britannique : celle
+    // de l'APCBC) ; dia : diamètre en vol (mm) d'un sous-calibre à sabot détachable.
+    // F-34 : BR-350A 73 mm à 500 m et 61 mm à 1000 m (normale), BR-350P 92 mm à 500 m
+    t34: {
+      gun: '76.2 mm F-34 L/41.5', cal: 76.2, twist: 25, nat: 'su',
+      shells: {
+        APHE: { name: '76 mm BR-350A (APHE-BC)', m: 6.3, v0: 662, cd: 0.34, k: 0.86, norm: 4, ric: [66, 76], filler: 0.15, re: 1, sens: 15, len: 3.8 },
+        APCR: { name: '76 mm BR-350P (APCR)', m: 3.02, v0: 950, cd: 0.52, k: 1.33, norm: -3, ric: [58, 68], core: 0.33, len: 3.0 },
+        HE: { name: '76 mm OF-350 (HE-frag)', m: 6.2, v0: 680, cd: 0.33, filler: 0.62, re: 1, ric: [85, 89], len: 4.6 },
+        SMOKE: { name: '76 mm D-350 (smoke)', m: 6.45, v0: 680, cd: 0.33, filler: 0.08, re: 1, ric: [85, 89], len: 4.6 },
+        CAN: { name: '76 mm Sh-354T (shrapnel, canister setting)', m: 6.5, v0: 650, cd: 0.45, ric: [85, 89], len: 2.6, balls: 260, ballM: 0.011 },
+      },
+    },
+    // ZiS-S-53 : BR-365 111 mm à 500 m et 102 mm à 1000 m (normale), BR-365P 140 mm à 500 m
+    t3485: {
+      gun: '85 mm ZiS-S-53 L/54.6', cal: 85, twist: 25, nat: 'su',
+      shells: {
+        APHE: { name: '85 mm BR-365 (APHE)', m: 9.2, v0: 792, cd: 0.33, k: 0.86, obl: 'AP', norm: 2, ric: [64, 74], filler: 0.048, re: 1.5, sens: 15, len: 4.0 },
+        APCR: { name: '85 mm BR-365P (APCR)', m: 4.99, v0: 1050, cd: 0.5, k: 1.28, norm: -3, ric: [58, 68], core: 0.33, len: 3.1 },
+        HE: { name: '85 mm O-365K (HE-frag)', m: 9.54, v0: 793, cd: 0.33, filler: 0.66, re: 1, ric: [85, 89], len: 4.6 },
+      },
+    },
+    // D-25T : BR-471 155 mm à 500 m et 143 mm à 1000 m (normale) ; chargement séparé, ni sous-calibre
+    // ni charge creuse en 1944
+    is2: {
+      gun: '122 mm D-25T L/43', cal: 122, twist: 25, nat: 'su',
+      shells: {
+        APHE: { name: '122 mm BR-471 (APHE)', m: 25, v0: 795, cd: 0.33, k: 0.86, obl: 'AP', norm: 2, ric: [64, 74], filler: 0.156, re: 1, sens: 15, len: 3.9 },
+        HE: { name: '122 mm OF-471 (HE-frag)', m: 25, v0: 800, cd: 0.33, filler: 3.6, re: 1, ric: [85, 89], len: 4.6 },
+      },
+    },
+    // 75 mm M3 : M72 76 mm à 457 m et 63 mm à 914 m, M61 66 et 60 mm (30°)
+    m4a1: {
+      gun: '75 mm M3 L/40', cal: 75, twist: 25, nat: 'us',
+      shells: {
+        AP: { name: '75 mm M72 (AP)', m: 6.32, v0: 619, cd: 0.33, k: 1.0, norm: 2, ric: [64, 74], len: 4.0 },
+        APHE: { name: '75 mm M61 (APCBC-HE)', m: 6.79, v0: 618, cd: 0.30, k: 0.94, norm: 5, ric: [68, 78], filler: 0.0667, re: 0.95, sens: 15, len: 4.4 },
+        HE: { name: '75 mm M48 (HE)', m: 6.62, v0: 463, cd: 0.33, filler: 0.67, re: 1, ric: [85, 89], len: 4.6 },
+        SMOKE: { name: '75 mm M64 (white phosphorus)', m: 6.94, v0: 463, cd: 0.33, filler: 0.05, re: 1, ric: [85, 89], len: 4.6 },
+      },
+    },
+    // 76 mm M1 : M79 109 et 92 mm, M62 93 et 88 mm, M93 157 et 135 mm (30°, 457 et 914 m)
+    m4a3e8: {
+      gun: '76 mm M1A2 L/52', cal: 76.2, twist: 32, nat: 'us',
+      shells: {
+        AP: { name: '76 mm M79 (AP)', m: 7.03, v0: 792, cd: 0.33, k: 1.0, norm: 2, ric: [64, 74], len: 4.0 },
+        APHE: { name: '76 mm M62 (APCBC-HE)', m: 7.0, v0: 792, cd: 0.30, k: 0.92, norm: 5, ric: [68, 78], filler: 0.064, re: 0.95, sens: 15, len: 4.4 },
+        APCR: { name: '76 mm M93 (HVAP)', m: 4.26, v0: 1036, cd: 0.42, k: 1.4, norm: -3, ric: [58, 68], core: 0.43, len: 3.2 },
+        HE: { name: '76 mm M42A1 (HE)', m: 5.84, v0: 823, cd: 0.33, filler: 0.39, re: 1, ric: [85, 89], len: 4.6 },
+        SMOKE: { name: '76 mm M88 (HC smoke)', m: 3.4, v0: 274, cd: 0.33, filler: 0.03, re: 1, ric: [85, 89], len: 4.6 },
+      },
+    },
+    // OQF 17-pdr : APCBC 140 et 130 mm, APDS 208 et 192 mm (30°, 457 et 914 m) ; APDS rare et dispersé
+    firefly: {
+      gun: 'OQF 17-pdr Mk IV L/55', cal: 76.2, twist: 30, nat: 'uk',
+      shells: {
+        AP: { name: '17-pdr APCBC Mk 8 (capped shot)', m: 7.65, v0: 884, cd: 0.30, k: 1.0, obl: 'APHE', norm: 5, ric: [68, 78], len: 4.4 },
+        APCR: { name: '17-pdr APDS Mk 1 (discarding sabot)', m: 2.6, v0: 1204, cd: 0.32, dia: 44, k: 1.6, norm: -2, ric: [60, 70], core: 0.55, len: 3.6, spread: 2 },
+        HE: { name: '17-pdr HE Mk 1', m: 6.98, v0: 640, cd: 0.33, filler: 0.62, re: 1, ric: [85, 89], len: 4.6 },
+      },
+    },
   };
-  // Munitions spéciales communes : obus fumigène (Nebelgranate) et boîte à mitraille (Kartätsche)
+  // 3-inch M7 du M10 : mêmes obus que le 76 mm M1, à la même vitesse
+  GUNS.m10 = { gun: '3-inch M7 L/50', cal: 76.2, twist: 40, nat: 'us', shells: JSON.parse(JSON.stringify(GUNS.m4a3e8.shells)) };
+  for (const k of ['AP', 'APHE', 'APCR', 'HE', 'SMOKE']) GUNS.m10.shells[k].name = GUNS.m10.shells[k].name.replace('76 mm', '3-inch');
+  // KV-1S : ZiS-5, mêmes obus et même vitesse que le F-34
+  GUNS.kv1s = { gun: '76.2 mm ZiS-5 L/41.5', cal: 76.2, twist: 25, nat: 'su', shells: JSON.parse(JSON.stringify(GUNS.t34.shells)) };
+  // Munitions spéciales allemandes : obus fumigène (Nebelgranate) et boîte à mitraille (Kartätsche)
   for (const g of Object.values(GUNS)) {
+    if (g.nat) continue;
     const c = g.cal === 50 ? '5 cm' : g.cal === 75 ? '7.5 cm' : '8.8 cm', k = Math.pow(g.cal / 75, 3);
     g.shells.SMOKE = { name: `${c} Nb.Gr. (smoke)`, m: +(6.2 * k).toFixed(2), v0: 540, cd: 0.33, filler: 0.05 * k, re: 1, ric: [85, 89], len: 4.6 };
     g.shells.CAN = { name: `${c} Kart. (canister)`, m: +(6.0 * k).toFixed(2), v0: 450, cd: 0.45, ric: [85, 89], len: 2.6, balls: Math.round(110 * k), ballM: 0.024 };
@@ -109,9 +181,10 @@ const Ballistics = (() => {
     s.heat = key === 'HEAT'; s.he = key === 'HE'; s.smoke = key === 'SMOKE'; s.can = key === 'CAN';
   }
   const shell = (id, key) => GUNS[id].shells[key];
+  const has = (id, key) => !!GUNS[id].shells[key];
 
   // ===================== Balistique extérieure et perforation =====================
-  const area = s => Math.PI * Math.pow(s.cal / 1000, 2) / 4;
+  const area = s => Math.PI * Math.pow((s.dia || s.cal) / 1000, 2) / 4;
   // Atmosphère du champ de bataille : température (°C) et masse volumique de l'air (kg/m³) ;
   // la changer invalide les tables de tir
   const ATM = { T: 15, rho: 1.225 };
@@ -227,7 +300,7 @@ const Ballistics = (() => {
   function effective(s, T, ang) {
     if (s.heat) return { eff: T / Math.cos(Math.min(ang, 86) * D2R), angN: ang };
     if (s.he) return { eff: T / Math.pow(Math.cos(Math.min(ang, 86) * D2R), 0.3), angN: ang };
-    return { eff: T * obliquity(s.key, T / s.cal, ang), angN: clamp(ang - (s.norm || 0), 0, 86) };
+    return { eff: T * obliquity(s.obl || s.key, T / s.cal, ang), angN: clamp(ang - (s.norm || 0), 0, 86) };
   }
   // Probabilité de ricochet ; un calibre très supérieur au blindage ne ricoche pas (surcalibrage).
   // off abaisse les angles critiques (obus déjà déformé, en travers)
@@ -244,9 +317,10 @@ const Ballistics = (() => {
   // - noyau de carbure de tungstène (APCR) : cassant, il éclate sur une plaque inclinée au-delà de 30° ;
   // - coiffé (APCBC) : rarement.
   function shatterChance(s, T, ang, V) {
-    if (s.key === 'AP') return Math.min(0.7, clamp((V - 780) / 250, 0, 1) * clamp((T / s.cal - 0.6) / 0.6, 0, 1) * (0.6 + 0.4 * clamp(ang / 45, 0, 1)));
-    if (s.key === 'APCR') return Math.min(0.95, clamp((ang - 25) / 30, 0, 0.9) + (T / (0.4 * s.cal) > 2.5 ? 0.2 : 0));
-    if (s.key === 'APHE') return 0.03;
+    const key = s.key === 'APCR' ? 'APCR' : s.obl || s.key;
+    if (key === 'AP') return Math.min(0.7, clamp((V - 780) / 250, 0, 1) * clamp((T / s.cal - 0.6) / 0.6, 0, 1) * (0.6 + 0.4 * clamp(ang / 45, 0, 1)));
+    if (key === 'APCR') return Math.min(0.95, clamp((ang - 25) / 30, 0, 0.9) + (T / (0.4 * s.cal) > 2.5 ? 0.2 : 0));
+    if (key === 'APHE') return 0.03;
     return 0;
   }
   // perforation restante d'un obus brisé
@@ -450,7 +524,7 @@ const Ballistics = (() => {
       let half = 16 + 38 * ratio * ratio;
       if (s.core) { nS = Math.round(nS * 0.45); half *= 0.7; }
       if (shat) nS = Math.round(nS * 1.5);
-      spray(add(E0, mul(ctx.d, 0.02)), ctx.d, nS, half, Math.max(120, Vr * 0.35), Math.max(200, Vr * 0.95), 0.002 + T * 0.00006, true, 0.01e-3);
+      if (T > 0) spray(add(E0, mul(ctx.d, 0.02)), ctx.d, nS, half, Math.max(120, Vr * 0.35), Math.max(200, Vr * 0.95), 0.002 + T * 0.00006, true, 0.01e-3);
       if (shat) {
         // l'obus non coiffé éclate en 3 à 5 gros morceaux ; le noyau de carbure, lui, part en poussière
         const n = s.core ? 0 : Math.round(rnd(3, 5));
@@ -523,5 +597,5 @@ const Ballistics = (() => {
     return out;
   }
 
-  return { GUNS, shell, ATM, setAtmosphere, muzzle, cdMach, kDrag, velAt, tof, drop, descent, dropExp, tofExp, descentExp, penVel, penAt, vLimit, obliquity, effective, ricochetChance, shatterChance, SHATTER_PEN, standoffK, blastKPa, sedov, gurney, spin, simulate };
+  return { GUNS, shell, has, ATM, setAtmosphere, muzzle, cdMach, kDrag, velAt, tof, drop, descent, dropExp, tofExp, descentExp, penVel, penAt, vLimit, obliquity, effective, ricochetChance, shatterChance, SHATTER_PEN, standoffK, blastKPa, sedov, gurney, spin, simulate };
 })();
