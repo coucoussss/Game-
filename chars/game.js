@@ -945,6 +945,7 @@ Meta.whenReady(() => {
   const front = () => Meta.front(levelIdx);
   // nation d'une équipe en bataille ('de', 'su', 'us' ou 'uk') : canons antichars, infanterie, aviation
   const nationOf = team => sides[team] === 0 ? 'de' : front().nat;
+  Objectives.factionOf = nationOf; // canons antichars et batteries de la nation de chaque camp
   const poolOf = team => front().pools[sides[team]];
   // camouflage des chars de l'IA : celui du champ de bataille pour leur camp, sinon celui de leur nation
   function aiSkin(t) {

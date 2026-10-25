@@ -51,8 +51,8 @@ const Objectives = (() => {
     qf25: { name: 'QF 25-pounder', cal: 87.6, shells: { HE: { name: '87.6 mm HE Mk 1D', m: 11.3, v0: 532, cd: 0.33, filler: 0.8, re: 1, ric: [85, 89], len: 4.6 } } },
     m2a1: { name: '105 mm M2A1', cal: 105, shells: { HE: { name: '105 mm HE M1', m: 15.0, v0: 472, cd: 0.33, filler: 2.18, re: 1, ric: [85, 89], len: 4.6 } } },
   };
-  // Faction de chaque camp : allemande pour l'instant ; à relier aux factions des chars alliés en
-  // remplaçant Objectives.factionOf (team → 'de' | 'su' | 'uk' | 'us')
+  // Faction de chaque camp : game.js remplace Objectives.factionOf par sa nationOf
+  // (team → 'de' | 'su' | 'uk' | 'us') ; allemande par défaut
   const FAC = { de: { at: 'pak40', art: 'lefh18' }, su: { at: 'zis3', art: 'm30' }, uk: { at: 'qf6', art: 'qf25' }, us: { at: 'qf6', art: 'm2a1' } };
   const api = { factionOf: () => 'de' };
   const fac = team => FAC[api.factionOf(team)] || FAC.de;
