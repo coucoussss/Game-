@@ -646,6 +646,7 @@ Meta.whenReady(() => {
     for (const w of tanks) if (w.dead) stampW(w.x, w.y, w.r + 12, w.T.mass < 28 ? 2 : 1);
     navBlocks = navBlocks.filter(b => (b.t -= dt) > 0);
     for (const b of navBlocks) stampW(b.x, b.y, b.r, 1);
+    OBJ.nav(stampW);
   }
   const blocked = i => grid[i] === 1 || wgrid[i] === 1;
   // Relief et eau dans l'itinéraire : coût selon la pente (m/m) ; infranchissables au-delà de 28° ou de
@@ -1032,6 +1033,7 @@ Meta.whenReady(() => {
     if (mode === 'campagne' && waveIdx === 0) addLog('Radio orders: 8 attack my target · 9 follow me · 0 hold · N move there', '#bcd8ff');
     Meta.sdk.gameplayStart();
     msgs = [];
+    OBJ.onWave();
   }
 
   // Survie : la vague n arrive d'un bord ou d'un coin éloigné du joueur, tiré au sort, plus nombreuse,
@@ -1203,7 +1205,7 @@ Meta.whenReady(() => {
       // Sans contact depuis 90 s, l'artillerie signale toutes les 20 s la position approximative (± 80 px)
       // d'un ennemi caché : l'IA va voir, le joueur la voit 4 s sur la carte ; ce n'est jamais un repérage
       if (set.size) contactT[team] = waveTime;
-      else if (state === 'play' && waveTime - contactT[team] > 90 && (artyT[team] -= dt) <= 0) {
+      else if (state === 'play' && !OBJ.active() && waveTime - contactT[team] > 90 && (artyT[team] -= dt) <= 0) {
         artyT[team] = 20;
         const foes = tanks.filter(e => !e.dead && e.team !== team);
         if (foes.length) {
@@ -1511,6 +1513,14 @@ Meta.whenReady(() => {
       ai.los = !!best && own.has(best) && losClear(t.x, t.y, best.x, best.y, true, false, t, t.gz + t.T.S.gun.z, best.gz + (best.T.S.ht + best.T.I.totalH) / 2) && wreckClear(t, best);
       ai.side = bWreck ? sideStep(t, best) : null;
       ai.pen = best ? penRatio(t, best, d) : 0;
+      // pièce antichar repérée (objectives.js) : prise à l'explosif quand aucun char n'est plus pressant
+      ai.soft = OBJ.aiSoft(t, best, d);
+      if (ai.soft) {
+        if (best) { ai.target = best = null; ai.los = false; }
+        ai.los = true;
+        const k = t.ammo.HE > 0 ? 'HE' : nextShell(t, 'APHE');
+        if (k !== t.shell && k !== t.nextShell) selectShell(t, k);
+      }
       if (best) {
         // demande l'obus voulu, ou annule celui qui attendait si l'obus chargé convient (jamais d'extraction)
         const k = aiShell(t, best, d);
@@ -1541,7 +1551,7 @@ Meta.whenReady(() => {
       }
 
       // --- destination ---
-      let dest = null;
+      let dest = null, od;
       const range = T.range * (crewFrac(t) < 0.6 ? 1.3 : 1);
       if (ai.state === 'withdraw') dest = ai.cover;
       else if (best && ai.side) dest = ai.side;
@@ -1576,7 +1586,8 @@ Meta.whenReady(() => {
             dest = { x: clamp(t.x + Math.cos(a) * 160, 60, WW - 60), y: clamp(t.y + Math.sin(a) * 160, 60, WH - 60) };
           } else dest = { x: best.x, y: best.y };
         }
-      } else if (ai.lastKnown) {
+      } else if ((od = OBJ.aiDest(t)) !== false) dest = od;
+      else if (ai.lastKnown) {
         dest = ai.lastKnown;
         if (dist(t, dest) < 90) ai.lastKnown = null;
       } else if (amb && (ai.post || (ai.post = ambushPost(t, goalX, 350)))) {
@@ -1723,6 +1734,12 @@ Meta.whenReady(() => {
           }
         }
       }
+    } else if (ai.soft) {
+      // pièce antichar : coup d'explosif à l'arrêt, canon dans l'axe
+      const s = ai.soft, pv = pivot(t), d = Math.hypot(s.x - pv.x, s.y - pv.y) || 1;
+      aim = Math.atan2(s.y - pv.y, s.x - pv.x) + ai.aimErr * 0.5;
+      if (t.reloadT < 0.6 && canFire(t) && ai.state !== 'withdraw') { thr = 0; if (ai.path) turn = 0; if (T.arc) turn = clamp(angNorm(aim - t.angle) * 3, -1, 1); }
+      if (ai.reactT <= 0 && t.reloadT <= 0 && canFire(t) && t.stillT > 0.6 && Math.abs(angNorm(t.angle + t.turret - aim)) < Math.max(0.012, 9 / d) && friendlyClear(t, aim, d)) { fire = true; ai.aimErr = gauss() * ai.aimStd * (0.6 + d / 700); }
     } else if (ai.lastKnown) aim = Math.atan2(ai.lastKnown.y - t.y, ai.lastKnown.x - t.x);
     else if (ai.path) aim = t.angle;
     // le pilote freine pour s'arrêter ou ralentir à la vitesse demandée (lâcher l'accélérateur ne fait
@@ -2432,6 +2449,7 @@ Meta.whenReady(() => {
       if (t.aim3) return { D: Math.hypot(t.aim3.x - mx, t.aim3.y - my), z: t.aim3.z };
     }
     const a = t.ai, e = a && a.target;
+    if (a && a.soft && !(e && !e.dead)) return { D: Math.hypot(a.soft.x - mx, a.soft.y - my), z: a.soft.z };
     if (e && !e.dead) return a.ax != null ? { D: Math.hypot(a.ax - mx, a.ay - my) * a.rngK, z: e.gz + (a.az != null ? a.az : e.T.S.ht - 0.25) } : { D: Math.hypot(e.x - mx, e.y - my), z: e.gz + e.T.S.ht - 0.25 };
     return { D: 600, z: t.gz + 1.4 };
   }
@@ -2549,7 +2567,7 @@ Meta.whenReady(() => {
     let want = t.in.mg;
     if (t.ai) {
       // l'IA lâche des rafales courtes sur une cible visible à moyenne portée
-      const e = t.ai.target, d = e ? Math.hypot(e.x - t.x, e.y - t.y) : 0;
+      const e = t.ai.target || t.ai.soft, d = e ? Math.hypot(e.x - t.x, e.y - t.y) : 0;
       if (e && !e.dead && t.ai.los && d < 900 && friendlyClear(t, t.angle + t.turret, d)) {
         if (g.burst > 0) { g.burst -= dt; want = true; } else if ((g.wait -= dt) <= 0) { g.burst = rnd(0.4, 1.3); g.wait = rnd(2, 6); }
       } else g.burst = 0;
@@ -2606,6 +2624,8 @@ Meta.whenReady(() => {
         const l2 = dx * dx + dy * dy || 1, k2 = clamp(((r.x - b.x) * dx + (r.y - b.y) * dy) / l2, 0, 1);
         if (b.z + (zNext - b.z) * k2 < hAt(r.x, r.y) + 1.7 && Math.hypot(b.x + dx * k2 - r.x, b.y + dy * k2 - r.y) < 0.3 * PX && (!best || k2 < best.t)) best = { t: k2, runner: r };
       }
+      const bc = OBJ.bulletCand(b, dx, dy, zNext);
+      if (bc && (!best || bc.t < best.t)) best = bc;
       const tg = terra.cut(b.x, b.y, b.z, b.x + dx, b.y + dy, zNext);
       if (tg >= 0 && (!best || tg < best.t)) best = { t: tg, ground: true };
       if (!best) {
@@ -2620,7 +2640,8 @@ Meta.whenReady(() => {
       if (best.tank) {
         mgNow = b.by === player; const mr = mgHitTank(b, best.tank, best, hx, hy); mgNow = false;
         if (mr === 'continue') continue;
-      } else if (best.runner) { best.runner.hp -= rnd(60, 130); Fx.bulletGround(hx, hy, ux, uy); }
+      } else if (best.soft) OBJ.bulletHit(b, best, hx, hy);
+      else if (best.runner) { best.runner.hp -= rnd(60, 130); Fx.bulletGround(hx, hy, ux, uy); }
       else if (best.ground) { if (terra.depth(hx, hy) > 0.1) Fx.splash(hx, hy, 0.12); else Fx.bulletGround(hx, hy, ux, uy); }
       else Fx.chips(hx, hy, hz, best.o.type === 'tree');
       // une traçante qui frappe l'acier ou le sol en rasant repart en chandelle, souvent vers le ciel
@@ -2801,6 +2822,8 @@ Meta.whenReady(() => {
         const cand = tankCand(t, s.x, s.y, dx, dy, s.z, zNext);
         if (cand && (!best || cand.t < best.t)) best = cand;
       }
+      const sc = OBJ.shellCand(s, dx, dy, zNext);
+      if (sc && (!best || sc.t < best.t)) best = sc;
       // maison traversée : le mur opposé, là où l'obus le franchit sur ce pas (avant un char collé derrière)
       const ew = s.exitWall;
       if (ew && ew.o === s.skipObs && !ew.o.dead) {
@@ -2832,7 +2855,7 @@ Meta.whenReady(() => {
         if (!best.burst && !best.exit) aiObserve(s, hx, hy, best.tank);
         s.dist += s.sp * dt * best.t;
         s.x = hx; s.y = hy; s.z = Math.max(hAt(hx, hy), s.z + (zNext - s.z) * best.t);
-        const res = best.burst ? apheBurst(s) : best.exit ? exitWall(s, hx, hy) : best.ground ? hitGround(s, hx, hy) : best.tank ? hitTank(s, best.tank, best, hx, hy) : hitObstacle(s, best.o, best, hx, hy);
+        const res = best.burst ? apheBurst(s) : best.exit ? exitWall(s, hx, hy) : best.ground ? hitGround(s, hx, hy) : best.soft ? OBJ.shellHit(s, best.soft, hx, hy) : best.tank ? hitTank(s, best.tank, best, hx, hy) : hitObstacle(s, best.o, best, hx, hy);
         if (res === 'stop') remove = true;
       } else {
         s.x += dx; s.y += dy;
@@ -3735,6 +3758,7 @@ Meta.whenReady(() => {
       heBlast(t, x, y, s.sb, s.by, null, null);
     }
     for (const r of runners) if (Math.random() < fragP(s.sb.cal, Math.hypot(r.x - x, r.y - y) / PX, 0.5)) r.hp = 0;
+    OBJ.blast(x, y, s);
   }
   function explode(x, y, s, direct) {
     const R = 75 * Math.sqrt(s.by.T.caliber / 75), q = 0.6 + 0.4 * (L().dustK || 0);
@@ -4424,6 +4448,7 @@ Meta.whenReady(() => {
     tankCollisions(dt);
     updateShells(dt);
     updateBullets(dt);
+    OBJ.update(dt);
     updateRunners(dt);
     updateParts(dt);
     updateFlares(dt);
@@ -4463,8 +4488,8 @@ Meta.whenReady(() => {
         tanks.push(t);
         if (!i) addLog(`Radio: enemy reinforcements to the ${r.y < WH / 2 ? 'north' : 'south'}-east`, '#ff9a7a');
       }
-      const a = tanks.some(t => t.team === 0 && !t.dead) || revivePending(), e = reinf.length || tanks.some(t => t.team === 1 && !t.dead);
-      if (!a || !e) { state = 'ending'; endT = 3.5; waveResult = a ? 'win' : 'lose'; showMsg(a ? 'WAVE WON' : 'WAVE LOST', a ? '#b8e07a' : '#ff7a5c', 3, 4); Sfx.sting(a ? 'win' : 'lose'); }
+      const a = tanks.some(t => t.team === 0 && !t.dead) || revivePending(), e = reinf.length || tanks.some(t => t.team === 1 && !t.dead), ov = a && OBJ.verdict();
+      if (ov || !a || !e) { const w = ov ? ov === 'win' : a; state = 'ending'; endT = 3.5; waveResult = w ? 'win' : 'lose'; showMsg(OBJ.endMsg(w) || (w ? 'WAVE WON' : 'WAVE LOST'), w ? '#b8e07a' : '#ff7a5c', 3, 4); Sfx.sting(w ? 'win' : 'lose'); }
     } else if (state === 'ending') {
       endT -= dt;
       if (endT <= 0 && !HitCam.active()) showResult();
@@ -5190,7 +5215,7 @@ Meta.whenReady(() => {
       }
     }
     for (const s of shells) {
-      if (s.dist * RK > 2000) continue; // le traceur s'éteint après environ 2 km de vol
+      if (s.dist * RK > 2000 || s.arty) continue; // le traceur s'éteint après environ 2 km de vol
       // traceur au culot : il brûle derrière l'obus, la traînée suit la vraie trajectoire
       const head = to3(s.x, s.y, s.z), tail = s.trail.length >= 3 ? to3(s.trail[0], s.trail[1], s.trail[2]) : head;
       const hot = s.key === 'HE' || s.key === 'HEAT';
@@ -5217,6 +5242,7 @@ Meta.whenReady(() => {
       glow.push({ p: [P[0], P[1], g + f.z], s: 0.8, c: [1, 1, 0.92, 1.6 * k], g });
       if (f.age > 1.5) lights.push({ p: [P[0], P[1], g + f.z], r: 220, c: [2.2 * fl, 2.3 * fl, 2.1 * fl] });
     }
+    OBJ.draw3D(items, glow);
     // ombre de contact des chars les plus proches de la zone regardée
     const tg = cam3.target, contacts = [];
     for (const t of tanks) { const P = to3(t.x, t.y), d = Math.hypot(P[0] - tg[0], P[1] - tg[1]); if (d < 90 && (t.dead || visibleToPlayer(t))) contacts.push([P[0], P[1], -t.angle, t.T.S.L / 2, t.T.S.W / 2, d]); }
@@ -5301,6 +5327,7 @@ Meta.whenReady(() => {
     }
     ctx.globalAlpha = 1;
 
+    OBJ.draw2D(ctx);
     drawParticles(inView);
     drawShells();
 
@@ -5770,6 +5797,7 @@ Meta.whenReady(() => {
 
   function drawWorldLabels() {
     drawEnemyMarkers();
+    OBJ.labels(ctx);
     ctx.textAlign = 'center';
     for (const t of tanks) {
       if (t.dead || !visibleToPlayer(t)) continue;
@@ -5854,6 +5882,7 @@ Meta.whenReady(() => {
     if (tch) for (const q of touch.btns) if (q.b.row === 1) lt = Math.max(lt, (q.x + q.w) / k + 8);
     const rt = mm.x0 - 10, bw = Math.min(tw, rt - lt), bc = clamp(W / 2, lt + bw / 2, rt - bw / 2);
     ui.bar = { x0: bc - bw / 2, x1: bc + bw / 2, cx: bc, title };
+    ui.oy = OBJ.hudH(); // ligne de l'objectif sous le bandeau
     // panneau : 560 de large, 380 au moins quand les boutons tactiles le serrent
     const compact = sight.on, top = compact ? 48 : 120;
     let pl = 10, pr = W - 10;
@@ -5918,6 +5947,7 @@ Meta.whenReady(() => {
       });
     }
     ctx.fillStyle = '#ccc'; ctx.font = '700 13px system-ui, sans-serif'; ctx.fillText('VS', b.cx, 45);
+    OBJ.hud(ctx, b);
     // fil des destructions (en haut à gauche)
     ctx.textAlign = 'left';
     feed.forEach((f, i) => {
@@ -6012,7 +6042,7 @@ Meta.whenReady(() => {
     // messages (deux lignes au plus), puis bandeaux des coups et des médailles
     ctx.textAlign = 'center';
     msgs.forEach((m, i) => {
-      const y = 82 + i * 26;
+      const y = 82 + ui.oy + i * 26;
       ctx.globalAlpha = Math.min(1, m.life * 2);
       fitFont(m.text, ui.half * 2, 20, 800);
       ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillText(m.text, W / 2 + 2, y + 2);
@@ -6020,7 +6050,7 @@ Meta.whenReady(() => {
     });
     ctx.globalAlpha = 1;
     // colonne centrale : consigne du tutoriel ou fiche « détruit par », puis les bandeaux
-    let cy = 140;
+    let cy = 140 + ui.oy;
     const ts = tutCur();
     if (ts) { drawTut(ts, cy); cy += 44; }
     else if (killCard && player && player.dead) { drawKillCard(cy - 18); cy += 60; }
@@ -6057,7 +6087,7 @@ Meta.whenReady(() => {
       ctx.font = '600 16px system-ui, sans-serif'; ctx.fillStyle = '#bdb7a2';
       ctx.fillText(mode === 'survie' ? `${lv.sub} · Survival · alone against all`
         : mode === 'duel' ? `${lv.sub} · Duel · round ${duelScore[0] + duelScore[1] + 1}`
-        : `${lv.sub} · Wave ${waveIdx + 1}/${WAVES} · 5 vs 5`, W / 2, H / 2 - 18);
+        : `${lv.sub} · Wave ${waveIdx + 1}/${WAVES} · ${OBJ.introTxt() || '5 vs 5'}`, W / 2, H / 2 - 18);
       ctx.font = '800 48px system-ui, sans-serif'; ctx.fillStyle = '#fff';
       if (card) { const yb = drawControls(H / 2); ctx.textAlign = 'center'; ctx.font = '700 15px system-ui, sans-serif'; ctx.fillStyle = '#fff'; ctx.fillText(`Starting in ${Math.max(1, Math.ceil(introT))}`, W / 2, yb + 22); }
       else ctx.fillText(String(Math.max(1, Math.ceil(introT))), W / 2, H / 2 + 38);
@@ -6248,6 +6278,7 @@ Meta.whenReady(() => {
       ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(x0, y0 + mh - 14, w + 8, 14);
       ctx.fillStyle = '#ffe27a'; ctx.fillText(txt, x0 + 4, y0 + mh - 4);
     }
+    OBJ.minimap(ctx, x0, y0, k);
     ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1;
     if (W3D && cam3.vp) {
       // champ de la caméra : coins de l'écran ramenés au sol, à 900 px au plus de la caméra (un coin
@@ -6948,7 +6979,7 @@ Meta.whenReady(() => {
   }
   const BIND_LABELS = { fwd: 'Forward', back: 'Reverse', left: 'Turn left', right: 'Turn right', brake: 'Brakes', fire: 'Fire', mg: 'Machine gun', belt: 'MG belt type', sight: 'Gunner\'s sight',
     zoom: 'Sight magnification', rangeUp: 'Range + (realistic)', rangeDown: 'Range − (realistic)', smoke: 'Smoke launcher', cam: 'Camera', hatch: 'Commander hatch', ext: 'Extinguisher',
-    repair: 'Repair track', bail: 'Bail out', flare: 'Flare (night)', xray: 'Impact camera / skip', mute: 'Sound on / off', help: 'Controls card', attack: 'Order: attack', follow: 'Order: follow me', hold: 'Order: hold', move: 'Order: move there' };
+    repair: 'Repair track', bail: 'Bail out', flare: 'Flare (night)', xray: 'Impact camera / skip', mute: 'Sound on / off', help: 'Controls card', attack: 'Order: attack', follow: 'Order: follow me', hold: 'Order: hold', move: 'Order: move there', arty: 'Call artillery' };
   function buildBinds() {
     const el = $('bindList');
     el.innerHTML = Object.keys(BIND_LABELS).map(a => `<button data-a="${a}" class="${rebinding === a ? 'wait' : ''}"><span>${BIND_LABELS[a]}</span><kbd>${rebinding === a ? 'press a key…' : codeName(bind(a))}</kbd></button>`).join('');
@@ -7079,7 +7110,7 @@ Meta.whenReady(() => {
     $('resTitle').textContent = !win ? 'WAVE LOST' : lastWave ? (lastLevel ? 'TOTAL VICTORY' : 'SECTOR CONQUERED') : 'WAVE WON';
     $('resSub').textContent = `${L().name} · wave ${waveIdx + 1}/${WAVES} · ${Meta.diff().name}` + (win ? '' : nearMiss());
     const acc = ws.shots ? Math.round(ws.hits / ws.shots * 100) : 0;
-    $('resTable').innerHTML =
+    $('resTable').innerHTML = OBJ.resultRow() +
       `<tr><td>Enemy tanks destroyed</td><td>${ws.kills}</td></tr>` +
       `<tr><td>Penetrations</td><td>${ws.pens}</td></tr>` +
       `<tr><td>Enemy crew knocked out</td><td>${ws.crew}</td></tr>` +
@@ -7104,7 +7135,7 @@ Meta.whenReady(() => {
       if (rc.beat) notes.push(`<div class="note rec">NEW RECORD · best sector score ${fmt(sectorScore)} (was ${fmt(rc.old)})</div>`);
       celebrateGot('Total victory');
     }
-    const btns = resultButtons({ win, kills: ws.kills, pens: ws.pens, crew: ws.crew }, notes);
+    const btns = resultButtons({ win, kills: ws.kills, pens: ws.pens, crew: ws.crew, objCr: OBJ.credits() }, notes);
     const add = btns.add;
     if (!win) {
       const k = `${levelIdx}:${waveIdx}`, rev = !retried.has(k);
@@ -7466,7 +7497,7 @@ Meta.whenReady(() => {
   // les options (opts.binds) ; flèches, Shift droit, V, Échap, P, Tab et les chiffres restent des doublons fixes
   const BIND_DEF = { fwd: 'KeyW', back: 'KeyS', left: 'KeyA', right: 'KeyD', brake: 'KeyX', fire: 'Space', mg: 'KeyF', belt: 'KeyG', sight: 'ShiftLeft', zoom: 'KeyZ',
     smoke: 'KeyE', cam: 'KeyC', hatch: 'KeyU', ext: 'KeyT', repair: 'KeyR', bail: 'KeyB', flare: 'KeyL', xray: 'KeyH', mute: 'KeyM', help: 'Slash',
-    rangeUp: 'PageUp', rangeDown: 'PageDown', attack: 'Digit8', follow: 'Digit9', hold: 'Digit0', move: 'KeyN' };
+    rangeUp: 'PageUp', rangeDown: 'PageDown', attack: 'Digit8', follow: 'Digit9', hold: 'Digit0', move: 'KeyN', arty: 'KeyK' };
   const BIND_ALT = { fwd: 'ArrowUp', back: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight' };
   const FIXED = { ShiftRight: 'sight', KeyV: 'sight', Escape: 'pause', KeyP: 'pause', Backquote: 'pause', IntlBackslash: 'pause', Tab: 'command', Numpad8: 'attack', Numpad9: 'follow', Numpad0: 'hold' };
   for (let i = 1; i <= 7; i++) FIXED['Digit' + i] = FIXED['Numpad' + i] = 'shell' + i;
@@ -7542,6 +7573,7 @@ Meta.whenReady(() => {
       }
     }
     if (a === 'attack' || a === 'follow' || a === 'hold' || a === 'move') giveOrder(a);
+    if (a === 'arty') OBJ.callArty();
     if (a === 'zoom' && sight.on) sight.mag = (sight.mag + 1) % MAGS.length;
     if ((a === 'rangeUp' || a === 'rangeDown') && sight.on) setRange(a === 'rangeUp' ? 1 : -1);
     if (a === 'smoke' && state === 'play') deploySmoke(player);
@@ -7722,6 +7754,7 @@ Meta.whenReady(() => {
     { row: 1, label: 'SMOKE', key: 'smoke' },
     { row: 1, label: () => player.hatch ? 'HATCH ▲' : 'HATCH', key: 'hatch' },
     { row: 1, label: 'FLARE', key: 'flare', show: () => L().night },
+    { row: 1, label: () => OBJ.artyLabel(), key: 'arty', show: () => OBJ.artyShow() },
     { row: 1, label: 'REPAIR', key: 'repair', warn: true, show: () => player.trackT > 0 },
     { row: 1, label: 'EXTINGUISH', key: 'ext', warn: true, show: () => player.fires.length > 0 },
     { row: 1, label: 'BAIL OUT', key: 'bail', warn: true, show: () => player.fires.length > 0 || player.cookT > 0 },
@@ -7867,6 +7900,23 @@ Meta.whenReady(() => {
     ctx.restore();
   }
 
+  // ===================== Objectifs, canons antichars et artillerie (objectives.js) =====================
+  // camp d'entraînement (même règle que spawnWave) : ni objectif, ni canons, ni artillerie
+  const bootCamp = () => mode === 'campagne' && levelIdx === 0 && waveIdx === 0 && (DEV_RUN ? dq('tut') : Meta.P.stats.battles === 0);
+  const OBJ = Objectives.create({
+    PX, RK, WW, WH, L, Fx, P3, Sfx, Meta, segAABB, losClear, hAt, explode, boom, fragP, heW, mgPen, aimSlope, shellPxK, radioOk, makeTank, bushNear, teamCol, F,
+    addLog, showMsg, chatter, floatText, ribbon, missionToast, worldToScreen, keyName, listenerDist, boot: bootCamp,
+    free: (x, y) => !blocked(cellOf(x, y)) && !(terra.depth(x, y) > 0.3),
+    eSkill: () => aiSkill(Math.min(0.95, 0.3 + levelIdx * 0.14 + waveIdx * 0.04)),
+    nextId: () => ++shellId, feed: f => { feed.unshift(f); if (feed.length > 6) feed.pop(); },
+    // point visé : sous le réticule, ou au bout de la ligne de visée à la lunette (comme les ordres)
+    aimedAt() { const pv = pivot(player); return sight.on && sight.probe ? { x: pv.x + Math.cos(sight.aimYaw) * sight.probe.dist, y: pv.y + Math.sin(sight.aimYaw) * sight.probe.dist } : player.aim3 || player; },
+    get tanks() { return tanks; }, get player() { return player; }, get state() { return state; }, get mode() { return mode; }, get level() { return levelIdx; }, get wave() { return waveIdx; },
+    get waveTime() { return waveTime; }, get obstacles() { return obstacles; }, get bushes() { return bushes; }, get roads() { return roads; }, get terra() { return terra; },
+    get shells() { return shells; }, get parts() { return parts; }, get veils() { return veils; }, get runners() { return runners; }, get reinf() { return reinf; },
+    get stats() { return waveStats; }, get W3D() { return W3D; }, get TOF() { return TOF; }, get cmdr3() { return CMDR3; }, get survWave() { return survWave; }, get W() { return W; }, get H() { return H; },
+  });
+
   // Démarrage direct en développement (?debug seulement)
   if (dq('level')) levelIdx = clamp(Number(Q.get('level')) - 1, 0, LEVELS.length - 1);
   if (dq('type') && TYPES[Q.get('type')]) chosenType = Q.get('type');
@@ -7928,7 +7978,7 @@ Meta.whenReady(() => {
         shells.push(s);
         return s;
       },
-      giveOrder, get ctl() { return ctl; }, get orders() { return orders; }, get aiSkillK() { return aiSkillK; }, set aiSkillK(k) { aiSkillK = k; }, get form() { return waveForm; }, losClear,
+      giveOrder, obj: OBJ, get ctl() { return ctl; }, get orders() { return orders; }, get aiSkillK() { return aiSkillK; }, set aiSkillK(k) { aiSkillK = k; }, get form() { return waveForm; }, losClear,
       place(t, x, y, angle, turret) { t.x = x; t.y = y; t.angle = angle; if (turret != null) t.turret = turret; t.vx = t.vy = t.speed = 0; },
       get meta() { return Meta.P; },
       kill(i, det) { const e = tanks.filter(t => t.team === 1 && !t.dead)[i || 0]; if (e) destroyTank(e, player, !!det); return !!e; },
