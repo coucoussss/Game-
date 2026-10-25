@@ -131,10 +131,45 @@ const Meta = (() => {
   const cumXP = lv => { let s = 0; for (let i = 1; i < lv; i++) s += xpFor(i); return s; };
   // Chars : prix en crédits, grade requis et palier (tier : multiplie le prix des pièces). L'ordre est
   // celui de la progression ; un char ajouté ici apparaît partout (objectifs, maîtrise, transfert).
+  // br : cote de bataille (composition des vagues et gains) ; nat : nation ; svc : service au front, de
+  // la première action à la fin de la guerre (années décimales : 1943.5 = juillet 1943)
   const TANKS = {
-    light: { price: 0, lvl: 1, tier: 0.5 }, pz4: { price: 0, lvl: 1, tier: 0.6 }, stug: { price: 2500, lvl: 2, tier: 0.7 },
-    medium: { price: 5500, lvl: 3, tier: 0.9 }, destroyer: { price: 9000, lvl: 5, tier: 1 }, heavy: { price: 14000, lvl: 6, tier: 1.2 }, kingtiger: { price: 24000, lvl: 8, tier: 1.5 },
+    light: { price: 0, lvl: 1, tier: 0.5, br: 1.0, nat: 'de', svc: [1943.7, 1945.4] }, pz4: { price: 0, lvl: 1, tier: 0.6, br: 2.0, nat: 'de', svc: [1942.25, 1945.4] },
+    stug: { price: 2500, lvl: 2, tier: 0.7, br: 2.0, nat: 'de', svc: [1942.25, 1945.4] }, medium: { price: 5500, lvl: 3, tier: 0.9, br: 3.0, nat: 'de', svc: [1943.5, 1945.4] },
+    destroyer: { price: 9000, lvl: 5, tier: 1, br: 3.3, nat: 'de', svc: [1944.55, 1945.4] }, heavy: { price: 14000, lvl: 6, tier: 1.2, br: 3.3, nat: 'de', svc: [1942.7, 1945.4] },
+    kingtiger: { price: 24000, lvl: 8, tier: 1.5, br: 4.0, nat: 'de', svc: [1944.5, 1945.4] },
+    t34: { price: 1200, lvl: 1, tier: 0.6, br: 2.0, nat: 'su', svc: [1942.7, 1945.4] }, kv1s: { price: 3500, lvl: 2, tier: 0.75, br: 2.3, nat: 'su', svc: [1942.65, 1945.4] },
+    t3485: { price: 6500, lvl: 4, tier: 0.9, br: 2.7, nat: 'su', svc: [1944.2, 1945.4] }, is2: { price: 16000, lvl: 7, tier: 1.25, br: 3.7, nat: 'su', svc: [1944.4, 1945.4] },
+    m4a1: { price: 1200, lvl: 1, tier: 0.6, br: 2.0, nat: 'us', svc: [1942.8, 1945.4] }, m10: { price: 4000, lvl: 3, tier: 0.7, br: 2.3, nat: 'us', svc: [1943.2, 1945.4] },
+    m4a3e8: { price: 7000, lvl: 4, tier: 0.9, br: 2.7, nat: 'us', svc: [1944.92, 1945.4] }, firefly: { price: 9500, lvl: 5, tier: 0.95, br: 2.8, nat: 'uk', svc: [1944.45, 1945.4] },
   };
+  // Nations, camps et groupes du garage (Américains et Britanniques ensemble)
+  const NATIONS = { de: { name: 'Germany', side: 0 }, su: { name: 'USSR', side: 1 }, us: { name: 'USA', side: 1 }, uk: { name: 'United Kingdom', side: 1 } };
+  const GROUPS = [{ id: 'de', name: 'Germany', nats: ['de'] }, { id: 'su', name: 'USSR', nats: ['su'] }, { id: 'wa', name: 'USA & UK', nats: ['us', 'uk'] }];
+  const sideOf = id => NATIONS[TANKS[id].nat].side; // 0 Axe, 1 Alliés
+  const groupOf = id => GROUPS.find(g => g.nats.includes(TANKS[id].nat)).id;
+  // Ordres de bataille historiques de chaque champ de bataille (même ordre que les secteurs) : date,
+  // théâtre, nation alliée principale, viviers de l'Axe [0] et des Alliés [1], camouflages des chars de
+  // l'IA [Axe, Alliés]. Chaque char doit être en service à la date (vérifié au chargement et par les tests).
+  const FRONTS = [
+    { date: 1943.53, theatre: 'east', nat: 'su', pools: [['heavy', 'medium', 'pz4', 'stug'], ['t34', 'kv1s']], camo: ['koursk', 'su_4bo'] }, // Prokhorovka, 12 juillet 1943
+    { date: 1944.96, theatre: 'west', nat: 'us', pools: [['light', 'pz4', 'stug', 'medium', 'destroyer', 'kingtiger'], ['m4a1', 'm10', 'm4a3e8', 'firefly']], camo: ['std', 'us_od'] }, // 16 décembre 1944
+    { date: 1943.04, theatre: 'east', nat: 'su', pools: [['pz4', 'stug'], ['t34', 'kv1s']], camo: ['hiver', 'su_winter'] }, // janvier 1943
+    { date: 1942.84, theatre: 'africa', nat: 'uk', pools: [['pz4'], ['m4a1']], camo: ['dak', 'uk_desert'] }, // Tel el Aqqaqir, 2 novembre 1942
+    { date: 1944.99, theatre: 'west', nat: 'us', pools: [['light', 'pz4', 'stug', 'medium', 'destroyer', 'kingtiger'], ['m4a1', 'm10', 'm4a3e8']], camo: ['foret', 'us_snow'] }, // 26 décembre 1944
+  ];
+  const front = lv => FRONTS[Math.max(0, Math.min(FRONTS.length - 1, lv | 0))];
+  // chars d'un vivier hors de leur période de service (doit rester vide)
+  const anachronisms = () => FRONTS.flatMap((f, i) => f.pools.flat().filter(id => !TANKS[id] || f.date < TANKS[id].svc[0] || f.date > TANKS[id].svc[1]).map(id => `${i}:${id}`));
+  // Composition par cote : pour chaque décalage, le char du vivier dont la cote est la plus proche de
+  // br + décalage (ex aequo tirés au sort)
+  function lineup(pool, br, offs, rnd = Math.random) {
+    return offs.map(o => {
+      let best = [], bd = 1e9;
+      for (const id of pool) { const d = Math.abs(TANKS[id].br - br - o); if (d < bd - 1e-9) { bd = d; best = [id]; } else if (d < bd + 1e-9) best.push(id); }
+      return best[Math.floor(rnd() * best.length)];
+    });
+  }
   // Promotion : 500 + 100 × nouveau niveau ✪, plus ces récompenses de grade
   const RANK_REW = { 3: { kit: 1 }, 6: { skin: 'koursk' }, 9: { skin: 'tigre' }, 12: { skin: 'rouille' }, 16: { skin: 'or' } };
   const rankCr = lv => 500 + 100 * lv;
@@ -142,20 +177,29 @@ const Meta = (() => {
   // 3 embuscade, 4 lavis d'hiver). Prix en crédits ou en publicités (ads : une publicité ≈ 1 000 ✪) ;
   // flav : phrase d'ambiance affichée sur la carte ; bond : exclusif du bon de guerre, jamais vendu.
   const SKINS = [
-    { id: 'std', name: 'Standard Issue ’44', flav: 'Three-tone factory scheme. Honest steel.', rar: 'common', price: 0, pat: 0, camo: [[0.33, 0.36, 0.22], [0.20, 0.25, 0.15], [0.36, 0.27, 0.17]] },
-    { id: 'gris', name: 'Panzer Grey ’40', flav: 'The colour of the Blitzkrieg.', rar: 'common', price: 800, ads: 1, pat: 1, camo: [[0.15, 0.16, 0.16], [0.13, 0.14, 0.14], [0.19, 0.2, 0.2]] },
-    { id: 'jaune', name: 'Factory Dunkelgelb', flav: 'Fresh off the Henschel line.', rar: 'common', price: 900, ads: 1, pat: 1, camo: [[0.55, 0.46, 0.27], [0.5, 0.42, 0.25], [0.45, 0.38, 0.22]] },
-    { id: 'dak', name: 'Afrika Korps', flav: 'Sun-bleached sand, Tobruk 1942.', rar: 'rare', price: 1800, ads: 2, pat: 0, camo: [[0.55, 0.45, 0.28], [0.5, 0.41, 0.25], [0.42, 0.36, 0.24]] },
-    { id: 'koursk', name: 'Kursk Summer', flav: 'Striped for the largest tank battle ever fought.', rar: 'rare', price: 2200, ads: 3, pat: 2, camo: [[0.52, 0.45, 0.27], [0.24, 0.27, 0.14], [0.36, 0.22, 0.13]] },
-    { id: 'hinter', name: 'Hinterhalt Ambush', flav: 'Light-dapple dots. Vanish under the canopy.', rar: 'rare', price: 2600, ads: 3, pat: 3, camo: [[0.52, 0.45, 0.27], [0.18, 0.24, 0.12], [0.35, 0.2, 0.13]] },
-    { id: 'hiver', name: 'Winter Wash', flav: 'Lime whitewash brushed on in the field.', rar: 'rare', price: 2600, ads: 3, pat: 4, camo: [[0.8, 0.82, 0.82], [0.3, 0.33, 0.22], [0.36, 0.27, 0.17]] },
-    { id: 'tigre', name: 'Tiger Stripe', flav: 'Black slashes over yellow. Pure menace.', rar: 'epic', price: 4200, ads: 5, pat: 2, camo: [[0.58, 0.48, 0.26], [0.1, 0.1, 0.08], [0.4, 0.22, 0.12]] },
-    { id: 'disrupt', name: 'Tri-Tone Disruptor', flav: 'Breaks your outline at any range.', rar: 'epic', price: 4500, ads: 5, pat: 0, camo: [[0.6, 0.52, 0.32], [0.12, 0.18, 0.1], [0.42, 0.22, 0.13]] },
+    { id: 'std', grp: 'de', name: 'Standard Issue ’44', flav: 'Three-tone factory scheme. Honest steel.', rar: 'common', price: 0, pat: 0, camo: [[0.33, 0.36, 0.22], [0.20, 0.25, 0.15], [0.36, 0.27, 0.17]] },
+    { id: 'gris', grp: 'de', name: 'Panzer Grey ’40', flav: 'The colour of the Blitzkrieg.', rar: 'common', price: 800, ads: 1, pat: 1, camo: [[0.15, 0.16, 0.16], [0.13, 0.14, 0.14], [0.19, 0.2, 0.2]] },
+    { id: 'jaune', grp: 'de', name: 'Factory Dunkelgelb', flav: 'Fresh off the Henschel line.', rar: 'common', price: 900, ads: 1, pat: 1, camo: [[0.55, 0.46, 0.27], [0.5, 0.42, 0.25], [0.45, 0.38, 0.22]] },
+    { id: 'dak', grp: 'de', name: 'Afrika Korps', flav: 'Sun-bleached sand, Tobruk 1942.', rar: 'rare', price: 1800, ads: 2, pat: 0, camo: [[0.55, 0.45, 0.28], [0.5, 0.41, 0.25], [0.42, 0.36, 0.24]] },
+    { id: 'koursk', grp: 'de', name: 'Kursk Summer', flav: 'Striped for the largest tank battle ever fought.', rar: 'rare', price: 2200, ads: 3, pat: 2, camo: [[0.52, 0.45, 0.27], [0.24, 0.27, 0.14], [0.36, 0.22, 0.13]] },
+    { id: 'hinter', grp: 'de', name: 'Hinterhalt Ambush', flav: 'Light-dapple dots. Vanish under the canopy.', rar: 'rare', price: 2600, ads: 3, pat: 3, camo: [[0.52, 0.45, 0.27], [0.18, 0.24, 0.12], [0.35, 0.2, 0.13]] },
+    { id: 'hiver', grp: 'de', name: 'Winter Wash', flav: 'Lime whitewash brushed on in the field.', rar: 'rare', price: 2600, ads: 3, pat: 4, camo: [[0.8, 0.82, 0.82], [0.3, 0.33, 0.22], [0.36, 0.27, 0.17]] },
+    { id: 'tigre', grp: 'de', name: 'Tiger Stripe', flav: 'Black slashes over yellow. Pure menace.', rar: 'epic', price: 4200, ads: 5, pat: 2, camo: [[0.58, 0.48, 0.26], [0.1, 0.1, 0.08], [0.4, 0.22, 0.12]] },
+    { id: 'disrupt', grp: 'de', name: 'Tri-Tone Disruptor', flav: 'Breaks your outline at any range.', rar: 'epic', price: 4500, ads: 5, pat: 0, camo: [[0.6, 0.52, 0.32], [0.12, 0.18, 0.1], [0.42, 0.22, 0.13]] },
     { id: 'nuit', name: 'Night Operation', flav: 'For crews who hunt after dark.', rar: 'epic', price: 0, ads: 3, adOnly: true, pat: 3, camo: [[0.08, 0.09, 0.1], [0.05, 0.06, 0.07], [0.14, 0.15, 0.13]] },
-    { id: 'foret', name: 'Snowbound Ardennes', flav: 'Winter 1944. The last offensive.', rar: 'epic', price: 5200, ads: 6, pat: 4, camo: [[0.86, 0.88, 0.88], [0.18, 0.24, 0.12], [0.33, 0.22, 0.14]] },
+    { id: 'foret', grp: 'de', name: 'Snowbound Ardennes', flav: 'Winter 1944. The last offensive.', rar: 'epic', price: 5200, ads: 6, pat: 4, camo: [[0.86, 0.88, 0.88], [0.18, 0.24, 0.12], [0.33, 0.22, 0.14]] },
     { id: 'rouille', name: 'Rust Revenant', flav: 'Pulled from the river, back for revenge.', rar: 'legendary', price: 9000, ads: 9, pat: 0, camo: [[0.36, 0.17, 0.08], [0.2, 0.1, 0.05], [0.48, 0.3, 0.14]] },
     { id: 'or', name: 'Field Marshal Gold', flav: 'Solid gold plating. Fear is the point.', rar: 'legendary', price: 25000, pat: 1, camo: [[0.75, 0.55, 0.16], [0.6, 0.42, 0.1], [0.85, 0.68, 0.25]] },
     { id: 'parade', name: 'Victory Parade', flav: 'Olive, sand and polished brass. Made to be seen.', rar: 'legendary', price: 0, ads: 6, adOnly: true, pat: 2, camo: [[0.2, 0.24, 0.12], [0.56, 0.47, 0.3], [0.62, 0.46, 0.17]] },
+    // camouflages soviétiques et alliés (grp : groupe du garage ; sans grp, pour tous les chars)
+    { id: 'su_4bo', grp: 'su', name: '4BO Protective Green', flav: 'Factory green, straight off the Nizhny Tagil line.', rar: 'common', price: 0, pat: 1, camo: [[0.16, 0.19, 0.09], [0.13, 0.16, 0.08], [0.2, 0.22, 0.11]] },
+    { id: 'su_winter', grp: 'su', name: 'Winter Whitewash ’42', flav: 'Chalk and lime brushed over 4BO on the Volga.', rar: 'rare', price: 2200, ads: 3, pat: 4, camo: [[0.78, 0.8, 0.8], [0.16, 0.19, 0.09], [0.12, 0.14, 0.07]] },
+    { id: 'su_tri', grp: 'su', name: 'Kursk Three-Tone', flav: '4BO green with 6K brown and 7K sand bands, summer 1943.', rar: 'epic', price: 4200, ads: 5, pat: 2, camo: [[0.16, 0.19, 0.09], [0.22, 0.14, 0.07], [0.44, 0.38, 0.23]] },
+    { id: 'us_od', grp: 'wa', name: 'Olive Drab No. 9', flav: 'Lusterless olive drab, by the gallon.', rar: 'common', price: 0, pat: 1, camo: [[0.13, 0.14, 0.065], [0.11, 0.12, 0.06], [0.16, 0.16, 0.08]] },
+    { id: 'uk_desert', grp: 'wa', name: 'Desert Pink ZI', flav: 'Pink sand and dark olive green, Alamein 1942.', rar: 'rare', price: 2400, ads: 3, pat: 0, camo: [[0.62, 0.48, 0.34], [0.2, 0.22, 0.12], [0.5, 0.42, 0.3]] },
+    { id: 'us_bocage', grp: 'wa', name: 'Normandy Bocage', flav: 'Black stripes over olive drab, hedgerow country.', rar: 'rare', price: 2400, ads: 3, pat: 2, camo: [[0.13, 0.14, 0.065], [0.04, 0.04, 0.035], [0.22, 0.2, 0.12]] },
+    { id: 'us_snow', grp: 'wa', name: 'Bulge Whitewash', flav: 'Lime and bedsheets, Bastogne, Christmas 1944.', rar: 'rare', price: 2600, ads: 3, pat: 4, camo: [[0.8, 0.82, 0.83], [0.13, 0.14, 0.065], [0.1, 0.1, 0.06]] },
+    { id: 'uk_caunter', grp: 'wa', name: 'Caunter Scheme', flav: 'Light stone, silver grey and slate: the Western Desert dazzle.', rar: 'epic', price: 4400, ads: 5, pat: 2, camo: [[0.6, 0.55, 0.4], [0.32, 0.36, 0.38], [0.16, 0.19, 0.22]] },
     { id: 'ochre', name: 'Citadel Ochre', flav: 'War Bond exclusive. Earned at the front, never sold.', rar: 'epic', price: 0, bond: true, pat: 2, camo: [[0.62, 0.44, 0.2], [0.3, 0.24, 0.12], [0.46, 0.3, 0.14]] },
     { id: 'ember', name: 'Bagration Ember', flav: 'War Bond exclusive. Forged in the summer storm.', rar: 'legendary', price: 0, bond: true, pat: 3, camo: [[0.22, 0.1, 0.06], [0.5, 0.2, 0.08], [0.12, 0.1, 0.09]] },
     { id: 'marsh', name: 'Market Garden Marsh', flav: 'War Bond exclusive. Polder green, bridge too far.', rar: 'epic', price: 0, bond: true, pat: 0, camo: [[0.3, 0.36, 0.2], [0.16, 0.2, 0.12], [0.44, 0.4, 0.26]] },
@@ -301,7 +345,7 @@ const Meta = (() => {
   // qualité par défaut : moyenne sur écran très dense ou petit processeur (portables, Chromebooks)
   const defQuality = () => { try { if (matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches) return 'mobile'; return (window.devicePixelRatio || 1) > 1.5 || (navigator.hardwareConcurrency || 8) <= 4 ? 'moyenne' : 'haute'; } catch (e) { return 'haute'; } };
   const fresh = () => ({
-    v: VERSION, credits: 600, xp: 0, level: 1, tanks: ['light', 'pz4'], skins: ['std'], skinSel: {}, kits: 1, x2: 0,
+    v: VERSION, credits: 600, xp: 0, level: 1, tanks: ['light', 'pz4'], skins: ['std', 'su_4bo', 'us_od'], skinSel: {}, kits: 1, x2: 0,
     wheelDay: '', streakDay: '', streak: 0, missionsDay: '', missions: [], stats: { battles: 0, kills: 0, wins: 0 },
     // réglages : caméra d'impact (off, high : moments forts, all : chaque coup), ralenti des destructions,
     // sensibilités, axe vertical, secousses, taille de l'interface, visée assistée ou réaliste, palette
@@ -344,7 +388,7 @@ const Meta = (() => {
     p.tanks = ids(o.tanks, isTank);
     for (const id of ['pz4', 'light']) if (!p.tanks.includes(id)) p.tanks.unshift(id);
     p.skins = ids(o.skins, id => SKINS.some(k => k.id === id));
-    if (!p.skins.includes('std')) p.skins.unshift('std');
+    for (const id of ['us_od', 'su_4bo', 'std']) if (!p.skins.includes(id)) p.skins.unshift(id);
     if (isObj(o.skinSel)) for (const [t, k] of Object.entries(o.skinSel)) if (t in TANKS && p.skins.includes(k)) p.skinSel[t] = k;
     if (isObj(o.parts)) for (const [t, ps] of Object.entries(o.parts)) {
       if (!(t in TANKS) || !isObj(ps)) continue;
@@ -510,8 +554,10 @@ const Meta = (() => {
   }
   const adsLeft = (key, need) => need - (P.adProg[key] || 0);
   function grantSkin(id) { if (!P.skins.includes(id)) { P.skins.push(id); save(); } }
-  function selectSkin(tank, id) { if (P.skins.includes(id)) { P.skinSel[tank] = id; save(); } }
-  const skinOf = tank => SKINS.find(k => k.id === (P.skinSel[tank] || 'std')) || SKINS[0];
+  function selectSkin(tank, id) { if (P.skins.includes(id) && skinFits(tank, SKINS.find(k => k.id === id))) { P.skinSel[tank] = id; save(); } }
+  const DEF_SKIN = { de: 'std', su: 'su_4bo', us: 'us_od', uk: 'us_od' };
+  const skinFits = (tank, s) => !!s && (!s.grp || !TANKS[tank] || s.grp === groupOf(tank));
+  const skinOf = tank => { const s = SKINS.find(k => k.id === P.skinSel[tank]); return skinFits(tank, s) ? s : SKINS.find(k => k.id === DEF_SKIN[TANKS[tank] ? TANKS[tank].nat : 'de']); };
   const partLv = (tank, part) => (P.parts[tank] && P.parts[tank][part]) || 0;
   function setPart(tank, part, lv) { P.parts[tank] = P.parts[tank] || {}; P.parts[tank][part] = lv; }
   const partAds = (tank, part) => adsFor(partCost(tank, part, partLv(tank, part)));
@@ -739,7 +785,8 @@ const Meta = (() => {
   // mission la plus avancée. kind, id, name, text, battles (0 : faisable maintenant), p (0 à 1)
   function nextGoals(tank) {
     const a = avg(), g = [], have = cumXP(P.level) + P.xp;
-    const nextT = Object.keys(TANKS).find(id => !P.tanks.includes(id));
+    const g0 = TANKS[tank] ? groupOf(tank) : 'de';
+    const nextT = Object.keys(TANKS).filter(id => !P.tanks.includes(id)).sort((a, b) => (groupOf(a) !== g0) - (groupOf(b) !== g0) || TANKS[a].lvl - TANKS[b].lvl || TANKS[a].price - TANKS[b].price)[0];
     if (nextT) {
       const T = TANKS[nextT], mx = Math.max(0, cumXP(T.lvl) - have), mc = Math.max(0, T.price - P.credits);
       const parts = [mx > 0 ? `rank ${T.lvl}` : '', mc > 0 ? `✪ ${fmtN(mc)} short` : ''].filter(Boolean).join(' · ');
@@ -795,11 +842,14 @@ const Meta = (() => {
   function battleEnd(r) {
     const M = r.mode || 'campagne', D = diff(), waves = r.waves || 0, medals = r.medals || [];
     const before = { xp: P.xp, level: P.level, credits: P.credits, need: xpFor(P.level), tier: bondTier(), opXp: P.op.xp };
-    const bonus = M === 'duel' ? (r.win ? 120 : 0) + (r.matchWon ? 400 : 0) : M === 'survie' ? waves * 120 + 500 * Math.min(3, Math.floor(waves / 5)) : (r.win ? 400 : 0);
+    // cote : chaque destruction vaut 150 × (cote ennemie / cote du joueur), borné à 0,5..2 (r.killK en est
+    // la somme) ; la prime de victoire suit la plus faible des cotes du joueur et de ses adversaires
+    const brK = r.br ? 0.8 + 0.2 * Math.min(r.br, r.ebr || r.br) : 1;
+    const bonus = Math.round((M === 'duel' ? (r.win ? 120 : 0) + (r.matchWon ? 400 : 0) : M === 'survie' ? waves * 120 + 500 * Math.min(3, Math.floor(waves / 5)) : (r.win ? 400 : 0)) * brK);
     const part = !r.win && M !== 'survie' && (r.time == null || r.time >= 30) ? 60 : 0;
     const medalCr = medals.reduce((s, id) => s + (MEDALS.find(m => m.id === id) || { c: 0 }).c, 0);
     const k = D.mul * (r.revenge && r.win ? 1.5 : 1) * (r.real ? 1.1 : 1); // visée réaliste : +10 %
-    let credits = Math.round((r.kills * 150 + r.pens * 20 + r.crew * 12 + (r.streakCr || 0) + bonus + part) * k) + medalCr;
+    let credits = Math.round(((r.killK != null ? r.killK : r.kills) * 150 + r.pens * 20 + r.crew * 12 + (r.streakCr || 0) + bonus + part) * k) + medalCr;
     let xp = Math.round((r.kills * 60 + r.pens * 8 + r.crew * 5 + (r.win ? 150 : 40) + waves * 50) * D.mul);
     const penalty = 60 * (r.ffCrew || 0) + 300 * (r.tk || 0);
     credits = Math.max(0, credits - penalty); xp = Math.max(0, xp - 25 * (r.ffCrew || 0) - 120 * (r.tk || 0));
@@ -840,7 +890,7 @@ const Meta = (() => {
   function setLast(o) { P.last = o; save(); }
 
   return {
-    sdk, midgame, rewarded, banner, clearBanners, hooks, adActive: () => adBusy, get platformMute() { return platformMute; }, RANKS, RARITY, MK, TANKS, SKINS, PARTS, WHEEL, MISSIONS, WEEKLY, STREAK, MEDALS, PERKS, MASTERY, MASTERY_N, DIFF, STARS, FIRST,
+    sdk, midgame, rewarded, banner, clearBanners, hooks, adActive: () => adBusy, get platformMute() { return platformMute; }, RANKS, RARITY, MK, TANKS, NATIONS, GROUPS, FRONTS, front, sideOf, groupOf, lineup, anachronisms, skinFits, SKINS, PARTS, WHEEL, MISSIONS, WEEKLY, STREAK, MEDALS, PERKS, MASTERY, MASTERY_N, DIFF, STARS, FIRST,
     xpFor, cumXP, rankName,
     get P() { return P; }, save, reset, parse, addXP, give, takeSkin,
     devProfile, devUse(p) { if (devMode) P = p; }, setClock(f) { clock = f || (() => new Date()); },

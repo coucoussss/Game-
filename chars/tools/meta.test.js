@@ -121,3 +121,11 @@ test('publicité : aucun gameplayStart pendant une publicité, reporté à sa fi
   await new Promise(r => Meta.rewarded(r, r));
   assert.deepStrictEqual(log.slice(n), ['ad:rewarded', 'adFinished', 'gameplayStart']); // reportée à la fin
 });
+
+test('ordres de bataille : chaque char en service à la date de son champ de bataille, cotes croissantes', () => {
+  const { Meta } = load();
+  assert.deepStrictEqual([...Meta.anachronisms()], []);
+  for (const f of Meta.FRONTS) for (const side of [0, 1]) for (const id of f.pools[side]) assert.strictEqual(Meta.sideOf(id), side, id);
+  // la cote du vivier la plus proche de la cible
+  assert.deepStrictEqual([...Meta.lineup(['pz4', 'medium', 'heavy'], 2.0, [-0.7, 0, 0.7, 1.3], () => 0)], ['pz4', 'pz4', 'medium', 'heavy']);
+});

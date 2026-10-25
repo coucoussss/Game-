@@ -116,6 +116,26 @@ Meta.whenReady(() => {
       caliber: 88, obs: 160,
       ammo: { AP: 12, APHE: 25, APCR: 10, HEAT: 5, HE: 5, SMOKE: 3, CAN: 2 },
     },
+    // ===== URSS =====
+    // soutes historiques (0 : obus inexistant pour ce canon) ; hp : chevaux du moteur
+    t34: { id: 't34', hp: 500, ready: 6, mass: 30.9, name: 'T-34/76', cls: 'Medium tank', reload: 6.0, disp: 0.014, view: 580, range: 380, caliber: 76, obs: 100,
+      ammo: { AP: 0, APHE: 40, APCR: 6, HEAT: 0, HE: 44, SMOKE: 4, CAN: 6 } },
+    t3485: { id: 't3485', hp: 500, ready: 12, mass: 32, name: 'T-34-85', cls: 'Medium tank', reload: 7.0, disp: 0.012, view: 640, range: 450, caliber: 85, obs: 115,
+      ammo: { AP: 0, APHE: 24, APCR: 5, HEAT: 0, HE: 27, SMOKE: 0, CAN: 0 } },
+    kv1s: { id: 'kv1s', hp: 600, ready: 8, mass: 42.5, name: 'KV-1S', cls: 'Heavy tank', reload: 5.5, disp: 0.014, view: 620, range: 380, caliber: 76, obs: 130,
+      ammo: { AP: 0, APHE: 44, APCR: 6, HEAT: 0, HE: 54, SMOKE: 4, CAN: 6 } },
+    // chargement séparé du 122 mm : deux à trois coups par minute
+    is2: { id: 'is2', hp: 520, ready: 4, mass: 46, name: 'IS-2', cls: 'Heavy tank', reload: 18, disp: 0.013, view: 620, range: 520, caliber: 122, obs: 135,
+      ammo: { AP: 0, APHE: 14, APCR: 0, HEAT: 0, HE: 14, SMOKE: 0, CAN: 0 } },
+    // ===== États-Unis et Royaume-Uni =====
+    m4a1: { id: 'm4a1', hp: 400, ready: 12, mass: 30.3, name: 'M4A1 Sherman', cls: 'Medium tank', reload: 4.8, disp: 0.012, view: 660, range: 400, caliber: 75, obs: 120,
+      ammo: { AP: 12, APHE: 36, APCR: 0, HEAT: 0, HE: 34, SMOKE: 8, CAN: 0 } },
+    m4a3e8: { id: 'm4a3e8', hp: 500, ready: 6, mass: 33.7, name: 'Sherman Easy Eight', cls: 'Medium tank', reload: 5.5, disp: 0.011, view: 690, range: 440, caliber: 76, obs: 125,
+      ammo: { AP: 8, APHE: 35, APCR: 3, HEAT: 0, HE: 20, SMOKE: 5, CAN: 0 } },
+    firefly: { id: 'firefly', hp: 425, ready: 5, mass: 35.3, name: 'Sherman Firefly', cls: 'Medium tank', reload: 7.0, disp: 0.012, view: 660, range: 540, caliber: 76, obs: 125,
+      ammo: { AP: 50, APHE: 0, APCR: 6, HEAT: 0, HE: 21, SMOKE: 0, CAN: 0 } },
+    m10: { id: 'm10', hp: 375, ready: 6, mass: 29.6, name: 'M10 Wolverine', cls: 'Tank destroyer', reload: 6.0, disp: 0.011, view: 700, range: 470, caliber: 76, obs: 110,
+      ammo: { AP: 6, APHE: 30, APCR: 2, HEAT: 0, HE: 12, SMOKE: 4, CAN: 0 } },
   };
   // Géométrie de jeu tirée des modèles 3D
   for (const T of Object.values(TYPES)) {
@@ -130,7 +150,10 @@ Meta.whenReady(() => {
     T.crewN = I.S.crew.length;
     // inertie en tangage et en roulis (parallélépipède plein), longueur de recul du canon
     T.Ip = T.mass * 1000 * (I.S.L * I.S.L + I.S.ht * I.S.ht) / 12; T.Ir = T.mass * 1000 * (I.S.W * I.S.W + I.S.ht * I.S.ht) / 12;
-    T.recoilLen = 0.3 + (T.caliber - 50) / 38 * 0.28;
+    T.recoilLen = Math.min(0.6, 0.3 + (T.caliber - 50) / 38 * 0.28);
+    T.nat = Meta.TANKS[T.id].nat; T.br = Meta.TANKS[T.id].br;
+    // diesel : le gazole s'enflamme bien moins que l'essence
+    T.fuelK = T.I.S.fuel === 'diesel' ? 0.4 : 1;
     // conduite (vehicle.js) : boîte, direction, tourelle, pointage ; hp = puissance en ch. Vitesse de
     // pointe régulée et marche arrière en px/s, lacet et traverse de référence en rad/s
     T.D = Vehicle.prep(Object.assign({}, Vehicle.DATA[T.id]), I.S, T.mass, T.hp);
@@ -771,6 +794,8 @@ Meta.whenReady(() => {
   }
   // multiplicateurs neutres (IA) ; en Vétéran et As, les chars ennemis ont des pièces (Meta.enemyUp)
   const DEF_UP = { hp: 1, pen: 1, armor: 1, grip: 1, optic: 1, view: 1, reload: 1, ready: 0, armorLv: 0, disp: 1, moveDisp: 1, relay: 1, sixth: false };
+  // obus chargé au départ : le premier perforant que le canon possède
+  const defShell = T => ['APHE', 'AP', 'APCR', 'HE'].find(k => T.ammo[k] > 0) || 'HE';
   function makeTank(typeId, team, x, y, angle, isPlayer, name, skill) {
     const T = TYPES[typeId], up = isPlayer ? Meta.mods(typeId) : (team === 1 && Meta.enemyUp()) || DEF_UP;
     const mods = TankModels.makeModules(typeId);
@@ -782,7 +807,7 @@ Meta.whenReady(() => {
       // 0..1 pour le son), charge du moteur, effort à la jante (N)
       vl: 0, gear: 0, nextGear: 0, shiftT: 0, rpmA: Vehicle.IDLE, rpm: 0, load: 0, fDrive: 0, braking: false, slip: 0,
       dead: false, deadT: 0, isPlayer, name, r: (T.len + T.wid) / 4,
-      mods, roles, seat: Object.assign({}, roles), swap: null, rep: {}, ammo: Object.assign({}, T.ammo), shell: 'APHE', nextShell: null,
+      mods, roles, seat: Object.assign({}, roles), swap: null, rep: {}, ammo: Object.assign({}, T.ammo), shell: defShell(T), nextShell: null,
       reloadT: rnd(0.8, 1.6), disp: T.disp * 3, smoke: 2, trackT: 0, fires: [], cookT: 0, extN: 2, extT: 0, stunT: 0,
       // moral de l'équipage (0..1) : sous 0,2, l'IA abandonne le char
       morale: isPlayer ? 1 : 0.6 + 0.4 * (skill || 0.5), wreck: null, dismount: false, aid: null, leak: 0,
@@ -918,7 +943,20 @@ Meta.whenReady(() => {
     late: [[0, 0], [60, -150], [60, 150], [0, -650, 40], [60, -590, 40]],
     ambush: [[0, 0], [60, -150], [60, 150], [0, -300], [0, 300]],
   };
-  const HEAVY = ['kingtiger', 'heavy', 'destroyer', 'medium', 'stug', 'pz4', 'light'];
+  // Camps : celui du char du joueur (0 Axe, 1 Alliés) donne ses alliés ; les ennemis viennent de l'autre
+  // camp, tirés de l'ordre de bataille historique du champ de bataille (Meta.FRONTS) au plus près de la
+  // cote du joueur. sides[équipe] : camp de l'équipe ; bBR : cotes du joueur et moyenne de ses ennemis.
+  let sides = [0, 1], bBR = { p: 2, e: 2 };
+  const front = () => Meta.front(levelIdx);
+  // nation d'une équipe en bataille ('de', 'su', 'us' ou 'uk') : canons antichars, infanterie, aviation
+  const nationOf = team => sides[team] === 0 ? 'de' : front().nat;
+  const poolOf = team => front().pools[sides[team]];
+  // camouflage des chars de l'IA : celui du champ de bataille pour leur camp, sinon celui de leur nation
+  function aiSkin(t) {
+    const s = Meta.SKINS.find(k => k.id === front().camo[sides[t.team]]);
+    return Meta.skinFits(t.T.id, s) ? s : Meta.SKINS.find(k => k.id === { de: 'std', su: 'su_4bo' }[t.T.nat]) || Meta.SKINS.find(k => k.id === 'us_od');
+  }
+  { const ana = Meta.anachronisms(); if (ana.length) console.warn('Tanks out of their service period:', ana.join(', ')); }
   let reinf = [], waveForm = 'line', revengeNext = false; // revengeNext : première reprise d'une vague perdue (prime de revanche)
   function spawnWave() {
     if (W3D0) for (const t of tanks) if (t.scar3) { W3D0.free(t.scar3.hull); W3D0.free(t.scar3.turret); }
@@ -933,11 +971,17 @@ Meta.whenReady(() => {
     if (W3D && groundCv) setEnv3();
     const lv = L();
     aiReact = Meta.diff().react;
-    const allyTypes = levelIdx < 2 ? ['pz4', 'light', 'medium', 'stug'] : levelIdx < 4 ? ['medium', 'heavy', 'destroyer', 'pz4'] : ['kingtiger', 'medium', 'stug', 'heavy'];
-    // camp d'entraînement : la toute première bataille oppose des chars légers peu aguerris, plus proches
+    const ps = Meta.sideOf(chosenType), pBR = TYPES[chosenType].br;
+    sides = [ps, 1 - ps];
+    const allyTypes = Meta.lineup(poolOf(0), pBR, [-0.3, 0, 0, 0.3]);
+    // camp d'entraînement : la toute première bataille oppose les chars les plus légers, peu aguerris et
+    // plus proches ; ensuite chaque vague monte d'un cran de cote (−0,3, 0, +0,3)
     const boot = mode === 'campagne' && levelIdx === 0 && waveIdx === 0 && (DEV_RUN ? dq('tut') : Meta.P.stats.battles === 0);
-    const enemyTypes = boot ? ['light', 'light', 'pz4', 'light', 'pz4'] : lv.waves[waveIdx];
-    const eSkill = boot ? 0.2 : aiSkill(Math.min(0.95, 0.3 + levelIdx * 0.14 + waveIdx * 0.04));
+    const enemyTypes = Meta.lineup(poolOf(1), pBR + (boot ? -1 : [-0.3, 0, 0.3][waveIdx] || 0), boot ? [0, 0, 0, 0, 0] : [-0.7, -0.3, 0, 0.3, 0.7]);
+    bBR = { p: pBR, e: enemyTypes.reduce((a, id) => a + TYPES[id].br / enemyTypes.length, 0) };
+    // vivier trop faible (ou trop fort) pour le char du joueur : l'adversaire compense par son habileté
+    const gapK = clamp((bBR.p - bBR.e - 0.4) * 0.12, -0.12, 0.15);
+    const eSkill = boot ? 0.2 : clamp(aiSkill(Math.min(0.95, 0.3 + levelIdx * 0.14 + waveIdx * 0.04)) + gapK, 0.1, 0.98);
     const aSkill = Math.min(0.7, 0.5 + levelIdx * 0.05);
     const slots = [-300, -150, 0, 150, 300];
     const aT = [allyTypes[0], allyTypes[1], chosenType, allyTypes[2], allyTypes[3]];
@@ -947,7 +991,8 @@ Meta.whenReady(() => {
       player = makeTank(chosenType, 0, 200, WH / 2, 0, true, 'You', aSkill);
       tanks.push(player);
       if (mode === 'duel') {
-        const t = makeTank(chosenType, 1, WW - 200, WH / 2 + rnd(-300, 300), Math.PI, false, 'Enemy 1', aiSkill(0.45 + 0.08 * levelIdx));
+        const et = Meta.lineup(poolOf(1), pBR, [0])[0]; bBR.e = TYPES[et].br;
+        const t = makeTank(et, 1, WW - 200, WH / 2 + rnd(-300, 300), Math.PI, false, 'Enemy 1', aiSkill(0.45 + 0.08 * levelIdx));
         t.ai.laneY = clamp(t.y + rnd(-200, 200), 150, WH - 150);
         tanks.push(t); enemyN = 1;
       } else { survWave = 1; nextWaveT = 0; survivalEnemies(survWave); }
@@ -962,7 +1007,7 @@ Meta.whenReady(() => {
       // dispositif tiré au sort parmi ceux de la vague, retourné une fois sur deux ; les plus lourds aux
       // premières places
       const fl = boot ? ['line'] : (lv.forms && lv.forms[waveIdx]) || ['line'], f = waveForm = FORMS[dq('form') && Q.get('form')] ? Q.get('form') : fl[Math.floor(Math.random() * fl.length)], F = FORMS[f], sg = Math.random() < 0.5 ? 1 : -1, used = [];
-      enemyTypes.slice().sort((a, b) => HEAVY.indexOf(a) - HEAVY.indexOf(b)).forEach((type, i) => {
+      enemyTypes.slice().sort((a, b) => TYPES[b].br - TYPES[a].br).forEach((type, i) => {
         const q = F[i], name = 'Enemy ' + (i + 1);
         let x = (boot ? WW * 0.62 : WW - 200) - q[0], y = WH / 2 + sg * q[1], post = null;
         if (f === 'ambush' && ROLES[type] === 'ambush') {
@@ -981,7 +1026,7 @@ Meta.whenReady(() => {
     Sfx.setTank(player.T.id, player.T.D.rated, player.T.D.trav.kind);
     Sfx.setRoom(lv.forest ? 'forest' : lv.city ? 'city' : lv.desert ? 'desert' : lv.snow ? 'snow' : 'open');
     specIdx = 0;
-    waveStats = { kills: 0, pens: 0, crew: 0, mods: 0, ffCrew: 0, tk: 0, hits: 0, shots: 0, ric: 0, dodged: 0, crits: 0, fires: 0, bailed: 0, saved: 0,
+    waveStats = { kills: 0, killK: 0, pens: 0, crew: 0, mods: 0, ffCrew: 0, tk: 0, hits: 0, shots: 0, ric: 0, dodged: 0, crits: 0, fires: 0, bailed: 0, saved: 0,
       ffPens: 0, medals: [], killT: [], streak: 0, streakCr: 0, firstKill: false, ricSelf: 0, pened: false, revived: false, longest: 0, maxPen: 0, revenge: revengeNext };
     if (revengeNext) addLog('Revenge bonus: +50% credits if you win this wave', '#ffd76a');
     revengeNext = false;
@@ -1000,12 +1045,15 @@ Meta.whenReady(() => {
   // reconnaissances rapides de Lynx. Les chars visent la position du joueur à leur arrivée.
   const SURV_SIDES = [[1, 0.5], [1, 0.12], [1, 0.88], [0.5, 0.1], [0.5, 0.9], [0, 0.5], [0, 0.12], [0, 0.88]];
   function survivalEnemies(n) {
-    const pool = ['light', 'pz4', 'light', 'stug', 'medium', 'pz4', 'destroyer', 'heavy', 'kingtiger'];
+    const pool = poolOf(1), pBR = TYPES[chosenType].br, top = pool.reduce((a, id) => TYPES[id].br > TYPES[a].br ? id : a), low = pool.reduce((a, id) => TYPES[id].br < TYPES[a].br ? id : a);
     const skill = aiSkill(Math.min(0.95, 0.3 + n * 0.06)), px = player ? player.x : 200, py = player ? player.y : WH / 2;
     let types;
-    if (n % 5 === 0) types = ['kingtiger', 'pz4', 'pz4', 'heavy'].slice(0, 3 + (n >= 10));
-    else if (n % 5 === 3) types = Array(Math.min(5, Math.ceil(n * 0.7) + 1)).fill('light');
-    else types = Array.from({ length: Math.min(5, Math.ceil(n * 0.7)) }, () => pool[clamp(Math.floor(Math.random() * (1.5 + n * 0.8)), 0, pool.length - 1)]);
+    // toutes les 5 vagues le plus lourd du vivier et son escorte, entre-temps des reconnaissances du plus
+    // léger ; sinon autour de la cote du joueur, de −0,8 à +0,6 au fil des vagues
+    if (n % 5 === 0) types = [top].concat(Meta.lineup(pool, pBR, [-0.3, -0.3, 0.3].slice(0, 2 + (n >= 10))));
+    else if (n % 5 === 3) types = Array(Math.min(5, Math.ceil(n * 0.7) + 1)).fill(low);
+    else types = Meta.lineup(pool, pBR - 0.8 + Math.min(1.4, n * 0.12), Array.from({ length: Math.min(5, Math.ceil(n * 0.7)) }, () => rnd(-0.5, 0.5)));
+    bBR = { p: pBR, e: types.reduce((a, id) => a + TYPES[id].br / types.length, 0) };
     const far = SURV_SIDES.map(q => ({ x: clamp(q[0] * WW, 200, WW - 200), y: clamp(q[1] * WH, 150, WH - 150) })).sort((a, b) => Math.hypot(b.x - px, b.y - py) - Math.hypot(a.x - px, a.y - py));
     const o = far[Math.floor(Math.random() * 3)], ang = Math.atan2(py - o.y, px - o.x), ux = Math.cos(ang), uy = Math.sin(ang);
     types.forEach((type, i) => {
@@ -1305,7 +1353,8 @@ Meta.whenReady(() => {
   // ----- Postes et itinéraires -----
   // Rôles par type : reconnaissance (Lynx), ligne et débordement (moyens), fer de lance (lourds),
   // embuscade (chasseurs de chars et canons d'assaut, qui ne poursuivent pas)
-  const ROLES = { light: 'scout', pz4: 'line', medium: 'line', heavy: 'spear', kingtiger: 'spear', stug: 'ambush', destroyer: 'ambush' };
+  const ROLES = { light: 'scout', pz4: 'line', medium: 'line', heavy: 'spear', kingtiger: 'spear', stug: 'ambush', destroyer: 'ambush',
+    t34: 'line', t3485: 'line', kv1s: 'spear', is2: 'spear', m4a1: 'line', m4a3e8: 'line', firefly: 'line', m10: 'ambush' };
   const bushNear = (p, r) => { let best = null, bd = r; for (const b of bushes) { const d = Math.hypot(p.x - b.x, p.y - b.y); if (d < bd) { bd = d; best = b; } } return best; };
   // Couvert le plus proche (à moins de rmax) qu'aucune des menaces ne voit
   function coverPoint(t, threats, rmax) {
@@ -3057,16 +3106,23 @@ Meta.whenReady(() => {
 
   // Plaque touchée : épaisseur, inclinaison, normale extérieure et protections annexes
   // probe : visée seulement (lunette), épaisseurs moyennes au lieu d'un tirage
+  // blindage en équivalent d'acier laminé : une plaque coulée [mm, angle, q] vaut q × son épaisseur
+  const RHA = new Map();
+  function armorRHA(S) {
+    if (!RHA.has(S)) { const f = o => o && Object.fromEntries(Object.entries(o).map(([k, v]) => [k, Array.isArray(v) ? [Math.round(v[0] * (v[2] || 1)), v[1]] : v])); RHA.set(S, { hull: f(S.armor.hull), turret: f(S.armor.turret) }); }
+    return RHA.get(S);
+  }
   function platePick(t, h, d, key, cal = 75, probe = false) {
     if (h.part === 'barrel') return { face: 'barrel', sideSign: 1, plate: 'Gun barrel', mm: 20, slope: 0, dd: d, low: false, extra: 0, extraOf: '', heatK: 1, gear: null, n: [-d[0], -d[1], -d[2]] };
-    const Sd = t.T.S, A = Sd.armor, tAng = -t.turret, rr = (a, b) => Math.round(probe ? (a + b) / 2 : rnd(a, b));
+    const Sd = t.T.S, A = armorRHA(Sd), tAng = -t.turret, rr = (a, b) => Math.round(probe ? (a + b) / 2 : rnd(a, b));
     const face = h.roof ? 'roof' : h.nx > 0.5 ? 'front' : h.nx < -0.5 ? 'rear' : 'side';
     const sideSign = h.ny > 0 ? -1 : 1;
     let plate, mm, slope, dd = d, low = false, extra = 0, heatK = 1, gear = null, extraOf = '', nm = null;
     if (face === 'roof') {
       // toit de caisse ou de tourelle (même tôle de pont) : un obus qui plonge dessus après un ricochet
       if (h.part === 'turret') dd = rotZ(d, -tAng);
-      mm = A.hull.roof; slope = 90; plate = h.part === 'turret' ? 'Turret roof' : 'Hull roof';
+      mm = h.part === 'turret' && A.turret && A.turret.roof != null ? A.turret.roof : A.hull.roof; slope = 90;
+      plate = h.part === 'turret' ? (mm ? 'Turret roof' : 'Open turret top') : 'Hull roof';
     } else if (h.part === 'hull') {
       if (face === 'front') {
         low = h.z < Sd.zn;
@@ -3093,7 +3149,7 @@ Meta.whenReady(() => {
           if (key === 'HEAT') heatK = Ballistics.standoffK(K.off + Sd.tw, cal); else extra += 5;
         }
         if (under) {
-          if (mx > Wh.x0 + Wh.r * 0.8) { gear = 'sprocket'; extra += rr(20, 35); layers.push('Sprocket'); }
+          if (Sd.spr.x > 0 ? mx > Wh.x0 + Wh.r * 0.8 : mx < Wh.x1 - Wh.r * 0.8) { gear = 'sprocket'; extra += rr(20, 35); layers.push('Sprocket'); }
           else if (h.z >= Sd.tt - 0.12 || h.z < 0.25) { gear = 'track'; extra += rr(15, 25); layers.push('Track'); }
           else { gear = 'wheels'; extra += Wh.inter ? rr(20, 40) : rr(0, 15); layers.push('Road wheels'); }
           if (key === 'HEAT' && !inSkirt) heatK = 0.8; // jet perturbé par l'acier du train de roulement
@@ -3133,7 +3189,7 @@ Meta.whenReady(() => {
     return (T.fwMod = x < -90 ? null : { kind: 'wall', frame: 'hull', name: 'Firewall', hp: Infinity, max0: Infinity, c: [x, 0, (I.z0 + T.S.ht) / 2], s: [0.02, I.y1 - I.y0, T.S.ht - I.z0], min: [x - 0.01, I.y0, I.z0], max: [x + 0.01, I.y1, T.S.ht] });
   }
   // part d'une soute qui peut s'enflammer : rien si elle est vide ou détruite, moins si elle est entamée
-  const ammoK = m => m.hp > 0 && rackN(m) > 0 ? 0.3 + 0.7 * rackN(m) / m.cap : 0;
+  const ammoK = m => m.hp > 0 && rackN(m) > 0 ? (0.3 + 0.7 * rackN(m) / m.cap) * (m.role === 'wet' ? 0.25 : 1) : 0;
   // arrêt du noyau dans la simulation terminale (codes de ballistics.js, sinon nom du module atteint)
   const CORE_STOP = { sorti: 'exits the far side', paroi: 'stopped by the far wall', shattered: 'shattered', Firewall: 'stopped by the firewall' };
   function hitTank(s, t, h, hx, hy) {
@@ -3476,13 +3532,13 @@ Meta.whenReady(() => {
       if (m.hp <= 0) {
         lines.push({ t: `${m.name}: destroyed`, c: '#ff6a5a', time: tm });
         if (m.kind === 'fuel') {
-          if (Math.random() < 0.3 * leakK) { startFire(t, 'fuel', m, by); fire = true; }
+          if (Math.random() < 0.3 * leakK * t.T.fuelK) { startFire(t, 'fuel', m, by); fire = true; }
           else if (Math.random() < 0.25) { t.fuelFireT = rnd(2, 10); t.fuelFireM = m; } // essence qui coule sur le moteur chaud
         }
         if (m.kind === 'ammo') { const n = ruinRack(t, m, rnd(0.3, 0.7)); if (n) lines.push({ t: `Ammo rack hit: ${n} rounds lost`, c: '#ffb070', time: tm }); }
       } else lines.push({ t: `${m.name}: damaged`, c: '#ffb070', time: tm });
       // moteur touché : huile et essence des carburateurs (Maybach) s'enflamment facilement
-      if (m.kind === 'engine' && Math.random() < (h && h.hot ? 0.5 : 0.12 + 0.4 * (b - Math.max(0, m.hp)) / m.max0)) { startFire(t, 'engine', m, by); fire = true; }
+      if (m.kind === 'engine' && Math.random() < (h && h.hot ? 0.5 : 0.12 + 0.4 * (b - Math.max(0, m.hp)) / m.max0) * (0.5 + 0.5 * t.T.fuelK)) { startFire(t, 'engine', m, by); fire = true; }
     }
     // charges propulsives enflammées : les obus explosifs de la soute la font sauter (d'autant plus qu'il y
     // en a) ; sinon les douilles de laiton brûlent et l'équipage a quelques secondes pour sortir
@@ -3497,7 +3553,7 @@ Meta.whenReady(() => {
       }
       if (!detonate && any) { cookOff(t, any, by); fire = true; lines.push({ t: `Propellant charges ignited: cook-off in ${Math.round(t.cookT)} s`, c: '#ff9a3a', time: ig.t }); }
     }
-    if (sim.fuel != null) {
+    if (sim.fuel != null && Math.random() < t.T.fuelK) {
       const fm = [...sim.hits.keys()].find(m => m.kind === 'fuel') || modOf(t, 'fuel');
       startFire(t, 'fuel', fm, by); fire = true;
       lines.push({ t: 'Fuel ignited', c: '#ff9a3a', time: sim.fuel });
@@ -3770,7 +3826,8 @@ Meta.whenReady(() => {
     if (by === player) {
       if (ff) { waveStats.tk++; showMsg('Ally destroyed by your fire!', '#ff7a4a', 2.5, 2); }
       else if (by !== t) {
-        waveStats.kills++; floatText(t.x, t.y - 26, '+✪ 150', '#e9c46a', 1.3); hitMark('kill');
+        const kk = clamp(t.T.br / player.T.br, 0.5, 2);
+        waveStats.kills++; waveStats.killK += kk; floatText(t.x, t.y - 26, `+✪ ${Math.round(150 * kk)}`, '#e9c46a', 1.3); hitMark('kill');
         if (Meta.P.opts.slowmo && !Meta.P.opts.calm) slowT = 0.5; playerKill(t, how); showMsg(how === 'brewed' ? 'Enemy tank destroyed: ammo detonated!' : how === 'abandoned' ? 'Enemy crew bailed out!' : how === 'burning' ? 'Enemy tank knocked out and burning' : 'Enemy tank knocked out', '#ffe27a', 2, 2); }
     }
     if (t.team !== (player ? player.team : 0) && waveStats && !waveStats.firstKill) { waveStats.firstKill = true; if (enemy) medal('first_blood'); }
@@ -3790,7 +3847,7 @@ Meta.whenReady(() => {
     let done = Meta.track('kill');
     if (key === 'HE' || key === 'HEAT') done = Meta.track('killhe') || done;
     if (m >= 400) done = Meta.track('snipe') || done;
-    if (t.T.id === 'heavy' || t.T.id === 'kingtiger') done = Meta.track('killheavy') || done;
+    if (t.T.cls === 'Heavy tank') done = Meta.track('killheavy') || done;
     if (done) missionToast();
     ws.longest = Math.max(ws.longest, m);
     ws.killT.push(now); ws.streak++;
@@ -5047,7 +5104,8 @@ Meta.whenReady(() => {
       if (sight.on && t === player) continue;
       const p = to3(t.x, t.y), hm = M4.mul(M4.trs(p[0], p[1], t.gz, -t.angle), susM(t));
       const psk = t === player ? Meta.skinOf(t.T.id) : null;
-      const o = { gz: t.gz, camo: psk ? psk.camo : TEAM[t.team].camo, pat: psk ? psk.pat : 0, seed: t.team * 3.7 + t.id * 0.37, burnt: t.dead ? clamp(t.burnT / 25, 0, 1) : 0, tread: -t.treadPhase / PX, tint: t.hitFlash > 0 ? [1, 0.9, 0.7, t.hitFlash * 2.5] : null };
+      const sk = psk || t.skin || (t.skin = aiSkin(t));
+      const o = { gz: t.gz, camo: sk.camo, pat: sk.pat, seed: t.team * 3.7 + t.id * 0.37, burnt: t.dead ? clamp(t.burnT / 25, 0, 1) : 0, tread: -t.treadPhase / PX, tint: t.hitFlash > 0 ? [1, 0.9, 0.7, t.hitFlash * 2.5] : null };
       const MS = MESH3[t.T.id];
       items.push({ mesh: MS.hull, model: hm, o });
       const ad = t.up.armorLv ? addon3(t.T.id, t.up.armorLv) : null;
@@ -6155,7 +6213,7 @@ Meta.whenReady(() => {
       ctx.fillStyle = n ? (sel ? '#ffe27a' : '#ddd') : '#666'; ctx.font = '700 10px system-ui, sans-serif';
       ctx.fillText(kb ? `[${i + 1}] ${sh.tag || k}` : sh.tag || k, x + 4, sy + 13);
       ctx.font = '600 9.5px system-ui, sans-serif'; ctx.fillStyle = n ? '#aaa' : '#555';
-      ctx.fillText(sh.tag || !assisted() ? `${n} rds` : `${n} · ${Math.round(penAt(player.T, k, 200))}`, x + 4, sy + 25);
+      ctx.fillText(!player.T.ammo[k] ? '—' : sh.tag || !assisted() ? `${n} rds` : `${n} · ${Math.round(penAt(player.T, k, 200))}`, x + 4, sy + 25);
       x += step;
     });
     // rechargement
@@ -6293,16 +6351,18 @@ Meta.whenReady(() => {
     const eff = a => Math.round(a[0] / Math.cos(a[1] * D2R));
     const row = (l, a) => `<tr><td>${l}</td><td>${a[0]} mm at ${a[1]}°</td><td>≈ ${eff(a)} mm</td></tr>`;
     let h = `<div class="specTitle">${T.name} <small>${T.cls}</small></div><div class="specSub">${Sd.inspired} · ${Sd.real}</div>`;
-    h += `<div class="specLine">Gun ${Sd.gun.name} · AP shell ${String(Ballistics.shell(T.id, 'APHE').m)} kg at ${Ballistics.shell(T.id, 'APHE').v0} m/s · reload ${T.reload.toFixed(1)} s · ${T.kmh} km/h</div>`;
+    const ap = Ballistics.shell(T.id, defShell(T));
+    h += `<div class="specLine">${Meta.NATIONS[T.nat].name} · battle rating ${T.br.toFixed(1)} · ${T.I.S.fuel === 'diesel' ? 'diesel' : 'petrol'} engine, ${T.hp} hp${Sd.modules.some(m => m[1] === 'wet') ? ' · wet ammo stowage' : ''}</div>`;
+    h += `<div class="specLine">Gun ${Sd.gun.name} · AP shell ${ap.m} kg at ${ap.v0} m/s · reload ${T.reload.toFixed(1)} s · ${T.kmh} km/h</div>`;
     const Dd = T.D, trav = Vehicle.traverse(Dd, Dd.gov, true) / D2R;
-    h += `<div class="specLine">${Dd.gears.length}+${Dd.rev.length} ${Dd.box.name} gearbox · reverse ${Math.round(Dd.revTop * 3.6)} km/h · ${Dd.steer.kind === 'regen' ? 'regenerative steering, neutral turn' : 'clutch-and-brake steering'} · ${T.arc ? `gun traverse ±${Math.round(T.arc / D2R)}° by hand` : `turret 360° in ${Math.round(360 / trav)} s (${Dd.trav.kind === 'hyd' ? 'hydraulic, engine-driven' : Dd.trav.kind === 'elec' ? 'electric' : 'hand-cranked'})`} · elevation ${Dd.elev[0]}° to +${Dd.elev[1]}° · climbs ${Dd.climb}° · fords ${Dd.ford} m${T.mass > HEAVY_T ? ' · too heavy for ice and wooden bridges' : ''}</div>`;
+    h += `<div class="specLine">${Dd.gears.length}+${Dd.rev.length} ${Dd.box.name} gearbox · reverse ${Math.round(Dd.revTop * 3.6)} km/h · ${Dd.steer.kind === 'regen' ? 'regenerative steering, neutral turn' : Dd.steer.name || 'clutch-and-brake steering'} · ${T.arc ? `gun traverse ±${Math.round(T.arc / D2R)}° by hand` : `turret 360° in ${Math.round(360 / trav)} s (${Dd.trav.kind === 'hyd' ? 'hydraulic, engine-driven' : Dd.trav.kind === 'elec' ? 'electric' : 'hand-cranked'})`} · elevation ${Dd.elev[0]}° to +${Dd.elev[1]}° · climbs ${Dd.climb}° · fords ${Dd.ford} m${T.mass > HEAVY_T ? ' · too heavy for ice and wooden bridges' : ''}</div>`;
     h += `<div class="specLine">Crew: ${Sd.crew.map(r => TankModels.NAMES[r]).join(', ')}</div>`;
     h += '<table class="spec"><tr><th>Armor</th><th>Thickness</th><th>Effective</th></tr>';
     h += row('Upper front hull', A.hull.up) + row('Lower front hull', A.hull.low) + row('Hull sides', A.hull.side) + row('Lower sides (behind wheels)', A.hull.lowSide) + row('Rear hull', A.hull.rear);
     if (A.turret) h += row('Front turret', A.turret.front) + row('Gun mantlet', A.turret.mantlet) + row('Turret sides', A.turret.side) + row('Rear turret', A.turret.rear);
     h += `<tr><td>Roof</td><td>${A.hull.roof} mm</td><td></td></tr></table>`;
     h += '<table class="spec"><tr><th>Shell</th><th>100 m</th><th>500 m</th><th>Rounds</th></tr>';
-    for (const k of SHELL_KEYS) h += SHELLS[k].tag ? `<tr><td>${Ballistics.shell(T.id, k).name}</td><td>—</td><td>—</td><td>${T.ammo[k]}</td></tr>` : `<tr><td>${Ballistics.shell(T.id, k).name}</td><td>${Math.round(penAt(T, k, 100 / RK))} mm</td><td>${Math.round(penAt(T, k, 500 / RK))} mm</td><td>${T.ammo[k]}</td></tr>`;
+    for (const k of SHELL_KEYS) if (T.ammo[k]) h += SHELLS[k].tag ? `<tr><td>${Ballistics.shell(T.id, k).name}</td><td>—</td><td>—</td><td>${T.ammo[k]}</td></tr>` : `<tr><td>${Ballistics.shell(T.id, k).name}</td><td>${Math.round(penAt(T, k, 100 / RK))} mm</td><td>${Math.round(penAt(T, k, 500 / RK))} mm</td><td>${T.ammo[k]}</td></tr>`;
     return h + '</table>';
   }
   // ===================== Menu =====================
@@ -6489,7 +6549,8 @@ Meta.whenReady(() => {
     updateTopbar();
   }
   // Rareté affichée des chars (selon leur rang dans l'arbre) et des niveaux de pièces
-  const TANK_RAR = { light: 'common', pz4: 'common', stug: 'rare', medium: 'rare', destroyer: 'epic', heavy: 'epic', kingtiger: 'legendary' };
+  const TANK_RAR = { light: 'common', pz4: 'common', stug: 'rare', medium: 'rare', destroyer: 'epic', heavy: 'epic', kingtiger: 'legendary',
+    t34: 'common', m4a1: 'common', kv1s: 'rare', m10: 'rare', t3485: 'rare', m4a3e8: 'epic', firefly: 'epic', is2: 'legendary' };
   const PART_RAR = ['rare', 'epic', 'legendary'];
   const RAR_N = { common: 1, rare: 1, epic: 2, legendary: 3 };
   const adPips = (n, need) => need > 3 ? `<span class="adp n">${n}/${need}</span>` : `<span class="adp">${Array.from({ length: need }, (_, i) => `<i class="${i < n ? 'on' : ''}"></i>`).join('')}</span>`;
@@ -7057,14 +7118,14 @@ Meta.whenReady(() => {
       const rc = Meta.record(k, v);
       if (rc.beat) notes.push(`<div class="note rec">NEW RECORD · ${lab}</div>`);
     }
-    const g = Meta.battleEnd(Object.assign({ mode, ffCrew: ws.ffCrew, tk: ws.tk, time: waveTime, medals: ws.medals, streakCr: ws.streakCr, revenge: ws.revenge, level: levelIdx, tank: chosenType, td: !!T.arc, untouched: !ws.pened, real: !assisted() }, r));
+    const g = Meta.battleEnd(Object.assign({ mode, ffCrew: ws.ffCrew, tk: ws.tk, time: waveTime, medals: ws.medals, streakCr: ws.streakCr, revenge: ws.revenge, level: levelIdx, tank: chosenType, td: !!T.arc, untouched: !ws.pened, real: !assisted(), killK: ws.killK, br: bBR.p, ebr: bBR.e }, r));
     const btns = $('resBtns'), nm = ws.medals.length;
     btns.innerHTML = '';
     // rapport de bataille replié sur les petits écrans : gains et boutons restent visibles
     $('resDet').open = innerHeight >= 620;
     $('resSum').textContent = 'Battle report' + (nm ? ` · ${nm} medal${nm > 1 ? 's' : ''}` : '');
     $('result').querySelector('.box').scrollTop = 0;
-    $('resTable').insertAdjacentHTML('beforeend', medalRows(ws) + (ws.streakCr ? `<tr><td>Kill streak bonus</td><td>+✪ ${fmt(ws.streakCr)}</td></tr>` : '') +
+    $('resTable').insertAdjacentHTML('beforeend', `<tr><td>Battle rating: ${T.name} vs enemies</td><td>${bBR.p.toFixed(1)} vs ${bBR.e.toFixed(1)}</td></tr>` + medalRows(ws) + (ws.streakCr ? `<tr><td>Kill streak bonus</td><td>+✪ ${fmt(ws.streakCr)}</td></tr>` : '') +
       (ws.revenge && r.win ? '<tr><td>Revenge bonus</td><td>×1.5</td></tr>' : '') + (Meta.diff().mul !== 1 ? `<tr><td>${Meta.diff().name} difficulty</td><td>×${Meta.diff().mul}</td></tr>` : '') + (!assisted() ? '<tr><td>Realistic aiming</td><td>×1.1</td></tr>' : '') +
       (g.penalty ? `<tr><td>Friendly fire penalty</td><td class="bad">−✪ ${fmt(g.penalty)}</td></tr>` : ''));
     const t0 = performance.now(), count = () => {
@@ -7263,7 +7324,7 @@ Meta.whenReady(() => {
   function initBench() {
     const g = $('bGun'), sS = $('bShell');
     g.innerHTML = Object.values(TYPES).map(T => `<option value="${T.id}">${Ballistics.GUNS[T.id].gun} (${T.name})</option>`).join('');
-    const fillShells = () => { sS.innerHTML = SHELL_KEYS.filter(k => k !== 'SMOKE' && k !== 'CAN').map(k => `<option value="${k}">${Ballistics.shell(g.value, k).name}</option>`).join(''); sS.value = 'APHE'; };
+    const fillShells = () => { sS.innerHTML = SHELL_KEYS.filter(k => k !== 'SMOKE' && k !== 'CAN' && Ballistics.has(g.value, k)).map(k => `<option value="${k}">${Ballistics.shell(g.value, k).name}</option>`).join(''); sS.value = sS.options[0].value; };
     fillShells();
     g.onchange = () => { fillShells(); labels(); };
     const labels = () => { $('bTv').textContent = $('bT').value + ' mm'; $('bAv').textContent = $('bA').value + '°'; $('bDv').textContent = $('bD').value + ' m'; };
@@ -7444,7 +7505,8 @@ Meta.whenReady(() => {
     const dm = a.match(/^shell([1-7])$/);
     if (dm) {
       const key = SHELL_KEYS[Number(dm[1]) - 1];
-      if (player.ammo[key] <= 0) showMsg(`Out of ${SHELLS[key].name.toLowerCase()} rounds`, '#ff9a7a', 1.2);
+      if (!player.T.ammo[key]) showMsg(`No ${SHELLS[key].name.toLowerCase()} round for the ${player.T.S.gun.name}`, '#ff9a7a', 1.2);
+      else if (player.ammo[key] <= 0) showMsg(`Out of ${SHELLS[key].name.toLowerCase()} rounds`, '#ff9a7a', 1.2);
       else {
         const r = selectShell(player, key);
         if (r === 'queued') showMsg(`Next round: ${SHELLS[key].name.toLowerCase()} · press again to unload the gun`, '#e9d9a6', 1.6);
@@ -7846,7 +7908,7 @@ Meta.whenReady(() => {
       get meta() { return Meta.P; },
       kill(i, det) { const e = tanks.filter(t => t.team === 1 && !t.dead)[i || 0]; if (e) destroyTank(e, player, !!det); return !!e; },
       get bullets() { return bullets; }, get parts() { return parts; },
-      w2s: (x, y, z) => worldToScreen(x, y, z), hatchPos, viewer, pick(id) { chosenType = id; buildMenu(); },
+      w2s: (x, y, z) => worldToScreen(x, y, z), hatchPos, viewer, pick(id) { chosenType = id; buildMenu(); }, nationOf, get sides() { return sides; },
       // autotest : des profils anciens ou abîmés doivent toujours donner un menu (profil jetable)
       profileSelfTest() {
         Meta.devProfile();
