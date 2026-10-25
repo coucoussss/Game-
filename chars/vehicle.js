@@ -15,6 +15,8 @@ const Vehicle = (() => {
   // boîtes synchronisées (passage ≈ 0,8 s, marche arrière ≈ 1,2 s) et présélectives Maybach Olvar
   const SYNC = { name: 'synchromesh', shift: 0.8, rs: 1.2 }, OLVAR = { name: 'Olvar preselector', shift: 0.45, rs: 0.8 };
   // climb : pente franchissable (°) ; ford : profondeur de gué sans préparation (m)
+  // boîte soviétique à baladeurs (passage lent) ; différentiel contrôlé américain : rayon fixe, sans pivot
+  const CMESH = { name: 'sliding-mesh', shift: 1.4, rs: 1.6 }, CDIFF = { kind: 'diff', name: 'controlled differential', r: [9.4, 9.4], neutral: 0 };
   const PZ3 = { gears: [4.2, 8.3, 14.4, 21.5, 29.8, 40.8], rev: [5.4], rated: 3000, gov: 2800, box: SYNC, press: 0.89, climb: 30 };
   const PANTHER = { gears: geo(4.8, 55, 7), rev: [4.8], rated: 3000, gov: 2500, box: SYNC, steer: { kind: 'regen', r: [5, 80], neutral: 25 }, press: 0.88, ext: 1, climb: 35 };
   // trav : vitesse de tourelle en °/s. hyd : pompe entraînée par le moteur, de idle (ralenti) à max au
@@ -37,6 +39,27 @@ const Vehicle = (() => {
     heavy: { gears: [2.8, 4.3, 6.2, 9.2, 14.1, 20.0, 30.5, 45.4], rev: [2.8, 4.3, 6.2, 9.2], rated: 3000, gov: 2500, box: OLVAR, steer: { kind: 'regen', r: [3.4, 165], neutral: 20 }, trav: { kind: 'hyd', idle: 2, max: 7, rpm: 2500, hand: 0.7 }, elev: [-8, 15], elevRate: 4, press: 1.05, ext: 1, climb: 35, ford: 1.5 },
     // Tiger II : HL 230 P30, Olvar B 8+4, direction L 801, tourelle : 360° en 19 s à 2000 tr/min, 77 s à 1000
     kingtiger: { gears: geo(2.6, 41.5, 8), rev: geo(2.6, 41.5, 8).slice(0, 4), rated: 3000, gov: 2500, box: OLVAR, steer: { kind: 'regen', r: [3.5, 165], neutral: 15 }, trav: { kind: 'hyd', idle: 1.9, max: 19, rpm: 2000, hand: 0.6 }, elev: [-8, 15], elevRate: 4, press: 1.0, ext: 1, climb: 35, ford: 1.6 },
+
+    // ===== URSS : diesels V-2, boîtes à baladeurs lentes à passer, embrayages et freins =====
+    // T-34/76 1943 : V-2-34 500 ch à 1800 tr/min, boîte 5+1, tourelle électrique
+    t34: { gears: geo(7.5, 53, 5), rev: [8], rated: 1800, gov: 1800, box: CMESH, steer: { kind: 'clutch', max: 30 }, trav: { kind: 'elec', max: 24, hand: 3 }, elev: [-5, 25], elevRate: 4, press: 0.7, climb: 35, ford: 1.3 },
+    // T-34-85 : même groupe, tourelle plus lourde (MPB électrique)
+    t3485: { gears: geo(7.5, 53, 5), rev: [8], rated: 1800, gov: 1800, box: CMESH, steer: { kind: 'clutch', max: 30 }, trav: { kind: 'elec', max: 22, hand: 2.5 }, elev: [-5, 22], elevRate: 4, press: 0.83, climb: 35, ford: 1.3 },
+    // KV-1S : V-2K 600 ch à 2000 tr/min, boîte 4 rapports et relais (8+2)
+    kv1s: { gears: geo(4.5, 43, 8), rev: [4.5, 9], rated: 2000, gov: 2000, box: CMESH, steer: { kind: 'clutch', max: 28 }, trav: { kind: 'elec', max: 20, hand: 2 }, elev: [-5, 25], elevRate: 4, press: 0.81, climb: 36, ford: 1.6 },
+    // IS-2 : V-2-IS 520 ch à 2000 tr/min, 8+2, direction planétaire à deux étages (un rayon par rapport,
+    // pivot sur une chenille freinée)
+    is2: { gears: geo(3.6, 37, 8), rev: [3.6, 7.9], rated: 2000, gov: 2000, box: CMESH, steer: { kind: 'diff', name: 'two-stage planetary steering', r: [3, 30], neutral: 8 }, trav: { kind: 'elec', max: 14, hand: 1.5 }, elev: [-3, 20], elevRate: 3, press: 0.82, climb: 36, ford: 1.3 },
+    // ===== États-Unis et Royaume-Uni : boîte synchronisée 5+1 et différentiel contrôlé (rayon fixe de
+    // 9,4 m, pas de pivot), tourelle à moteur électro-hydraulique indépendant du moteur =====
+    // M4A1 : Continental R975 C1, radial de 400 ch à 2400 tr/min
+    m4a1: { gears: geo(7.2, 39, 5), rev: [5.6], rated: 2400, gov: 2400, box: SYNC, steer: CDIFF, trav: { kind: 'elec', max: 24, hand: 3 }, elev: [-10, 25], elevRate: 5, press: 0.96, climb: 30, ford: 0.9 },
+    // M4A3(76)W HVSS : Ford GAA, V8 de 500 ch à 2600 tr/min, chenilles de 58 cm
+    m4a3e8: { gears: geo(7.5, 42, 5), rev: [5.8], rated: 2600, gov: 2600, box: SYNC, steer: CDIFF, trav: { kind: 'elec', max: 24, hand: 3 }, elev: [-10, 25], elevRate: 5, press: 0.77, climb: 30, ford: 0.9 },
+    // Sherman VC Firefly : Chrysler A57 Multibank, 30 cylindres, 425 ch à 2850 tr/min
+    firefly: { gears: geo(6.8, 40, 5), rev: [5.5], rated: 2850, gov: 2850, box: SYNC, steer: CDIFF, trav: { kind: 'elec', max: 20, hand: 2.5 }, elev: [-5, 20], elevRate: 4, press: 1.0, climb: 30, ford: 0.9 },
+    // M10 : deux diesels GM 6-71 (6046), 375 ch à 2100 tr/min ; tourelle ouverte pointée à la main
+    m10: { gears: geo(7.6, 48, 5), rev: [6], rated: 2100, gov: 2100, box: SYNC, steer: CDIFF, trav: { kind: 'hand', hand: 4 }, elev: [-10, 19], elevRate: 4, press: 0.95, climb: 30, ford: 0.9 },
   };
   // Sols : crr, résistance au roulement ; mu, adhérence (traction, freinage) ; lat, adhérence latérale ;
   // sink, sensibilité à la pression au sol ; path, coût pour l'itinéraire ; bump, bosses (lisse < 0 < cahoteux)
@@ -69,8 +92,8 @@ const Vehicle = (() => {
     D.top = D.gears[D.gears.length - 1] * KMH * D.gov / D.rated;
     D.revTop = D.rev[D.rev.length - 1] * KMH * D.gov / D.rated;
     const st = D.steer;
-    if (st.kind === 'regen') D.radius = geo(st.r[0], st.r[1], D.gears.length);
-    D.wRef = (st.kind === 'regen' ? st.neutral : st.max) * D2R;
+    if (st.kind !== 'clutch') D.radius = geo(st.r[0], st.r[1], D.gears.length);
+    D.wRef = (st.kind === 'clutch' ? st.max : st.kind === 'regen' ? st.neutral : 20) * D2R;
     D.travMax = (D.trav.max || D.trav.hand) * D2R;
     return D;
   }
@@ -87,7 +110,7 @@ const Vehicle = (() => {
     for (let g = Math.ceil(D.gears.length / 3); g > 1; g--) if (force(D, P, D.rated, D.gears[g - 1] * KMH, 0) > 1.8 * R) return g;
     return 1;
   }
-  const regen = D => D.steer.kind === 'regen';
+  const regen = D => D.steer.kind === 'regen' || D.steer.kind === 'diff';
 
   // Un pas de conduite. t : char (speed et vl en unités de jeu, k unités par mètre ; turnRate en rad/s)
   // c : thr, turn (−1..1, thr = fraction de la vitesse de pointe demandée), brake ; P, gov (régulateur) ;

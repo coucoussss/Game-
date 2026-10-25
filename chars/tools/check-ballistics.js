@@ -55,7 +55,7 @@ const r2 = v => Math.round(v * 100) / 100;
   }
   const aim = (s, X, z0, zt) => (zt - z0) / X + B.drop(s, X) / X;
   let worst1 = 0, worst2 = 0;
-  for (const id of Object.keys(B.GUNS)) for (const key of ['AP', 'APHE', 'APCR', 'HEAT', 'HE', 'SMOKE']) {
+  for (const id of Object.keys(B.GUNS)) for (const key of ['AP', 'APHE', 'APCR', 'HEAT', 'HE', 'SMOKE'].filter(k => B.has(id, k))) {
     const s = B.shell(id, key);
     worst1 = Math.max(worst1, Math.abs(fly(s, aim(s, 1000, 2, 1.7), 2, 1000) - 1.7));
     worst2 = Math.max(worst2, Math.abs(fly(s, aim(s, 2000, 2, 1.7), 2, 2000) - 1.7));
@@ -63,7 +63,7 @@ const r2 = v => Math.round(v * 100) / 100;
   check('gun-laying error ≤ 0.07 m at 1000 m', worst1 <= 0.07, r2(worst1));
   check('gun-laying error ≤ 0.36 m at 2000 m', worst2 <= 0.36, r2(worst2));
   let smk = 0;
-  for (const id of Object.keys(B.GUNS)) for (const X of [300, 500, 800]) { const s = B.shell(id, 'SMOKE'); smk = Math.max(smk, Math.abs(fly(s, aim(s, X, 2, 0), 2, X))); }
+  for (const id of Object.keys(B.GUNS).filter(i => B.has(i, 'SMOKE'))) for (const X of [300, 500, 800]) { const s = B.shell(id, 'SMOKE'); smk = Math.max(smk, Math.abs(fly(s, aim(s, X, 2, 0), 2, X))); }
   check('smoke rounds land within ±0.3 m at 300-800 m', smk <= 0.3, r2(smk));
   // table de tir contre les formules exactes du modèle exponentiel (Cd constant au-delà de Mach 2,5)
   const s = B.shell('kingtiger', 'APHE'), k = B.kDrag(s, s.v0), X = 600;

@@ -108,8 +108,8 @@ const Ballistics = (() => {
     t34: {
       gun: '76.2 mm F-34 L/41.5', cal: 76.2, twist: 25, nat: 'su',
       shells: {
-        APHE: { name: '76 mm BR-350A (APHE-BC)', m: 6.3, v0: 662, cd: 0.34, k: 0.86, norm: 4, ric: [66, 76], filler: 0.15, re: 1, sens: 15, len: 3.8 },
-        APCR: { name: '76 mm BR-350P (APCR)', m: 3.02, v0: 950, cd: 0.52, k: 1.33, norm: -3, ric: [58, 68], core: 0.33, len: 3.0 },
+        APHE: { name: '76 mm BR-350A (APHE-BC)', m: 6.3, v0: 662, cd: 0.34, k: 0.81, norm: 4, ric: [66, 76], filler: 0.15, re: 1, sens: 15, len: 3.8 },
+        APCR: { name: '76 mm BR-350P (APCR)', m: 3.02, v0: 950, cd: 0.52, k: 1.3, norm: -3, ric: [58, 68], core: 0.33, len: 3.0 },
         HE: { name: '76 mm OF-350 (HE-frag)', m: 6.2, v0: 680, cd: 0.33, filler: 0.62, re: 1, ric: [85, 89], len: 4.6 },
         SMOKE: { name: '76 mm D-350 (smoke)', m: 6.45, v0: 680, cd: 0.33, filler: 0.08, re: 1, ric: [85, 89], len: 4.6 },
         CAN: { name: '76 mm Sh-354T (shrapnel, canister setting)', m: 6.5, v0: 650, cd: 0.45, ric: [85, 89], len: 2.6, balls: 260, ballM: 0.011 },
@@ -119,8 +119,8 @@ const Ballistics = (() => {
     t3485: {
       gun: '85 mm ZiS-S-53 L/54.6', cal: 85, twist: 25, nat: 'su',
       shells: {
-        APHE: { name: '85 mm BR-365 (APHE)', m: 9.2, v0: 792, cd: 0.33, k: 0.86, obl: 'AP', norm: 2, ric: [64, 74], filler: 0.048, re: 1.5, sens: 15, len: 4.0 },
-        APCR: { name: '85 mm BR-365P (APCR)', m: 4.99, v0: 1050, cd: 0.5, k: 1.28, norm: -3, ric: [58, 68], core: 0.33, len: 3.1 },
+        APHE: { name: '85 mm BR-365 (APHE)', m: 9.2, v0: 792, cd: 0.33, k: 0.8, obl: 'AP', norm: 2, ric: [64, 74], filler: 0.048, re: 1.5, sens: 15, len: 4.0 },
+        APCR: { name: '85 mm BR-365P (APCR)', m: 4.99, v0: 1050, cd: 0.5, k: 1.22, norm: -3, ric: [58, 68], core: 0.33, len: 3.1 },
         HE: { name: '85 mm O-365K (HE-frag)', m: 9.54, v0: 793, cd: 0.33, filler: 0.66, re: 1, ric: [85, 89], len: 4.6 },
       },
     },
@@ -129,7 +129,7 @@ const Ballistics = (() => {
     is2: {
       gun: '122 mm D-25T L/43', cal: 122, twist: 25, nat: 'su',
       shells: {
-        APHE: { name: '122 mm BR-471 (APHE)', m: 25, v0: 795, cd: 0.33, k: 0.86, obl: 'AP', norm: 2, ric: [64, 74], filler: 0.156, re: 1, sens: 15, len: 3.9 },
+        APHE: { name: '122 mm BR-471 (APHE)', m: 25, v0: 795, cd: 0.33, k: 0.79, obl: 'AP', norm: 2, ric: [64, 74], filler: 0.156, re: 1, sens: 15, len: 3.9 },
         HE: { name: '122 mm OF-471 (HE-frag)', m: 25, v0: 800, cd: 0.33, filler: 3.6, re: 1, ric: [85, 89], len: 4.6 },
       },
     },
@@ -137,7 +137,7 @@ const Ballistics = (() => {
     m4a1: {
       gun: '75 mm M3 L/40', cal: 75, twist: 25, nat: 'us',
       shells: {
-        AP: { name: '75 mm M72 (AP)', m: 6.32, v0: 619, cd: 0.33, k: 1.0, norm: 2, ric: [64, 74], len: 4.0 },
+        AP: { name: '75 mm M72 (AP)', m: 6.32, v0: 619, cd: 0.33, k: 1.12, norm: 2, ric: [64, 74], len: 4.0 },
         APHE: { name: '75 mm M61 (APCBC-HE)', m: 6.79, v0: 618, cd: 0.30, k: 0.94, norm: 5, ric: [68, 78], filler: 0.0667, re: 0.95, sens: 15, len: 4.4 },
         HE: { name: '75 mm M48 (HE)', m: 6.62, v0: 463, cd: 0.33, filler: 0.67, re: 1, ric: [85, 89], len: 4.6 },
         SMOKE: { name: '75 mm M64 (white phosphorus)', m: 6.94, v0: 463, cd: 0.33, filler: 0.05, re: 1, ric: [85, 89], len: 4.6 },
@@ -147,9 +147,9 @@ const Ballistics = (() => {
     m4a3e8: {
       gun: '76 mm M1A2 L/52', cal: 76.2, twist: 32, nat: 'us',
       shells: {
-        AP: { name: '76 mm M79 (AP)', m: 7.03, v0: 792, cd: 0.33, k: 1.0, norm: 2, ric: [64, 74], len: 4.0 },
+        AP: { name: '76 mm M79 (AP)', m: 7.03, v0: 792, cd: 0.33, k: 1.09, norm: 2, ric: [64, 74], len: 4.0 },
         APHE: { name: '76 mm M62 (APCBC-HE)', m: 7.0, v0: 792, cd: 0.30, k: 0.92, norm: 5, ric: [68, 78], filler: 0.064, re: 0.95, sens: 15, len: 4.4 },
-        APCR: { name: '76 mm M93 (HVAP)', m: 4.26, v0: 1036, cd: 0.42, k: 1.4, norm: -3, ric: [58, 68], core: 0.43, len: 3.2 },
+        APCR: { name: '76 mm M93 (HVAP)', m: 4.26, v0: 1036, cd: 0.42, k: 1.82, norm: -3, ric: [58, 68], core: 0.43, len: 3.2 },
         HE: { name: '76 mm M42A1 (HE)', m: 5.84, v0: 823, cd: 0.33, filler: 0.39, re: 1, ric: [85, 89], len: 4.6 },
         SMOKE: { name: '76 mm M88 (HC smoke)', m: 3.4, v0: 274, cd: 0.33, filler: 0.03, re: 1, ric: [85, 89], len: 4.6 },
       },
@@ -158,8 +158,8 @@ const Ballistics = (() => {
     firefly: {
       gun: 'OQF 17-pdr Mk IV L/55', cal: 76.2, twist: 30, nat: 'uk',
       shells: {
-        AP: { name: '17-pdr APCBC Mk 8 (capped shot)', m: 7.65, v0: 884, cd: 0.30, k: 1.0, obl: 'APHE', norm: 5, ric: [68, 78], len: 4.4 },
-        APCR: { name: '17-pdr APDS Mk 1 (discarding sabot)', m: 2.6, v0: 1204, cd: 0.32, dia: 44, k: 1.6, norm: -2, ric: [60, 70], core: 0.55, len: 3.6, spread: 2 },
+        AP: { name: '17-pdr APCBC Mk 8 (capped shot)', m: 7.65, v0: 884, cd: 0.30, k: 1.09, obl: 'APHE', norm: 5, ric: [68, 78], len: 4.4 },
+        APCR: { name: '17-pdr APDS Mk 1 (discarding sabot)', m: 2.6, v0: 1204, cd: 0.32, dia: 44, k: 2.5, norm: -2, ric: [60, 70], core: 0.55, len: 3.6, spread: 2 },
         HE: { name: '17-pdr HE Mk 1', m: 6.98, v0: 640, cd: 0.33, filler: 0.62, re: 1, ric: [85, 89], len: 4.6 },
       },
     },
