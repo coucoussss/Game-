@@ -186,14 +186,12 @@ Meta.whenReady(() => {
 
   // couleur d'un camp à l'interface (orange au lieu de rouge pour l'ennemi avec la palette pour daltoniens)
   const teamCol = k => k === 1 && Meta.P.opts.cb ? '#ff9a1a' : TEAM[k].accent;
-  const W_ = (a, b, c, d, e) => [a, b, c, d, e];
   const LEVELS = [
     {
       name: 'Kursk Plain', when: 'Prokhorovka · 12 July 1943', soils: ['steppe', 'track'], dustK: 0.7, soil: 'dry grass', gRic: 1, atm: { T: 25, rho: 1.18, wind: 3 }, sub: 'Summer steppe, wide open spaces',
       ground: ['#7b8446', '#6c763b', '#8a9352'], road: '#8d7d58', dust: '#a59a6a', track: 'rgba(40,35,20,0.16)',
       trees: 45, treeCl: 6, bushes: 34, buildings: 6, walls: 9, rocks: 8,
       tree: ['#36521f', '#4a6a2b'], bush: '#4c6b2a', wall: '#a59a86', roof: ['#8a4f3a', '#73402f'],
-      waves: [W_('light', 'light', 'medium', 'light', 'pz4'), W_('pz4', 'light', 'medium', 'stug', 'light'), W_('pz4', 'medium', 'heavy', 'stug', 'medium')],
       forms: [['line', 'wedge'], ['late', 'pincer'], ['wedge', 'ambush', 'late']],
       // houle de la steppe (± 2 m), deux balkas, et le Psel : un pont de bois de 30 t et deux gués
       relief: { oct: [[900, 2.2], [380, 1], [150, 0.3]], balkas: { n: 2, depth: 2.5, hw: 75 }, water: { wl: -0.9, river: { x: 0.76, hw: 36, depth: 2.6, bank: 0.09, fords: 2, bridge: 30 } } },
@@ -203,7 +201,6 @@ Meta.whenReady(() => {
       ground: ['#4c5c30', '#425228', '#58693a'], road: '#6d5d3f', dust: '#6b6a48', track: 'rgba(25,25,10,0.2)',
       trees: 150, treeCl: 14, bushes: 70, buildings: 3, walls: 4, rocks: 10,
       tree: ['#24401a', '#335726'], bush: '#3a5a22', wall: '#8f8a7a', roof: ['#5a4a3a', '#4a3c30'],
-      waves: [W_('medium', 'light', 'medium', 'light', 'medium'), W_('pz4', 'medium', 'heavy', 'stug', 'destroyer'), W_('heavy', 'medium', 'medium', 'destroyer', 'stug')],
       forms: [['line', 'pincer'], ['ambush', 'late'], ['ambush', 'wedge']],
       // collines boisées (± 8 m), un ruisseau guéable partout et une mare profonde
       relief: { oct: [[1100, 6.5], [450, 3], [180, 0.9]], water: { wl: -1.5, river: { x: 0.47, hw: 22, depth: 0.7, bank: 0.04 }, ponds: { n: 1, r: [60, 80], depth: 1.8 } } },
@@ -213,7 +210,6 @@ Meta.whenReady(() => {
       ground: ['#6d665c', '#615a51', '#79726a'], road: '#55504a', dust: '#8a8378', track: 'rgba(20,18,15,0.18)',
       trees: 8, treeCl: 2, bushes: 10, buildings: 0, walls: 12, rocks: 4,
       tree: ['#3c4a2a', '#4a5a34'], bush: '#4a5530', wall: '#8f877b', roof: ['#7a7268', '#686057'],
-      waves: [W_('medium', 'heavy', 'medium', 'light', 'medium'), W_('heavy', 'pz4', 'destroyer', 'medium', 'kingtiger'), W_('heavy', 'heavy', 'destroyer', 'medium', 'medium')],
       forms: [['line', 'pincer'], ['wedge', 'late'], ['pincer', 'ambush']],
       // ville presque plate, buttes de gravats
       relief: { oct: [[800, 0.35]], mounds: { n: 14, h: [1, 2.2], r: [45, 90] } },
@@ -223,7 +219,6 @@ Meta.whenReady(() => {
       ground: ['#cdb27a', '#c1a46b', '#d9c08c'], road: '#b39463', dust: '#dcc391', track: 'rgba(90,60,30,0.16)',
       trees: 0, treeCl: 1, bushes: 16, buildings: 5, walls: 5, rocks: 36,
       tree: ['#5a6a2a', '#6a7a3a'], bush: '#8c8a4a', wall: '#d8c7a0', roof: ['#e0d2ad', '#cdbd96'],
-      waves: [W_('destroyer', 'medium', 'light', 'destroyer', 'medium'), W_('heavy', 'destroyer', 'stug', 'destroyer', 'pz4'), W_('heavy', 'heavy', 'destroyer', 'destroyer', 'medium')],
       forms: [['ambush', 'line'], ['ambush', 'late'], ['wedge', 'pincer']],
       // dunes en crêtes nord-sud et l'escarpement de Tel el Aqqaqir (5 m), tenu par l'ennemi à l'est
       relief: { oct: [[520, 1.8, 1], [200, 0.5]], st: 2.5, escarp: { x: 0.62, h: 5, w: 260 } },
@@ -233,7 +228,6 @@ Meta.whenReady(() => {
       ground: ['#dfe4e8', '#cfd6dc', '#eaeef1'], road: '#b9b3a8', dust: '#ffffff', track: 'rgba(60,60,70,0.22)',
       trees: 95, treeCl: 10, bushes: 34, buildings: 8, walls: 6, rocks: 6,
       tree: ['#203828', '#2c4a36'], bush: '#3c5a46', wall: '#9a958c', roof: ['#eef3f6', '#d8e0e6'], snow: true,
-      waves: [W_('medium', 'heavy', 'medium', 'light', 'heavy'), W_('heavy', 'heavy', 'destroyer', 'medium', 'medium'), W_('kingtiger', 'heavy', 'kingtiger', 'destroyer', 'destroyer')],
       forms: [['wedge', 'line'], ['late', 'ambush'], ['wedge', 'ambush']],
       // collines enneigées et mares gelées : la glace cède sous plus de 30 t
       relief: { oct: [[1000, 3.5], [400, 1.2]], water: { wl: -0.6, ponds: { n: 4, r: [60, 110], depth: 1.8 }, ice: true } },
@@ -6444,11 +6438,41 @@ Meta.whenReady(() => {
     R3.onLost = () => $('showcase').classList.add('no3d');
     R3.onRestored = () => { $('showcase').classList.remove('no3d'); if (state === 'menu') buildMenu(); };
   }
+  // Drapeaux dessinés au canevas (Allemagne : la croix des blindés)
+  const flagCache = {};
+  function flagURL(n) {
+    if (flagCache[n]) return flagCache[n];
+    const c = document.createElement('canvas'); c.width = 48; c.height = 32;
+    const x = c.getContext('2d'), R = (col, a, b, w, h) => { x.fillStyle = col; x.fillRect(a, b, w, h); };
+    if (n === 'de') {
+      R('#4a4d48', 0, 0, 48, 32); R('#fff', 17, 2, 14, 28); R('#fff', 8, 9, 32, 14); R('#111', 20, 4, 8, 24); R('#111', 10, 12, 28, 8);
+    } else if (n === 'su') {
+      R('#c8102e', 0, 0, 48, 32); x.fillStyle = '#ffd700'; x.strokeStyle = '#ffd700'; x.lineWidth = 2;
+      x.beginPath(); for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, r = i % 2 ? 1.6 : 4; x.lineTo(10 + Math.cos(a) * r, 6 + Math.sin(a) * r); } x.fill();
+      x.beginPath(); x.arc(10, 16, 4.5, -0.3, Math.PI * 1.1); x.stroke();
+      x.beginPath(); x.moveTo(6.5, 21.5); x.lineTo(13.5, 13); x.stroke(); R('#ffd700', 11, 11, 5, 3);
+    } else if (n === 'us') {
+      for (let i = 0; i < 13; i++) R(i % 2 ? '#fff' : '#b22234', 0, i * 32 / 13, 48, 32 / 13 + 0.5);
+      R('#3c3b6e', 0, 0, 20, 17.2); x.fillStyle = '#fff';
+      for (let i = 0; i < 6; i++) for (let j = 0; j < 4; j++) x.fillRect(1.6 + i * 3.1, 1.8 + j * 4, 1.2, 1.2);
+    } else {
+      R('#012169', 0, 0, 48, 32); x.lineCap = 'butt';
+      const L = (col, w, pts) => { x.strokeStyle = col; x.lineWidth = w; x.beginPath(); x.moveTo(pts[0], pts[1]); x.lineTo(pts[2], pts[3]); x.stroke(); };
+      for (const d of [[0, 0, 48, 32], [48, 0, 0, 32]]) { L('#fff', 6, d); L('#c8102e', 2, d); }
+      R('#fff', 19, 0, 10, 32); R('#fff', 0, 11, 48, 10); R('#c8102e', 21, 0, 6, 32); R('#c8102e', 0, 13, 48, 6);
+    }
+    return (flagCache[n] = c.toDataURL());
+  }
   function buildMenu() {
     const P = Meta.P;
     document.body.classList.toggle('touch', touch.on);
     const tc = $('tankCards'); tc.innerHTML = '';
-    for (const T of Object.values(TYPES)) {
+    // garage par nation : un bandeau à drapeau, puis les chars du groupe par ordre de grade
+    for (const g of Meta.GROUPS) {
+      const hd = document.createElement('div'); hd.className = 'ngrp';
+      hd.innerHTML = `${g.nats.map(n => `<img alt="" src="${flagURL(n)}">`).join('')}<b>${g.name}</b>`;
+      tc.appendChild(hd);
+    for (const T of Object.values(TYPES).filter(T => Meta.groupOf(T.id) === g.id).sort((a, b) => Meta.TANKS[a.id].lvl - Meta.TANKS[b.id].lvl || Meta.TANKS[a.id].price - Meta.TANKS[b.id].price)) {
       const d = document.createElement('div'), own = P.tanks.includes(T.id), inf = Meta.TANKS[T.id];
       const rar = TANK_RAR[T.id] || 'common';
       const ms = Meta.mastery(T.id);
@@ -6456,9 +6480,10 @@ Meta.whenReady(() => {
       const lock = own ? '<span class="tag own">✓ Owned</span>' : P.level < inf.lvl
         ? `<div class="lockov"><span class="lk">🔒</span><span>Requires level ${inf.lvl}</span><b>✪ ${fmt(inf.price)}</b></div>`
         : `<div class="lockov"><span class="lk">🔓</span><span>Ready to unlock</span><b>✪ ${fmt(inf.price)}</b></div>`;
-      d.innerHTML = `${lock}${garageNew.has(T.id) ? '<span class="newb">NEW</span>' : ''}<img class="thumb" alt="" src="${tankThumb(T.id)}"><b>${T.name}</b><small>${T.cls}${T.arc ? ' · turretless' : ''}</small><span class="rib">${Meta.RARITY[rar]}</span>${ms ? `<span class="mast" title="Mastery: ${Meta.MASTERY_N[ms - 1]}">${['III', 'II', 'I', '★'][ms - 1]}</span>` : ''}`;
+      d.innerHTML = `${lock}${garageNew.has(T.id) ? '<span class="newb">NEW</span>' : ''}<img class="thumb" alt="" src="${tankThumb(T.id)}"><b>${T.name}</b><small>${T.cls}${T.arc ? ' · turretless' : ''} · BR ${T.br.toFixed(1)}</small><span class="rib">${Meta.RARITY[rar]}</span>${ms ? `<span class="mast" title="Mastery: ${Meta.MASTERY_N[ms - 1]}">${['III', 'II', 'I', '★'][ms - 1]}</span>` : ''}`;
       d.onclick = () => { chosenType = T.id; skinPreview = null; buildMenu(); };
       tc.appendChild(d);
+    }
     }
     // achat du char sélectionné
     const tb = $('tankBuy'); tb.innerHTML = '';
@@ -6477,7 +6502,7 @@ Meta.whenReady(() => {
     // camouflages : aperçu au clic, achat en crédits, ou déblocage par publicités
     const sc = $('skinCards'); sc.innerHTML = '';
     const cur = Meta.skinOf(chosenType), feat = Meta.featured();
-    for (const sk of Meta.SKINS) {
+    for (const sk of Meta.SKINS.filter(k => Meta.skinFits(chosenType, k))) {
       const d = document.createElement('div'), own = P.skins.includes(sk.id);
       d.className = `skin rar-${sk.rar}` + (sk.id === cur.id ? ' sel' : '') + (sk.id === skinPreview ? ' prev' : '');
       const price = Meta.skinPrice(sk), left = sk.ads ? Meta.adsLeft('skin:' + sk.id, sk.ads) : 0;

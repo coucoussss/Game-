@@ -93,6 +93,8 @@
   .card .tag.own { color: var(--green); border-color: rgba(143, 212, 106, 0.35); }
   .card .tag.lock { color: var(--amber); }
   .tcard { padding: 8px; }
+  .ngrp { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; margin: 6px 0 -2px; font-family: var(--head); letter-spacing: 0.12em; text-transform: uppercase; font-size: 12px; }
+  .ngrp img { width: 30px; height: 20px; border-radius: 2px; box-shadow: 0 0 0 1px rgba(255,255,255,0.25); }
   .newb { position: absolute; top: 6px; right: 6px; z-index: 2; background: var(--red); color: #fff; font-size: 10px; font-weight: 800; letter-spacing: 0.08em; padding: 2px 6px; border-radius: 4px; box-shadow: 0 0 10px var(--red); }
   .thumb { display: block; width: 100%; height: auto; border-radius: 10px; margin-bottom: 6px; background: #12140f; }
   .mode { display: flex; gap: 12px; align-items: center; }
@@ -447,7 +449,7 @@
 <canvas id="game"></canvas>
 
 <div id="loading" class="screen on">
-  <div class="logo"><span class="l1">Steel Front</span><span class="l2">Tank Warfare · 1943 – 1945</span></div>
+  <div class="logo"><span class="l1">Steel Front</span><span class="l2">Tank Warfare · 1942 – 1945</span></div>
   <div class="loadbar"><i></i></div>
   <div class="loadtip">Fuelling tanks, loading shells, surveying the battlefield…</div>
 </div>
@@ -486,7 +488,7 @@
       </section>
       <section class="panel" id="tab-garage">
         <div class="ptitle">Garage</div>
-        <div class="psub">Seven tanks built from period blueprints. Unlock them, upgrade them, dress them to kill.</div>
+        <div class="psub">Fifteen tanks of three nations, built from period blueprints. Unlock them, upgrade them, dress them to kill.</div>
         <div id="tankCards" class="cards"></div>
         <div id="tankBuy" class="btns" style="justify-content:flex-start"></div>
         <h2>Upgrades</h2>
