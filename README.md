@@ -1,3 +1,12 @@
+# 🎮 Jeux
+
+- **Nuit des Morts** (ci-dessous) : `index.html`
+- **Undyne l'Immortelle** : fan game inspiré d'Undertale. Voir [`undyne/README.md`](undyne/README.md) et ouvrir `undyne/index.html`.
+- **Jugement Final** : fan game du combat contre Sans. Ouvrir `sans/index.html` (ou le fichier unique `sans/jugement-final.html`).
+- **Souterrain** (en cours) : fan game d'exploration et de combats de boss. Ouvrir `souterrain/index.html`.
+- **Front d'Acier** : combat de chars en vue de dessus, 5 contre 5 contre des IA, avec chars modélisés en 3D, obus réalistes et caméra d'impact aux rayons X. Voir [`chars/README.md`](chars/README.md) et ouvrir `chars/index.html`.
+- **Mold & Majesty** : jeu de gestion en pixel art, où tu es un réseau de mycélium. Voir [`mold-and-majesty/README.md`](mold-and-majesty/README.md), et le [manuel du joueur en PDF](mold-and-majesty/Manuel-Mold-and-Majesty.pdf).
+
 # 🧟 Nuit des Morts
 
 Jeu de combat 2D contre des zombies, de nuit, sous la pluie. Il tourne entièrement dans le navigateur en HTML5 Canvas, sans aucune dépendance.
@@ -29,3 +38,9 @@ Ouvrez `index.html` dans un navigateur récent (Chrome, Firefox, Edge). Mettez l
 - **Éclairage dynamique** : lampe torche dans la direction du tir, flash du canon, lampadaires qui grésillent, feux de tonneaux, éclairs. Les yeux des zombies luisent dans le noir.
 - **Ambiance** : pluie, brouillard, orage, ville en ruines en parallaxe. La musique devient plus intense quand la horde se rapproche.
 - Vagues de difficulté croissante, combos, butin (munitions, trousses de soin), meilleur score sauvegardé.
+
+---
+
+## ⚖️ Aussi dans ce dépôt : Jugement Final
+
+Un fan game du combat contre Sans (UNDERTALE) : ouvrez `sans/index.html`. Détails dans [`sans/README.md`](sans/README.md).
