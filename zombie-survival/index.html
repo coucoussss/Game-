@@ -1,0 +1,1443 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zombie Survival : prototype</title>
+<style>
+  :root {
+    --bg: #15161a;
+    --panel: #1e2026;
+    --panel2: #262931;
+    --line: #3a3e48;
+    --text: #e6e2d8;
+    --muted: #a09c92;
+    --own: #5f8f62;
+    --own-bg: #223026;
+    --lost: #8a4a3e;
+    --lost-bg: #2c1d1b;
+    --fog: #101114;
+    --danger: #e0735c;
+    --warn: #e2b553;
+    --ok: #8fc48f;
+    --horde: #c9553f;
+    --accent: #d7c27a;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.4 system-ui, "Segoe UI", sans-serif; }
+  button { font: inherit; color: var(--text); background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; cursor: pointer; }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.primary { background: #3d4a30; border-color: #6d8a4f; font-weight: 600; }
+  select { font: inherit; color: var(--text); background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px; max-width: 100%; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 8px; }
+
+  header { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  header .title { font-weight: 700; letter-spacing: .04em; }
+  header .stat { white-space: nowrap; }
+  header .stat b { font-variant-numeric: tabular-nums; }
+  header .spacer { flex: 1; }
+  .phase { padding: 2px 8px; border-radius: 10px; background: var(--panel2); border: 1px solid var(--line); font-size: 13px; }
+
+  main { display: grid; grid-template-columns: minmax(300px, 600px) minmax(300px, 1fr); gap: 16px; padding: 16px; max-width: 1280px; margin: 0 auto; }
+  main > * { min-width: 0; }
+  @media (max-width: 860px) { main { grid-template-columns: minmax(0, 1fr); padding: 12px; } }
+
+  #board-wrap { position: relative; width: 100%; aspect-ratio: 1; align-self: start; }
+  #board { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(5, 1fr); grid-template-rows: repeat(5, 1fr); gap: 0; border: 1px solid var(--line); }
+  .cell { position: relative; border: 1px solid #2a2d34; background: #1b1d22; cursor: pointer; overflow: hidden; }
+  .cell.fog { background: repeating-linear-gradient(45deg, var(--fog), var(--fog) 6px, #14151a 6px, #14151a 12px); }
+  .cell.own { background: var(--own-bg); box-shadow: inset 0 0 0 2px var(--own); }
+  .cell.lost { background: repeating-linear-gradient(-45deg, var(--lost-bg), var(--lost-bg) 5px, #241817 5px, #241817 10px); box-shadow: inset 0 0 0 2px var(--lost); }
+  .cell.sel { outline: 3px solid var(--accent); outline-offset: -3px; z-index: 2; }
+  .cell .coord { position: absolute; top: 3px; left: 5px; font-size: 11px; color: var(--muted); }
+  .cell .icon { position: absolute; top: 34%; left: 50%; transform: translate(-50%, -50%); font-size: clamp(16px, 4.2vw, 30px); line-height: 1; text-align: center; }
+  .cell .name { position: absolute; top: 56%; left: 0; right: 0; text-align: center; font-size: 10px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 2px; }
+  .cell .defs { position: absolute; top: 2px; right: 4px; font-size: 11px; text-align: right; line-height: 1.25; }
+  .cell .guards { position: absolute; right: 3px; bottom: 3px; display: flex; gap: 2px; flex-wrap: wrap-reverse; justify-content: flex-end; max-width: 50%; }
+  .cell .lostinfo { position: absolute; left: 0; right: 0; top: 66%; text-align: center; font-size: 10px; color: #e7a497; }
+  .cell.hit { animation: hit .5s ease-in-out 2; }
+  .cell.fall { animation: fall 1s ease-in-out 1; }
+  @keyframes hit { 50% { background: #5a2a22; } }
+  @keyframes fall { 0% { background: #7a2016; } 100% { } }
+  .pip { width: 16px; height: 16px; border-radius: 50%; background: #c8c2b0; color: #1a1a1a; font-size: 10px; font-weight: 700; display: grid; place-items: center; border: 1px solid #000; }
+  .pip.hurt { background: #e2b553; }
+  .pip.crit { background: #e0735c; }
+
+  #hordes { position: absolute; inset: 0; pointer-events: none; }
+  .horde { position: absolute; width: 7%; height: 7%; display: grid; place-items: center; font-size: clamp(9px, 1.8vw, 13px); font-weight: 800; color: #fff; transition: left .8s ease, top .8s ease, opacity .4s; }
+  .horde .shape { position: absolute; inset: 0; background: var(--horde); border: 2px solid #f3d0c6; }
+  .horde.rodeur .shape { border-radius: 50%; }
+  .horde.odorant .shape { clip-path: polygon(50% 0, 100% 100%, 0 100%); border: 0; background: #b5763a; }
+  .horde.odorant span { padding-top: 30%; }
+  .horde.aveugle .shape { border-radius: 2px; background: #7d5a8f; }
+  .horde span { position: relative; text-shadow: 0 1px 2px #000; }
+  #arrows { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+
+  aside { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .box { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+  .forecast li { margin-bottom: 4px; }
+  .forecast ul, .journal ul { margin: 0; padding-left: 18px; }
+  .danger { color: var(--danger); }
+  .warn { color: var(--warn); }
+  .ok { color: var(--ok); }
+  .muted { color: var(--muted); }
+  .actions { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+  .action { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .action button { flex: 1; text-align: left; }
+  .action small { color: var(--muted); white-space: nowrap; }
+  .surv { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; padding: 8px 0; border-top: 1px solid var(--line); }
+  .surv:first-of-type { border-top: 0; }
+  .surv .who b { font-size: 15px; }
+  .surv .tags { font-size: 12px; color: var(--muted); }
+  .surv .bars { font-size: 13px; }
+  .surv .ctl { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; align-items: start; }
+  .surv .ctl button { padding: 3px 7px; font-size: 13px; }
+  .journal { max-height: 260px; overflow: auto; font-size: 13px; }
+  .journal li.alert { color: var(--danger); }
+  .journal li.good { color: var(--ok); }
+  .legend { font-size: 12px; color: var(--muted); }
+  .legend span { display: inline-block; white-space: nowrap; margin-right: 10px; }
+  #toast { min-height: 1.4em; font-size: 13px; color: var(--accent); }
+
+  #modal { position: fixed; inset: 0; background: rgba(0,0,0,.7); display: none; align-items: center; justify-content: center; padding: 16px; z-index: 50; }
+  #modal.open { display: flex; }
+  #modal .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; max-width: 620px; width: 100%; max-height: 90vh; overflow: auto; padding: 20px; }
+  #modal h1 { font-size: 20px; margin: 0 0 10px; }
+  #modal .choices { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+  #modal .choices button { text-align: left; }
+  #modal ul { padding-left: 18px; }
+
+  body.reduced .horde, body.reduced .cell { transition: none !important; animation: none !important; }
+</style>
+</head>
+<body>
+<header>
+  <span class="title">🧟 Zombie Survival</span>
+  <span class="phase" id="phase"></span>
+  <span class="stat" id="day"></span>
+  <span class="stat" id="pa"></span>
+  <span class="stat" id="food"></span>
+  <span class="stat" id="mat"></span>
+  <span class="stat" id="ammo"></span>
+  <span class="stat" id="terr"></span>
+  <span class="stat" id="morale"></span>
+  <span class="spacer"></span>
+  <button id="btn-help">Aide</button>
+  <button id="btn-motion" aria-pressed="false">Animations : oui</button>
+  <button id="btn-night" class="primary">Fin de journée ▶ Nuit</button>
+</header>
+<main>
+  <section>
+    <div id="board-wrap">
+      <div id="board"></div>
+      <svg id="arrows" viewBox="0 0 500 500" preserveAspectRatio="none">
+        <defs>
+          <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#e6e2d8"/></marker>
+          <marker id="ah-red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#e0735c"/></marker>
+        </defs>
+        <g id="arrow-layer"></g>
+      </svg>
+      <div id="hordes"></div>
+    </div>
+    <p class="legend">
+      <span>● Rôdeur (bruit, lumière)</span><span>▲ Odorant (odeur)</span><span>■ Aveugle (tout droit)</span>
+      <span>🔊 bruit</span><span>💡 lumière</span><span>👃 odeur</span><span>▮ barricade</span><span>⌇ piège</span><span>🔔 alarme</span>
+    </p>
+    <div id="toast" role="status"></div>
+  </section>
+  <aside>
+    <div class="box forecast"><h2>Prévision de la nuit</h2><div id="forecast"></div></div>
+    <div class="box"><h2>Case sélectionnée</h2><div id="cell-panel"></div></div>
+    <div class="box"><h2>Survivants</h2><div id="survivors"></div></div>
+    <div class="box journal"><h2>Journal</h2><div id="journal"></div></div>
+  </aside>
+</main>
+<div id="modal" role="dialog" aria-modal="true"><div class="card" id="modal-card"></div></div>
+
+<script>
+'use strict';
+// =====================================================================
+// LOGIQUE DU JEU (aucun accès au DOM : simulable sous Node)
+// =====================================================================
+const Logic = (() => {
+  const W = 5, H = 5;
+  const COLS = 'ABCDE';
+  const CFG = {
+    start: { food: 30, mat: 14, ammo: 10 },
+    paBase: 2,
+    winNights: 12,
+    winCells: 15,
+    occupyMat: 2,
+    storage: 60,
+    maxSurvivors: 7,
+    barricade: { cost: 2, solidity: 2, max: 6 },
+    trap: { cost: 1, dmg: 2, max: 2 },
+    alarm: { cost: 1, noise: 4 },
+    ranges: { bruit: 3, lumiere: 2, odeur: 2 },
+    fireLight: 2,
+    disperseAfter: 3,
+  };
+  const ZTYPES = {
+    rodeur:  { nom: 'rôdeur',  pluriel: 'rôdeurs',  lettre: 'R', atk: 1, hp: 1, sens: ['bruit', 'lumiere'] },
+    odorant: { nom: 'odorant', pluriel: 'odorants', lettre: 'O', atk: 2, hp: 1, sens: ['odeur'] },
+    aveugle: { nom: 'aveugle', pluriel: 'aveugles', lettre: 'A', atk: 3, hp: 2, sens: [] },
+  };
+  const LIEUX = {
+    supermarche:   { nom: 'Supermarché',     icone: '🛒', gain: { food: 8, mat: 1, ammo: 0 }, bruit: 2 },
+    ferme:         { nom: 'Ferme',           icone: '🌾', gain: { food: 5, mat: 1, ammo: 0 }, bruit: 1, usure: 0.9 },
+    caserne:       { nom: 'Caserne',         icone: '🎖️', gain: { food: 0, mat: 2, ammo: 6 }, bruit: 3 },
+    quincaillerie: { nom: 'Quincaillerie',   icone: '🔧', gain: { food: 0, mat: 7, ammo: 0 }, bruit: 2 },
+    station:       { nom: 'Station-service', icone: '⛽', gain: { food: 2, mat: 4, ammo: 1 }, bruit: 2 },
+    hopital:       { nom: 'Hôpital',         icone: '✚',  gain: { food: 1, mat: 1, ammo: 0 }, soin: 2, bruit: 2 },
+  };
+  const OBSTACLES = { decombres: { nom: 'Décombres', icone: '🧱' }, voitures: { nom: 'Carcasses de voitures', icone: '🚗' } };
+  const RES = { food: 'nourriture', mat: 'matériaux', ammo: 'munitions' };
+  const SKILLS = {
+    combat: 'Combat', bricolage: 'Bricolage', medecine: 'Médecine',
+    eclaireur: 'Éclaireur', cuisine: 'Cuisine', negociation: 'Négociation',
+  };
+  const SKILL_DESC = {
+    combat: '+1 dégât quand il défend',
+    bricolage: 'barricades à 3 de solidité au lieu de 2',
+    medecine: 'soins à +2 ; une blessure de moins là où il défend',
+    eclaireur: 'la première exploration du jour est gratuite',
+    cuisine: 'la colonie mange 1 nourriture de moins par jour',
+    negociation: 'troc plus avantageux',
+  };
+  const TRAITS = {
+    bricoleur:   { nom: 'Bricoleur',   desc: 'la première construction du jour ne coûte pas de PA ; −1 moral les jours sans construction' },
+    paranoiaque: { nom: 'Paranoïaque', desc: 'refuse de monter la garde hors du camp' },
+    genereux:    { nom: 'Généreux',    desc: 'mange 1 de plus ; chaque matin, remonte de 1 le moral du plus abattu' },
+    mefiant:     { nom: 'Méfiant',     desc: 'déjoue les troc malhonnêtes' },
+    tetu:        { nom: 'Têtu',        desc: '−3 moral (au lieu de −1) quand on abandonne une case' },
+    idealiste:   { nom: 'Idéaliste',   desc: '+1 moral à chaque soin ; −1 de plus à chaque mort' },
+  };
+  const NOMS = ['Inès', 'Marc', 'Yasmine', 'Paul', 'Léa', 'Karim', 'Odile', 'Théo', 'Nadia', 'Hugo', 'Salomé',
+    'Bastien', 'Aïcha', 'Victor', 'Camille', 'Jules', 'Rose', 'Malik', 'Agathe', 'Simon', 'Lina', 'Gaspard'];
+  const DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]]; // nord, est, sud, ouest (sens horaire)
+  const DIR_NOMS = ['le nord', "l'est", 'le sud', "l'ouest"];
+
+  // ---------- Hasard à graine (mulberry32), état stocké dans la partie ----------
+  function rand(s) {
+    s.rng = (s.rng + 0x6D2B79F5) | 0;
+    let t = s.rng;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+  const randInt = (s, a, b) => a + Math.floor(rand(s) * (b - a + 1));
+  const pick = (s, arr) => arr[Math.floor(rand(s) * arr.length)];
+
+  // ---------- Utilitaires ----------
+  const idx = (x, y) => y * W + x;
+  const inside = (x, y) => x >= 0 && y >= 0 && x < W && y < H;
+  const label = c => COLS[c.x] + (c.y + 1);
+  const dist = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const firstReason = (...r) => r.find(x => typeof x === 'string') || null;
+  function neighbors(s, c) {
+    const out = [];
+    for (const [dx, dy] of DIRS) if (inside(c.x + dx, c.y + dy)) out.push(s.cells[idx(c.x + dx, c.y + dy)]);
+    return out;
+  }
+  const ownedCells = s => s.cells.filter(c => c.owned);
+  const campCell = s => s.cells.find(c => c.camp);
+  const adjacentToOwned = (s, c) => neighbors(s, c).some(n => n.owned);
+  const hordesAt = (s, c) => s.hordes.filter(h => h.x === c.x && h.y === c.y);
+  const hasSkill = (s, k) => s.survivors.some(v => v.skill === k);
+  const withTrait = (s, t) => s.survivors.filter(v => v.trait === t);
+  function log(s, text, kind = 'info') { s.log.push({ day: s.day, text, kind }); }
+  function moraleAll(s, d) { for (const v of s.survivors) v.morale = clamp(v.morale + d, 0, 10); }
+  function avgMorale(s) {
+    if (!s.survivors.length) return 0;
+    return s.survivors.reduce((a, v) => a + v.morale, 0) / s.survivors.length;
+  }
+  function hordeName(h, size = h.size) {
+    const T = ZTYPES[h.type];
+    return `${size} ${size > 1 ? T.pluriel : T.nom}`;
+  }
+  function hordeTag(h, size = h.size) { return ZTYPES[h.type].lettre + size; }
+  function describe(c) {
+    if (c.type === 'lieu') return LIEUX[c.lieu].nom;
+    if (c.type === 'obstacle') return OBSTACLES[c.obstacle].nom;
+    return c.camp ? 'Camp' : 'Terrain vague';
+  }
+  function capStorage(s) { for (const k of Object.keys(RES)) s.res[k] = Math.min(CFG.storage, s.res[k]); }
+
+  // ---------- Création ----------
+  function newSurvivor(s, opts = {}) {
+    const pool = NOMS.filter(n => !s.usedNames.includes(n));
+    const name = pool.length ? pick(s, pool) : 'Survivant ' + s.nextId;
+    s.usedNames.push(name);
+    const taken = new Set(s.survivors.map(v => v.skill));
+    const free = Object.keys(SKILLS).filter(k => !taken.has(k));
+    const skill = opts.skill || pick(s, free.length ? free : Object.keys(SKILLS));
+    const trait = opts.trait || pick(s, Object.keys(TRAITS));
+    return { id: s.nextId++, name, skill, trait, health: opts.health || 3, morale: opts.morale || 7, post: null };
+  }
+
+  function genMap(s) {
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      s.cells.push({
+        i: idx(x, y), x, y, type: 'vide', lieu: null, obstacle: null, camp: false,
+        revealed: false, owned: false, lost: false,
+        barricade: 0, traps: 0, alarm: false, noise: 0, noiseWhy: '', echo: 0, shot: false,
+        corpses: 0, corpseNights: 0, visits: 0, rodeurs: 0, lostNights: 0,
+      });
+    }
+    const camp = s.cells[idx(2, 2)];
+    Object.assign(camp, { camp: true, owned: true, revealed: true });
+    Object.assign(s.cells[idx(2, 3)], { owned: true, revealed: true });
+    const free = () => s.cells.filter(c => !c.owned && c.type === 'vide');
+    const place = (pred, fill) => {
+      const cand = free().filter(pred);
+      const c = pick(s, cand.length ? cand : free());
+      fill(c);
+    };
+    for (let n = 0; n < 3; n++) place(c => dist(c, camp) >= 2, c => { c.type = 'obstacle'; c.obstacle = pick(s, Object.keys(OBSTACLES)); });
+    const lieu = key => c => { c.type = 'lieu'; c.lieu = key; };
+    place(c => dist(c, camp) <= 2, lieu('supermarche'));
+    place(c => dist(c, camp) <= 2, lieu('quincaillerie'));
+    place(c => dist(c, camp) >= 3, lieu('caserne'));
+    place(() => true, lieu('ferme'));
+    place(() => true, lieu('station'));
+    place(() => true, lieu('hopital'));
+  }
+
+  function spawnCells(s) {
+    const own = ownedCells(s);
+    const edge = c => c.x === 0 || c.y === 0 || c.x === W - 1 || c.y === H - 1;
+    const minD = c => Math.min(...own.map(o => dist(o, c)));
+    let cand = s.cells.filter(c => edge(c) && !c.owned && c.type !== 'obstacle' && minD(c) >= 2);
+    if (!cand.length) cand = s.cells.filter(c => edge(c) && !c.owned && c.type !== 'obstacle');
+    const empty = cand.filter(c => !hordesAt(s, c).length);
+    return empty.length ? empty : cand;
+  }
+
+  function addHorde(s, type, size, c) {
+    const camp = campCell(s);
+    const dx = camp.x - c.x, dy = camp.y - c.y;
+    const dir = Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? 1 : 3) : (dy > 0 ? 2 : 0);
+    const h = { id: s.nextId++, type, size, x: c.x, y: c.y, dir };
+    s.hordes.push(h);
+    return h;
+  }
+
+  function spawnOne(s, night, forced) {
+    const cand = spawnCells(s);
+    if (!cand.length) return null;
+    const c = pick(s, cand);
+    let type = 'rodeur';
+    const r = rand(s);
+    if (night >= 5 && r < 0.2) type = 'aveugle';
+    else if (night >= 3 && r < 0.5) type = 'odorant';
+    let size = 2 + Math.floor(night / 5) + randInt(s, 0, 1);
+    if (type === 'aveugle') size = Math.max(1, Math.ceil(size / 2));
+    if (forced) { type = forced.type; size = forced.size; }
+    return addHorde(s, type, size, c);
+  }
+
+  // Nouvelles hordes par nuit, et nombre maximal de hordes présentes sur la carte.
+  function hordesForNight(night) { return night <= 3 ? 1 : night <= 7 ? 2 : 3; }
+  function hordeCap(night) { return 3 + Math.floor(night / 3); }
+
+  function spawnHordes(s, night) {
+    const out = [];
+    for (let i = 0; i < hordesForNight(night) && s.hordes.length < hordeCap(night); i++) {
+      const h = spawnOne(s, night);
+      if (h) out.push(h);
+    }
+    return out;
+  }
+
+  function newGame(seed) {
+    const s = {
+      seed, rng: seed | 0, day: 1, phase: 'jour', cells: [], hordes: [], survivors: [],
+      res: { ...CFG.start }, pa: 0, paMax: 0, fire: true, log: [], pending: [], event: null,
+      usedEvents: [], weather: null, ration: false, builtToday: false, freeBuildUsed: false,
+      freeExploreUsed: false, nextId: 1, usedNames: [], outcome: null, reason: '',
+      nightsSurvived: 0, stats: { kills: 0, deaths: 0, maxCells: 2, lost: 0, deserted: 0 },
+    };
+    genMap(s);
+    for (let i = 0; i < 3; i++) s.survivors.push(newSurvivor(s));
+    spawnHordes(s, 1);
+    startDay(s, true);
+    log(s, `La colonie s'installe en ${label(campCell(s))} avec ${s.survivors.map(v => v.name).join(', ')}.`);
+    return s;
+  }
+
+  // ---------- Perception ----------
+  function computeSources(s) {
+    const src = [];
+    const noiseRange = s.weather === 'pluie' ? 2 : CFG.ranges.bruit;
+    for (const c of s.cells) {
+      let n = 0, why = '';
+      if (c.alarm) { n = CFG.alarm.noise; why = 'alarme'; }
+      if (c.noise > n) { n = c.noise; why = c.noiseWhy; }
+      if (c.echo > n) { n = c.echo; why = 'tirs de la nuit passée'; }
+      if (n > 0) src.push({ x: c.x, y: c.y, kind: 'bruit', strength: n, range: noiseRange, why });
+      let o = 0, owhy = '';
+      if (c.camp) { o = 1 + Math.floor(s.res.food / 20); owhy = 'réserves de nourriture'; }
+      if (c.corpses > o) { o = c.corpses; owhy = 'cadavres'; }
+      if (o > 0) src.push({ x: c.x, y: c.y, kind: 'odeur', strength: o, range: CFG.ranges.odeur, why: owhy });
+      if (c.camp && s.fire) src.push({ x: c.x, y: c.y, kind: 'lumiere', strength: CFG.fireLight, range: CFG.ranges.lumiere, why: 'feu de camp' });
+    }
+    return src;
+  }
+
+  function stepToward(s, h, t) {
+    const ax = Math.abs(t.x - h.x), ay = Math.abs(t.y - h.y);
+    const dx = Math.sign(t.x - h.x), dy = Math.sign(t.y - h.y);
+    if (!dx && !dy) return { x: h.x, y: h.y };
+    const opts = [];
+    if (ax >= ay) { opts.push([dx, 0]); if (dy) opts.push([0, dy]); opts.push([0, 1], [0, -1]); }
+    else { opts.push([0, dy]); if (dx) opts.push([dx, 0]); opts.push([1, 0], [-1, 0]); }
+    for (const [mx, my] of opts) {
+      if (!mx && !my) continue;
+      const nx = h.x + mx, ny = h.y + my;
+      if (inside(nx, ny) && s.cells[idx(nx, ny)].type !== 'obstacle') return { x: nx, y: ny };
+    }
+    return { x: h.x, y: h.y };
+  }
+
+  // Plan de déplacement de chaque horde pour la nuit (sans rien modifier).
+  function planMoves(s) {
+    const sources = computeSources(s);
+    const plans = [];
+    const mk = (h, size, t, split) => {
+      const next = stepToward(s, h, t);
+      const moved = next.x !== h.x || next.y !== h.y;
+      return {
+        hordeId: h.id, type: h.type, size, from: { x: h.x, y: h.y }, target: { x: t.x, y: t.y },
+        reason: t.kind, why: t.why, next, attack: moved && s.cells[idx(next.x, next.y)].owned, split: !!split,
+      };
+    };
+    for (const h of s.hordes) {
+      if (h.type === 'aveugle') {
+        const [dx, dy] = DIRS[h.dir];
+        const nx = h.x + dx, ny = h.y + dy;
+        const base = { hordeId: h.id, type: h.type, size: h.size, from: { x: h.x, y: h.y }, target: null, split: false };
+        if (!inside(nx, ny) || s.cells[idx(nx, ny)].type === 'obstacle') {
+          plans.push({ ...base, reason: 'bute', why: `bute vers ${DIR_NOMS[h.dir]}, va tourner`, next: { x: h.x, y: h.y }, attack: false, turn: true });
+        } else {
+          plans.push({ ...base, reason: 'droit', why: `marche droit vers ${DIR_NOMS[h.dir]}`, next: { x: nx, y: ny }, attack: s.cells[idx(nx, ny)].owned });
+        }
+        continue;
+      }
+      const sens = ZTYPES[h.type].sens;
+      const cands = sources.filter(src => sens.includes(src.kind) && dist(src, h) <= src.range);
+      let targets;
+      if (cands.length) {
+        const best = Math.max(...cands.map(c => c.strength));
+        let top = cands.filter(c => c.strength === best);
+        const dmin = Math.min(...top.map(c => dist(c, h)));
+        top = top.filter(c => dist(c, h) === dmin);
+        targets = [];
+        for (const t of top) if (!targets.some(u => u.x === t.x && u.y === t.y)) targets.push(t);
+      } else {
+        const own = ownedCells(s);
+        const dmin = Math.min(...own.map(o => dist(o, h)));
+        const o = own.find(c => dist(c, h) === dmin);
+        targets = [{ x: o.x, y: o.y, kind: 'presence', why: 'présence humaine' }];
+      }
+      if (targets.length >= 2 && h.size >= 2) {
+        const a = Math.ceil(h.size / 2);
+        plans.push(mk(h, a, targets[0], false));
+        plans.push(mk(h, h.size - a, targets[1], true));
+      } else plans.push(mk(h, h.size, targets[0], false));
+    }
+    return plans;
+  }
+
+  // ---------- Nuit, étape 1 : déplacements ----------
+  function nightMove(s) {
+    s.phase = 'nuit';
+    s.night = s.day;
+    if (!s.builtToday) for (const v of withTrait(s, 'bricoleur')) v.morale = clamp(v.morale - 1, 0, 10);
+    const plans = planMoves(s);
+    const attacks = [];
+    for (const p of plans) {
+      let h = s.hordes.find(x => x.id === p.hordeId);
+      if (p.split) {
+        h = { id: s.nextId++, type: h.type, size: p.size, x: p.from.x, y: p.from.y, dir: h.dir };
+        s.hordes.push(h);
+        p.hordeId = h.id;
+      } else h.size = p.size;
+      if (p.turn) { h.dir = (h.dir + 1) % 4; continue; }
+      if (p.attack) attacks.push({ hordeId: h.id, cell: idx(p.next.x, p.next.y) });
+      else { h.x = p.next.x; h.y = p.next.y; }
+    }
+    return { plans, attacks };
+  }
+
+  function defendersAt(s, c) {
+    return s.survivors.filter(v => v.health > 0 && (v.post === c.i || (c.camp && v.post === null)));
+  }
+
+  function killSurvivor(s, v, cause) {
+    s.survivors = s.survivors.filter(x => x !== v);
+    s.stats.deaths++;
+    moraleAll(s, -2);
+    for (const w of withTrait(s, 'idealiste')) w.morale = clamp(w.morale - 1, 0, 10);
+    log(s, `${v.name} est mort${cause ? ' (' + cause + ')' : ''}.`, 'alert');
+  }
+
+  function fallCell(s, c) {
+    Object.assign(c, { owned: false, lost: true, barricade: 0, traps: 0, lostNights: 0, rodeurs: 0 });
+    for (const v of s.survivors) if (v.post === c.i) v.post = null;
+    s.stats.lost++;
+  }
+
+  // ---------- Nuit, étape 2 : attaques ----------
+  function nightAttack(s, mv) {
+    const reports = [];
+    let victory = false;
+    for (const a of mv.attacks) {
+      const h = s.hordes.find(x => x.id === a.hordeId);
+      if (!h || h.size <= 0 || s.outcome) continue;
+      const c = s.cells[a.cell];
+      if (!c.owned) { h.x = c.x; h.y = c.y; continue; }
+      const T = ZTYPES[h.type];
+      const r = {
+        hordeId: h.id, cell: label(c), cellIdx: c.i, type: h.type, tag: hordeTag(h), name: hordeName(h), before: h.size,
+        trapKills: 0, kills: 0, A: 0, D: 0, result: '', breach: false, wounds: [], deaths: [], ammo: 0, defenders: [], wear: false,
+      };
+      while (c.traps > 0 && h.size > 0) {
+        const k = Math.min(h.size, Math.max(1, Math.floor(CFG.trap.dmg / T.hp)));
+        h.size -= k; r.trapKills += k; c.traps--;
+      }
+      if (h.size > 0) {
+        const def = defendersAt(s, c);
+        r.defenders = def.map(v => v.name);
+        r.A = h.size * T.atk;
+        r.D = c.barricade + def.length;
+        let dmg = 0;
+        for (const v of def) {
+          dmg += 1 + (v.skill === 'combat' ? 1 : 0);
+          if (s.res.ammo > 0) { s.res.ammo--; r.ammo++; dmg += 2; }
+        }
+        const kills = Math.min(h.size, Math.floor(dmg / T.hp));
+        if (r.A <= r.D) {
+          r.result = 'tenu';
+          if (c.barricade > 0 && r.A > def.length) { c.barricade--; r.wear = true; }
+        } else {
+          r.breach = true;
+          c.barricade = 0; c.traps = 0;
+          let E = r.A - r.D - (def.some(v => v.skill === 'medecine') ? 1 : 0);
+          for (let i = 0; E > 0 && def.length && i < 60; i++) {
+            const v = def[i % def.length];
+            if (v.health > 0) { v.health--; r.wounds.push(v.name); E--; }
+            if (def.every(w => w.health <= 0)) break;
+          }
+          r.result = 'percé';
+        }
+        h.size -= kills; r.kills = kills;
+        if (r.ammo) c.shot = true;
+        for (const v of def) if (v.health <= 0) { r.deaths.push(v.name); killSurvivor(s, v, `en défendant ${label(c)}`); }
+      }
+      const total = r.kills + r.trapKills;
+      s.stats.kills += total;
+      if (total) { c.corpses = Math.min(3, c.corpses + total); c.corpseNights = 2; }
+      if (h.size <= 0) {
+        s.hordes = s.hordes.filter(x => x !== h);
+        r.result = 'anéantie';
+        victory = true;
+      } else if (r.breach) {
+        r.result = 'tombé';
+        moraleAll(s, -1);
+        if (c.camp) { s.outcome = 'defaite'; s.reason = `Le camp (${label(c)}) est tombé sous l'assaut de ${hordeName(h)}.`; }
+        else { fallCell(s, c); h.x = c.x; h.y = c.y; log(s, `${label(c)} est tombée sous l'assaut de ${hordeName(h)}.`, 'alert'); }
+      }
+      reports.push(r);
+    }
+    if (victory) moraleAll(s, 1);
+    if (!s.outcome && !s.survivors.length) { s.outcome = 'defaite'; s.reason = 'Il ne reste plus personne.'; }
+    return reports;
+  }
+
+  function mergeHordes(s) {
+    const out = [];
+    for (const h of s.hordes) {
+      const same = out.find(o => o.x === h.x && o.y === h.y && o.type === h.type);
+      if (same) same.size += h.size; else out.push(h);
+    }
+    s.hordes = out;
+  }
+
+  function consumption(s) {
+    let n = s.survivors.length + withTrait(s, 'genereux').length - (hasSkill(s, 'cuisine') ? 1 : 0);
+    if (s.weather === 'froid') n += 1;
+    if (s.ration) n = Math.ceil(n / 2);
+    return Math.max(0, n);
+  }
+
+  // ---------- Nuit, étape 3 : bilan, puis matin ----------
+  function nightEnd(s) {
+    const rep = { lines: [], spawned: [], conso: 0, shortage: 0 };
+    if (s.outcome) return rep;
+    for (const c of s.cells) {
+      c.noise = 0; c.noiseWhy = ''; c.alarm = false;
+      c.echo = c.shot ? 1 : 0; c.shot = false;
+      if (c.corpseNights > 0 && --c.corpseNights === 0) c.corpses = 0;
+      if (c.lost && !c.owned) {
+        c.rodeurs++; c.lostNights++;
+        if (c.lostNights >= CFG.disperseAfter) {
+          const n = c.rodeurs;
+          c.rodeurs = 0; c.lostNights = 0;
+          const ex = hordesAt(s, c).find(h => h.type === 'rodeur');
+          if (ex) ex.size += n; else addHorde(s, 'rodeur', n, c);
+          rep.lines.push(`Les zombies accumulés en ${label(c)} se dispersent : ${n} rôdeurs reprennent la route.`);
+          log(s, `Les zombies accumulés en ${label(c)} se dispersent (${n} rôdeurs).`, 'alert');
+        }
+      }
+    }
+    // nourriture
+    const conso = consumption(s);
+    rep.conso = conso;
+    if (s.res.food >= conso) s.res.food -= conso;
+    else {
+      const manque = conso - s.res.food;
+      s.res.food = 0;
+      rep.shortage = manque;
+      const hungry = [...s.survivors].sort((a, b) => b.health - a.health).slice(0, manque);
+      moraleAll(s, -1);
+      for (const v of hungry) { v.health--; v.morale = clamp(v.morale - 1, 0, 10); }
+      rep.lines.push(`Pas assez à manger : ${hungry.map(v => v.name).join(', ')} ${hungry.length > 1 ? 'perdent' : 'perd'} 1 santé.`);
+      log(s, `Famine : il manquait ${manque} nourriture.`, 'alert');
+      for (const v of hungry) if (v.health <= 0) killSurvivor(s, v, 'de faim');
+    }
+    if (!s.fire) {
+      const d = s.weather === 'froid' ? 2 : 1;
+      moraleAll(s, -d);
+      rep.lines.push(`Nuit sans feu : −${d} moral pour tous.`);
+    }
+    s.ration = false; s.weather = null;
+    capStorage(s);
+    mergeHordes(s);
+    s.nightsSurvived = s.day;
+    if (!s.survivors.length) { s.outcome = 'defaite'; s.reason = 'Il ne reste plus personne.'; return rep; }
+    if (s.nightsSurvived >= CFG.winNights) {
+      s.outcome = 'victoire'; s.reason = `La colonie a tenu ${CFG.winNights} nuits. Un convoi de secours atteint le camp à l'aube.`;
+      return rep;
+    }
+    if (ownedCells(s).length >= CFG.winCells) {
+      s.outcome = 'victoire'; s.reason = `La colonie contrôle ${ownedCells(s).length} cases et a tenu la nuit : le quartier est à vous.`;
+      return rep;
+    }
+    s.day++;
+    rep.spawned = spawnHordes(s, s.day).map(h => ({ tag: hordeTag(h), name: hordeName(h), cell: label(h) }));
+    startDay(s);
+    return rep;
+  }
+
+  function runNight(s) {
+    const mv = nightMove(s);
+    const attacks = nightAttack(s, mv);
+    const end = nightEnd(s);
+    return { mv, attacks, end };
+  }
+
+  function computePA(s) {
+    let pa = CFG.paBase + s.survivors.filter(v => v.health >= 2).length;
+    if (avgMorale(s) < 4) pa--;
+    return Math.max(1, pa);
+  }
+
+  function startDay(s, first) {
+    s.phase = 'jour';
+    for (const v of [...s.survivors]) if (v.morale <= 0) {
+      s.survivors = s.survivors.filter(x => x !== v);
+      s.stats.deserted++;
+      log(s, `${v.name}, à bout, a quitté la colonie pendant la nuit.`, 'alert');
+    }
+    if (!s.survivors.length) { s.outcome = 'defaite'; s.reason = 'Tout le monde est parti.'; return; }
+    for (const g of withTrait(s, 'genereux')) {
+      const others = s.survivors.filter(v => v !== g).sort((a, b) => a.morale - b.morale);
+      if (others[0] && others[0].morale < 10) others[0].morale++;
+    }
+    for (const p of s.pending.filter(p => p.day <= s.day)) applyPending(s, p);
+    s.pending = s.pending.filter(p => p.day > s.day);
+    s.builtToday = false; s.freeBuildUsed = false; s.freeExploreUsed = false;
+    s.paMax = computePA(s); s.pa = s.paMax;
+    s.stats.maxCells = Math.max(s.stats.maxCells, ownedCells(s).length);
+    s.event = null;
+    if (!first && s.day >= 2 && rand(s) < 0.4) {
+      const cand = EVENTS.filter(e => (e.repeat || !s.usedEvents.includes(e.id)) && (!e.cond || e.cond(s)));
+      if (cand.length) {
+        const e = pick(s, cand);
+        s.event = e.id;
+        s.usedEvents.push(e.id);
+      }
+    }
+  }
+
+  function applyPending(s, p) {
+    if (p.kind === 'voyageurs') {
+      s.res.mat += 6; capStorage(s);
+      log(s, 'Les voyageurs sont revenus, comme promis : +6 matériaux.', 'good');
+    }
+  }
+
+  // ---------- Événements du matin ----------
+  const EVENTS = [
+    {
+      id: 'voyageurs', titre: 'Des voyageurs affamés',
+      texte: "Deux voyageurs se présentent à la barricade du camp. Ils n'ont rien mangé depuis trois jours.",
+      choix: [
+        { label: 'Leur donner 4 nourriture', can: s => s.res.food >= 4 || 'Pas assez de nourriture.',
+          apply: s => {
+            s.res.food -= 4; moraleAll(s, 1);
+            s.pending.push({ day: s.day + 3, kind: 'voyageurs', text: 'Les voyageurs ont promis de revenir avec des matériaux.' });
+            return 'Ils repartent en promettant de revenir. +1 moral pour tous.';
+          } },
+        { label: "Accueillir l'un d'eux (−4 nourriture, +1 survivant affaibli)",
+          can: s => s.res.food < 4 ? 'Pas assez de nourriture.' : (s.survivors.length < CFG.maxSurvivors || 'La colonie est pleine.'),
+          apply: s => {
+            s.res.food -= 4;
+            const v = newSurvivor(s, { morale: 6, health: 2 });
+            s.survivors.push(v);
+            return `${v.name} (${SKILLS[v.skill]}, ${TRAITS[v.trait].nom}) rejoint la colonie, affaibli (santé 2).`;
+          } },
+        { label: 'Refuser',
+          apply: s => {
+            const ids = withTrait(s, 'idealiste');
+            for (const v of ids) v.morale = clamp(v.morale - 2, 0, 10);
+            return 'Ils repartent sans un mot.' + (ids.length ? ` ${ids.map(v => v.name).join(', ')} ne le digère pas (−2 moral).` : '');
+          } },
+      ],
+    },
+    {
+      id: 'rations', titre: 'Dispute pour les rations',
+      texte: 'Ce matin, deux survivants en sont venus aux mains pour une boîte de conserve.',
+      choix: [
+        { label: 'Rationner : consommation divisée par deux ce soir, −1 moral pour tous',
+          apply: s => { s.ration = true; moraleAll(s, -1); return 'Les rations sont réduites. Personne ne sourit.'; } },
+        { label: 'Partager un vrai repas : −3 nourriture, +2 moral pour tous', can: s => s.res.food >= 3 || 'Pas assez de nourriture.',
+          apply: s => { s.res.food -= 3; moraleAll(s, 2); return 'Un vrai repas, autour du feu. La dispute est oubliée.'; } },
+      ],
+    },
+    {
+      id: 'marchand', titre: 'Un marchand de passage',
+      texte: 'Un homme pousse un caddie rempli de boîtes. Il propose 5 munitions contre 6 nourriture.',
+      choix: [
+        { label: 'Accepter (−6 nourriture)', can: s => s.res.food >= 6 || 'Pas assez de nourriture.',
+          apply: s => {
+            s.res.food -= 6;
+            const mef = withTrait(s, 'mefiant')[0];
+            let gain = 5 + (hasSkill(s, 'negociation') ? 2 : 0), msg;
+            if (!mef && rand(s) < 0.4) { gain = 2; msg = 'La moitié des boîtes sont vides : vous vous êtes fait avoir.'; }
+            else msg = mef ? `${mef.name} vérifie chaque boîte : l'échange est honnête.` : "L'échange est honnête.";
+            s.res.ammo += gain; capStorage(s);
+            return `${msg} +${gain} munitions.`;
+          } },
+        { label: 'Proposer 4 matériaux à la place', can: s => s.res.mat >= 4 || 'Pas assez de matériaux.',
+          apply: s => {
+            s.res.mat -= 4;
+            const gain = 3 + (hasSkill(s, 'negociation') ? 2 : 0);
+            s.res.ammo += gain; capStorage(s);
+            return `Il accepte en grommelant. +${gain} munitions.`;
+          } },
+        { label: 'Refuser', apply: () => 'Le marchand reprend sa route.' },
+      ],
+    },
+    {
+      id: 'lueur', titre: 'Une lueur au loin',
+      texte: "Cette nuit, quelqu'un a vu des lumières clignoter au-delà du brouillard.",
+      cond: s => s.cells.some(c => !c.revealed),
+      choix: [
+        { label: 'Envoyer quelqu’un voir (1 PA, risque de blessure)', can: s => s.pa >= 1 || 'Pas assez de PA.',
+          apply: s => {
+            s.pa--;
+            const hidden = s.cells.filter(c => !c.revealed);
+            const seen = [];
+            for (let k = 0; k < 2 && hidden.length; k++) {
+              const c = hidden.splice(Math.floor(rand(s) * hidden.length), 1)[0];
+              c.revealed = true; seen.push(`${label(c)} (${describe(c)})`);
+            }
+            const v = [...s.survivors].sort((a, b) => b.health - a.health)[0];
+            let msg = `${v.name} revient avec des nouvelles : ${seen.join(', ')}.`;
+            if (rand(s) < 0.3) { v.health--; msg += ` Mais ${v.name} s'est blessé en chemin (−1 santé).`; }
+            return msg;
+          } },
+        { label: 'Ne pas prendre de risque', apply: () => 'Les lumières finissent par s’éteindre.' },
+      ],
+    },
+    {
+      id: 'cri', titre: 'Un cri dans le brouillard',
+      texte: "Un enfant appelle à l'aide, quelque part hors du territoire. Une horde rôde entre lui et vous.",
+      choix: [
+        { label: 'Envoyer deux survivants (2 PA, risque de blessure)',
+          can: s => s.survivors.length < 2 ? 'Il faut au moins deux survivants.' : (s.pa >= 2 || 'Pas assez de PA.'),
+          apply: s => {
+            s.pa -= 2;
+            const two = [...s.survivors].sort((a, b) => b.health - a.health).slice(0, 2);
+            const hurt = two.filter(() => rand(s) < 0.4);
+            for (const v of hurt) v.health--;
+            moraleAll(s, 2);
+            return "L'enfant est ramené au camp. +2 moral pour tous." + (hurt.length ? ` ${hurt.map(v => v.name).join(' et ')} ${hurt.length > 1 ? 'reviennent blessés' : 'revient blessé'}.` : '');
+          } },
+        { label: 'Faire diversion avec une alarme (1 PA, 1 munition)',
+          can: s => s.pa < 1 ? 'Pas assez de PA.' : (s.res.ammo >= 1 || 'Pas de munitions.'),
+          apply: s => {
+            s.pa--; s.res.ammo--;
+            const camp = campCell(s);
+            const cand = s.cells.filter(c => !c.owned && c.type !== 'obstacle').sort((a, b) => dist(b, camp) - dist(a, camp));
+            const c = cand[0];
+            c.alarm = true;
+            moraleAll(s, 1);
+            return `L'enfant profite de la diversion pour vous rejoindre (+1 moral). L'alarme sonnera toute la nuit en ${label(c)}.`;
+          } },
+        { label: 'Ne rien faire',
+          apply: s => {
+            moraleAll(s, -2);
+            for (const v of withTrait(s, 'idealiste')) v.morale = clamp(v.morale - 1, 0, 10);
+            return 'Les cris cessent dans l’après-midi. −2 moral pour tous.';
+          } },
+      ],
+    },
+    {
+      id: 'pluie', titre: 'Pluie battante', repeat: true,
+      texte: 'Une pluie lourde s’abat sur la ville. Ce soir, le bruit portera moins loin (2 cases au lieu de 3).',
+      choix: [{ label: 'Compris', apply: s => { s.weather = 'pluie'; return 'Il pleut.'; } }],
+    },
+    {
+      id: 'froid', titre: 'Nuit glaciale', repeat: true,
+      texte: 'Le thermomètre plonge. Ce soir, la colonie mangera 1 nourriture de plus, et une nuit sans feu coûtera 2 moral.',
+      choix: [{ label: 'Compris', apply: s => { s.weather = 'froid'; return 'Il gèle.'; } }],
+    },
+    {
+      id: 'explosion', titre: 'Explosion au loin',
+      texte: 'Une citerne explose dans le quartier voisin. Le vacarme a réveillé une grande horde, qui arrive par le bord de la carte.',
+      cond: s => s.day >= 4,
+      choix: [{ label: 'Se préparer', apply: s => {
+        const h = spawnOne(s, s.day, { type: 'rodeur', size: 3 + Math.floor(s.day / 3) });
+        return h ? `Une horde de ${hordeName(h)} apparaît en ${label(h)}.` : 'Le bruit s’éloigne.';
+      } }],
+    },
+  ];
+  const eventById = id => EVENTS.find(e => e.id === id);
+
+  function resolveEvent(s, k) {
+    const e = eventById(s.event);
+    if (!e) return null;
+    const ch = e.choix[k];
+    const can = ch.can ? ch.can(s) : true;
+    if (can !== true) return null;
+    const msg = ch.apply(s) || '';
+    log(s, `${e.titre} : ${msg}`);
+    s.event = null;
+    return msg;
+  }
+
+  // ---------- Actions de journée ----------
+  const busyReason = s => s.outcome ? 'La partie est finie.' : s.phase !== 'jour' ? 'Ce n’est pas le moment.' : s.event ? 'Répondez d’abord à l’événement du matin.' : null;
+  const needPA = (s, n) => s.pa >= n ? null : 'Plus assez de points d’action.';
+  const exploreCost = s => hasSkill(s, 'eclaireur') && !s.freeExploreUsed ? 0 : 1;
+  const buildCost = s => withTrait(s, 'bricoleur').length && !s.freeBuildUsed ? 0 : 1;
+  const barricadeSolidity = s => CFG.barricade.solidity + (hasSkill(s, 'bricolage') ? 1 : 0);
+  function scavengeGain(c) {
+    const L = LIEUX[c.lieu];
+    const f = Math.pow(L.usure || 0.75, c.visits);
+    const g = {};
+    for (const k of Object.keys(RES)) g[k] = Math.round(L.gain[k] * f);
+    return g;
+  }
+  const gainText = g => Object.keys(RES).filter(k => g[k] > 0).map(k => `+${g[k]} ${RES[k]}`).join(', ') || 'presque rien';
+
+  function cellActions(s, i) {
+    const c = s.cells[i];
+    const busy = busyReason(s);
+    const A = [];
+    if (!c.revealed) {
+      if (adjacentToOwned(s, c)) {
+        const cost = exploreCost(s);
+        A.push({ key: 'explorer', label: 'Explorer', detail: cost ? '1 PA' : '0 PA (éclaireur)', reason: firstReason(busy, needPA(s, cost)) });
+      }
+      return A;
+    }
+    if (c.type === 'obstacle') return A;
+    const hordeHere = hordesAt(s, c).length > 0;
+    if (c.owned) {
+      const bc = buildCost(s);
+      A.push({ key: 'barricade', label: `Barricade (+${barricadeSolidity(s)} solidité)`, detail: `${bc} PA · 2 mat.`,
+        reason: firstReason(busy, needPA(s, bc), s.res.mat < CFG.barricade.cost && 'Pas assez de matériaux.', c.barricade >= CFG.barricade.max && 'Solidité maximale atteinte.') });
+      A.push({ key: 'piege', label: 'Piège (tue 2 rôdeurs à l’arrivée)', detail: `${bc} PA · 1 mat.`,
+        reason: firstReason(busy, needPA(s, bc), s.res.mat < CFG.trap.cost && 'Pas assez de matériaux.', c.traps >= CFG.trap.max && 'Déjà 2 pièges ici.') });
+      if (c.camp) A.push({ key: 'feu', label: s.fire ? 'Éteindre le feu (plus de lumière, −1 moral la nuit)' : 'Rallumer le feu', detail: '0 PA', reason: busy });
+      else A.push({ key: 'abandonner', label: 'Abandonner la case', detail: '1 PA · −1 moral', reason: firstReason(busy, needPA(s, 1)) });
+    } else if (adjacentToOwned(s, c)) {
+      const fight = c.lost && c.rodeurs > 0;
+      A.push({ key: 'occuper', label: fight ? `Reconquérir (${c.rodeurs} zombie${c.rodeurs > 1 ? 's' : ''} à abattre)` : 'Occuper la case',
+        detail: `1 PA · ${CFG.occupyMat} mat.` + (fight ? ` · ${c.rodeurs} mun.` : ''),
+        reason: firstReason(busy, needPA(s, 1), s.res.mat < CFG.occupyMat && 'Pas assez de matériaux.', hordeHere && 'Une horde occupe la case.') });
+    }
+    if (c.type === 'lieu' && (c.owned || adjacentToOwned(s, c))) {
+      A.push({ key: 'fouiller', label: `Fouiller (${gainText(scavengeGain(c))}${LIEUX[c.lieu].soin ? ', soins' : ''})`,
+        detail: `1 PA · bruit ${LIEUX[c.lieu].bruit} cette nuit`, reason: firstReason(busy, needPA(s, 1), hordeHere && 'Une horde est sur place.') });
+    }
+    if (!c.owned) {
+      A.push({ key: 'alarme', label: 'Poser une alarme (attire les rôdeurs)', detail: `1 PA · 1 mun. · bruit ${CFG.alarm.noise}`,
+        reason: firstReason(busy, needPA(s, 1), s.res.ammo < CFG.alarm.cost && 'Pas de munitions.', c.alarm && 'Déjà une alarme ici.') });
+    }
+    return A;
+  }
+
+  function makeNoise(c, n, why) { if (n > c.noise) { c.noise = n; c.noiseWhy = why; } }
+
+  function doCellAction(s, key, i) {
+    const c = s.cells[i];
+    const act = cellActions(s, i).find(a => a.key === key);
+    if (!act) return { ok: false, msg: 'Action impossible ici.' };
+    if (act.reason) return { ok: false, msg: act.reason };
+    let msg = '';
+    switch (key) {
+      case 'explorer': {
+        const cost = exploreCost(s);
+        s.pa -= cost;
+        if (!cost) s.freeExploreUsed = true;
+        c.revealed = true;
+        msg = `${label(c)} explorée : ${describe(c)}.`;
+        if (c.type === 'vide') {
+          const r = rand(s);
+          if (r < 0.15 && s.survivors.length < CFG.maxSurvivors) {
+            const v = newSurvivor(s, { morale: 6 });
+            s.survivors.push(v);
+            msg += ` Vous y trouvez ${v.name} (${SKILLS[v.skill]}, ${TRAITS[v.trait].nom}), qui rejoint la colonie.`;
+          } else if (r < 0.4) {
+            const k = pick(s, Object.keys(RES)), n = randInt(s, 2, 4);
+            s.res[k] += n; capStorage(s);
+            msg += ` Une cache : +${n} ${RES[k]}.`;
+          } else if (r < 0.52 && s.day >= 2) {
+            const h = addHorde(s, 'rodeur', 2, c);
+            msg += ` Une horde errante de ${hordeName(h)} vous a repérés.`;
+          }
+        }
+        break;
+      }
+      case 'occuper': {
+        s.pa -= 1;
+        s.res.mat -= CFG.occupyMat;
+        if (c.lost && c.rodeurs > 0) {
+          const shots = Math.min(c.rodeurs, s.res.ammo);
+          s.res.ammo -= shots;
+          const left = c.rodeurs - shots;
+          msg = `${label(c)} reconquise : ${c.rodeurs} zombie${c.rodeurs > 1 ? 's' : ''} abattu${c.rodeurs > 1 ? 's' : ''}.`;
+          if (left > 0) {
+            const v = [...s.survivors].sort((a, b) => b.health - a.health)[0];
+            v.health = Math.max(0, v.health - left);
+            msg += ` Faute de munitions, ${v.name} a dû finir au corps à corps (−${left} santé).`;
+            if (v.health <= 0) killSurvivor(s, v, `en reprenant ${label(c)}`);
+          }
+          s.stats.kills += c.rodeurs;
+          makeNoise(c, 2, 'combat');
+        } else {
+          msg = `${label(c)} rejoint le territoire.`;
+          makeNoise(c, 1, 'installation');
+        }
+        Object.assign(c, { owned: true, lost: false, rodeurs: 0, lostNights: 0, alarm: false });
+        s.stats.maxCells = Math.max(s.stats.maxCells, ownedCells(s).length);
+        if (!s.survivors.length) { s.outcome = 'defaite'; s.reason = 'Il ne reste plus personne.'; }
+        break;
+      }
+      case 'fouiller': {
+        s.pa -= 1;
+        const g = scavengeGain(c);
+        for (const k of Object.keys(RES)) s.res[k] += g[k];
+        capStorage(s);
+        c.visits++;
+        makeNoise(c, LIEUX[c.lieu].bruit, 'fouille');
+        msg = `${LIEUX[c.lieu].nom} (${label(c)}) fouillé : ${gainText(g)}.`;
+        const soin = LIEUX[c.lieu].soin && c.visits <= 3 ? LIEUX[c.lieu].soin : 0;
+        if (soin) {
+          const healed = [];
+          for (let k = 0; k < soin; k++) {
+            const v = s.survivors.filter(v => v.health < 3).sort((a, b) => a.health - b.health)[0];
+            if (!v) break;
+            v.health++; healed.push(v.name);
+          }
+          if (healed.length) msg += ` Des médicaments soignent ${healed.join(', ')}.`;
+        }
+        break;
+      }
+      case 'barricade':
+      case 'piege': {
+        const cost = buildCost(s);
+        s.pa -= cost;
+        if (!cost) s.freeBuildUsed = true;
+        s.builtToday = true;
+        if (key === 'barricade') {
+          s.res.mat -= CFG.barricade.cost;
+          c.barricade = Math.min(CFG.barricade.max, c.barricade + barricadeSolidity(s));
+          msg = `Barricade montée en ${label(c)} (solidité ${c.barricade}).`;
+        } else {
+          s.res.mat -= CFG.trap.cost;
+          c.traps++;
+          msg = `Piège posé en ${label(c)}.`;
+        }
+        makeNoise(c, 1, 'travaux');
+        break;
+      }
+      case 'feu':
+        s.fire = !s.fire;
+        msg = s.fire ? 'Le feu est rallumé.' : 'Le feu est éteint : le camp sera invisible, mais la nuit sera froide.';
+        break;
+      case 'abandonner': {
+        s.pa -= 1;
+        fallCell(s, c);
+        s.stats.lost--;
+        moraleAll(s, -1);
+        const tetus = withTrait(s, 'tetu');
+        for (const v of tetus) v.morale = clamp(v.morale - 2, 0, 10);
+        msg = `${label(c)} est abandonnée.` + (tetus.length ? ` ${tetus.map(v => v.name).join(', ')} le vit très mal.` : '');
+        break;
+      }
+      case 'alarme':
+        s.pa -= 1;
+        s.res.ammo -= CFG.alarm.cost;
+        c.alarm = true;
+        msg = `Alarme posée en ${label(c)} : elle sonnera cette nuit.`;
+        break;
+    }
+    log(s, msg);
+    return { ok: true, msg };
+  }
+
+  function survivorActions(s, id) {
+    const v = s.survivors.find(x => x.id === id);
+    const busy = busyReason(s);
+    const heal = hasSkill(s, 'medecine') ? 2 : 1;
+    return [
+      { key: 'soigner', label: 'Soigner', detail: `1 PA · 2 nourriture · +${heal} santé`,
+        reason: firstReason(busy, needPA(s, 1), v.health >= 3 && 'En pleine santé.', s.res.food < 2 && 'Pas assez de nourriture.') },
+      { key: 'parler', label: 'Parler', detail: '1 PA · +2 moral', reason: firstReason(busy, needPA(s, 1), v.morale >= 10 && 'Moral au maximum.') },
+    ];
+  }
+
+  function doSurvivorAction(s, key, id) {
+    const v = s.survivors.find(x => x.id === id);
+    const act = v && survivorActions(s, id).find(a => a.key === key);
+    if (!act) return { ok: false, msg: 'Action impossible.' };
+    if (act.reason) return { ok: false, msg: act.reason };
+    s.pa -= 1;
+    let msg;
+    if (key === 'soigner') {
+      s.res.food -= 2;
+      v.health = Math.min(3, v.health + (hasSkill(s, 'medecine') ? 2 : 1));
+      for (const w of withTrait(s, 'idealiste')) w.morale = clamp(w.morale + 1, 0, 10);
+      msg = `${v.name} est soigné (santé ${v.health}).`;
+    } else {
+      v.morale = clamp(v.morale + 2, 0, 10);
+      msg = `Vous parlez longuement avec ${v.name} (moral ${v.morale}).`;
+    }
+    log(s, msg);
+    return { ok: true, msg };
+  }
+
+  function assign(s, id, cellIdx) {
+    const v = s.survivors.find(x => x.id === id);
+    if (!v || s.phase !== 'jour' || s.outcome) return { ok: false, msg: 'Ce n’est pas le moment.' };
+    if (cellIdx === null || s.cells[cellIdx].camp) { v.post = null; return { ok: true, msg: `${v.name} reste au camp.` }; }
+    const c = s.cells[cellIdx];
+    if (!c.owned) return { ok: false, msg: 'Cette case ne fait pas partie du territoire.' };
+    if (v.trait === 'paranoiaque') return { ok: false, msg: `${v.name} refuse de passer la nuit hors du camp (paranoïaque).` };
+    v.post = c.i;
+    return { ok: true, msg: `${v.name} montera la garde en ${label(c)}.` };
+  }
+
+  function frontier(s) {
+    let seg = 0, open = 0;
+    for (const c of ownedCells(s)) {
+      for (const n of neighbors(s, c)) {
+        if (n.owned || n.type === 'obstacle') continue;
+        seg++;
+        if (!c.barricade && !defendersAt(s, c).length) open++;
+      }
+    }
+    return { seg, open };
+  }
+
+  // Prévision exacte de la nuit, en la simulant sur une copie.
+  function forecast(s) {
+    const copy = JSON.parse(JSON.stringify(s));
+    const mv = nightMove(copy);
+    const attacks = nightAttack(copy, mv);
+    return { plans: mv.plans, attacks, outcome: copy.outcome, reason: copy.reason };
+  }
+
+  return {
+    W, H, CFG, ZTYPES, LIEUX, OBSTACLES, RES, SKILLS, SKILL_DESC, TRAITS, EVENTS, DIR_NOMS,
+    newGame, planMoves, computeSources, nightMove, nightAttack, nightEnd, runNight, forecast,
+    cellActions, doCellAction, survivorActions, doSurvivorAction, assign, resolveEvent, eventById,
+    label, describe, hordeName, hordeTag, defendersAt, frontier, consumption, avgMorale, ownedCells,
+    campCell, hordesAt, idx,
+  };
+})();
+if (typeof module !== 'undefined') module.exports = Logic;
+
+// =====================================================================
+// INTERFACE
+// =====================================================================
+if (typeof document !== 'undefined') (() => {
+  const L = Logic;
+  const $ = id => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  let S = null;
+  let selected = null;
+  let busy = false;
+  let reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const tokens = new Map();
+  const esc = t => String(t).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+  const wait = ms => new Promise(r => setTimeout(r, reduced ? Math.min(ms, 150) : ms));
+  const REASON_ICON = { bruit: '🔊', lumiere: '💡', odeur: '👃', presence: '👣', droit: '➡', bute: '↻' };
+  const REASON_TXT = { bruit: 'le bruit', lumiere: 'la lumière', odeur: "l'odeur", presence: 'la présence humaine' };
+
+  function newGame(seed) {
+    S = L.newGame(seed);
+    selected = L.campCell(S).i;
+    for (const t of tokens.values()) t.remove();
+    tokens.clear();
+    render();
+  }
+
+  // ---------- Plateau ----------
+  const board = $('board');
+  for (let i = 0; i < L.W * L.H; i++) {
+    const d = document.createElement('div');
+    d.className = 'cell';
+    d.addEventListener('click', () => { selected = i; render(); });
+    board.appendChild(d);
+  }
+
+  function pipClass(v) { return v.health <= 1 ? 'pip crit' : v.health === 2 ? 'pip hurt' : 'pip'; }
+
+  function renderBoard(sources) {
+    S.cells.forEach((c, i) => {
+      const d = board.children[i];
+      d.className = 'cell' + (c.revealed ? '' : ' fog') + (c.owned ? ' own' : '') + (c.lost && !c.owned ? ' lost' : '') + (selected === i ? ' sel' : '');
+      let icon = '', name = '';
+      if (c.revealed) {
+        if (c.camp) icon = '⛺' + (S.fire ? '🔥' : '');
+        else if (c.type === 'lieu') icon = L.LIEUX[c.lieu].icone;
+        else if (c.type === 'obstacle') icon = L.OBSTACLES[c.obstacle].icone;
+        name = L.describe(c);
+        if (c.type === 'lieu' && c.visits) name += ` (×${c.visits})`;
+      } else {
+        icon = c.type === 'lieu' ? '<span class="muted">🏚</span>' : c.type === 'obstacle' ? '<span class="muted">▒</span>' : '';
+        name = c.type === 'lieu' ? 'bâtiment ?' : c.type === 'obstacle' ? 'obstacle ?' : '';
+      }
+      const defs = [];
+      if (c.barricade) defs.push(`▮${c.barricade}`);
+      if (c.traps) defs.push(`⌇${c.traps}`);
+      if (c.alarm) defs.push('🔔');
+      for (const src of sources) if (src.x === c.x && src.y === c.y) defs.push(`<span title="${esc(src.why)}">${REASON_ICON[src.kind]}${src.strength}</span>`);
+      const guards = S.survivors.filter(v => v.post === c.i || (c.camp && v.post === null));
+      const gHtml = guards.map(v => `<span class="${pipClass(v)}" title="${esc(v.name)}">${esc(v.name[0])}</span>`).join('');
+      const lostInfo = c.lost && !c.owned ? `<div class="lostinfo">perdue · ${c.rodeurs} z. · ${3 - c.lostNights} n.</div>` : '';
+      d.innerHTML = `<span class="coord">${L.label(c)}</span><div class="defs">${defs.join('<br>')}</div>`
+        + `<div class="icon">${icon}</div><div class="name">${esc(name)}</div>${lostInfo}<div class="guards">${gHtml}</div>`;
+      d.setAttribute('aria-label', `${L.label(c)} ${c.revealed ? L.describe(c) : 'inexploré'}`);
+    });
+  }
+
+  function hordePos(h) {
+    const same = S.hordes.filter(o => o.x === h.x && o.y === h.y);
+    const k = same.indexOf(h);
+    return { left: h.x * 20 + 1 + k * 6.4, top: h.y * 20 + 12.4 };
+  }
+
+  function renderHordes() {
+    const layer = $('hordes');
+    const alive = new Set(S.hordes.map(h => h.id));
+    for (const [id, el] of tokens) if (!alive.has(id)) { el.remove(); tokens.delete(id); }
+    for (const h of S.hordes) {
+      let el = tokens.get(h.id);
+      const p = hordePos(h);
+      if (!el) {
+        el = document.createElement('div');
+        el.innerHTML = '<div class="shape"></div><span></span>';
+        el.style.left = p.left + '%'; el.style.top = p.top + '%';
+        layer.appendChild(el);
+        tokens.set(h.id, el);
+      }
+      el.className = 'horde ' + h.type;
+      el.querySelector('span').textContent = L.hordeTag(h);
+      el.title = `Horde de ${L.hordeName(h)}`;
+      el.style.left = p.left + '%'; el.style.top = p.top + '%';
+    }
+  }
+
+  function renderArrows(plans) {
+    const g = $('arrow-layer');
+    if (S.phase !== 'jour' || S.outcome) { g.innerHTML = ''; return; }
+    let out = '';
+    for (const p of plans) {
+      // Une horde qui se divise n'existe pas encore : on part de la horde d'origine.
+      const h = S.hordes.find(x => x.id === p.hordeId) || S.hordes.find(x => x.x === p.from.x && x.y === p.from.y && x.type === p.type);
+      if (!h) continue;
+      const hp = hordePos(h);
+      const x1 = (hp.left + 3.2) * 5, y1 = (hp.top + 3.2) * 5;
+      if (p.next.x === p.from.x && p.next.y === p.from.y) {
+        out += `<text x="${x1 + 14}" y="${y1 - 8}" font-size="18">${REASON_ICON[p.reason] || ''}</text>`;
+        continue;
+      }
+      const x2 = p.next.x * 100 + 50, y2 = p.next.y * 100 + 50;
+      const ex = x1 + (x2 - x1) * 0.78, ey = y1 + (y2 - y1) * 0.78;
+      const col = p.attack ? '#e0735c' : '#e6e2d8';
+      out += `<line x1="${x1}" y1="${y1}" x2="${ex}" y2="${ey}" stroke="${col}" stroke-width="${p.attack ? 4 : 3}" stroke-dasharray="8 6" marker-end="url(#${p.attack ? 'ah-red' : 'ah'})"/>`;
+      const mx = (x1 + ex) / 2, my = (y1 + ey) / 2;
+      out += `<text x="${mx + 4}" y="${my - 4}" font-size="18">${REASON_ICON[p.reason] || ''}${p.attack ? '⚔' : ''}</text>`;
+    }
+    g.innerHTML = out;
+  }
+
+  // ---------- Panneaux ----------
+  function renderHeader() {
+    const conso = L.consumption(S);
+    const fr = L.frontier(S);
+    const avg = L.avgMorale(S);
+    $('phase').textContent = S.outcome ? 'Fin' : S.phase === 'jour' ? 'Journée et préparation' : 'Nuit';
+    $('day').innerHTML = `Jour <b>${S.day}</b>/${L.CFG.winNights}`;
+    $('pa').innerHTML = `PA <b>${S.pa}</b>/${S.paMax}`;
+    $('food').innerHTML = `🥫 <b>${S.res.food}</b> <span class="muted">(−${conso}/nuit)</span>`;
+    $('mat').innerHTML = `🔩 <b>${S.res.mat}</b>`;
+    $('ammo').innerHTML = `🎯 <b>${S.res.ammo}</b>`;
+    $('terr').innerHTML = `Territoire <b>${L.ownedCells(S).length}</b>/${L.CFG.winCells} · frontière ${fr.seg} (${fr.open} ouverte${fr.open > 1 ? 's' : ''})`;
+    $('morale').innerHTML = `Moral <b class="${avg < 4 ? 'danger' : avg < 6 ? 'warn' : ''}">${avg.toFixed(1)}</b>/10`;
+    $('btn-night').disabled = busy || !!S.outcome || !!S.event || S.phase !== 'jour';
+  }
+
+  function renderForecast(fc) {
+    const lines = [];
+    for (const p of fc.plans) {
+      const tag = `<b>${L.ZTYPES[p.type].lettre}${p.size}</b>`;
+      const from = L.label(p.from), to = L.label(p.next);
+      let why;
+      if (p.reason === 'droit' || p.reason === 'bute') why = p.why;
+      else {
+        const tgt = L.label(p.target);
+        why = `attirés par ${REASON_TXT[p.reason]}${p.why && p.reason !== 'presence' ? ' (' + esc(p.why) + ')' : ''} en ${tgt}`;
+      }
+      if (p.attack) {
+        const a = fc.attacks.find(r => r.hordeId === p.hordeId);
+        let res = '';
+        if (a) {
+          const traps = a.trapKills ? `pièges : ${a.trapKills} tué${a.trapKills > 1 ? 's' : ''}, ` : '';
+          if (a.result === 'tombé') res = `<span class="danger">${traps}attaque ${a.A} contre défense ${a.D} : la case tombera</span>`;
+          else if (a.result === 'anéantie') res = `<span class="ok">${traps}${a.A ? `attaque ${a.A} contre défense ${a.D} : ` : ''}la horde sera anéantie${a.breach ? ' (mais percera la défense)' : ''}</span>`;
+          else res = `<span class="warn">${traps}attaque ${a.A} contre défense ${a.D} : la case tiendra</span>`;
+          if (a.wounds.length) res += ` <span class="danger">, blessés : ${esc(a.wounds.join(', '))}</span>`;
+          if (a.deaths.length) res += ` <span class="danger">, morts : ${esc(a.deaths.join(', '))}</span>`;
+          if (a.ammo) res += ` <span class="muted">(${a.ammo} mun.)</span>`;
+        } else res = '<span class="danger">entrera dans la case, déjà tombée</span>';
+        lines.push(`<li>⚔ ${tag} en ${from}, ${why} → <b>attaque ${to}</b> : ${res}</li>`);
+      } else if (p.next.x === p.from.x && p.next.y === p.from.y) {
+        lines.push(`<li>${tag} en ${from} reste sur place (${why}).</li>`);
+      } else {
+        lines.push(`<li>${tag} en ${from} → ${to}, ${why}.</li>`);
+      }
+    }
+    let html = lines.length ? `<ul>${lines.join('')}</ul>` : '<p class="muted">Aucune horde en vue.</p>';
+    if (fc.outcome === 'defaite') html = `<p class="danger"><b>⚠ Si rien ne change, la colonie tombe cette nuit.</b></p>` + html;
+    const fr = L.frontier(S);
+    html += `<p class="muted" style="margin:8px 0 0">Ce soir : −${L.consumption(S)} nourriture${S.weather === 'pluie' ? ' · pluie (bruit portée 2)' : ''}${S.weather === 'froid' ? ' · nuit glaciale' : ''}${S.ration ? ' · rationnement' : ''}. Frontière exposée : ${fr.seg} segments.</p>`;
+    $('forecast').innerHTML = html;
+  }
+
+  function actionButtons(list, prefix, target) {
+    return list.map(a => `<div class="action"><button data-${prefix}="${a.key}" data-target="${target}" ${a.reason ? 'disabled' : ''} title="${esc(a.reason || '')}">${esc(a.label)}</button><small>${esc(a.detail)}</small></div>`).join('');
+  }
+
+  function renderCellPanel() {
+    const c = S.cells[selected];
+    let html = `<b>${L.label(c)}</b> : ${c.revealed ? esc(L.describe(c)) : 'inexploré'}`;
+    const tags = [];
+    if (c.owned) tags.push(c.camp ? 'cœur du territoire' : 'territoire');
+    if (c.lost && !c.owned) tags.push(`perdue : ${c.rodeurs} zombie(s) accumulé(s), dispersion dans ${3 - c.lostNights} nuit(s)`);
+    if (c.barricade) tags.push(`barricade ${c.barricade}`);
+    if (c.traps) tags.push(`${c.traps} piège(s)`);
+    if (c.corpses) tags.push('cadavres (odeur)');
+    if (c.owned) {
+      const def = L.defendersAt(S, c);
+      tags.push(`défense ${c.barricade + def.length} (${c.barricade} barricade + ${def.length} garde${def.length > 1 ? 's' : ''})`);
+    }
+    const hs = L.hordesAt(S, c);
+    if (hs.length) tags.push('hordes : ' + hs.map(h => L.hordeName(h)).join(', '));
+    if (tags.length) html += `<div class="muted">${esc(tags.join(' · '))}</div>`;
+    const acts = L.cellActions(S, selected);
+    html += acts.length ? `<div class="actions">${actionButtons(acts, 'cell', selected)}</div>`
+      : `<p class="muted">${c.revealed ? 'Rien à faire ici.' : 'Trop loin : explorez d’abord une case voisine du territoire.'}</p>`;
+    $('cell-panel').innerHTML = html;
+  }
+
+  function renderSurvivors() {
+    const own = L.ownedCells(S).filter(c => !c.camp);
+    const busyDay = S.phase !== 'jour' || !!S.outcome;
+    $('survivors').innerHTML = S.survivors.map(v => {
+      const hearts = '♥'.repeat(v.health) + '♡'.repeat(3 - v.health);
+      const opts = [`<option value="">Camp (${L.label(L.campCell(S))})</option>`]
+        .concat(own.map(c => `<option value="${c.i}" ${v.post === c.i ? 'selected' : ''}>Garde en ${L.label(c)}</option>`)).join('');
+      return `<div class="surv">
+        <div class="who"><b>${esc(v.name)}</b>
+          <div class="tags" title="${esc(L.SKILL_DESC[v.skill])} · ${esc(L.TRAITS[v.trait].desc)}">${esc(L.SKILLS[v.skill])} · ${esc(L.TRAITS[v.trait].nom)}</div>
+          <div class="bars"><span class="${v.health <= 1 ? 'danger' : v.health === 2 ? 'warn' : ''}" aria-label="santé ${v.health} sur 3">${hearts}</span>
+            · moral <b class="${v.morale < 4 ? 'danger' : v.morale < 6 ? 'warn' : ''}">${v.morale}</b>/10</div></div>
+        <div class="ctl"><select data-assign="${v.id}" ${busyDay ? 'disabled' : ''} aria-label="Affectation de ${esc(v.name)}">${opts}</select>
+          ${L.survivorActions(S, v.id).map(a => `<button data-surv="${a.key}" data-target="${v.id}" ${a.reason ? 'disabled' : ''} title="${esc(a.detail + (a.reason ? ' — ' + a.reason : ''))}">${esc(a.label)}</button>`).join('')}</div>
+      </div>`;
+    }).join('') || '<p class="muted">Personne.</p>';
+  }
+
+  function renderJournal() {
+    const pend = S.pending.map(p => `<li class="good">À venir (jour ${p.day}) : ${esc(p.text)}</li>`).join('');
+    const items = S.log.slice(-40).reverse().map(e => `<li class="${e.kind}"><span class="muted">J${e.day}</span> ${esc(e.text)}</li>`).join('');
+    $('journal').innerHTML = `<ul>${pend}${items}</ul>`;
+  }
+
+  function render() {
+    const fc = S.phase === 'jour' && !S.outcome ? L.forecast(S) : { plans: [], attacks: [] };
+    const sources = L.computeSources(S);
+    renderHeader();
+    renderBoard(sources);
+    renderHordes();
+    renderArrows(fc.plans);
+    if (S.phase === 'jour' && !S.outcome) renderForecast(fc);
+    renderCellPanel();
+    renderSurvivors();
+    renderJournal();
+  }
+
+  function toast(msg) { $('toast').textContent = msg || ''; }
+
+  // ---------- Fenêtres ----------
+  function modal(html, buttons) {
+    return new Promise(resolve => {
+      const card = $('modal-card');
+      card.innerHTML = html + `<div class="choices">${buttons.map((b, k) => `<button data-k="${k}" ${b.disabled ? 'disabled' : ''} title="${esc(b.title || '')}" class="${b.primary ? 'primary' : ''}">${esc(b.label)}</button>`).join('')}</div>`;
+      $('modal').classList.add('open');
+      card.querySelectorAll('button[data-k]').forEach(btn => btn.addEventListener('click', () => {
+        $('modal').classList.remove('open');
+        resolve(+btn.dataset.k);
+      }));
+      const first = card.querySelector('button:not(:disabled)');
+      if (first) first.focus();
+    });
+  }
+
+  async function showEvent() {
+    const e = L.eventById(S.event);
+    if (!e) return;
+    const k = await modal(`<h1>${esc(e.titre)}</h1><p>${esc(e.texte)}</p>`,
+      e.choix.map(ch => { const can = ch.can ? ch.can(S) : true; return { label: ch.label, disabled: can !== true, title: can === true ? '' : can }; }));
+    const msg = L.resolveEvent(S, k);
+    render();
+    if (msg) await modal(`<h1>${esc(e.titre)}</h1><p>${esc(msg)}</p>`, [{ label: 'Continuer', primary: true }]);
+  }
+
+  function attackLine(r) {
+    const parts = [];
+    if (r.trapKills) parts.push(`les pièges en tuent ${r.trapKills}`);
+    if (r.A) parts.push(`attaque ${r.A} contre défense ${r.D}${r.defenders.length ? ' (' + r.defenders.join(', ') + ')' : ''}`);
+    if (r.kills) parts.push(`${r.kills} abattu${r.kills > 1 ? 's' : ''}${r.ammo ? ` (${r.ammo} munition${r.ammo > 1 ? 's' : ''})` : ''}`);
+    if (r.wear) parts.push('la barricade s’use (−1)');
+    if (r.wounds.length) parts.push(`blessés : ${r.wounds.join(', ')}`);
+    if (r.deaths.length) parts.push(`<b>morts : ${r.deaths.join(', ')}</b>`);
+    const res = r.result === 'tombé' ? '<span class="danger">la case tombe</span>'
+      : r.result === 'anéantie' ? `<span class="ok">horde anéantie${r.breach ? ', défense détruite' : ''}</span>`
+      : '<span class="warn">la case tient</span>';
+    return `<li><b>${r.cell}</b>, ${esc(r.name)} : ${parts.map(p => p.startsWith('<b>') ? p : esc(p)).join(', ')} → ${res}.</li>`;
+  }
+
+  async function endScreen() {
+    const st = S.stats;
+    const win = S.outcome === 'victoire';
+    await modal(`<h1>${win ? '🌅 Victoire' : '💀 Défaite'}</h1><p>${esc(S.reason)}</p>
+      <ul><li>Nuits tenues : ${S.nightsSurvived}</li><li>Zombies abattus : ${st.kills}</li><li>Morts : ${st.deaths} · départs : ${st.deserted}</li>
+      <li>Territoire maximal : ${st.maxCells} cases · cases tombées : ${st.lost}</li><li>Graine : ${S.seed}</li></ul>`,
+      [{ label: 'Nouvelle partie', primary: true }, { label: 'Rejouer la même carte' }]).then(k => newGame(k === 0 ? Date.now() % 1e9 : S.seed));
+  }
+
+  async function playNight() {
+    if (busy || S.phase !== 'jour' || S.event || S.outcome) return;
+    busy = true;
+    toast('La nuit tombe…');
+    $('arrow-layer').innerHTML = '';
+    const mv = L.nightMove(S);
+    render();
+    toast('1. Les hordes se déplacent.');
+    await wait(1000);
+    const attacks = L.nightAttack(S, mv);
+    render();
+    for (const r of attacks) board.children[r.cellIdx].classList.add(r.result === 'tombé' ? 'fall' : 'hit');
+    toast(attacks.length ? `2. ${attacks.length} attaque${attacks.length > 1 ? 's' : ''}.` : '2. Aucune attaque cette nuit.');
+    await wait(attacks.length ? 1300 : 600);
+    const end = L.nightEnd(S);
+    busy = false;
+    toast('');
+    render();
+    let html = `<h1>Bilan de la nuit ${S.night}</h1>`;
+    html += attacks.length ? `<h2>Attaques</h2><ul>${attacks.map(attackLine).join('')}</ul>` : '<p>Aucune horde n’a atteint le territoire.</p>';
+    const misc = [...end.lines];
+    if (end.conso) misc.unshift(`La colonie a mangé ${end.conso} nourriture.`);
+    if (misc.length) html += `<h2>Au camp</h2><ul>${misc.map(l => `<li>${esc(l)}</li>`).join('')}</ul>`;
+    if (end.spawned.length) html += `<h2>À l’aube</h2><p>Nouvelles hordes repérées : ${end.spawned.map(h => `${esc(h.name)} en ${h.cell}`).join(', ')}.</p>`;
+    const dayLog = S.log.filter(e => e.day === S.day && e.kind === 'alert' && /quitté/.test(e.text));
+    if (dayLog.length) html += `<p class="danger">${dayLog.map(e => esc(e.text)).join('<br>')}</p>`;
+    if (S.outcome) { await modal(html, [{ label: 'Voir la fin', primary: true }]); await endScreen(); return; }
+    await modal(html, [{ label: `Jour ${S.day}`, primary: true }]);
+    if (S.event) await showEvent();
+  }
+
+  // ---------- Entrées ----------
+  document.addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (!b || busy) return;
+    if (b.dataset.cell) { const r = L.doCellAction(S, b.dataset.cell, +b.dataset.target); toast(r.msg); render(); }
+    else if (b.dataset.surv) { const r = L.doSurvivorAction(S, b.dataset.surv, +b.dataset.target); toast(r.msg); render(); }
+  });
+  document.addEventListener('change', e => {
+    const sel = e.target.closest('select[data-assign]');
+    if (!sel) return;
+    const r = L.assign(S, +sel.dataset.assign, sel.value === '' ? null : +sel.value);
+    toast(r.msg);
+    render();
+  });
+  $('btn-night').addEventListener('click', playNight);
+  $('btn-motion').addEventListener('click', () => {
+    reduced = !reduced;
+    document.body.classList.toggle('reduced', reduced);
+    $('btn-motion').textContent = `Animations : ${reduced ? 'non' : 'oui'}`;
+    $('btn-motion').setAttribute('aria-pressed', String(reduced));
+  });
+  document.body.classList.toggle('reduced', reduced);
+  $('btn-motion').textContent = `Animations : ${reduced ? 'non' : 'oui'}`;
+
+  const HELP = `<h1>Comment jouer</h1>
+    <p>Chaque jour, dépensez vos <b>points d'action</b> (PA), placez vos gardes, puis passez à la nuit. Les hordes avancent d'une case par nuit.
+    Tenez <b>${L.CFG.winNights} nuits</b>, ou contrôlez <b>${L.CFG.winCells} cases</b> à l'aube.</p>
+    <h2>Les hordes sont prévisibles</h2>
+    <ul><li><b>● Rôdeur</b> (attaque 1) : va vers le bruit le plus fort à 3 cases (fouille, travaux, alarme, tirs de la veille), ou la lumière du feu à 2 cases.</li>
+    <li><b>▲ Odorant</b> (attaque 2) : va vers l'odeur à 2 cases (réserves du camp, cadavres de la veille).</li>
+    <li><b>■ Aveugle</b> (attaque 3, résistant) : marche tout droit ; il tourne quand il bute ou quand une défense le repousse.</li>
+    <li>Sans rien à percevoir, une horde va vers la case du territoire la plus proche. À égalité de force et de distance, elle se divise.</li></ul>
+    <h2>L'attaque</h2>
+    <ul><li>Les pièges tuent d'abord. Puis <b>attaque</b> = taille × force, contre <b>défense</b> = barricade + nombre de gardes.</li>
+    <li>Les gardes tirent : 1 dégât (2 en Combat), +2 s'ils ont une munition. Les aveugles encaissent 2 dégâts chacun.</li>
+    <li>Si l'attaque dépasse la défense, la barricade est détruite et l'excès blesse les gardes. Si des zombies restent debout, la case tombe.
+    Si c'est le camp, la partie est perdue.</li>
+    <li>Les gardes non affectés défendent le camp.</li></ul>
+    <h2>Le reste</h2>
+    <ul><li>Une case perdue ou abandonnée accumule 1 zombie par nuit, qui se dispersent en horde au bout de 3 nuits. La reconquérir coûte une munition par zombie.</li>
+    <li>Chaque survivant mange 1 nourriture par nuit. Un survivant valide (santé ≥ 2) donne 1 PA de plus. Sous 4 de moral collectif, −1 PA. À 0 de moral, on part.</li>
+    <li>La prévision, à droite, simule exactement la nuit à venir avec vos réglages actuels.</li></ul>`;
+  $('btn-help').addEventListener('click', () => modal(HELP, [{ label: 'Fermer', primary: true }]));
+
+  const seed = params.has('seed') ? +params.get('seed') : Date.now() % 1e9;
+  newGame(seed);
+  modal(`<h1>🧟 Zombie Survival</h1><p>Le quartier est tombé. Trois survivants ont monté un camp au centre du plan.
+    Chaque nuit, les hordes viennent. Vous ne pourrez pas tout défendre.</p>` + HELP.replace('<h1>Comment jouer</h1>', ''),
+    [{ label: 'Commencer', primary: true }]);
+})();
+</script>
+</body>
+</html>

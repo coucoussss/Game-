@@ -6,6 +6,7 @@
 - **Souterrain** (en cours) : fan game d'exploration et de combats de boss. Ouvrir `souterrain/index.html`.
 - **Front d'Acier** : combat de chars en vue de dessus, 5 contre 5 contre des IA, avec chars modélisés en 3D, obus réalistes et caméra d'impact aux rayons X. Voir [`chars/README.md`](chars/README.md) et ouvrir `chars/index.html`.
 - **Mold & Majesty** : jeu de gestion en pixel art, où tu es un réseau de mycélium. Voir [`mold-and-majesty/README.md`](mold-and-majesty/README.md), et le [manuel du joueur en PDF](mold-and-majesty/Manuel-Mold-and-Majesty.pdf).
+- **Zombie Survival** (prototype) : stratégie au tour par tour, défendre ou sacrifier des secteurs chaque nuit. Voir [`zombie-survival/README.md`](zombie-survival/README.md) et ouvrir `zombie-survival/index.html`.
 
 # 🧟 Nuit des Morts
 
