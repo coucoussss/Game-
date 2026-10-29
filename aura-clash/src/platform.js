@@ -46,7 +46,7 @@ class Platform {
     if (this.env === 'disabled') return null; // hors du site CrazyGames : le SDK ne fait rien
     this.sdk = sdk;
     try { sdk.game.loadingStart?.(); } catch { /* ignoré */ }
-    try { this.adblock = !!(await sdk.ad.hasAdblock?.()); } catch { /* ignoré */ }
+
     // Réglage « couper le son » du site
     try {
       const apply = () => this.emit('settings', sdk.game.settings || {});
@@ -55,6 +55,8 @@ class Platform {
     } catch { /* ignoré */ }
     this.initCloud();
     this.notifyChange();
+    // Détection du bloqueur de pub en tâche de fond (ne retarde rien)
+    Promise.resolve().then(() => sdk.ad.hasAdblock?.()).then((v) => { this.adblock = !!v; }, () => {});
     return sdk;
   }
 
@@ -78,29 +80,36 @@ class Platform {
    * (temps de jeu le plus long) l'emporte au démarrage.
    */
   initCloud() {
-    const data = this.sdk && this.sdk.data;
-    if (!data || typeof data.getItem !== 'function') return;
+    // Module « data » du SDK (pris au moment de l'appel ; ses méthodes peuvent être synchrones ou non)
+    const data = () => (window.CrazyGames && window.CrazyGames.SDK && window.CrazyGames.SDK.data) || (this.sdk && this.sdk.data) || null;
     const KEY = 'auraclash.profile.v1';
+    if (!data()) { console.warn('[CrazyGames] module data introuvable : sauvegarde locale seulement'); return; }
     let timer = null;
     globalThis.__auraCloudSave = (key, json) => {
       clearTimeout(timer);
-      timer = setTimeout(() => { try { data.setItem(key, json); } catch { /* ignoré */ } }, 1500);
+      timer = setTimeout(async () => {
+        try { await data().setItem(key, json); } catch (e) { console.warn('[CrazyGames] data.setItem :', e); }
+      }, 1500);
     };
-    try {
-      const cloud = data.getItem(KEY);
-      const local = localStorage.getItem(KEY);
-      const time = (j) => { try { return JSON.parse(j).playTime || 0; } catch { return -1; } };
-      if (cloud && time(cloud) > time(local)) {
-        localStorage.setItem(KEY, cloud);
-        // Profil rechargé depuis le compte
-        if (window.app && window.app.profile) {
-          const P = window.app.profile.constructor;
-          window.app.profile = new P();
-          if (window.app.ui?.screen?.el?.classList.contains('main-menu')) window.app.ui.mainMenu();
-        }
-      } else if (local) data.setItem(KEY, local);
-    } catch { /* ignoré */ }
+    (async () => {
+      try {
+        const cloud = await data().getItem(KEY);
+        const local = localStorage.getItem(KEY);
+        const time = (j) => { try { return JSON.parse(j).playTime || 0; } catch { return -1; } };
+        console.info('[CrazyGames] sauvegarde du compte :', cloud ? 'trouvée' : 'vide');
+        if (cloud && time(cloud) > time(local)) {
+          localStorage.setItem(KEY, cloud);
+          // Profil rechargé depuis le compte
+          if (window.app && window.app.profile) {
+            const P = window.app.profile.constructor;
+            window.app.profile = new P();
+            if (window.app.ui?.screen?.el?.classList.contains('main-menu')) window.app.ui.mainMenu();
+          }
+        } else if (local) await data().setItem(KEY, local);
+      } catch (e) { console.warn('[CrazyGames] data.getItem :', e); }
+    })();
   }
+
 
   /** Le joueur est en train de jouer (combat en cours, hors pause). */
   gameplayStart() {
