@@ -48,6 +48,11 @@ class App {
     this.last = performance.now();
     this.ui.portraits = renderPortraits();
     this.ui.title();
+    // CrazyGames : fin du chargement, son coupé si le site le demande
+    platform.on((type, data) => {
+      if (type === 'settings') { platform.siteMute = !!data.muteAudio; if (!platform.adPlaying) this.audio.setMuted(platform.siteMute); }
+    });
+    platform.loaded();
     requestAnimationFrame((t) => this.frame(t));
   }
 
@@ -269,6 +274,8 @@ class App {
     else if (this.ui.screen || this.ui.revealOpen) this.ui.handle(actions);
     // Signale au site hôte (CrazyGames) quand le joueur est réellement en combat
     if (this.battle && !this.ui.screen && !this.replay) platform.gameplayStart(); else platform.gameplayStop();
+    // Jeu en pause pendant une publicité
+    if (platform.adPlaying) { this.stage.render(); requestAnimationFrame((tt) => this.frame(tt)); return; }
     if (this.battle) this.battle.frame(dt);
     else if (this.scene) this.scene.update(dt);
     else this.updateBackdrop(dt);

@@ -1,26 +1,75 @@
 // Plateformes de diffusion. Sur CrazyGames (window.AURA_PLATFORM = 'crazygames', SDK v3 chargé
-// par la page), on prévient le site du début et de la fin des parties, on affiche une publicité
-// entre deux combats (au plus une toutes les 3 minutes) et on coupe le son pendant la publicité.
-// Partout ailleurs, ces fonctions ne font rien.
-const AD_GAP = 180; // secondes minimum entre deux publicités
+// par la page), on utilise le SDK officiel :
+//   - init() attendu avant toute publicité, loadingStart/loadingStop pendant le chargement ;
+//   - gameplayStart/gameplayStop selon que le joueur se bat ou non ;
+//   - publicité « midgame » entre deux combats ; publicités « rewarded » lancées par le joueur ;
+//   - son coupé et jeu en pause pendant chaque publicité, rétablis à la fin ou en cas d'échec ;
+//   - récompense donnée UNIQUEMENT si adFinished est appelé (jamais sur adError) ;
+//   - réglage « couper le son » de CrazyGames respecté, sauvegarde dans le compte, invitations.
+// Hors CrazyGames (exe, HTML, artefact), il n'y a pas de publicité : les bonus sont offerts.
+const AD_GAP = 60; // secondes minimum entre deux publicités midgame (CrazyGames applique aussi les siennes)
+
+export const ON_CRAZYGAMES = typeof window !== 'undefined' && window.AURA_PLATFORM === 'crazygames';
 
 class Platform {
   constructor() {
     this.sdk = null;
+    this.env = 'none';
     this.playing = false;
-    this.lastAd = typeof performance !== 'undefined' ? performance.now() / 1000 : 0;
+    this.adPlaying = false;
+    this.lastAd = -Infinity;
+    this.adblock = false;
+    this.ready = Promise.resolve(null);
+    this.listeners = new Set();
   }
 
-  async init() {
-    if (typeof window === 'undefined' || window.AURA_PLATFORM !== 'crazygames') return;
+  /** Démarre le SDK (à appeler une fois, le plus tôt possible). */
+  init() {
+    if (!ON_CRAZYGAMES) return this.ready;
+    this.ready = this.start();
+    return this.ready;
+  }
+
+  async start() {
+    // Le script du SDK est chargé par la page ; on l'attend quelques secondes au besoin
+    for (let i = 0; i < 50 && !window.CrazyGames?.SDK; i++) await new Promise((r) => setTimeout(r, 100));
     const sdk = window.CrazyGames?.SDK;
-    if (!sdk) return;
+    if (!sdk) { console.warn('[CrazyGames] SDK introuvable'); return null; }
     try {
       await sdk.init();
-      this.sdk = sdk;
-      sdk.game.loadingStop?.();
-      this.initCloud();
-    } catch (e) { console.warn('SDK CrazyGames indisponible :', e); }
+    } catch (e) {
+      console.warn('[CrazyGames] init a échoué :', e);
+      return null;
+    }
+    this.env = sdk.environment || 'crazygames';
+    console.info('[CrazyGames] SDK prêt, environnement :', this.env);
+    if (this.env === 'disabled') return null; // hors du site CrazyGames : le SDK ne fait rien
+    this.sdk = sdk;
+    try { sdk.game.loadingStart?.(); } catch { /* ignoré */ }
+    try { this.adblock = !!(await sdk.ad.hasAdblock?.()); } catch { /* ignoré */ }
+    // Réglage « couper le son » du site
+    try {
+      const apply = () => this.emit('settings', sdk.game.settings || {});
+      sdk.game.addSettingsChangeListener?.(apply);
+      apply();
+    } catch { /* ignoré */ }
+    this.initCloud();
+    this.notifyChange();
+    return sdk;
+  }
+
+  /** Le jeu a fini de charger (portraits, coffres, menus prêts). */
+  loaded() {
+    this.ready.then((sdk) => { try { sdk?.game.loadingStop?.(); } catch { /* ignoré */ } });
+  }
+
+  on(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
+  emit(type, data) { for (const fn of this.listeners) { try { fn(type, data); } catch { /* ignoré */ } } }
+  notifyChange() { this.emit('ready', this.sdk); }
+
+  /** Vraies publicités disponibles (version CrazyGames). Les boutons affichent alors ▶. */
+  get hasAds() {
+    return ON_CRAZYGAMES;
   }
 
   /**
@@ -55,7 +104,7 @@ class Platform {
 
   /** Le joueur est en train de jouer (combat en cours, hors pause). */
   gameplayStart() {
-    if (!this.sdk || this.playing) return;
+    if (!this.sdk || this.playing || this.adPlaying) return;
     this.playing = true;
     try { this.sdk.game.gameplayStart(); } catch { /* ignoré */ }
   }
@@ -67,40 +116,66 @@ class Platform {
     try { this.sdk.game.gameplayStop(); } catch { /* ignoré */ }
   }
 
-  /** Grand moment de joie (victoire, niveau réussi). */
+  /** Grand moment de joie (victoire, coffre, déblocage). */
   happytime() {
     try { this.sdk?.game.happytime(); } catch { /* ignoré */ }
   }
 
-  /** Vraies publicités disponibles (sinon, les bonus « pub » sont offerts directement). */
-  get hasAds() {
-    return !!this.sdk;
+  /**
+   * Lance une publicité. Résout { ok, error } : ok = la publicité est allée jusqu'au bout.
+   * Son coupé et jeu en pause (événements 'adStart' / 'adEnd') pendant toute sa durée.
+   */
+  async showAd(type, audio) {
+    const sdk = await this.ready;
+    if (!sdk) return { ok: false, error: this.env === 'disabled' ? 'disabled' : 'nosdk' };
+    if (this.adPlaying) return { ok: false, error: 'busy' };
+    this.adPlaying = true;
+    this.gameplayStop();
+    return new Promise((resolve) => {
+      let done = false;
+      let started = false;
+      const end = (ok, error) => {
+        if (done) return;
+        done = true;
+        clearTimeout(guard);
+        this.adPlaying = false;
+        audio?.setMuted?.(!!this.siteMute);
+        this.emit('adEnd', { type, ok });
+        if (started) this.lastAd = performance.now() / 1000;
+        if (!ok) console.info(`[CrazyGames] pub ${type} non affichée :`, error);
+        resolve({ ok, error });
+      };
+      // Sécurité : si le SDK ne répond jamais, le jeu reprend (sans récompense)
+      const guard = setTimeout(() => end(false, 'timeout'), 90000);
+      try {
+        sdk.ad.requestAd(type, {
+          adStarted: () => { started = true; audio?.setMuted?.(true); this.emit('adStart', { type }); },
+          adFinished: () => end(true),
+          adError: (err) => end(false, (err && (err.code || err.message)) || String(err || 'error')),
+        });
+      } catch (e) { end(false, e && e.message); }
+    });
   }
 
   /**
-   * Publicité récompensée, toujours lancée par le joueur. Résout `true` si la récompense est due.
-   * Hors CrazyGames (version .exe, HTML), il n'y a pas de publicité : le bonus est accordé.
+   * Publicité récompensée, toujours lancée par le joueur. Résout `true` seulement si elle a été vue
+   * en entier (adFinished). Hors CrazyGames, il n'y a pas de publicité : le bonus est accordé.
    */
-  rewardedAd(audio) {
-    if (!this.sdk) return Promise.resolve(true);
-    return new Promise((resolve) => {
-      let finished = false;
-      const end = (ok) => {
-        if (finished) return;
-        finished = true;
-        audio?.setMuted?.(false);
-        this.lastAd = performance.now() / 1000; // pas de publicité intercalée juste après
-        resolve(ok);
-      };
-      this.gameplayStop();
-      try {
-        this.sdk.ad.requestAd('rewarded', {
-          adStarted: () => audio?.setMuted?.(true),
-          adFinished: () => end(true),
-          adError: () => end(false),
-        });
-      } catch { end(false); }
-    });
+  async rewardedAd(audio) {
+    if (!ON_CRAZYGAMES) return true;
+    const r = await this.showAd('rewarded', audio);
+    this.lastError = r.error || null;
+    return r.ok;
+  }
+
+  /** Message à afficher quand une publicité récompensée n'a pas pu être vue. */
+  adErrorText() {
+    const e = String(this.lastError || '');
+    if (this.adblock) return 'Un bloqueur de publicités empêche le bonus : désactive-le pour ce jeu.';
+    if (e === 'disabled' || e === 'nosdk') return 'Publicités indisponibles ici (elles marchent sur CrazyGames).';
+    if (/cooldown/i.test(e)) return 'Une publicité vient d’être diffusée : réessaie dans un instant.';
+    if (/unfilled|fill/i.test(e)) return 'Aucune publicité disponible pour le moment, réessaie plus tard.';
+    return 'Publicité indisponible pour le moment, réessaie plus tard.';
   }
 
   /** Lien d'invitation CrazyGames vers un salon en ligne (null ailleurs). */
@@ -114,29 +189,15 @@ class Platform {
   }
 
   /**
-   * Publicité entre deux combats, si le délai minimum est écoulé. `audio` est coupé pendant la
-   * publicité ; `done` est toujours appelé ensuite (même sans publicité ou en cas d'erreur).
+   * Publicité entre deux combats (midgame), si le délai minimum est écoulé. `done` est toujours
+   * appelé ensuite (même sans publicité ou en cas d'erreur).
    */
   midgameAd(audio, done = () => {}) {
     const now = performance.now() / 1000;
-    if (!this.sdk || now - this.lastAd < AD_GAP) { done(); return; }
-    this.lastAd = now;
-    this.gameplayStop();
-    let finished = false;
-    const end = () => {
-      if (finished) return;
-      finished = true;
-      audio?.setMuted?.(false);
-      done();
-    };
-    try {
-      this.sdk.ad.requestAd('midgame', {
-        adStarted: () => audio?.setMuted?.(true),
-        adFinished: end,
-        adError: end,
-      });
-    } catch { end(); }
+    if (!ON_CRAZYGAMES || now - this.lastAd < AD_GAP) { done(); return; }
+    this.showAd('midgame', audio).then(() => done(), () => done());
   }
 }
 
 export const platform = new Platform();
+if (typeof window !== 'undefined') window.auraPlatform = platform; // diagnostic (console du navigateur)

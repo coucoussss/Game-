@@ -49,7 +49,7 @@ export const liveScreens = {
     const ok = await platform.rewardedAd(this.app.audio);
     this.adBusy = false;
     if (ok) onReward();
-    else this.toast('Publicité indisponible pour le moment, réessaie plus tard.', 3.5);
+    else this.toast(platform.adErrorText(), 4);
   },
 
   /** Miniature d'une récompense : objet 3D, combattant vêtu du skin, portrait, coffre… */

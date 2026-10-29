@@ -429,6 +429,7 @@ export class Battle {
       grant(prof, { t: 'xp', n: px.xp });
       this.passGain.tierAfter = passTier(live.passXp);
       if (p1 && !prof.owns(p1.charId) && live.trials[p1.charId]) live.trials[p1.charId].fights -= 1;
+      if (result === 'win') platform.happytime(); // CrazyGames : moment fort
       this.xpGain = xpFor(mode, result, waves);
       this.levelUp = prof.addXp(this.xpGain);
       if (this.levelUp) setTimeout(() => this.app.ui.toast(`⬆ Niveau ${this.levelUp} atteint !`, 4), 2400);
