@@ -22,6 +22,20 @@ rétrécit, et décide chaque nuit quels secteurs défendre et lesquels sacrifie
 - Journal des décisions, prévision **exacte** de la nuit à venir, bilan détaillé.
 - Deux façons de gagner : tenir 12 nuits, ou contrôler 15 cases à l'aube.
 
+## Interface
+
+Tout se lit sur le plateau, sans passer par des listes :
+
+- Chaque horde montre sa taille, sa forme (rond, triangle, carré selon le type), une flèche vers sa
+  prochaine case et l'icône de ce qui l'attire.
+- Une case menacée porte un badge **⚔ attaque contre 🛡 défense** : rouge si elle va tomber, ambre si
+  elle tient avec des blessés, vert si la horde est repoussée.
+- Le territoire est bordé de vert ; les cases explorables sont marquées **?**.
+- Toucher une case ouvre ses actions, avec leur coût, et permet d'y poster ou d'en retirer des gardes.
+- Toucher un survivant, puis une case, le poste en garde.
+- Un bandeau de conseil indique la priorité du moment (case qui va tomber, vivres qui baissent, actions
+  restantes).
+
 ## Choix faits pour le prototype
 
 Le design laisse plusieurs valeurs ouvertes. Celles retenues ici, à rediscuter :

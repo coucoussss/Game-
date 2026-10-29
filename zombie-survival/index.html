@@ -2,155 +2,293 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Zombie Survival : prototype</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Zombie Survival</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Barlow+Condensed:wght@600;700&display=swap">
 <style>
+  /* Une nuit en ville : fond bleu-ardoise, le territoire en vert de veille, la lampe du camp
+     en ambre (sélection, accent), les hordes en couleurs sourdes par type.
+     Mise en page : le plateau au centre de tout ; à côté, l'équipe et la prévision. */
   :root {
-    --bg: #15161a;
-    --panel: #1e2026;
-    --panel2: #262931;
-    --line: #3a3e48;
-    --text: #e6e2d8;
-    --muted: #a09c92;
-    --own: #5f8f62;
-    --own-bg: #223026;
-    --lost: #8a4a3e;
-    --lost-bg: #2c1d1b;
-    --fog: #101114;
-    --danger: #e0735c;
-    --warn: #e2b553;
-    --ok: #8fc48f;
-    --horde: #c9553f;
-    --accent: #d7c27a;
+    --bg: #0f1317;
+    --surface: #171c22;
+    --surface2: #202730;
+    --line: #2d3641;
+    --text: #e9e5db;
+    --muted: #96a2ac;
+    --own: #7fb47a;
+    --own-fill: #1c2a20;
+    --lost: #b0574a;
+    --lost-fill: #2a1a19;
+    --fog: #141a20;
+    --fog-near: #1b222a;
+    --lamp: #f0b85a;
+    --danger: #ef6a52;
+    --warn: #e9b44c;
+    --ok: #86c97f;
+    --rodeur: #c4473a;
+    --odorant: #b8742f;
+    --aveugle: #7e5b9a;
+    --ink: #0b0e11;
+    --scrim: rgba(5, 7, 10, .72);
+    --night: rgba(20, 30, 70, .35);
+    --f-display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+    --f-body: "Atkinson Hyperlegible", system-ui, "Segoe UI", sans-serif;
+    color-scheme: dark;
   }
   * { box-sizing: border-box; }
-  html, body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.4 system-ui, "Segoe UI", sans-serif; }
-  button { font: inherit; color: var(--text); background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; cursor: pointer; }
-  button:hover:not(:disabled) { border-color: var(--accent); }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--text); font: 15px/1.45 var(--f-body); }
+  button { font: inherit; color: var(--text); background: var(--surface2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+  button:hover:not(:disabled) { border-color: var(--lamp); }
+  button:focus-visible, [role="button"]:focus-visible { outline: 3px solid var(--lamp); outline-offset: 2px; }
   button:disabled { opacity: .45; cursor: not-allowed; }
-  button.primary { background: #3d4a30; border-color: #6d8a4f; font-weight: 600; }
-  select { font: inherit; color: var(--text); background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px; max-width: 100%; }
-  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 8px; }
-
-  header { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--line); }
-  header .title { font-weight: 700; letter-spacing: .04em; }
-  header .stat { white-space: nowrap; }
-  header .stat b { font-variant-numeric: tabular-nums; }
-  header .spacer { flex: 1; }
-  .phase { padding: 2px 8px; border-radius: 10px; background: var(--panel2); border: 1px solid var(--line); font-size: 13px; }
-
-  main { display: grid; grid-template-columns: minmax(300px, 600px) minmax(300px, 1fr); gap: 16px; padding: 16px; max-width: 1280px; margin: 0 auto; }
-  main > * { min-width: 0; }
-  @media (max-width: 860px) { main { grid-template-columns: minmax(0, 1fr); padding: 12px; } }
-
-  #board-wrap { position: relative; width: 100%; aspect-ratio: 1; align-self: start; }
-  #board { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(5, 1fr); grid-template-rows: repeat(5, 1fr); gap: 0; border: 1px solid var(--line); }
-  .cell { position: relative; border: 1px solid #2a2d34; background: #1b1d22; cursor: pointer; overflow: hidden; }
-  .cell.fog { background: repeating-linear-gradient(45deg, var(--fog), var(--fog) 6px, #14151a 6px, #14151a 12px); }
-  .cell.own { background: var(--own-bg); box-shadow: inset 0 0 0 2px var(--own); }
-  .cell.lost { background: repeating-linear-gradient(-45deg, var(--lost-bg), var(--lost-bg) 5px, #241817 5px, #241817 10px); box-shadow: inset 0 0 0 2px var(--lost); }
-  .cell.sel { outline: 3px solid var(--accent); outline-offset: -3px; z-index: 2; }
-  .cell .coord { position: absolute; top: 3px; left: 5px; font-size: 11px; color: var(--muted); }
-  .cell .icon { position: absolute; top: 34%; left: 50%; transform: translate(-50%, -50%); font-size: clamp(16px, 4.2vw, 30px); line-height: 1; text-align: center; }
-  .cell .name { position: absolute; top: 56%; left: 0; right: 0; text-align: center; font-size: 10px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 2px; }
-  .cell .defs { position: absolute; top: 2px; right: 4px; font-size: 11px; text-align: right; line-height: 1.25; }
-  .cell .guards { position: absolute; right: 3px; bottom: 3px; display: flex; gap: 2px; flex-wrap: wrap-reverse; justify-content: flex-end; max-width: 50%; }
-  .cell .lostinfo { position: absolute; left: 0; right: 0; top: 66%; text-align: center; font-size: 10px; color: #e7a497; }
-  .cell.hit { animation: hit .5s ease-in-out 2; }
-  .cell.fall { animation: fall 1s ease-in-out 1; }
-  @keyframes hit { 50% { background: #5a2a22; } }
-  @keyframes fall { 0% { background: #7a2016; } 100% { } }
-  .pip { width: 16px; height: 16px; border-radius: 50%; background: #c8c2b0; color: #1a1a1a; font-size: 10px; font-weight: 700; display: grid; place-items: center; border: 1px solid #000; }
-  .pip.hurt { background: #e2b553; }
-  .pip.crit { background: #e0735c; }
-
-  #hordes { position: absolute; inset: 0; pointer-events: none; }
-  .horde { position: absolute; width: 7%; height: 7%; display: grid; place-items: center; font-size: clamp(9px, 1.8vw, 13px); font-weight: 800; color: #fff; transition: left .8s ease, top .8s ease, opacity .4s; }
-  .horde .shape { position: absolute; inset: 0; background: var(--horde); border: 2px solid #f3d0c6; }
-  .horde.rodeur .shape { border-radius: 50%; }
-  .horde.odorant .shape { clip-path: polygon(50% 0, 100% 100%, 0 100%); border: 0; background: #b5763a; }
-  .horde.odorant span { padding-top: 30%; }
-  .horde.aveugle .shape { border-radius: 2px; background: #7d5a8f; }
-  .horde span { position: relative; text-shadow: 0 1px 2px #000; }
-  #arrows { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-
-  aside { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-  .box { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
-  .forecast li { margin-bottom: 4px; }
-  .forecast ul, .journal ul { margin: 0; padding-left: 18px; }
+  h1, h2, .display { font-family: var(--f-display); letter-spacing: .02em; text-wrap: balance; }
+  h2 { font-size: 15px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin: 0; }
+  .muted { color: var(--muted); }
   .danger { color: var(--danger); }
   .warn { color: var(--warn); }
   .ok { color: var(--ok); }
-  .muted { color: var(--muted); }
-  .actions { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
-  .action { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-  .action button { flex: 1; text-align: left; }
-  .action small { color: var(--muted); white-space: nowrap; }
-  .surv { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; padding: 8px 0; border-top: 1px solid var(--line); }
-  .surv:first-of-type { border-top: 0; }
-  .surv .who b { font-size: 15px; }
-  .surv .tags { font-size: 12px; color: var(--muted); }
-  .surv .bars { font-size: 13px; }
-  .surv .ctl { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; align-items: start; }
-  .surv .ctl button { padding: 3px 7px; font-size: 13px; }
-  .journal { max-height: 260px; overflow: auto; font-size: 13px; }
-  .journal li.alert { color: var(--danger); }
-  .journal li.good { color: var(--ok); }
-  .legend { font-size: 12px; color: var(--muted); }
-  .legend span { display: inline-block; white-space: nowrap; margin-right: 10px; }
-  #toast { min-height: 1.4em; font-size: 13px; color: var(--accent); }
 
-  #modal { position: fixed; inset: 0; background: rgba(0,0,0,.7); display: none; align-items: center; justify-content: center; padding: 16px; z-index: 50; }
+  /* ---------- Barre du haut ---------- */
+  .top { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding-block: 10px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+    background: var(--surface); border-bottom: 1px solid var(--line); }
+  .brand { font-family: var(--f-display); font-size: 24px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+  .brand span { color: var(--lamp); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; min-width: 0; }
+  .chip { display: flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: var(--surface2); border: 1px solid var(--line); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .chip .k { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .chip b { font-size: 16px; }
+  .chip .sub { font-size: 12px; color: var(--muted); }
+  @media (max-width: 700px) { .chip .word { display: none; } }
+  .chip.alert { border-color: var(--danger); }
+  .pips { display: inline-flex; gap: 2px; }
+  .pips i { width: 6px; height: 10px; border-radius: 2px; background: var(--line); display: block; }
+  .pips i.on { background: var(--lamp); }
+  .pips i.done { background: var(--muted); }
+  .tools { display: flex; gap: 6px; }
+  @media (max-width: 700px) {
+    .brand { font-size: 20px; flex: 1; white-space: nowrap; }
+    .chips { order: 3; flex: 1 1 100%; gap: 4px; }
+    .chip { padding: 3px 8px; gap: 4px; }
+    .chip .sub.word, .chip .pips { display: none; }
+    .chip b { font-size: 15px; }
+    .tools button { padding: 5px 8px; font-size: 13px; }
+    .cell .sig { font-size: 9px; }
+    .cell .shield { font-size: 11px; padding: 0 3px; }
+    .cell .guards .av { width: 14px; height: 14px; font-size: 9px; }
+    .cell .nm { display: none; }
+    .cell .badge { padding: 0 3px; }
+  }
+  .tools button { padding: 6px 10px; font-size: 14px; }
+
+  /* ---------- Mise en page ---------- */
+  .layout { display: grid; grid-template-columns: minmax(0, 620px) minmax(280px, 1fr); gap: 20px; max-width: 1240px; margin: 0 auto;
+    padding-block: 16px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .layout > * { min-width: 0; }
+  @media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+  .play { display: flex; flex-direction: column; gap: 12px; }
+  .side { display: flex; flex-direction: column; gap: 14px; }
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+
+  /* ---------- Conseil ---------- */
+  .coach { display: flex; gap: 10px; align-items: flex-start; padding: 10px 14px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--lamp); }
+  .coach.alert { border-left-color: var(--danger); }
+  .coach.calm { border-left-color: var(--ok); }
+  .coach .ico { font-size: 20px; line-height: 1.2; }
+  .coach b { font-weight: 700; }
+
+  /* ---------- Plateau ---------- */
+  #board-wrap { position: relative; width: 100%; max-width: 100%; aspect-ratio: 1; }
+  #board { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(5, 1fr); grid-template-rows: repeat(5, 1fr); gap: 3px; padding: 3px; background: var(--ink); border-radius: 12px; transition: filter .6s; }
+  #board-wrap.night #board { filter: brightness(.6) saturate(.7); }
+  #board-wrap.night::after { content: ""; position: absolute; inset: 0; border-radius: 12px; background: var(--night); pointer-events: none; }
+  .cell { position: relative; background: var(--surface); border-radius: 6px; cursor: pointer; overflow: hidden; outline: none; }
+  .cell:hover { background: var(--surface2); }
+  .cell.fog { background: var(--fog); background-image: repeating-linear-gradient(45deg, transparent 0 7px, rgba(255,255,255,.025) 7px 14px); }
+  .cell.fog.explorable { background-color: var(--fog-near); background-image: repeating-linear-gradient(45deg, transparent 0 7px, rgba(240,184,90,.07) 7px 14px); }
+  .cell.fog.explorable::after { content: ""; position: absolute; inset: 3px; border: 1.5px dashed var(--lamp); opacity: .45; border-radius: 4px; pointer-events: none; }
+  .cell.own { background: var(--own-fill); }
+  .cell.lost { background: repeating-linear-gradient(-45deg, var(--lost-fill) 0 6px, var(--bg) 6px 12px); box-shadow: inset 0 0 0 2px var(--lost); }
+  .cell.sel { box-shadow: inset 0 0 0 3px var(--lamp) !important; }
+  .cell.pickable { cursor: copy; }
+  .cell.pickable::before { content: ""; position: absolute; inset: 4px; border: 2px dashed var(--lamp); border-radius: 4px; pointer-events: none; }
+  .cell.th-fall { animation: threat 1.2s ease-in-out infinite; }
+  @keyframes threat { 50% { background-color: #3a1c18; } }
+  .cell .coord { position: absolute; top: 4px; left: 6px; font: 600 12px var(--f-display); color: var(--muted); letter-spacing: .05em; }
+  .cell .sig { position: absolute; top: 3px; right: 4px; display: flex; flex-direction: column; align-items: flex-end; gap: 1px; font-size: 11px; line-height: 1.2; }
+  .cell .shield { font: 700 13px var(--f-display); color: var(--text); background: var(--ink); border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; }
+  .cell .icon { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); font-size: clamp(18px, 4.6vw, 32px); line-height: 1; }
+  .cell .q { position: absolute; inset: 0; display: grid; place-items: center; font: 700 clamp(18px, 4vw, 28px) var(--f-display); color: var(--line); }
+  .cell.explorable .q { color: var(--lamp); opacity: .55; }
+  .cell .q .ghost { font-size: clamp(14px, 3.4vw, 24px); opacity: .28; filter: grayscale(1); color: var(--muted); }
+  .cell .nm { position: absolute; left: 2px; right: 2px; top: 62%; text-align: center; font-size: clamp(9px, 1.7vw, 11px); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cell .guards { position: absolute; left: 4px; bottom: 4px; display: flex; gap: 2px; }
+  .av { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font: 700 11px var(--f-display); color: var(--ink); background: var(--text); border: 1px solid var(--ink); flex: none; }
+  .av.hurt { background: var(--warn); }
+  .av.crit { background: var(--danger); }
+  .cell .badge { position: absolute; left: 50%; top: 60%; transform: translateX(-50%); font: 700 clamp(10px, 1.9vw, 13px) var(--f-display); padding: 1px 6px; border-radius: 5px; white-space: nowrap; color: var(--ink); }
+  .badge.fall { background: var(--danger); }
+  .badge.hold { background: var(--warn); }
+  .badge.win { background: var(--ok); }
+  .cell .lostinfo { position: absolute; left: 0; right: 0; bottom: 4px; text-align: center; font: 600 11px var(--f-display); color: var(--danger); }
+  .cell.hit { animation: hit .45s ease-in-out 2; }
+  .cell.fall { animation: fallfx 1s ease-out 1; }
+  @keyframes hit { 50% { background-color: #5a2a22; } }
+  @keyframes fallfx { 0% { background-color: #8a2416; } }
+
+  #hordes { position: absolute; inset: 0; pointer-events: none; }
+  .horde { position: absolute; width: 7.5%; height: 7.5%; display: grid; place-items: center; transition: left .9s ease, top .9s ease; filter: drop-shadow(0 2px 3px rgba(0,0,0,.6)); }
+  .horde .shape { position: absolute; inset: 0; border: 2px solid var(--text); }
+  .horde.rodeur .shape { border-radius: 50%; background: var(--rodeur); }
+  .horde.odorant .shape { background: var(--odorant); clip-path: polygon(50% 0, 100% 100%, 0 100%); border: 0; }
+  .horde.aveugle .shape { border-radius: 4px; background: var(--aveugle); }
+  .horde b { position: relative; font: 700 clamp(11px, 2.2vw, 16px) var(--f-display); color: #fff; text-shadow: 0 1px 2px #000; }
+  .horde.odorant b { padding-top: 28%; }
+  #arrows { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+
+  /* ---------- Menu d'une case ---------- */
+  #pop { position: absolute; z-index: 20; width: min(270px, 100%); background: var(--surface2); border: 1px solid var(--lamp); border-radius: 12px; padding: 12px; box-shadow: 0 12px 30px rgba(0,0,0,.6); display: flex; flex-direction: column; gap: 8px; }
+  #pop[hidden] { display: none; }
+  #pop .ph { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+  #pop .ph h3 { margin: 0; font: 700 20px var(--f-display); }
+  #pop .x { padding: 2px 8px; }
+  #pop .status { font-size: 13px; color: var(--muted); }
+  #pop .threat { font-size: 13px; padding: 6px 8px; border-radius: 8px; background: var(--ink); }
+  #pop .acts { display: flex; flex-direction: column; gap: 6px; }
+  .act { display: flex; flex-direction: column; align-items: stretch; gap: 3px; text-align: left; padding: 8px 10px; }
+  .act .row { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+  .act .lbl { font-weight: 700; }
+  .costs { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+  .cost { font-size: 12px; padding: 0 6px; border-radius: 5px; background: var(--ink); color: var(--muted); white-space: nowrap; }
+  .act .why { font-size: 12px; color: var(--warn); }
+  .guardset { display: flex; flex-wrap: wrap; gap: 6px; }
+  .guardset button { display: flex; align-items: center; gap: 6px; padding: 4px 8px 4px 4px; font-size: 13px; border-radius: 999px; }
+  .guardset button[aria-pressed="true"] { border-color: var(--own); background: var(--own-fill); }
+
+  /* ---------- Nuit ---------- */
+  .nightbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; padding: 10px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+  #night-summary { font-size: 14px; min-width: 0; flex: 1; }
+  #btn-night { font: 700 18px var(--f-display); letter-spacing: .05em; text-transform: uppercase; padding: 10px 18px; background: #34405a; border-color: #5a6c96; }
+  #btn-night:hover:not(:disabled) { border-color: var(--lamp); }
+  #toast { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); max-width: 92%; z-index: 25; padding: 8px 14px; border-radius: 10px; background: var(--surface2); border: 1px solid var(--lamp); font-size: 14px; text-align: center; box-shadow: 0 8px 20px rgba(0,0,0,.5); }
+  #toast[hidden] { display: none; }
+
+  /* ---------- Équipe ---------- */
+  .crew { display: flex; flex-direction: column; gap: 6px; }
+  .crew-card { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; text-align: left; padding: 8px 10px; border-radius: 10px; width: 100%; }
+  .crew-card.sel { border-color: var(--lamp); background: #2a2a24; }
+  .crew-card .av { width: 34px; height: 34px; font-size: 17px; }
+  .crew-card .who { min-width: 0; display: flex; flex-direction: column; }
+  .crew-card .who b { font-size: 16px; }
+  .crew-card .role { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .crew-card .stats { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  .hearts { letter-spacing: 1px; color: var(--danger); }
+  .meter { width: 54px; height: 6px; border-radius: 3px; background: var(--ink); overflow: hidden; display: inline-block; }
+  .meter i { display: block; height: 100%; background: var(--ok); }
+  .meter.low i { background: var(--danger); }
+  .meter.mid i { background: var(--warn); }
+  .crew-card .post { font: 600 13px var(--f-display); letter-spacing: .04em; padding: 2px 8px; border-radius: 6px; background: var(--ink); white-space: nowrap; }
+  .crew-card .post.guard { color: var(--own); }
+  .crew-detail { padding: 10px; border-radius: 10px; background: var(--ink); font-size: 13px; display: flex; flex-direction: column; gap: 8px; }
+  .crew-detail .acts { display: flex; gap: 6px; flex-wrap: wrap; }
+  .crew-detail .acts .act { flex: 1; min-width: 120px; }
+  .hint { font-size: 13px; color: var(--muted); margin: 0; }
+
+  /* ---------- Prévision ---------- */
+  .fc { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .fc li { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; align-items: start; font-size: 14px; }
+  .fc .tag { font: 700 12px var(--f-display); letter-spacing: .05em; text-transform: uppercase; padding: 2px 7px; border-radius: 5px; color: var(--ink); text-align: center; min-width: 64px; }
+  .tag.fall { background: var(--danger); }
+  .tag.hold { background: var(--warn); }
+  .tag.win { background: var(--ok); }
+  .tag.move { background: var(--muted); }
+  .fc .why { grid-column: 2; font-size: 12px; color: var(--muted); }
+  .legend { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px 12px; font-size: 13px; color: var(--muted); }
+  .legend span { display: flex; align-items: center; gap: 6px; }
+  .lg { width: 14px; height: 14px; display: inline-block; flex: none; }
+  .lg.r { border-radius: 50%; background: var(--rodeur); }
+  .lg.o { background: var(--odorant); clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+  .lg.a { border-radius: 2px; background: var(--aveugle); }
+  details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+
+  /* ---------- Fenêtres ---------- */
+  #modal { position: fixed; inset: 0; background: var(--scrim); display: none; align-items: center; justify-content: center; z-index: 50;
+    padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
   #modal.open { display: flex; }
-  #modal .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; max-width: 620px; width: 100%; max-height: 90vh; overflow: auto; padding: 20px; }
-  #modal h1 { font-size: 20px; margin: 0 0 10px; }
-  #modal .choices { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
-  #modal .choices button { text-align: left; }
-  #modal ul { padding-left: 18px; }
+  #modal .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; max-width: 600px; width: 100%; max-height: 90vh; overflow: auto; padding: 22px; display: flex; flex-direction: column; gap: 10px; }
+  #modal h1 { font-size: 30px; margin: 0; line-height: 1.1; }
+  #modal h2 { margin-top: 6px; }
+  #modal p { margin: 0; max-width: 62ch; }
+  #modal ul { margin: 0; padding-left: 20px; }
+  #modal li { margin-bottom: 4px; }
+  #modal .choices { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+  #modal .choices button { text-align: left; padding: 10px 14px; }
+  #modal .choices button.primary { background: #3b4a31; border-color: var(--own); font-weight: 700; }
+  .steps { counter-reset: st; list-style: none; padding: 0 !important; display: flex; flex-direction: column; gap: 8px; }
+  .steps li { counter-increment: st; display: grid; grid-template-columns: 28px 1fr; gap: 10px; }
+  .steps li::before { content: counter(st); width: 26px; height: 26px; border-radius: 50%; background: var(--lamp); color: var(--ink); display: grid; place-items: center; font: 700 15px var(--f-display); }
 
-  body.reduced .horde, body.reduced .cell { transition: none !important; animation: none !important; }
+  body.reduced *, body.reduced *::before, body.reduced *::after { transition: none !important; animation: none !important; }
+  @media (prefers-reduced-motion: reduce) { .horde, #board { transition: none; } .cell { animation: none !important; } }
 </style>
 </head>
 <body>
-<header>
-  <span class="title">🧟 Zombie Survival</span>
-  <span class="phase" id="phase"></span>
-  <span class="stat" id="day"></span>
-  <span class="stat" id="pa"></span>
-  <span class="stat" id="food"></span>
-  <span class="stat" id="mat"></span>
-  <span class="stat" id="ammo"></span>
-  <span class="stat" id="terr"></span>
-  <span class="stat" id="morale"></span>
-  <span class="spacer"></span>
-  <button id="btn-help">Aide</button>
-  <button id="btn-motion" aria-pressed="false">Animations : oui</button>
-  <button id="btn-night" class="primary">Fin de journée ▶ Nuit</button>
+<header class="top">
+  <div class="brand">Zombie <span>Survival</span></div>
+  <div class="chips" id="chips"></div>
+  <div class="tools">
+    <button id="btn-journal">Journal</button>
+    <button id="btn-help">Règles</button>
+    <button id="btn-motion" aria-pressed="false">Animations</button>
+  </div>
 </header>
-<main>
-  <section>
+<main class="layout">
+  <section class="play">
+    <div class="coach" id="coach" role="status"></div>
     <div id="board-wrap">
       <div id="board"></div>
-      <svg id="arrows" viewBox="0 0 500 500" preserveAspectRatio="none">
+      <svg id="arrows" viewBox="0 0 500 500" preserveAspectRatio="none" aria-hidden="true">
         <defs>
-          <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#e6e2d8"/></marker>
-          <marker id="ah-red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#e0735c"/></marker>
+          <marker id="ah" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#e9e5db"/></marker>
+          <marker id="ah-red" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#ef6a52"/></marker>
         </defs>
         <g id="arrow-layer"></g>
       </svg>
       <div id="hordes"></div>
+      <div id="pop" hidden></div>
+      <div id="toast" role="status" hidden></div>
     </div>
-    <p class="legend">
-      <span>● Rôdeur (bruit, lumière)</span><span>▲ Odorant (odeur)</span><span>■ Aveugle (tout droit)</span>
-      <span>🔊 bruit</span><span>💡 lumière</span><span>👃 odeur</span><span>▮ barricade</span><span>⌇ piège</span><span>🔔 alarme</span>
-    </p>
-    <div id="toast" role="status"></div>
+    <div class="nightbar">
+      <div id="night-summary"></div>
+      <button id="btn-night">Passer la nuit</button>
+    </div>
   </section>
-  <aside>
-    <div class="box forecast"><h2>Prévision de la nuit</h2><div id="forecast"></div></div>
-    <div class="box"><h2>Case sélectionnée</h2><div id="cell-panel"></div></div>
-    <div class="box"><h2>Survivants</h2><div id="survivors"></div></div>
-    <div class="box journal"><h2>Journal</h2><div id="journal"></div></div>
+  <aside class="side">
+    <div class="panel">
+      <h2>Survivants</h2>
+      <p class="hint">Touchez un survivant, puis une case du territoire, pour l'y poster en garde cette nuit.</p>
+      <div class="crew" id="crew"></div>
+    </div>
+    <div class="panel">
+      <h2>Cette nuit</h2>
+      <div id="forecast"></div>
+    </div>
+    <div class="panel">
+      <h2>Légende</h2>
+      <div class="legend">
+        <span><i class="lg r"></i>Rôdeur : bruit, lumière</span>
+        <span><i class="lg o"></i>Odorant : odeur</span>
+        <span><i class="lg a"></i>Aveugle : tout droit</span>
+        <span>🔊 Bruit · 💡 Lumière · 👃 Odeur</span>
+        <span>🛡 Défense de la case</span>
+        <span>▮ Barricade · ⌇ Piège · 🔔 Alarme</span>
+      </div>
+    </div>
   </aside>
 </main>
 <div id="modal" role="dialog" aria-modal="true"><div class="card" id="modal-card"></div></div>
@@ -1075,6 +1213,7 @@ const Logic = (() => {
 })();
 if (typeof module !== 'undefined') module.exports = Logic;
 
+
 // =====================================================================
 // INTERFACE
 // =====================================================================
@@ -1083,67 +1222,125 @@ if (typeof document !== 'undefined') (() => {
   const $ = id => document.getElementById(id);
   const params = new URLSearchParams(location.search);
   let S = null;
-  let selected = null;
+  let selected = null;   // case dont le menu est ouvert
+  let pick = null;       // survivant qu'on est en train de poster
   let busy = false;
+  let fc = { plans: [], attacks: [] };
   let reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let toastTimer = 0;
   const tokens = new Map();
   const esc = t => String(t).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
   const wait = ms => new Promise(r => setTimeout(r, reduced ? Math.min(ms, 150) : ms));
-  const REASON_ICON = { bruit: '🔊', lumiere: '💡', odeur: '👃', presence: '👣', droit: '➡', bute: '↻' };
+  const ICON = { bruit: '🔊', lumiere: '💡', odeur: '👃', presence: '👣', droit: '➜', bute: '↻' };
   const REASON_TXT = { bruit: 'le bruit', lumiere: 'la lumière', odeur: "l'odeur", presence: 'la présence humaine' };
+  const plural = (n, s, p) => n > 1 ? (p || s + 's') : s;
+  const wrap = $('board-wrap');
+  const board = $('board');
 
   function newGame(seed) {
     S = L.newGame(seed);
-    selected = L.campCell(S).i;
+    selected = null; pick = null;
     for (const t of tokens.values()) t.remove();
     tokens.clear();
     render();
   }
 
+  // ---------- Lecture de la prévision ----------
+  const RESULT = {
+    'tombé': { cls: 'fall', tag: 'Tombe' },
+    'tenu': { cls: 'hold', tag: 'Tient' },
+    'anéantie': { cls: 'win', tag: 'Repoussée' },
+  };
+  function attacksAt(i) { return fc.attacks.filter(a => a.cellIdx === i); }
+  function worstAt(i) {
+    const list = attacksAt(i);
+    if (!list.length) return null;
+    const rank = a => a.result === 'tombé' ? 3 : (a.wounds.length || a.deaths.length) ? 2 : a.result === 'tenu' ? 1 : 0;
+    return list.slice().sort((a, b) => rank(b) - rank(a))[0];
+  }
+  function resultCls(a) { return a.result === 'tombé' ? 'fall' : (a.wounds.length || a.deaths.length || a.result === 'tenu') ? 'hold' : 'win'; }
+
   // ---------- Plateau ----------
-  const board = $('board');
   for (let i = 0; i < L.W * L.H; i++) {
     const d = document.createElement('div');
     d.className = 'cell';
-    d.addEventListener('click', () => { selected = i; render(); });
+    d.tabIndex = 0;
+    d.setAttribute('role', 'button');
+    d.dataset.i = i;
     board.appendChild(d);
   }
 
-  function pipClass(v) { return v.health <= 1 ? 'pip crit' : v.health === 2 ? 'pip hurt' : 'pip'; }
+  function avClass(v) { return v.health <= 1 ? 'av crit' : v.health === 2 ? 'av hurt' : 'av'; }
+  const isExplorable = c => !c.revealed && L.cellActions(S, c.i).some(a => a.key === 'explorer');
+
+  function frontierShadow(c) {
+    if (!c.owned) return '';
+    const sides = [[0, -1, '0 3px'], [1, 0, '-3px 0'], [0, 1, '0 -3px'], [-1, 0, '3px 0']];
+    const parts = [];
+    for (const [dx, dy, off] of sides) {
+      const x = c.x + dx, y = c.y + dy;
+      const n = x >= 0 && y >= 0 && x < L.W && y < L.H ? S.cells[L.idx(x, y)] : null;
+      if (!n || !n.owned) parts.push(`inset ${off} 0 var(--own)`);
+    }
+    return parts.join(', ');
+  }
 
   function renderBoard(sources) {
     S.cells.forEach((c, i) => {
       const d = board.children[i];
-      d.className = 'cell' + (c.revealed ? '' : ' fog') + (c.owned ? ' own' : '') + (c.lost && !c.owned ? ' lost' : '') + (selected === i ? ' sel' : '');
-      let icon = '', name = '';
+      const explorable = isExplorable(c);
+      const threat = c.owned ? worstAt(i) : null;
+      d.className = 'cell' + (c.revealed ? '' : ' fog') + (explorable ? ' explorable' : '') + (c.owned ? ' own' : '')
+        + (c.lost && !c.owned ? ' lost' : '') + (selected === i ? ' sel' : '') + (pick !== null && c.owned ? ' pickable' : '')
+        + (threat && threat.result === 'tombé' && !busy ? ' th-fall' : '');
+      d.style.boxShadow = frontierShadow(c);
+      let body = `<span class="coord">${L.label(c)}</span>`;
       if (c.revealed) {
-        if (c.camp) icon = '⛺' + (S.fire ? '🔥' : '');
+        let icon = '';
+        if (c.camp) icon = '⛺';
         else if (c.type === 'lieu') icon = L.LIEUX[c.lieu].icone;
         else if (c.type === 'obstacle') icon = L.OBSTACLES[c.obstacle].icone;
-        name = L.describe(c);
-        if (c.type === 'lieu' && c.visits) name += ` (×${c.visits})`;
+        let name = c.camp ? (S.fire ? 'Camp · feu allumé' : 'Camp · feu éteint') : L.describe(c);
+        if (c.type === 'lieu' && c.visits) name += ` · ×${c.visits}`;
+        if (icon) body += `<span class="icon">${icon}</span>`;
+        if ((c.type !== 'vide' || c.camp) && !(threat && !busy && !S.outcome)) body += `<span class="nm">${esc(name)}</span>`;
       } else {
-        icon = c.type === 'lieu' ? '<span class="muted">🏚</span>' : c.type === 'obstacle' ? '<span class="muted">▒</span>' : '';
-        name = c.type === 'lieu' ? 'bâtiment ?' : c.type === 'obstacle' ? 'obstacle ?' : '';
+        const hintIcon = c.type === 'lieu' ? '<span class="ghost">🏚</span>' : c.type === 'obstacle' ? '<span class="ghost">▒</span>' : '';
+        body += `<span class="q">${explorable ? '?' : hintIcon}</span>`;
+        if (c.type !== 'vide') body += `<span class="nm">${c.type === 'lieu' ? 'bâtiment ?' : 'obstacle ?'}</span>`;
+      }
+      const sig = [];
+      if (c.owned) {
+        const def = c.barricade + L.defendersAt(S, c).length;
+        sig.push(`<span class="shield" title="Défense : barricade ${c.barricade} + gardes">🛡${def}</span>`);
       }
       const defs = [];
       if (c.barricade) defs.push(`▮${c.barricade}`);
       if (c.traps) defs.push(`⌇${c.traps}`);
       if (c.alarm) defs.push('🔔');
-      for (const src of sources) if (src.x === c.x && src.y === c.y) defs.push(`<span title="${esc(src.why)}">${REASON_ICON[src.kind]}${src.strength}</span>`);
-      const guards = S.survivors.filter(v => v.post === c.i || (c.camp && v.post === null));
-      const gHtml = guards.map(v => `<span class="${pipClass(v)}" title="${esc(v.name)}">${esc(v.name[0])}</span>`).join('');
-      const lostInfo = c.lost && !c.owned ? `<div class="lostinfo">perdue · ${c.rodeurs} z. · ${3 - c.lostNights} n.</div>` : '';
-      d.innerHTML = `<span class="coord">${L.label(c)}</span><div class="defs">${defs.join('<br>')}</div>`
-        + `<div class="icon">${icon}</div><div class="name">${esc(name)}</div>${lostInfo}<div class="guards">${gHtml}</div>`;
-      d.setAttribute('aria-label', `${L.label(c)} ${c.revealed ? L.describe(c) : 'inexploré'}`);
+      if (defs.length) sig.push(`<span>${defs.join(' ')}</span>`);
+      const here = sources.filter(s => s.x === c.x && s.y === c.y).map(s => `<span title="${esc(s.why)}">${ICON[s.kind]}${s.strength}</span>`);
+      if (here.length) sig.push(`<span>${here.join(' ')}</span>`);
+      if (sig.length) body += `<span class="sig">${sig.join('')}</span>`;
+      if (c.owned) {
+        const guards = S.survivors.filter(v => v.post === c.i || (c.camp && v.post === null)).slice(0, 4);
+        if (guards.length) body += `<span class="guards">${guards.map(v => `<span class="${avClass(v)}" title="${esc(v.name)}">${esc(v.name[0])}</span>`).join('')}</span>`;
+      }
+      if (threat && !busy && !S.outcome) {
+        const cls = resultCls(threat);
+        const txt = threat.A ? `⚔${threat.A} ${cls === 'fall' ? '>' : '≤'} 🛡${threat.D}` : 'piégés';
+        body += `<span class="badge ${cls}">${txt}</span>`;
+      }
+      if (c.lost && !c.owned && !L.hordesAt(S, c).length) body += `<span class="lostinfo">${c.rodeurs} z. · ${3 - c.lostNights} n.</span>`;
+      d.innerHTML = body;
+      d.setAttribute('aria-label', `${L.label(c)}, ${c.revealed ? L.describe(c) : 'inexploré'}${c.owned ? ', territoire' : ''}`);
     });
   }
 
   function hordePos(h) {
     const same = S.hordes.filter(o => o.x === h.x && o.y === h.y);
-    const k = same.indexOf(h);
-    return { left: h.x * 20 + 1 + k * 6.4, top: h.y * 20 + 12.4 };
+    const k = same.indexOf(h), n = same.length;
+    return { left: h.x * 20 + 6.25 + (k - (n - 1) / 2) * 8, top: h.y * 20 + 10.5 };
   }
 
   function renderHordes() {
@@ -1155,166 +1352,262 @@ if (typeof document !== 'undefined') (() => {
       const p = hordePos(h);
       if (!el) {
         el = document.createElement('div');
-        el.innerHTML = '<div class="shape"></div><span></span>';
+        el.innerHTML = '<div class="shape"></div><b></b>';
         el.style.left = p.left + '%'; el.style.top = p.top + '%';
         layer.appendChild(el);
         tokens.set(h.id, el);
       }
       el.className = 'horde ' + h.type;
-      el.querySelector('span').textContent = L.hordeTag(h);
+      el.querySelector('b').textContent = h.size;
       el.title = `Horde de ${L.hordeName(h)}`;
       el.style.left = p.left + '%'; el.style.top = p.top + '%';
     }
   }
 
-  function renderArrows(plans) {
+  function renderArrows() {
     const g = $('arrow-layer');
-    if (S.phase !== 'jour' || S.outcome) { g.innerHTML = ''; return; }
+    if (busy || S.phase !== 'jour' || S.outcome) { g.innerHTML = ''; return; }
     let out = '';
-    for (const p of plans) {
-      // Une horde qui se divise n'existe pas encore : on part de la horde d'origine.
+    for (const p of fc.plans) {
       const h = S.hordes.find(x => x.id === p.hordeId) || S.hordes.find(x => x.x === p.from.x && x.y === p.from.y && x.type === p.type);
       if (!h) continue;
       const hp = hordePos(h);
-      const x1 = (hp.left + 3.2) * 5, y1 = (hp.top + 3.2) * 5;
+      const x1 = (hp.left + 3.75) * 5, y1 = (hp.top + 3.75) * 5;
       if (p.next.x === p.from.x && p.next.y === p.from.y) {
-        out += `<text x="${x1 + 14}" y="${y1 - 8}" font-size="18">${REASON_ICON[p.reason] || ''}</text>`;
+        out += `<circle cx="${x1 + 26}" cy="${y1 - 22}" r="13" fill="#0b0e11" stroke="#2d3641"/><text x="${x1 + 26}" y="${y1 - 17}" font-size="14" text-anchor="middle">${ICON[p.reason] || ''}</text>`;
         continue;
       }
       const x2 = p.next.x * 100 + 50, y2 = p.next.y * 100 + 50;
-      const ex = x1 + (x2 - x1) * 0.78, ey = y1 + (y2 - y1) * 0.78;
-      const col = p.attack ? '#e0735c' : '#e6e2d8';
-      out += `<line x1="${x1}" y1="${y1}" x2="${ex}" y2="${ey}" stroke="${col}" stroke-width="${p.attack ? 4 : 3}" stroke-dasharray="8 6" marker-end="url(#${p.attack ? 'ah-red' : 'ah'})"/>`;
+      const f = p.attack ? 0.62 : 0.8;
+      const ex = x1 + (x2 - x1) * f, ey = y1 + (y2 - y1) * f;
+      const col = p.attack ? '#ef6a52' : '#e9e5db';
+      out += `<line x1="${x1}" y1="${y1}" x2="${ex}" y2="${ey}" stroke="#0b0e11" stroke-width="${p.attack ? 9 : 7}" stroke-linecap="round"/>`;
+      out += `<line x1="${x1}" y1="${y1}" x2="${ex}" y2="${ey}" stroke="${col}" stroke-width="${p.attack ? 5 : 3.5}" stroke-dasharray="${p.attack ? '0' : '9 7'}" marker-end="url(#${p.attack ? 'ah-red' : 'ah'})"/>`;
       const mx = (x1 + ex) / 2, my = (y1 + ey) / 2;
-      out += `<text x="${mx + 4}" y="${my - 4}" font-size="18">${REASON_ICON[p.reason] || ''}${p.attack ? '⚔' : ''}</text>`;
+      out += `<circle cx="${mx}" cy="${my}" r="13" fill="#0b0e11" stroke="${col}" stroke-width="1.5"/><text x="${mx}" y="${my + 5}" font-size="14" text-anchor="middle">${ICON[p.reason] || ''}</text>`;
     }
     g.innerHTML = out;
   }
 
-  // ---------- Panneaux ----------
-  function renderHeader() {
+  // ---------- Barre du haut ----------
+  function renderChips() {
     const conso = L.consumption(S);
-    const fr = L.frontier(S);
     const avg = L.avgMorale(S);
-    $('phase').textContent = S.outcome ? 'Fin' : S.phase === 'jour' ? 'Journée et préparation' : 'Nuit';
-    $('day').innerHTML = `Jour <b>${S.day}</b>/${L.CFG.winNights}`;
-    $('pa').innerHTML = `PA <b>${S.pa}</b>/${S.paMax}`;
-    $('food').innerHTML = `🥫 <b>${S.res.food}</b> <span class="muted">(−${conso}/nuit)</span>`;
-    $('mat').innerHTML = `🔩 <b>${S.res.mat}</b>`;
-    $('ammo').innerHTML = `🎯 <b>${S.res.ammo}</b>`;
-    $('terr').innerHTML = `Territoire <b>${L.ownedCells(S).length}</b>/${L.CFG.winCells} · frontière ${fr.seg} (${fr.open} ouverte${fr.open > 1 ? 's' : ''})`;
-    $('morale').innerHTML = `Moral <b class="${avg < 4 ? 'danger' : avg < 6 ? 'warn' : ''}">${avg.toFixed(1)}</b>/10`;
-    $('btn-night').disabled = busy || !!S.outcome || !!S.event || S.phase !== 'jour';
+    const n = L.CFG.winNights;
+    const pips = Array.from({ length: n }, (_, k) => `<i class="${k + 1 < S.day ? 'done' : k + 1 === S.day ? 'on' : ''}"></i>`).join('');
+    $('chips').innerHTML = [
+      `<span class="chip" title="Tenez ${n} nuits pour gagner"><span class="k">Nuit</span><b>${S.day}</b><span class="sub">/${n}</span><span class="pips">${pips}</span></span>`,
+      `<span class="chip${S.pa === 0 ? '' : ''}" title="Points d'action restants aujourd'hui"><span class="k">Actions</span><b>${S.pa}</b><span class="sub">/${S.paMax}</span></span>`,
+      `<span class="chip${S.res.food < conso * 2 ? ' alert' : ''}" title="Vivres : la colonie mange ${conso} ce soir">🥫 <b>${S.res.food}</b><span class="sub">−${conso}<span class="word"> ce soir</span></span></span>`,
+      `<span class="chip${S.res.mat < 2 ? ' alert' : ''}" title="Matériaux : barricades, pièges">🔩 <b>${S.res.mat}</b><span class="sub word">matériaux</span></span>`,
+      `<span class="chip${S.res.ammo < 2 ? ' alert' : ''}" title="Munitions : tirs des gardes, alarmes">🎯 <b>${S.res.ammo}</b><span class="sub word">munitions</span></span>`,
+      `<span class="chip" title="Contrôlez ${L.CFG.winCells} cases à l'aube pour gagner"><span class="k">Territoire</span><b>${L.ownedCells(S).length}</b><span class="sub">/${L.CFG.winCells}</span></span>`,
+      `<span class="chip${avg < 4 ? ' alert' : ''}" title="Moral moyen. Sous 4 : une action de moins par jour"><span class="k">Moral</span><b class="${avg < 4 ? 'danger' : avg < 6 ? 'warn' : ''}">${avg.toFixed(1)}</b><span class="sub">/10</span></span>`,
+    ].join('');
   }
 
-  function renderForecast(fc) {
-    const lines = [];
+  // ---------- Conseil ----------
+  function renderCoach() {
+    const el = $('coach');
+    let cls = '', ico = '💡', html;
+    const pv = pick !== null && S.survivors.find(v => v.id === pick);
+    const camp = L.campCell(S);
+    const falls = fc.attacks.filter(a => a.result === 'tombé');
+    const hurt = fc.attacks.filter(a => a.result !== 'tombé' && (a.wounds.length || a.deaths.length));
+    if (S.outcome) { ico = S.outcome === 'victoire' ? '🌅' : '💀'; html = esc(S.reason); }
+    else if (busy) { ico = '🌙'; html = 'La nuit se déroule…'; }
+    else if (pv) { ico = '👤'; html = `Où <b>${esc(pv.name)}</b> monte-t-il la garde ? Touchez une case de votre territoire (bordée de vert). Le camp le garde au repos.`; }
+    else if (S.event) { ico = '✉'; html = 'Un événement attend votre décision.'; }
+    else if (fc.outcome === 'defaite') {
+      cls = 'alert'; ico = '⚠';
+      html = `<b>Le camp ${L.label(camp)} tombera cette nuit.</b> Touchez-le pour monter une barricade ou poser un piège, et rappelez des gardes au camp.`;
+    } else if (falls.length) {
+      cls = 'alert'; ico = '⚠';
+      const a = falls[0];
+      html = `<b>${a.cell} tombera cette nuit</b> : ${esc(a.name)}, attaque ${a.A} contre défense ${a.D}. Touchez la case pour la renforcer, postez un garde, ou abandonnez-la.`
+        + (falls.length > 1 ? ` (${falls.length - 1} autre${falls.length > 2 ? 's' : ''} case${falls.length > 2 ? 's' : ''} menacée${falls.length > 2 ? 's' : ''})` : '');
+    } else if (hurt.length) {
+      cls = 'alert'; ico = '🩸';
+      const a = hurt[0];
+      html = `En ${a.cell}, la défense tient mais <b>${esc([...a.wounds, ...a.deaths].join(', '))}</b> ${a.deaths.length ? 'y mourra' : 'sera blessé'}. Ajoutez une barricade pour les protéger.`;
+    } else if (S.pa > 0) {
+      const conso = L.consumption(S);
+      if (S.res.food < conso * 3) html = `Les vivres baissent (${S.res.food}, −${conso} par nuit). Touchez un lieu 🛒 ou 🌾 pour le fouiller.`;
+      else if (S.res.ammo < 3) html = 'Peu de munitions : vos gardes tirent moins fort. Cherchez une caserne 🎖️ ou une station ⛽.';
+      else html = `Il vous reste <b>${S.pa} ${plural(S.pa, 'action')}</b>. Fouillez un lieu, explorez une case marquée <b>?</b>, ou étendez le territoire.`;
+    } else { cls = 'calm'; ico = '🌙'; html = 'Tout est prêt. Vérifiez la prévision, puis passez la nuit.'; }
+    el.className = 'coach ' + cls;
+    el.innerHTML = `<span class="ico" aria-hidden="true">${ico}</span><span>${html}</span>`;
+  }
+
+  // ---------- Prévision ----------
+  function whyText(p) {
+    if (p.reason === 'droit' || p.reason === 'bute') return p.why;
+    const t = L.label(p.target);
+    if (p.reason === 'presence') return `attirés par la présence humaine (${t})`;
+    return `attirés par ${REASON_TXT[p.reason]} en ${t}${p.why ? ' : ' + p.why : ''}`;
+  }
+  function renderForecast() {
+    const items = [];
     for (const p of fc.plans) {
-      const tag = `<b>${L.ZTYPES[p.type].lettre}${p.size}</b>`;
-      const from = L.label(p.from), to = L.label(p.next);
-      let why;
-      if (p.reason === 'droit' || p.reason === 'bute') why = p.why;
-      else {
-        const tgt = L.label(p.target);
-        why = `attirés par ${REASON_TXT[p.reason]}${p.why && p.reason !== 'presence' ? ' (' + esc(p.why) + ')' : ''} en ${tgt}`;
-      }
+      const kind = `${p.size} ${p.size > 1 ? L.ZTYPES[p.type].pluriel : L.ZTYPES[p.type].nom}`;
       if (p.attack) {
         const a = fc.attacks.find(r => r.hordeId === p.hordeId);
-        let res = '';
-        if (a) {
-          const traps = a.trapKills ? `pièges : ${a.trapKills} tué${a.trapKills > 1 ? 's' : ''}, ` : '';
-          if (a.result === 'tombé') res = `<span class="danger">${traps}attaque ${a.A} contre défense ${a.D} : la case tombera</span>`;
-          else if (a.result === 'anéantie') res = `<span class="ok">${traps}${a.A ? `attaque ${a.A} contre défense ${a.D} : ` : ''}la horde sera anéantie${a.breach ? ' (mais percera la défense)' : ''}</span>`;
-          else res = `<span class="warn">${traps}attaque ${a.A} contre défense ${a.D} : la case tiendra</span>`;
-          if (a.wounds.length) res += ` <span class="danger">, blessés : ${esc(a.wounds.join(', '))}</span>`;
-          if (a.deaths.length) res += ` <span class="danger">, morts : ${esc(a.deaths.join(', '))}</span>`;
-          if (a.ammo) res += ` <span class="muted">(${a.ammo} mun.)</span>`;
-        } else res = '<span class="danger">entrera dans la case, déjà tombée</span>';
-        lines.push(`<li>⚔ ${tag} en ${from}, ${why} → <b>attaque ${to}</b> : ${res}</li>`);
+        if (!a) { items.push(`<li><span class="tag fall">Entre</span><span><b>${kind}</b> entrent en ${L.label(p.next)}, déjà tombée</span><span class="why">${esc(whyText(p))}</span></li>`); continue; }
+        const cls = resultCls(a);
+        const tagTxt = a.result === 'tombé' ? 'Tombe' : a.result === 'anéantie' ? 'Repoussée' : 'Tient';
+        const extra = [];
+        if (a.trapKills) extra.push(`pièges : ${a.trapKills} ${plural(a.trapKills, 'tué')}`);
+        if (a.wounds.length) extra.push(`blessés : ${a.wounds.join(', ')}`);
+        if (a.deaths.length) extra.push(`morts : ${a.deaths.join(', ')}`);
+        if (a.ammo) extra.push(`${a.ammo} ${plural(a.ammo, 'munition')}`);
+        items.push(`<li><span class="tag ${cls}">${tagTxt}</span><span><b>${kind}</b> attaquent <b>${a.cell}</b> · ${a.A ? `${a.A} contre ${a.D}` : 'stoppés par les pièges'}</span>`
+          + `<span class="why">${esc(whyText(p))}${extra.length ? ' · ' + esc(extra.join(' · ')) : ''}</span></li>`);
       } else if (p.next.x === p.from.x && p.next.y === p.from.y) {
-        lines.push(`<li>${tag} en ${from} reste sur place (${why}).</li>`);
+        items.push(`<li><span class="tag move">Attend</span><span><b>${kind}</b> restent en ${L.label(p.from)}</span><span class="why">${esc(whyText(p))}</span></li>`);
       } else {
-        lines.push(`<li>${tag} en ${from} → ${to}, ${why}.</li>`);
+        items.push(`<li><span class="tag move">Approche</span><span><b>${kind}</b> · ${L.label(p.from)} → ${L.label(p.next)}</span><span class="why">${esc(whyText(p))}</span></li>`);
       }
     }
-    let html = lines.length ? `<ul>${lines.join('')}</ul>` : '<p class="muted">Aucune horde en vue.</p>';
-    if (fc.outcome === 'defaite') html = `<p class="danger"><b>⚠ Si rien ne change, la colonie tombe cette nuit.</b></p>` + html;
-    const fr = L.frontier(S);
-    html += `<p class="muted" style="margin:8px 0 0">Ce soir : −${L.consumption(S)} nourriture${S.weather === 'pluie' ? ' · pluie (bruit portée 2)' : ''}${S.weather === 'froid' ? ' · nuit glaciale' : ''}${S.ration ? ' · rationnement' : ''}. Frontière exposée : ${fr.seg} segments.</p>`;
-    $('forecast').innerHTML = html;
+    const notes = [`La colonie mangera ${L.consumption(S)} vivres.`];
+    if (S.weather === 'pluie') notes.push('Pluie : le bruit porte à 2 cases.');
+    if (S.weather === 'froid') notes.push('Nuit glaciale.');
+    if (S.ration) notes.push('Rationnement en cours.');
+    $('forecast').innerHTML = (items.length ? `<ul class="fc">${items.join('')}</ul>` : '<p class="hint">Aucune horde en vue.</p>')
+      + `<p class="hint">${esc(notes.join(' '))} La prévision se met à jour à chaque action.</p>`;
   }
 
-  function actionButtons(list, prefix, target) {
-    return list.map(a => `<div class="action"><button data-${prefix}="${a.key}" data-target="${target}" ${a.reason ? 'disabled' : ''} title="${esc(a.reason || '')}">${esc(a.label)}</button><small>${esc(a.detail)}</small></div>`).join('');
+  function renderNightbar() {
+    const n = fc.attacks.length;
+    const falls = fc.attacks.filter(a => a.result === 'tombé').length;
+    let html;
+    if (S.outcome) html = '<span class="muted">Partie terminée.</span>';
+    else if (fc.outcome === 'defaite') html = '<b class="danger">⚠ Le camp tombera cette nuit.</b>';
+    else if (!n) html = '<span class="ok">Nuit calme prévue</span> : aucune horde n’atteint le territoire.';
+    else html = `${n} ${plural(n, 'attaque')} ${plural(n, 'prévue')}${falls ? ` · <b class="danger">${falls} ${plural(falls, 'case tombera', 'cases tomberont')}</b>` : ' · <span class="ok">tout tient</span>'}`;
+    $('night-summary').innerHTML = html;
+    $('btn-night').disabled = busy || !!S.outcome || !!S.event || S.phase !== 'jour';
+    $('btn-night').textContent = `Passer la nuit ${S.day}`;
   }
 
-  function renderCellPanel() {
-    const c = S.cells[selected];
-    let html = `<b>${L.label(c)}</b> : ${c.revealed ? esc(L.describe(c)) : 'inexploré'}`;
-    const tags = [];
-    if (c.owned) tags.push(c.camp ? 'cœur du territoire' : 'territoire');
-    if (c.lost && !c.owned) tags.push(`perdue : ${c.rodeurs} zombie(s) accumulé(s), dispersion dans ${3 - c.lostNights} nuit(s)`);
-    if (c.barricade) tags.push(`barricade ${c.barricade}`);
-    if (c.traps) tags.push(`${c.traps} piège(s)`);
-    if (c.corpses) tags.push('cadavres (odeur)');
+  // ---------- Équipe ----------
+  function renderCrew() {
+    const busyDay = S.phase !== 'jour' || !!S.outcome || busy;
+    $('crew').innerHTML = S.survivors.map(v => {
+      const hearts = '♥'.repeat(v.health) + '♡'.repeat(3 - v.health);
+      const m = v.morale < 4 ? 'low' : v.morale < 6 ? 'mid' : '';
+      const post = v.post === null ? `<span class="post">Camp</span>` : `<span class="post guard">Garde ${L.label(S.cells[v.post])}</span>`;
+      let html = `<button class="crew-card${pick === v.id ? ' sel' : ''}" data-crew="${v.id}" ${busyDay ? 'disabled' : ''} aria-pressed="${pick === v.id}">
+        <span class="${avClass(v)}">${esc(v.name[0])}</span>
+        <span class="who"><b>${esc(v.name)}</b><span class="role">${esc(L.SKILLS[v.skill])} · ${esc(L.TRAITS[v.trait].nom)}</span>
+          <span class="stats"><span class="hearts" aria-label="santé ${v.health} sur 3">${hearts}</span>
+          <span class="meter ${m}" title="moral ${v.morale}/10" aria-label="moral ${v.morale} sur 10"><i style="width:${v.morale * 10}%"></i></span></span></span>
+        ${post}</button>`;
+      if (pick === v.id) {
+        html += `<div class="crew-detail"><span><b>${esc(L.SKILLS[v.skill])}</b> : ${esc(L.SKILL_DESC[v.skill])}.<br><b>${esc(L.TRAITS[v.trait].nom)}</b> : ${esc(L.TRAITS[v.trait].desc)}.</span>
+          <span class="muted">Santé ${v.health}/3 · moral ${v.morale}/10. Touchez une case du territoire pour l'y poster.</span>
+          <div class="acts">${L.survivorActions(S, v.id).map(a => actButton(a, 'surv', v.id)).join('')}
+          ${v.post !== null ? `<button class="act" data-home="${v.id}"><span class="row"><span class="lbl">Rappeler au camp</span><span class="costs"><span class="cost">gratuit</span></span></span></button>` : ''}</div></div>`;
+      }
+      return html;
+    }).join('') || '<p class="hint">Personne.</p>';
+  }
+
+  function actButton(a, kind, target) {
+    const [main, ...rest] = a.label.split(' (');
+    const extra = rest.length ? rest.join(' (').replace(/\)$/, '') : '';
+    const costs = a.detail.split(' · ').map(c => `<span class="cost">${esc(c)}</span>`).join('');
+    return `<button class="act" data-${kind}="${a.key}" data-target="${target}" ${a.reason ? 'disabled' : ''}>
+      <span class="row"><span class="lbl">${esc(main)}</span><span class="costs">${costs}</span></span>
+      ${extra ? `<span class="muted" style="font-size:12px">${esc(extra)}</span>` : ''}
+      ${a.reason ? `<span class="why">${esc(a.reason)}</span>` : ''}</button>`;
+  }
+
+  // ---------- Menu d'une case ----------
+  function popHtml(i) {
+    const c = S.cells[i];
+    const lines = [];
+    if (c.camp) lines.push("Le cœur de la colonie. S'il tombe, la partie est perdue. Les survivants sans poste le défendent.");
+    else if (c.owned) lines.push('Case de votre territoire.');
+    else if (c.lost) lines.push(`Case perdue : ${c.rodeurs} ${plural(c.rodeurs, 'zombie')} ${plural(c.rodeurs, 's’y est accumulé', 's’y sont accumulés')}. Ils repartent en horde dans ${3 - c.lostNights} ${plural(3 - c.lostNights, 'nuit')}.`);
+    else if (!c.revealed) lines.push(isExplorable(c) ? 'Inconnue. Explorez-la pour savoir ce qu’elle cache.' : 'Trop loin. Il faut d’abord une case voisine dans le territoire.');
+    else if (c.type === 'obstacle') lines.push('Infranchissable, pour vous comme pour les hordes.');
+    else if (L.cellActions(S, i).some(a => a.key === 'occuper')) lines.push('Voisine du territoire : vous pouvez l’occuper.');
+    if (c.type === 'lieu' && c.revealed && c.visits) lines.push(`Déjà fouillé ${c.visits} fois : rapporte moins.`);
+    const hs = L.hordesAt(S, c);
+    if (hs.length) lines.push(`Horde ici : ${hs.map(h => L.hordeName(h)).join(', ')}.`);
+    let html = `<div class="ph"><h3>${L.label(c)} · ${esc(c.revealed ? L.describe(c) : 'Inexplorée')}</h3><button class="x" data-close aria-label="Fermer">✕</button></div>`;
+    html += `<div class="status">${esc(lines.join(' '))}</div>`;
     if (c.owned) {
       const def = L.defendersAt(S, c);
-      tags.push(`défense ${c.barricade + def.length} (${c.barricade} barricade + ${def.length} garde${def.length > 1 ? 's' : ''})`);
+      let t = `<b>🛡 Défense ${c.barricade + def.length}</b> = barricade ${c.barricade} + ${def.length} ${plural(def.length, 'garde')}`;
+      for (const a of attacksAt(i)) {
+        const cls = resultCls(a);
+        const res = a.result === 'tombé' ? 'la case tombera' : a.result === 'anéantie' ? 'la horde sera repoussée' : 'la case tiendra';
+        t += `<br><span class="${cls === 'fall' ? 'danger' : cls === 'hold' ? 'warn' : 'ok'}">Cette nuit : ${esc(a.name)}, ${a.A ? `attaque ${a.A} contre ${a.D}` : 'stoppés par les pièges'} → ${res}${a.wounds.length ? ` (blessés : ${esc(a.wounds.join(', '))})` : ''}${a.deaths.length ? ` (morts : ${esc(a.deaths.join(', '))})` : ''}.</span>`;
+      }
+      if (!attacksAt(i).length) t += '<br><span class="muted">Aucune attaque prévue ici cette nuit.</span>';
+      html += `<div class="threat">${t}</div>`;
     }
-    const hs = L.hordesAt(S, c);
-    if (hs.length) tags.push('hordes : ' + hs.map(h => L.hordeName(h)).join(', '));
-    if (tags.length) html += `<div class="muted">${esc(tags.join(' · '))}</div>`;
-    const acts = L.cellActions(S, selected);
-    html += acts.length ? `<div class="actions">${actionButtons(acts, 'cell', selected)}</div>`
-      : `<p class="muted">${c.revealed ? 'Rien à faire ici.' : 'Trop loin : explorez d’abord une case voisine du territoire.'}</p>`;
-    $('cell-panel').innerHTML = html;
+    const acts = L.cellActions(S, i);
+    if (acts.length) html += `<div class="acts">${acts.map(a => actButton(a, 'cell', i)).join('')}</div>`;
+    if (c.owned && S.phase === 'jour' && !S.outcome) {
+      const btns = S.survivors.map(v => {
+        const on = c.camp ? v.post === null : v.post === c.i;
+        return `<button data-guard="${v.id}" data-target="${i}" aria-pressed="${on}" title="${on ? 'Retirer' : 'Poster ici'}"><span class="${avClass(v)}">${esc(v.name[0])}</span>${esc(v.name)}</button>`;
+      }).join('');
+      html += `<div><div class="hint" style="margin-bottom:6px">${c.camp ? 'Au camp cette nuit (touchez pour rappeler) :' : 'Gardes ici cette nuit (touchez pour poster ou retirer) :'}</div><div class="guardset">${btns}</div></div>`;
+    }
+    return html;
   }
 
-  function renderSurvivors() {
-    const own = L.ownedCells(S).filter(c => !c.camp);
-    const busyDay = S.phase !== 'jour' || !!S.outcome;
-    $('survivors').innerHTML = S.survivors.map(v => {
-      const hearts = '♥'.repeat(v.health) + '♡'.repeat(3 - v.health);
-      const opts = [`<option value="">Camp (${L.label(L.campCell(S))})</option>`]
-        .concat(own.map(c => `<option value="${c.i}" ${v.post === c.i ? 'selected' : ''}>Garde en ${L.label(c)}</option>`)).join('');
-      return `<div class="surv">
-        <div class="who"><b>${esc(v.name)}</b>
-          <div class="tags" title="${esc(L.SKILL_DESC[v.skill])} · ${esc(L.TRAITS[v.trait].desc)}">${esc(L.SKILLS[v.skill])} · ${esc(L.TRAITS[v.trait].nom)}</div>
-          <div class="bars"><span class="${v.health <= 1 ? 'danger' : v.health === 2 ? 'warn' : ''}" aria-label="santé ${v.health} sur 3">${hearts}</span>
-            · moral <b class="${v.morale < 4 ? 'danger' : v.morale < 6 ? 'warn' : ''}">${v.morale}</b>/10</div></div>
-        <div class="ctl"><select data-assign="${v.id}" ${busyDay ? 'disabled' : ''} aria-label="Affectation de ${esc(v.name)}">${opts}</select>
-          ${L.survivorActions(S, v.id).map(a => `<button data-surv="${a.key}" data-target="${v.id}" ${a.reason ? 'disabled' : ''} title="${esc(a.detail + (a.reason ? ' — ' + a.reason : ''))}">${esc(a.label)}</button>`).join('')}</div>
-      </div>`;
-    }).join('') || '<p class="muted">Personne.</p>';
+  function renderPop() {
+    const pop = $('pop');
+    if (selected === null || busy || S.outcome) { pop.hidden = true; return; }
+    pop.innerHTML = popHtml(selected);
+    pop.hidden = false;
+    const cellEl = board.children[selected];
+    const wr = wrap.getBoundingClientRect(), cr = cellEl.getBoundingClientRect();
+    const w = pop.offsetWidth, h = pop.offsetHeight;
+    let left = cr.left - wr.left + cr.width / 2 - w / 2;
+    left = Math.max(0, Math.min(wr.width - w, left));
+    const row = S.cells[selected].y;
+    let top = row <= 2 ? cr.bottom - wr.top + 6 : cr.top - wr.top - h - 6;
+    if (top < 0) top = cr.bottom - wr.top + 6;
+    pop.style.left = left + 'px';
+    pop.style.top = top + 'px';
   }
 
-  function renderJournal() {
-    const pend = S.pending.map(p => `<li class="good">À venir (jour ${p.day}) : ${esc(p.text)}</li>`).join('');
-    const items = S.log.slice(-40).reverse().map(e => `<li class="${e.kind}"><span class="muted">J${e.day}</span> ${esc(e.text)}</li>`).join('');
-    $('journal').innerHTML = `<ul>${pend}${items}</ul>`;
-  }
-
+  // ---------- Rendu global ----------
   function render() {
-    const fc = S.phase === 'jour' && !S.outcome ? L.forecast(S) : { plans: [], attacks: [] };
-    const sources = L.computeSources(S);
-    renderHeader();
-    renderBoard(sources);
+    fc = S.phase === 'jour' && !S.outcome && !busy ? L.forecast(S) : { plans: [], attacks: [] };
+    renderChips();
+    renderBoard(L.computeSources(S));
     renderHordes();
-    renderArrows(fc.plans);
-    if (S.phase === 'jour' && !S.outcome) renderForecast(fc);
-    renderCellPanel();
-    renderSurvivors();
-    renderJournal();
+    renderArrows();
+    renderCoach();
+    if (!busy) renderForecast();
+    renderNightbar();
+    renderCrew();
+    renderPop();
   }
 
-  function toast(msg) { $('toast').textContent = msg || ''; }
+  function toast(msg) {
+    const t = $('toast');
+    clearTimeout(toastTimer);
+    if (!msg) { t.hidden = true; return; }
+    t.textContent = msg;
+    t.hidden = false;
+    toastTimer = setTimeout(() => { t.hidden = true; }, 3200);
+  }
 
   // ---------- Fenêtres ----------
   function modal(html, buttons) {
     return new Promise(resolve => {
       const card = $('modal-card');
-      card.innerHTML = html + `<div class="choices">${buttons.map((b, k) => `<button data-k="${k}" ${b.disabled ? 'disabled' : ''} title="${esc(b.title || '')}" class="${b.primary ? 'primary' : ''}">${esc(b.label)}</button>`).join('')}</div>`;
+      card.innerHTML = html + `<div class="choices">${buttons.map((b, k) => `<button data-k="${k}" ${b.disabled ? 'disabled' : ''} class="${b.primary ? 'primary' : ''}">${esc(b.label)}${b.note ? `<br><span class="why" style="font-size:12px;color:var(--warn)">${esc(b.note)}</span>` : ''}</button>`).join('')}</div>`;
       $('modal').classList.add('open');
+      card.scrollTop = 0;
       card.querySelectorAll('button[data-k]').forEach(btn => btn.addEventListener('click', () => {
         $('modal').classList.remove('open');
         resolve(+btn.dataset.k);
@@ -1328,115 +1621,163 @@ if (typeof document !== 'undefined') (() => {
     const e = L.eventById(S.event);
     if (!e) return;
     const k = await modal(`<h1>${esc(e.titre)}</h1><p>${esc(e.texte)}</p>`,
-      e.choix.map(ch => { const can = ch.can ? ch.can(S) : true; return { label: ch.label, disabled: can !== true, title: can === true ? '' : can }; }));
+      e.choix.map(ch => { const can = ch.can ? ch.can(S) : true; return { label: ch.label, disabled: can !== true, note: can === true ? '' : can }; }));
     const msg = L.resolveEvent(S, k);
     render();
     if (msg) await modal(`<h1>${esc(e.titre)}</h1><p>${esc(msg)}</p>`, [{ label: 'Continuer', primary: true }]);
+    render();
   }
 
   function attackLine(r) {
     const parts = [];
     if (r.trapKills) parts.push(`les pièges en tuent ${r.trapKills}`);
     if (r.A) parts.push(`attaque ${r.A} contre défense ${r.D}${r.defenders.length ? ' (' + r.defenders.join(', ') + ')' : ''}`);
-    if (r.kills) parts.push(`${r.kills} abattu${r.kills > 1 ? 's' : ''}${r.ammo ? ` (${r.ammo} munition${r.ammo > 1 ? 's' : ''})` : ''}`);
+    if (r.kills) parts.push(`${r.kills} ${plural(r.kills, 'abattu')}${r.ammo ? ` (${r.ammo} ${plural(r.ammo, 'munition')})` : ''}`);
     if (r.wear) parts.push('la barricade s’use (−1)');
     if (r.wounds.length) parts.push(`blessés : ${r.wounds.join(', ')}`);
-    if (r.deaths.length) parts.push(`<b>morts : ${r.deaths.join(', ')}</b>`);
-    const res = r.result === 'tombé' ? '<span class="danger">la case tombe</span>'
-      : r.result === 'anéantie' ? `<span class="ok">horde anéantie${r.breach ? ', défense détruite' : ''}</span>`
-      : '<span class="warn">la case tient</span>';
-    return `<li><b>${r.cell}</b>, ${esc(r.name)} : ${parts.map(p => p.startsWith('<b>') ? p : esc(p)).join(', ')} → ${res}.</li>`;
+    if (r.deaths.length) parts.push(`morts : ${r.deaths.join(', ')}`);
+    const t = RESULT[r.result] || RESULT['tenu'];
+    const cls = r.result === 'tombé' ? 'fall' : r.result === 'anéantie' ? 'win' : 'hold';
+    return `<li><span class="tag ${cls}">${r.result === 'tombé' ? 'Tombée' : r.result === 'anéantie' ? 'Repoussée' : t.tag}</span><span><b>${r.cell}</b> · ${esc(r.name)}</span><span class="why">${esc(parts.join(' · '))}</span></li>`;
   }
 
   async function endScreen() {
     const st = S.stats;
     const win = S.outcome === 'victoire';
-    await modal(`<h1>${win ? '🌅 Victoire' : '💀 Défaite'}</h1><p>${esc(S.reason)}</p>
+    const k = await modal(`<h1>${win ? 'Victoire' : 'Défaite'}</h1><p>${esc(S.reason)}</p>
       <ul><li>Nuits tenues : ${S.nightsSurvived}</li><li>Zombies abattus : ${st.kills}</li><li>Morts : ${st.deaths} · départs : ${st.deserted}</li>
-      <li>Territoire maximal : ${st.maxCells} cases · cases tombées : ${st.lost}</li><li>Graine : ${S.seed}</li></ul>`,
-      [{ label: 'Nouvelle partie', primary: true }, { label: 'Rejouer la même carte' }]).then(k => newGame(k === 0 ? Date.now() % 1e9 : S.seed));
+      <li>Territoire maximal : ${st.maxCells} cases · cases tombées : ${st.lost}</li></ul>`,
+      [{ label: 'Nouvelle partie', primary: true }, { label: 'Rejouer la même carte' }]);
+    newGame(k === 0 ? Date.now() % 1e9 : S.seed);
   }
 
   async function playNight() {
     if (busy || S.phase !== 'jour' || S.event || S.outcome) return;
-    busy = true;
-    toast('La nuit tombe…');
-    $('arrow-layer').innerHTML = '';
+    busy = true; selected = null; pick = null;
+    toast('');
+    wrap.classList.add('night');
+    render();
+    await wait(500);
     const mv = L.nightMove(S);
     render();
-    toast('1. Les hordes se déplacent.');
     await wait(1000);
     const attacks = L.nightAttack(S, mv);
     render();
     for (const r of attacks) board.children[r.cellIdx].classList.add(r.result === 'tombé' ? 'fall' : 'hit');
-    toast(attacks.length ? `2. ${attacks.length} attaque${attacks.length > 1 ? 's' : ''}.` : '2. Aucune attaque cette nuit.');
-    await wait(attacks.length ? 1300 : 600);
+    await wait(attacks.length ? 1300 : 500);
     const end = L.nightEnd(S);
     busy = false;
-    toast('');
+    wrap.classList.remove('night');
     render();
     let html = `<h1>Bilan de la nuit ${S.night}</h1>`;
-    html += attacks.length ? `<h2>Attaques</h2><ul>${attacks.map(attackLine).join('')}</ul>` : '<p>Aucune horde n’a atteint le territoire.</p>';
+    html += attacks.length ? `<h2>Attaques</h2><ul class="fc">${attacks.map(attackLine).join('')}</ul>` : '<p>Aucune horde n’a atteint le territoire.</p>';
     const misc = [...end.lines];
-    if (end.conso) misc.unshift(`La colonie a mangé ${end.conso} nourriture.`);
+    if (end.conso) misc.unshift(`La colonie a mangé ${end.conso} vivres.`);
+    const left = S.log.filter(e => e.day === S.day && e.kind === 'alert' && /quitté/.test(e.text)).map(e => e.text);
+    misc.push(...left);
     if (misc.length) html += `<h2>Au camp</h2><ul>${misc.map(l => `<li>${esc(l)}</li>`).join('')}</ul>`;
     if (end.spawned.length) html += `<h2>À l’aube</h2><p>Nouvelles hordes repérées : ${end.spawned.map(h => `${esc(h.name)} en ${h.cell}`).join(', ')}.</p>`;
-    const dayLog = S.log.filter(e => e.day === S.day && e.kind === 'alert' && /quitté/.test(e.text));
-    if (dayLog.length) html += `<p class="danger">${dayLog.map(e => esc(e.text)).join('<br>')}</p>`;
     if (S.outcome) { await modal(html, [{ label: 'Voir la fin', primary: true }]); await endScreen(); return; }
-    await modal(html, [{ label: `Jour ${S.day}`, primary: true }]);
+    await modal(html, [{ label: `Commencer le jour ${S.day}`, primary: true }]);
     if (S.event) await showEvent();
   }
 
   // ---------- Entrées ----------
-  document.addEventListener('click', e => {
-    const b = e.target.closest('button');
-    if (!b || busy) return;
-    if (b.dataset.cell) { const r = L.doCellAction(S, b.dataset.cell, +b.dataset.target); toast(r.msg); render(); }
-    else if (b.dataset.surv) { const r = L.doSurvivorAction(S, b.dataset.surv, +b.dataset.target); toast(r.msg); render(); }
-  });
-  document.addEventListener('change', e => {
-    const sel = e.target.closest('select[data-assign]');
-    if (!sel) return;
-    const r = L.assign(S, +sel.dataset.assign, sel.value === '' ? null : +sel.value);
-    toast(r.msg);
+  function onCell(i) {
+    if (busy || S.outcome) return;
+    const c = S.cells[i];
+    if (pick !== null) {
+      if (!c.owned) { toast('Choisissez une case de votre territoire (bordée de vert).'); return; }
+      const r = L.assign(S, pick, c.camp ? null : i);
+      toast(r.msg);
+      if (r.ok) pick = null;
+      render();
+      return;
+    }
+    selected = selected === i ? null : i;
     render();
+  }
+
+  board.addEventListener('click', e => {
+    const cell = e.target.closest('.cell');
+    if (cell) { e.stopPropagation(); onCell(+cell.dataset.i); }
   });
+  board.addEventListener('keydown', e => {
+    const cell = e.target.closest('.cell');
+    if (cell && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onCell(+cell.dataset.i); }
+  });
+  document.addEventListener('click', e => {
+    if (busy || !S) return;
+    const b = e.target.closest('button');
+    if (b && b.closest('#modal')) return;
+    if (b) {
+      if (b.hasAttribute('data-close')) { selected = null; render(); return; }
+      if (b.dataset.cell) { const r = L.doCellAction(S, b.dataset.cell, +b.dataset.target); toast(r.msg); render(); return; }
+      if (b.dataset.surv) { const r = L.doSurvivorAction(S, b.dataset.surv, +b.dataset.target); toast(r.msg); render(); return; }
+      if (b.dataset.home) { const r = L.assign(S, +b.dataset.home, null); toast(r.msg); render(); return; }
+      if (b.dataset.guard) {
+        const id = +b.dataset.guard, i = +b.dataset.target, c = S.cells[i];
+        const v = S.survivors.find(x => x.id === id);
+        const on = c.camp ? v.post === null : v.post === i;
+        const r = c.camp || on ? L.assign(S, id, null) : L.assign(S, id, i);
+        toast(c.camp && on ? `${v.name} est déjà au camp.` : r.msg);
+        render(); return;
+      }
+      if (b.dataset.crew) { const id = +b.dataset.crew; pick = pick === id ? null : id; selected = null; render(); return; }
+      return;
+    }
+    if (!e.target.closest('#pop') && (selected !== null || pick !== null) && !e.target.closest('.crew-detail')) {
+      selected = null; pick = null; render();
+    }
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !$('modal').classList.contains('open') && (selected !== null || pick !== null)) { selected = null; pick = null; render(); }
+  });
+  window.addEventListener('resize', () => { if (selected !== null) renderPop(); });
   $('btn-night').addEventListener('click', playNight);
-  $('btn-motion').addEventListener('click', () => {
-    reduced = !reduced;
+  const setMotion = () => {
     document.body.classList.toggle('reduced', reduced);
-    $('btn-motion').textContent = `Animations : ${reduced ? 'non' : 'oui'}`;
+    $('btn-motion').textContent = reduced ? 'Animations : non' : 'Animations : oui';
     $('btn-motion').setAttribute('aria-pressed', String(reduced));
+  };
+  $('btn-motion').addEventListener('click', () => { reduced = !reduced; setMotion(); });
+  setMotion();
+  $('btn-journal').addEventListener('click', () => {
+    const pend = S.pending.map(p => `<li class="ok">À venir (jour ${p.day}) : ${esc(p.text)}</li>`).join('');
+    const items = S.log.slice().reverse().map(e => `<li class="${e.kind === 'alert' ? 'danger' : e.kind === 'good' ? 'ok' : ''}"><span class="muted">Jour ${e.day}</span> · ${esc(e.text)}</li>`).join('');
+    modal(`<h1>Journal</h1><ul>${pend}${items}</ul>`, [{ label: 'Fermer', primary: true }]);
   });
-  document.body.classList.toggle('reduced', reduced);
-  $('btn-motion').textContent = `Animations : ${reduced ? 'non' : 'oui'}`;
 
-  const HELP = `<h1>Comment jouer</h1>
-    <p>Chaque jour, dépensez vos <b>points d'action</b> (PA), placez vos gardes, puis passez à la nuit. Les hordes avancent d'une case par nuit.
-    Tenez <b>${L.CFG.winNights} nuits</b>, ou contrôlez <b>${L.CFG.winCells} cases</b> à l'aube.</p>
-    <h2>Les hordes sont prévisibles</h2>
-    <ul><li><b>● Rôdeur</b> (attaque 1) : va vers le bruit le plus fort à 3 cases (fouille, travaux, alarme, tirs de la veille), ou la lumière du feu à 2 cases.</li>
-    <li><b>▲ Odorant</b> (attaque 2) : va vers l'odeur à 2 cases (réserves du camp, cadavres de la veille).</li>
-    <li><b>■ Aveugle</b> (attaque 3, résistant) : marche tout droit ; il tourne quand il bute ou quand une défense le repousse.</li>
-    <li>Sans rien à percevoir, une horde va vers la case du territoire la plus proche. À égalité de force et de distance, elle se divise.</li></ul>
-    <h2>L'attaque</h2>
-    <ul><li>Les pièges tuent d'abord. Puis <b>attaque</b> = taille × force, contre <b>défense</b> = barricade + nombre de gardes.</li>
-    <li>Les gardes tirent : 1 dégât (2 en Combat), +2 s'ils ont une munition. Les aveugles encaissent 2 dégâts chacun.</li>
-    <li>Si l'attaque dépasse la défense, la barricade est détruite et l'excès blesse les gardes. Si des zombies restent debout, la case tombe.
-    Si c'est le camp, la partie est perdue.</li>
-    <li>Les gardes non affectés défendent le camp.</li></ul>
-    <h2>Le reste</h2>
-    <ul><li>Une case perdue ou abandonnée accumule 1 zombie par nuit, qui se dispersent en horde au bout de 3 nuits. La reconquérir coûte une munition par zombie.</li>
-    <li>Chaque survivant mange 1 nourriture par nuit. Un survivant valide (santé ≥ 2) donne 1 PA de plus. Sous 4 de moral collectif, −1 PA. À 0 de moral, on part.</li>
-    <li>La prévision, à droite, simule exactement la nuit à venir avec vos réglages actuels.</li></ul>`;
-  $('btn-help').addEventListener('click', () => modal(HELP, [{ label: 'Fermer', primary: true }]));
+  const TURN = `<h2>Un tour</h2><ol class="steps">
+    <li><span><b>Lisez le plateau.</b> Chaque horde montre sa flèche et ce qui l'attire. Une case du territoire menacée porte un badge : <b>⚔ attaque</b> contre <b>🛡 défense</b>, rouge si elle va tomber.</span></li>
+    <li><span><b>Touchez une case</b> pour agir : explorer (?), fouiller un lieu, occuper, barricader, piéger, poser une alarme pour détourner les rôdeurs, abandonner.</span></li>
+    <li><span><b>Postez vos gardes.</b> Touchez un survivant, puis une case du territoire. Chaque garde ajoute 1 à la défense et tire.</span></li>
+    <li><span><b>Passez la nuit.</b> Les hordes avancent d'une case et attaquent. Le bilan explique chaque perte.</span></li></ol>`;
+  const RULES = `<h2>Les hordes</h2><ul>
+    <li><b>Rôdeur</b> (rond, attaque 1) : suit le bruit à 3 cases (fouille, travaux, alarme, tirs de la veille) ou la lumière du feu à 2 cases.</li>
+    <li><b>Odorant</b> (triangle, attaque 2) : suit l'odeur à 2 cases (vivres du camp, cadavres de la veille).</li>
+    <li><b>Aveugle</b> (carré, attaque 3, encaisse 2 dégâts) : marche tout droit et tourne quand il bute ou qu'on le repousse.</li>
+    <li>Sans rien à percevoir, une horde marche vers votre case la plus proche. À égalité, elle se divise.</li></ul>
+    <h2>Le combat</h2><ul>
+    <li>Les pièges frappent d'abord. Puis attaque (taille × force) contre défense (barricade + gardes).</li>
+    <li>Si l'attaque dépasse la défense, la barricade cède et l'excès blesse les gardes. Si des zombies restent debout, la case tombe.</li>
+    <li>Une case perdue accumule des zombies, qui repartent en horde au bout de 3 nuits.</li></ul>
+    <h2>Gagner</h2><p>Tenez <b>${L.CFG.winNights} nuits</b>, ou contrôlez <b>${L.CFG.winCells} cases</b> à l'aube. Chaque survivant mange 1 vivre par nuit ; à 0 de moral, il part.</p>`;
+  $('btn-help').addEventListener('click', () => modal(`<h1>Règles</h1>${TURN}${RULES}`, [{ label: 'Fermer', primary: true }]));
 
-  const seed = params.has('seed') ? +params.get('seed') : Date.now() % 1e9;
-  newGame(seed);
-  modal(`<h1>🧟 Zombie Survival</h1><p>Le quartier est tombé. Trois survivants ont monté un camp au centre du plan.
-    Chaque nuit, les hordes viennent. Vous ne pourrez pas tout défendre.</p>` + HELP.replace('<h1>Comment jouer</h1>', ''),
-    [{ label: 'Commencer', primary: true }]);
+  const hot = window.claude && window.claude.hot;
+  if (hot && hot.snapshot) hot.snapshot(() => ({ S }));
+  const boot = data => {
+    if (data && data.S) { S = data.S; render(); return; }
+    const seed = params.has('seed') ? +params.get('seed') : Date.now() % 1e9;
+    newGame(seed);
+    modal(`<h1>Zombie Survival</h1><p>Le quartier est tombé. Trois survivants ont monté un camp au centre du plan.
+      Chaque nuit, les hordes viennent. Vous ne pourrez pas tout défendre : choisissez ce que vous tenez.</p>${TURN}`,
+      [{ label: 'Commencer', primary: true }, { label: 'Lire toutes les règles' }]).then(k => {
+        if (k === 1) modal(`<h1>Règles</h1>${RULES}`, [{ label: 'Commencer', primary: true }]);
+      });
+  };
+  if (hot && hot.ready) hot.ready(boot); else boot(hot && hot.data);
 })();
 </script>
 </body>
