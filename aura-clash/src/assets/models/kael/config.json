@@ -1,0 +1,11 @@
+{
+  "source": "kaykit/Rogue.glb",
+  "remove": [
+    "Knife_Offhand",
+    "1H_Crossbow",
+    "2H_Crossbow",
+    "Knife",
+    "Throwable",
+    "Rogue_Cape"
+  ]
+}

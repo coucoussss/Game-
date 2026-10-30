@@ -302,28 +302,27 @@ export class RiggedModel {
 
   /** Matériaux cel-shadés (texture d'origine conservée), contour d'encre, teinte du skin. */
   paint(scale) {
-    const L = this.def.look;
-    const tint = this.def.costume ? new THREE.Color(L.top || L.pants || '#ffffff') : null;
     const cache = new Map();
     const meshes = [];
     this.rig.traverse((o) => { if (o.isSkinnedMesh || o.isMesh) meshes.push(o); });
     for (const mesh of meshes) {
       const list = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      const tint = this.ghost ? null : this.partTint(mesh);
       const out = list.map((src) => {
-        if (cache.has(src)) return cache.get(src);
+        const key = `${src.uuid}|${tint ? tint.getHexString() : ''}`;
+        if (cache.has(key)) return cache.get(key);
         let m;
         if (this.ghost) {
           m = new THREE.MeshToonMaterial({ color: new THREE.Color('#2a1446'), transparent: true, opacity: 0.75, emissive: new THREE.Color('#3a1a6a') });
         } else {
-          const skinLike = /skin|body|face|head|eye|hair|teeth|mouth/i.test(src.name || '');
           const color = src.map ? new THREE.Color('#ffffff') : (src.color ? src.color.clone() : new THREE.Color('#cccccc'));
-          if (tint && !skinLike) color.lerp(tint, 0.45);
           m = animeMat(color, { map: src.map || null, transparent: !!src.transparent, alphaTest: src.alphaTest || 0, side: src.side });
           if (m.map) m.map.colorSpace = THREE.SRGBColorSpace;
+          if (tint) recolor(m, tint);
         }
         m.userData.baseEmissive = m.emissive ? m.emissive.clone() : null;
         this.mats.push(m);
-        cache.set(src, m);
+        cache.set(key, m);
         return m;
       });
       mesh.material = Array.isArray(mesh.material) ? out : out[0];
@@ -345,6 +344,31 @@ export class RiggedModel {
     this.rigScale = scale;
   }
 
+  /**
+   * Couleur d'une pièce du modèle, d'après les couleurs du combattant (et donc de son skin) :
+   * corps → haut, jambes → pantalon, bras → manches, cape → accent, chapeau/casque → armure.
+   */
+  partTint(mesh) {
+    const L = this.def.look;
+    let n = '';
+    for (let o = mesh; o && o !== this.rig; o = o.parent) if (/_(Body|Leg|Arm|Cape|Hat|Helmet|Head)/.test(o.name)) { n = o.name; break; }
+    let c = null;
+    if (/_Body/.test(n)) c = L.top || L.pants;
+    else if (/_Leg/.test(n)) c = L.pants;
+    else if (/_Arm/.test(n)) c = L.arms && L.arms !== L.skin ? L.arms : L.top;
+    else if (/_Cape/.test(n)) c = L.accent || L.belt || L.top;
+    else if (/_Hat|_Helmet/.test(n)) c = L.armor || L.accent || L.hair;
+    else if (/_Head_Hooded/.test(n)) c = L.top;
+    else if (/_Head/.test(n)) c = L.hair; // cheveux et barbe (la peau est épargnée)
+    return c ? new THREE.Color(c) : null;
+  }
+
+  findPart(re) {
+    let found = null;
+    this.rig.traverse((o) => { if (!found && o.isMesh && re.test(o.name || (o.parent && o.parent.name) || '')) found = o; });
+    return found;
+  }
+
   /** Groupes accrochés aux os, orientés et mis à l'échelle comme les articulations de l'ancien modèle. */
   buildProxies() {
     const rootInv = new THREE.Matrix4().copy(this.root.matrixWorld).invert();
@@ -363,7 +387,12 @@ export class RiggedModel {
     const B = this.bones;
     // Taille de la tête : rapport entre le crâne importé et celui du modèle dessiné (≈ 0,33)
     let headK = 0.6;
-    if (B.head && B.top) headK = clamp(B.head.getWorldPosition(new THREE.Vector3()).distanceTo(B.top.getWorldPosition(new THREE.Vector3())) / 0.33, 0.35, 1.2);
+    const headMesh = this.findPart(/_Head/);
+    if (headMesh) {
+      // Tête « chibi » : taille mesurée sur le maillage du crâne (≈ 0,42 pour l'ancien modèle)
+      const hb = new THREE.Box3().setFromObject(headMesh);
+      headK = clamp((hb.max.y - hb.min.y) / 0.42, 0.35, 2.5);
+    } else if (B.head && B.top) headK = clamp(B.head.getWorldPosition(new THREE.Vector3()).distanceTo(B.top.getWorldPosition(new THREE.Vector3())) / 0.33, 0.35, 1.2);
     this.headScale = headK;
     this.head = make(B.head, I, headK);
     this.torso = make(B.spine, I);
@@ -422,7 +451,7 @@ export class RiggedModel {
     this.aura = this.auraFx ? this.auraFx.root : new THREE.Group();
     if (this.auraFx && this.auraFx.eyes) {
       // Yeux lumineux : la tête importée est plus petite, on recale les reflets sur le visage
-      for (const e of this.auraFx.eyes) e.position.set(Math.sign(e.position.x) * 0.072, 0.2, 0.2);
+      for (const e of this.auraFx.eyes) e.position.set(Math.sign(e.position.x) * 0.09, 0.17, 0.2);
     }
   }
 
@@ -491,7 +520,10 @@ export class RiggedModel {
     const tpl = this.tpl;
     const C = (n) => clipFor(tpl, n);
     const speed = Math.hypot(f.vx, f.vz);
-    if (extra.portrait) return this.play('idle', C('idle'), { fade: 0 });
+    const vF = f.vx * Math.sin(f.yaw) + f.vz * Math.cos(f.yaw);
+    // Garde : arme à deux mains tenue devant soi pour les combattants armés
+    const idle = this.tip ? firstClip(tpl, ['idle_weapon', 'idle']) : C('idle');
+    if (extra.portrait) return this.play('idle', idle, { fade: 0 });
     if (extra.cine) return this.play('cine', firstClip(tpl, ['powerup', 'taunt', 'idle']));
     if (extra.intro && (f.state === 'idle' || f.state === 'walk')) return this.play('intro', firstClip(tpl, ['taunt', 'powerup', 'idle']));
     switch (f.state) {
@@ -506,14 +538,18 @@ export class RiggedModel {
         }
         return a;
       }
-      case 'land': return this.play('idle', C('idle'), { fade: 0.1 });
+      case 'land': return this.play('idle', idle, { fade: 0.1 });
       case 'guard':
       case 'blockstun': return this.play('block', firstClip(tpl, ['block', 'idle']), { loop: false, fade: 0.06 });
-      case 'dodge': return this.play('dodge', firstClip(tpl, ['dodge', 'run']), { loop: false, fade: 0.05, speed: 1.6 });
+      case 'dodge':
+        if (vF > 1) return this.play('dodge_fwd', firstClip(tpl, ['dodge_fwd', 'dodge', 'run']), { loop: false, fade: 0.05, speed: 1.6 });
+        return this.play('dodge', firstClip(tpl, ['dodge', 'run']), { loop: false, fade: 0.05, speed: 1.6 });
       case 'hitstun': {
         if (f.onGround === false) return this.play('knockdown', firstClip(tpl, ['knockdown', 'hit']), { loop: false, fade: 0.06 });
         const fresh = f.st < this.lastSt || this.prevState !== 'hitstun';
-        return this.play('hit', firstClip(tpl, ['hit', 'block']), { loop: false, fade: 0.04, restart: fresh, speed: 1.4 });
+        // Deux réactions, selon le côté d'où vient le coup
+        const alt = this.react && this.react.side < 0;
+        return this.play(alt ? 'hit2' : 'hit', firstClip(tpl, alt ? ['hit2', 'hit'] : ['hit', 'block']), { loop: false, fade: 0.04, restart: fresh, speed: 1.4 });
       }
       case 'dizzy': return this.play('dizzy', firstClip(tpl, ['dizzy', 'hit', 'idle']), { speed: 0.6 });
       case 'knockdown': return this.play('knockdown', firstClip(tpl, ['knockdown', 'ko']), { loop: false, fade: 0.08 });
@@ -525,8 +561,9 @@ export class RiggedModel {
       case 'idle':
       default: {
         if (speed > 5.2) return this.play('run', firstClip(tpl, ['run', 'walk', 'idle']), { speed: clamp(speed / 7, 0.7, 1.5) });
+        if (speed > 0.4 && vF < -0.5) return this.play('walk_back', firstClip(tpl, ['walk_back', 'walk']), { speed: clamp(speed / 3, 0.6, 1.8), fade: 0.18 });
         if (speed > 0.4) return this.play('walk', firstClip(tpl, ['walk', 'idle']), { speed: clamp(speed / 3, 0.6, 1.8), fade: 0.18 });
-        return this.play('idle', C('idle'), { fade: 0.2 });
+        return this.play('idle', idle, { fade: 0.2 });
       }
     }
   }
@@ -653,6 +690,33 @@ export class RiggedModel {
     for (const m of this.flatMats) m.dispose();
     if (this.auraFx) this.auraFx.dispose();
   }
+}
+
+/**
+ * Repeint la texture d'une pièce à la couleur voulue en gardant ses nuances (ombres, plis) ;
+ * les zones couleur peau (mains, cou) sont épargnées.
+ */
+function recolor(m, tint) {
+  const prev = m.onBeforeCompile;
+  const prevKey = m.customProgramCacheKey();
+  m.userData.tint = { value: tint };
+  m.onBeforeCompile = (shader, renderer) => {
+    prev(shader, renderer);
+    shader.uniforms.uTint = m.userData.tint;
+    const marker = '#include ' + String.fromCharCode(60) + 'map_fragment' + String.fromCharCode(62);
+    shader.fragmentShader = 'uniform vec3 uTint;\n' + shader.fragmentShader.replace(marker, `${marker}
+      {
+        vec3 tx = diffuseColor.rgb;
+        float l = dot(tx, vec3(0.299, 0.587, 0.114));
+        float mx = max(tx.r, max(tx.g, tx.b));
+        float sat = (mx - min(tx.r, min(tx.g, tx.b))) / max(mx, 1e-3);
+        float skin = step(tx.b, tx.g) * step(tx.g, tx.r) * step(0.35, tx.r) * smoothstep(0.25, 0.4, sat) * (1.0 - smoothstep(0.75, 0.85, sat));
+        vec3 rc = uTint * (0.7 + 0.6 * smoothstep(0.0, 0.45, l)) * step(0.015, l) + tx * (1.0 - step(0.015, l));
+        diffuseColor.rgb = mix(tx, rc, 0.88 * (1.0 - skin));
+      }`);
+  };
+  m.customProgramCacheKey = () => `${prevKey}-tint`;
+  m.needsUpdate = true;
 }
 
 function isInside(obj, ancestor) {

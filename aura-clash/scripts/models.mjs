@@ -24,6 +24,7 @@ import { createRequire } from 'node:module';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const dir = join(root, 'src', 'assets', 'models');
 const ANIM_DIR = join(dir, 'anims');
+const SRC_DIR = join(root, 'models-src');
 const texArg = process.argv.indexOf('--tex');
 const TEX = texArg > 0 ? Number(process.argv[texArg + 1]) : 1024;
 
@@ -65,7 +66,18 @@ function cleanBoneNames(doc) {
   }
 }
 
-/** Réglages facultatifs d'un dossier (config.json) : { remove: [noms de nœuds à supprimer] }. */
+/** Supprime une animation avec ses canaux et échantillonneurs (sinon leurs données restent dans le fichier). */
+function disposeAnimation(a) {
+  for (const ch of a.listChannels()) ch.dispose();
+  for (const smp of a.listSamplers()) smp.dispose();
+  a.dispose();
+}
+
+/**
+ * Réglages facultatifs d'un dossier (config.json) :
+ *   source  modèle source, relatif à models-src/ (voir scripts/fetch-kaykit.mjs)
+ *   remove  noms des nœuds à supprimer (armes et accessoires d'origine)
+ */
 function configOf(folder) {
   const f = join(folder, 'config.json');
   return existsSync(f) ? JSON.parse(readFileSync(f, 'utf8')) : {};
@@ -74,13 +86,15 @@ function configOf(folder) {
 async function buildCharacter(id) {
   const folder = join(dir, id);
   // Le .glb de sortie porte le même nom que la source : on ne convertit que s'il y a un .fbx
-  const src = [join(folder, id + '.fbx'), join(folder, id + '.FBX'), join(folder, id + '.src.glb')].find(existsSync);
+  const cfg = configOf(folder);
+  const src = [cfg.source && join(SRC_DIR, cfg.source), join(folder, id + '.fbx'), join(folder, id + '.FBX'), join(folder, id + '.src.glb')]
+    .filter(Boolean).find(existsSync);
   if (!src) return existsSync(join(folder, id + '.glb'));
   const doc = await readSource(src);
   cleanBoneNames(doc);
-  for (const a of doc.getRoot().listAnimations()) a.dispose(); // les animations viennent de anims.glb
+  for (const a of doc.getRoot().listAnimations()) disposeAnimation(a); // les animations viennent de anims.glb
   // Pièces inutiles (armes et boucliers d'origine : le jeu accroche les siennes)
-  const { remove = [] } = configOf(folder);
+  const { remove = [] } = cfg;
   for (const n of doc.getRoot().listNodes()) {
     if (!remove.includes(n.getName())) continue;
     n.traverse((c) => { const m = c.getMesh(); if (m) m.dispose(); });
@@ -102,22 +116,26 @@ async function buildCharacter(id) {
 
 async function buildAnims() {
   if (!existsSync(ANIM_DIR)) return [];
-  const files = readdirSync(ANIM_DIR).filter((f) => /\.(fbx|glb)$/i.test(f) && f !== 'anims.glb');
+  const cfg = configOf(ANIM_DIR);
+  const files = [
+    ...(cfg.sources || []).map((f) => join(SRC_DIR, f)).filter(existsSync),
+    ...readdirSync(ANIM_DIR).filter((f) => /\.(fbx|glb)$/i.test(f) && f !== 'anims.glb').map((f) => join(ANIM_DIR, f)),
+  ];
   if (!files.length) return existsSync(join(ANIM_DIR, 'anims.glb')) ? ['(déjà prêtes)'] : [];
   const out = new (await import('@gltf-transform/core')).Document();
   out.createBuffer();
   // clips.json : { "<nom dans le jeu>": "<nom du clip dans une bibliothèque .glb>" } ; sinon un clip par fichier
   const map = existsSync(join(ANIM_DIR, 'clips.json')) ? JSON.parse(readFileSync(join(ANIM_DIR, 'clips.json'), 'utf8')) : null;
   const names = [];
-  for (const f of files.sort()) {
-    const doc = await readSource(join(ANIM_DIR, f));
+  for (const f of files) {
+    const doc = await readSource(f);
     cleanBoneNames(doc);
     const anims = doc.getRoot().listAnimations().filter((a) => a.listChannels().length);
     if (!anims.length) { console.warn(`  ${f} : aucune animation, ignoré`); continue; }
     const kept = [];
     for (const a of anims) {
       const ours = map ? Object.keys(map).filter((k) => map[k] === a.getName()) : [];
-      if (map && ours.length) { a.setName(ours[0]); kept.push(a); } else if (!map && a === anims[0]) { a.setName(basename(f, extname(f))); kept.push(a); } else a.dispose();
+      if (map && ours.length) { a.setName(ours[0]); kept.push(a); } else if (!map && a === anims[0]) { a.setName(basename(f, extname(f))); kept.push(a); } else disposeAnimation(a);
       // Un même clip sous plusieurs noms : copie des canaux
       for (const extra of ours.slice(1)) {
         const c = doc.createAnimation(extra);

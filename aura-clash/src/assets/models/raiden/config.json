@@ -1,0 +1,12 @@
+{
+  "source": "kaykit/Knight.glb",
+  "remove": [
+    "1H_Sword_Offhand",
+    "Badge_Shield",
+    "Rectangle_Shield",
+    "Round_Shield",
+    "Spike_Shield",
+    "1H_Sword",
+    "2H_Sword"
+  ]
+}

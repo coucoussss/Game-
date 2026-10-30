@@ -1,0 +1,10 @@
+{
+  "source": "kaykit/Barbarian.glb",
+  "remove": [
+    "1H_Axe_Offhand",
+    "Barbarian_Round_Shield",
+    "1H_Axe",
+    "2H_Axe",
+    "Mug"
+  ]
+}

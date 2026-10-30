@@ -9,3 +9,5 @@ src/assets/models/**/*.src.glb
 src/assets/models/anims/*.glb
 !src/assets/models/anims/anims.glb
 src/assets/models/**/*.src.glb
+models-src/
+!src/assets/models/**/config.json

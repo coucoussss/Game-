@@ -2,8 +2,8 @@
 
 Jeu de combat 3D en **cel-shading**, style anime, pour Windows : 10 combattants originaux (6 de base, 4 à débloquer), 5 arènes,
 combats 1 contre 1 ou 2 contre 2, IA, entraînement, et **multijoueur en réseau local** (le serveur est
-dans le `.exe`). Tout est généré par code : modèles low-poly, animations, effets, musique et bruitages.
-Aucun fichier sous licence, aucune ressource à télécharger.
+dans le `.exe`). Les combattants sont des modèles 3D animés en style « chibi » (pack libre KayKit, CC0),
+repeints en cel-shading aux couleurs de chacun ; les armes, effets, arènes, musique et bruitages sont générés par code.
 
 > **Technologie : Electron + Three.js.** Choix justifié en une ligne : Electron embarque Node.js, donc le
 > serveur LAN (WebSocket + découverte UDP) tient dans le même `.exe` que le jeu, et electron-builder
@@ -293,7 +293,8 @@ aura-clash/
 │   │   └── ai.js         IA (3 niveaux) et mannequin d'entraînement
 │   ├── render/           affichage Three.js
 │   │   ├── toon.js       matériaux cel-shading, contours, bruit GLSL
-│   │   ├── model.js      modèles, poses, expressions, cheveux et vêtements à ressorts
+│   │   ├── model.js      modèles dessinés par code (monstres, repli), armes, équipement des skins
+│   │   ├── riggedModel.js combattants animés : chargement, reciblage, animations calées sur les coups, couleurs
 │   │   ├── aura.js       aura de combat (flammes, éclairs, débris, colonne de lumière)
 │   │   ├── hazardView.js affichage des obstacles, de la lave et des zones électriques
 │   │   ├── fx.js         particules GPU, ondes de choc, éclairs, rayons, flammes
@@ -306,6 +307,7 @@ aura-clash/
 │   ├── story/            mode histoire : chapitres, récits des combattants, mise en scène 3D
 │   ├── core/             réglages et profil (Ryō, achats, améliorations, histoire), entrées, audio
 │   ├── ui/               menus, HUD, calque manga, portraits, écran VS, tutoriel
+│   ├── assets/models/    modèles optimisés (.glb) et réglages (config.json, anims/clips.json)
 │   ├── index.html
 │   └── style.css
 └── scripts/              bundle (esbuild), icône, zip, serveur web de test, tests
@@ -315,11 +317,19 @@ aura-clash/
 d'actions (`hit`, `proj`, `beam`, `aoe`, `ring`, `summon`, `warp`…) et apparence (`look`). Une arène s'ajoute
 dans `src/render/arenas.js`.
 
+**Modèles 3D.** `npm run fetch-kaykit` télécharge les personnages KayKit dans `models-src/`, puis
+`npm run models` produit les `.glb` optimisés (textures WebP, compression meshopt) et `src/assets/models/index.js`.
+Chaque combattant a un `config.json` (modèle source, pièces à retirer) ; `anims/clips.json` associe chaque
+animation du jeu à un clip de la bibliothèque. On peut aussi déposer un personnage Mixamo (`<id>/<id>.fbx`)
+et des animations (`anims/<nom>.fbx`) : le script les convertit, et le jeu recible les animations.
+Sans modèle, un combattant garde son modèle dessiné par code.
+
 **Simulation.** Elle tourne à pas fixe (60 ticks par seconde), indépendamment de l'affichage, et sans
 dépendance au rendu : c'est ce qui permet à l'hôte de l'exécuter pour tout le monde, et à `npm test` de
 jouer des matchs complets sans fenêtre.
 
 ## 5. Licence et ressources
 
-Code sous licence MIT. Aucune ressource externe : les modèles, textures, effets, musiques et sons sont
-générés par le code au lancement. Three.js (MIT), Electron (MIT) et ws (MIT) sont les seules dépendances.
+Code sous licence MIT. Personnages et animations : *KayKit – Character Pack: Adventurers* de Kay Lousberg
+(<https://kaylousberg.itch.io/kaykit-adventurers>), licence CC0. Les textures, effets, musiques et sons
+sont générés par le code. Three.js (MIT), Electron (MIT) et ws (MIT) sont les dépendances du jeu.

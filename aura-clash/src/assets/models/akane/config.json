@@ -1,0 +1,10 @@
+{
+  "source": "kaykit/Mage.glb",
+  "remove": [
+    "Spellbook",
+    "Spellbook_open",
+    "1H_Wand",
+    "2H_Staff",
+    "Mage_Hat"
+  ]
+}
