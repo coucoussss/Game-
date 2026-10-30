@@ -88,13 +88,19 @@ class App {
       return f;
     };
     if (mode === 'title' || mode === 'menu') {
-      if (prevMode === 'title' || prevMode === 'menu') return;
-      clearModels();
-      this.stage.setArena(mode === 'title' ? 'temple' : 'cliffs');
-      const ids = CHARACTERS.map((c) => c.id).sort(() => Math.random() - 0.5);
-      addModel(ids[0], -2.2, 0, Math.PI / 2);
-      addModel(ids[1], 2.2, 0, -Math.PI / 2);
-      rig.setFocus({ mode: 'orbit', x: 0, y: 0, z: 0, yaw: 0, t: 0 });
+      // Menu : duel rapproché au centre de l'écran ; titre : grand plan tournant sur l'arène
+      const gap = mode === 'menu' ? 0.8 : 2.2;
+      if (prevMode === 'title' || prevMode === 'menu') {
+        // Mêmes combattants, simplement replacés
+        this.backdrop.models.forEach((m, i) => { m.f.x = i ? gap : -gap; });
+      } else {
+        clearModels();
+        this.stage.setArena('temple');
+        const ids = CHARACTERS.map((c) => c.id).sort(() => Math.random() - 0.5);
+        addModel(ids[0], -gap, 0, Math.PI / 2);
+        addModel(ids[1], gap, 0, -Math.PI / 2);
+      }
+      rig.setFocus({ mode: mode === 'menu' ? 'duel' : 'orbit', x: 0, y: 0, z: 0, yaw: 0, t: 0 });
     } else if (mode === 'select') {
       if (prevMode !== 'select') this.stage.setArena('temple');
       clearModels();
@@ -142,7 +148,7 @@ class App {
           m.f.mt = 0;
         }
       }
-      m.model.update(dt, m.f, { auraBoost: this.backdrop.mode === 'select' ? 0.6 : 0.25 });
+      m.model.update(dt, m.f, { auraBoost: this.backdrop.mode === 'select' ? 0.6 : 0.12 });
     }
     this.stage.rig.update(dt, this.backdrop.models.map((m) => ({ ...m.f, team: 0, alive: true })));
   }

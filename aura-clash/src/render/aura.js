@@ -78,7 +78,8 @@ function flameMaterial(style, color, seed, layer) {
         float body = smoothstep(0.0, uSoft, shape);
         float core = smoothstep(0.55, 0.55 + uSoft, shape);
         float rim = 1.0 - abs(dot(vN, vV));
-        float vis = body * (0.07 + pow(rim, 1.4) * 1.2) * smoothstep(0.0, 0.05, y) * clamp(uInt * 1.6, 0.0, 1.0);
+        // Bords de la coque adoucis : sinon le cylindre se lit comme un tube de verre aux faibles intensités
+        float vis = body * (0.07 + pow(rim, 1.4) * 1.2) * (1.0 - smoothstep(0.8, 1.0, rim)) * smoothstep(0.0, 0.05, y) * clamp(uInt * 1.6, 0.0, 1.0);
         vec3 col = mix(uColor, uCore, core * (1.0 - uLayer * 0.4));
         ${normal
     ? 'col = mix(uDark, col, 0.25 + core * 0.75); gl_FragColor = vec4(col, vis * 0.85);'
@@ -339,14 +340,15 @@ export class AuraFX {
       m.uniforms.uTime.value = this.time;
       m.uniforms.uInt.value = this.level;
     }
-    for (let i = 0; i < this.shells.length; i++) this.shells[i].visible = this.level > 0.02 && (i < 2 || this.level > 0.35);
+    // En dessous d'un certain seuil (énergie pleine au repos), pas de coques : une simple lueur au sol
+    for (let i = 0; i < this.shells.length; i++) this.shells[i].visible = this.level > 0.22 && (i < 2 || this.level > 0.35);
     const pulse = 1 + Math.sin(this.time * 18) * 0.02;
     this.root.scale.set(pulse, 1, pulse);
     this.haze.visible = this.level > 0.3;
     this.haze.material.uniforms.uTime.value = this.time;
     this.haze.material.uniforms.uInt.value = this.level;
     // Fissures
-    this.cracks.material.opacity = Math.min(0.9, this.charge * 0.9 + this.max * 0.4);
+    this.cracks.material.opacity = Math.min(0.9, this.charge * 0.9 + this.max * 0.4 + (this.level < 0.22 ? this.level * 2 : 0));
     this.cracks.visible = this.cracks.material.opacity > 0.01;
     this.cracks.scale.setScalar(0.6 + this.charge * 0.5);
     this.cracks.rotation.z += dt * 0.05;

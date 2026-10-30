@@ -116,13 +116,19 @@ export class CameraRig {
         wantPos.copy(f.pos);
         wantLook.copy(f.look);
         wantFov = f.fov || 40;
+      } else if (f.mode === 'duel') {
+        // Menu principal : les deux combattants face à face, plan bas qui se balance lentement
+        const a = Math.sin(this.time * 0.12) * 0.32;
+        wantPos.set(Math.sin(a) * 13, 1.7 + Math.sin(this.time * 0.09) * 0.2, Math.cos(a) * 13);
+        wantLook.set(0, 1.6, 0);
+        wantFov = 32;
       } else if (f.mode === 'orbit') {
         const a = this.time * 0.08;
         wantPos.set(Math.sin(a) * 16, 5.5, Math.cos(a) * 16);
         wantLook.set(0, 1.5, 0);
         wantFov = 50;
       }
-      if (f.dur && f.t > f.dur && f.mode !== 'showcase' && f.mode !== 'orbit') this.focus = null;
+      if (f.dur && f.t > f.dur && f.mode !== 'showcase' && f.mode !== 'orbit' && f.mode !== 'duel') this.focus = null;
     }
     const manual = this.focus && this.focus.mode === 'manual';
     const wantRoll = manual ? this.focus.roll || 0 : 0;

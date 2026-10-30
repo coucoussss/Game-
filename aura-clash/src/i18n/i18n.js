@@ -55,9 +55,11 @@ export function tr(text) {
     if (res) {
       let i = 0;
       out = lead + res.replace(/#/g, () => (i < nums.length ? nums[i++] : '#')) + trail;
-    } else if (/ · | — |: | : /.test(core)) {
-      // Texte composé (« A : x · B : y ») : chaque morceau est traduit séparément
-      const parts = core.split(/( · | — | ?: )/);
+    } else if (typeof window !== 'undefined' && window.__trMiss && !/ · | — | → |: | : |, /.test(core)) {
+      window.__trMiss.add(core); // relevé des textes sans traduction (outil de vérification)
+    } else if (/ · | — | → |: | : |, /.test(core)) {
+      // Texte composé (« A : x · B : y », « A → B », liste de noms) : chaque morceau est traduit séparément
+      const parts = core.split(/( · | — | → | ?: |, )/);
       const done = parts.map((x, k) => (k % 2 ? x.replace(' :', ':') : tr(x)));
       if (done.some((x, k) => x !== parts[k] && k % 2 === 0)) out = lead + done.join('') + trail;
     }

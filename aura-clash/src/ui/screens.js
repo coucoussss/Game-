@@ -1,4 +1,5 @@
 // Menus du jeu (HTML par-dessus la scène 3D), navigables à la souris, au clavier et à la manette.
+import { ICONS } from './icons.js';
 import { CHARACTERS, CHAR_BY_ID, moveList } from '../game/characters.js';
 import { AI_LEVELS, DUMMY_MODES } from '../game/ai.js';
 import { ARENAS } from '../render/arenas.js';
@@ -248,15 +249,15 @@ export class UI {
     ];
     // Barre du bas : progression et réglages, en petites icônes
     const bar = [
-      { icon: '強', label: 'Améliorations', action: () => this.upgrades() },
-      { icon: '店', label: 'Boutique', badge: offerFree ? '!' : '', action: () => this.shop() },
-      { icon: '任', label: 'Missions', badge: pend.missions + pend.chests ? String(pend.missions + pend.chests) : '', action: () => (pend.missions || !pend.chests ? this.missionsScreen() : this.chestsScreen()) },
-      { icon: '運', label: 'Roue', badge: pend.wheel ? '!' : '', action: () => this.wheelScreen() },
-      { icon: '賞', label: 'Défis', badge: pending ? String(pending) : '', action: () => this.challenges() },
-      { icon: '画', label: 'Galerie', action: () => this.gallery() },
-      { icon: '⚙', label: 'Options', action: () => this.options(() => this.mainMenu()) },
-      { icon: '🌐', label: lang === 'fr' ? 'English' : 'Français', action: () => setLang(lang === 'fr' ? 'en' : 'fr') },
-      ...(electron ? [{ icon: '⏻', label: 'Quitter', action: () => window.auraNative.quit() }] : []),
+      { icon: ICONS.upgrade, label: 'Améliorations', action: () => this.upgrades() },
+      { icon: ICONS.shop, label: 'Boutique', badge: offerFree ? '!' : '', action: () => this.shop() },
+      { icon: ICONS.missions, label: 'Missions', badge: pend.missions + pend.chests ? String(pend.missions + pend.chests) : '', action: () => (pend.missions || !pend.chests ? this.missionsScreen() : this.chestsScreen()) },
+      { icon: ICONS.wheel, label: 'Roue', badge: pend.wheel ? '!' : '', action: () => this.wheelScreen() },
+      { icon: ICONS.trophy, label: 'Défis', badge: pending ? String(pending) : '', action: () => this.challenges() },
+      { icon: ICONS.gallery, label: 'Galerie', action: () => this.gallery() },
+      { icon: ICONS.gear, label: 'Options', action: () => this.options(() => this.mainMenu()) },
+      { icon: ICONS.globe, label: lang === 'fr' ? 'English' : 'Français', action: () => setLang(lang === 'fr' ? 'en' : 'fr') },
+      ...(electron ? [{ icon: ICONS.power, label: 'Quitter', action: () => window.auraNative.quit() }] : []),
     ];
     // Widgets de droite : prochaine récompense du passe, prochain coffre, missions, raccourcis
     const xpPct = tier >= PASS_TIERS ? 100 : Math.round(((live.passXp - tier * TIER_XP) / TIER_XP) * 100);

@@ -157,49 +157,185 @@ function buildCliffs(g, rng) {
   };
 }
 
+/** Halo lumineux (sprite additif à dégradé radial), repris par le bloom. */
+let haloTex = null;
+function halo(color, size, opacity = 0.8) {
+  if (!haloTex) {
+    haloTex = canvasTexture(128, (c, s) => {
+      const gr = c.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+      gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.25, 'rgba(255,255,255,0.45)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+      c.fillStyle = gr; c.fillRect(0, 0, s, s);
+    });
+  }
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, color, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false }));
+  sp.scale.setScalar(size);
+  return sp;
+}
+
+/** Pagode à étages (silhouette de fond). */
+function pagoda(tiers, w, wood, roof, glow) {
+  const p = new THREE.Group();
+  const base = toonPart(new THREE.BoxGeometry(w * 1.3, 1.2, w * 1.3), toonMat('#5a5468'), { outline: 0.06 });
+  base.position.y = 0.6;
+  p.add(base);
+  let y = 1.2;
+  for (let i = 0; i < tiers; i++) {
+    const k = 1 - i * 0.16;
+    const bh = 2.4 * k;
+    const body = toonPart(new THREE.BoxGeometry(w * k, bh, w * k), wood, { outline: 0.05 });
+    body.position.y = y + bh / 2;
+    p.add(body);
+    // Fenêtres éclairées
+    for (const sd of [-1, 1]) {
+      const win = new THREE.Mesh(new THREE.BoxGeometry(w * k * 0.5, bh * 0.35, 0.05), glow);
+      win.position.set(0, y + bh * 0.5, sd * (w * k / 2 + 0.03));
+      p.add(win);
+    }
+    y += bh;
+    const r = toonPart(new THREE.ConeGeometry(w * k * 0.95, 1.5 * k, 4), roof, { outline: 0.06 });
+    r.rotation.y = Math.PI / 4;
+    r.scale.y = 0.8;
+    r.position.y = y + 0.45 * k;
+    p.add(r);
+    y += 0.9 * k;
+  }
+  const spire = toonPart(new THREE.CylinderGeometry(0.08, 0.2, 3.2, 6), toonMat('#c8a040'), { outline: 0.03 });
+  spire.position.y = y + 1.4;
+  p.add(spire);
+  return p;
+}
+
 function buildTemple(g, rng) {
-  const tex = canvasTexture(512, (c, s) => {
-    c.fillStyle = '#8c8ca0'; c.fillRect(0, 0, s, s);
-    const n = 16;
+  // Dalles de pierre irrégulières, joints sombres, mousse et un sceau doré gravé au centre
+  const tex = canvasTexture(1024, (c, s) => {
+    c.fillStyle = '#4a405a'; c.fillRect(0, 0, s, s);
+    const n = 26;
+    const cell = s / n;
     for (let y = 0; y < n; y++) {
-      for (let x = 0; x < n; x++) {
-        const v = 120 + Math.floor(Math.random() * 30);
-        c.fillStyle = `rgb(${v},${v - 4},${v + 14})`;
-        c.fillRect((x * s) / n + 2, (y * s) / n + 2, s / n - 4, s / n - 4);
+      const off = (y % 2) * cell * 0.5;
+      for (let x = -1; x < n; x++) {
+        const w = cell * (Math.random() < 0.3 ? 1.5 : 1);
+        const px = x * cell + off;
+        const v = Math.random();
+        const r = 112 + v * 34, gg = 104 + v * 30, b = 128 + v * 30;
+        c.fillStyle = `rgb(${r | 0},${gg | 0},${b | 0})`;
+        c.fillRect(px + 2, y * cell + 2, w - 4, cell - 4);
+        // Arête éclairée en haut, ombre en bas
+        c.fillStyle = 'rgba(255,240,255,0.12)'; c.fillRect(px + 3, y * cell + 3, w - 6, 3);
+        c.fillStyle = 'rgba(20,10,30,0.25)'; c.fillRect(px + 3, y * cell + cell - 6, w - 6, 3);
+        // Grain de la pierre
+        for (let k = 0; k < 14; k++) {
+          c.fillStyle = Math.random() < 0.5 ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.08)';
+          c.fillRect(px + 4 + Math.random() * (w - 10), y * cell + 4 + Math.random() * (cell - 10), 2 + Math.random() * 6, 2 + Math.random() * 3);
+        }
+        // Fissures
+        if (Math.random() < 0.15) {
+          c.strokeStyle = 'rgba(30,20,40,0.5)'; c.lineWidth = 1.5;
+          c.beginPath(); let cx = px + w * Math.random(), cy = y * cell + 4; c.moveTo(cx, cy);
+          for (let k = 0; k < 4; k++) { cx += (Math.random() - 0.5) * 18; cy += cell / 5; c.lineTo(cx, cy); }
+          c.stroke();
+        }
       }
     }
-    for (let i = 0; i < 300; i++) {
-      c.fillStyle = 'rgba(255,170,200,0.8)';
-      c.fillRect(Math.random() * s, Math.random() * s, 3, 2);
+    // Mousse dans les joints, plus dense vers l'extérieur
+    for (let i = 0; i < 260; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const d = s * (0.18 + Math.sqrt(Math.random()) * 0.32);
+      c.fillStyle = `rgba(${70 + Math.random() * 30},${110 + Math.random() * 40},${70},${0.25 + Math.random() * 0.3})`;
+      c.beginPath(); c.ellipse(s / 2 + Math.cos(a) * d, s / 2 + Math.sin(a) * d, 4 + Math.random() * 14, 2 + Math.random() * 6, Math.random() * 3, 0, Math.PI * 2); c.fill();
     }
-    c.strokeStyle = 'rgba(200,40,60,0.5)'; c.lineWidth = 5;
-    c.beginPath(); c.arc(s / 2, s / 2, s * 0.15, 0, Math.PI * 2); c.stroke();
+    // Sceau central : double cercle doré et huit rayons
+    const cx = s / 2;
+    c.strokeStyle = 'rgba(40,24,40,0.55)'; c.lineWidth = 14;
+    c.beginPath(); c.arc(cx, cx, s * 0.155, 0, Math.PI * 2); c.stroke();
+    c.strokeStyle = 'rgba(232,190,90,0.6)'; c.lineWidth = 5;
+    c.beginPath(); c.arc(cx, cx, s * 0.155, 0, Math.PI * 2); c.stroke();
+    c.lineWidth = 2.5;
+    c.beginPath(); c.arc(cx, cx, s * 0.135, 0, Math.PI * 2); c.stroke();
+    c.beginPath(); c.arc(cx, cx, s * 0.05, 0, Math.PI * 2); c.stroke();
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      c.beginPath(); c.moveTo(cx + Math.cos(a) * s * 0.055, cx + Math.sin(a) * s * 0.055); c.lineTo(cx + Math.cos(a) * s * 0.13, cx + Math.sin(a) * s * 0.13); c.stroke();
+      c.fillStyle = 'rgba(232,190,90,0.6)';
+      c.beginPath(); c.arc(cx + Math.cos(a + 0.39) * s * 0.145, cx + Math.sin(a + 0.39) * s * 0.145, 4, 0, Math.PI * 2); c.fill();
+    }
+    // Pétales tombés
+    for (let i = 0; i < 500; i++) {
+      c.fillStyle = ['rgba(255,170,205,0.85)', 'rgba(255,215,230,0.8)', 'rgba(240,140,190,0.8)'][i % 3];
+      c.beginPath(); c.ellipse(Math.random() * s, Math.random() * s, 3, 1.8, Math.random() * 3, 0, Math.PI * 2); c.fill();
+    }
   });
-  g.add(floorDisc(ARENA_RADIUS + 10, tex));
-  g.add(edgeRing('#ff7aa0'));
+  g.add(floorDisc(ARENA_RADIUS + 1.4, tex));
+  // Terre et herbe autour du parvis, jusqu'à l'horizon
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(230, 48).rotateX(-Math.PI / 2), toonMat('#2e2a3e'));
+  ground.position.y = -0.04;
+  ground.receiveShadow = true;
+  g.add(ground);
+  g.add(edgeRing('#ffc070'));
+  // Margelle de pierre qui borde le parvis
+  const curbMat = toonMat('#7a7288');
+  const curb = toonPart(new THREE.CylinderGeometry(ARENA_RADIUS + 1.6, ARENA_RADIUS + 1.8, 0.4, 72, 1, true), curbMat, { outline: 0 });
+  curb.material = toonMat('#5a5268', { side: THREE.DoubleSide });
+  curb.position.y = 0.0;
+  g.add(curb);
+  const curbTop = new THREE.Mesh(new THREE.RingGeometry(ARENA_RADIUS + 1.35, ARENA_RADIUS + 1.8, 72).rotateX(-Math.PI / 2), curbMat);
+  curbTop.position.y = 0.2;
+  curbTop.receiveShadow = true;
+  g.add(curbTop);
+
   const red = toonMat('#d8262f');
-  const black = toonMat('#2a1e2a');
-  const torii = (x, z, a) => {
+  const black = toonMat('#221826');
+  const gold = toonMat('#e0b050');
+  const torii = (x, z, a, k = 1) => {
     const t = new THREE.Group();
-    for (const s of [-1, 1]) {
+    for (const sd of [-1, 1]) {
       const post = toonPart(new THREE.CylinderGeometry(0.28, 0.32, 6, 8), red, { outline: 0.04 });
-      post.position.set(s * 2.6, 3, 0);
-      t.add(post);
+      post.position.set(sd * 2.6, 3, 0);
+      const foot = toonPart(new THREE.CylinderGeometry(0.42, 0.46, 0.5, 8), black, { outline: 0.03 });
+      foot.position.set(sd * 2.6, 0.25, 0);
+      t.add(post, foot);
     }
-    const beam = toonPart(new THREE.BoxGeometry(7.5, 0.45, 0.6), black, { outline: 0.04 });
-    beam.position.y = 6.1;
+    // Linteau supérieur aux extrémités relevées
+    const beam = toonPart(new THREE.BoxGeometry(7.6, 0.45, 0.65), black, { outline: 0.04 });
+    beam.position.y = 6.15;
     t.add(beam);
-    const beam2 = toonPart(new THREE.BoxGeometry(6.2, 0.35, 0.45), red, { outline: 0.04 });
+    for (const sd of [-1, 1]) {
+      const tip = toonPart(new THREE.BoxGeometry(0.9, 0.42, 0.65), black, { outline: 0.04 });
+      tip.position.set(sd * 4.05, 6.3, 0); tip.rotation.z = sd * 0.28;
+      t.add(tip);
+    }
+    const beam2 = toonPart(new THREE.BoxGeometry(6.3, 0.35, 0.45), red, { outline: 0.04 });
     beam2.position.y = 5.1;
     t.add(beam2);
+    const plaque = toonPart(new THREE.BoxGeometry(0.7, 0.9, 0.12), black, { outline: 0.03 });
+    plaque.position.set(0, 5.62, 0.3);
+    const plaqueIn = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.7), gold.clone());
+    plaqueIn.position.set(0, 5.62, 0.37);
+    t.add(plaque, plaqueIn);
+    // Corde sacrée et ses bandes de papier
+    const rope = new THREE.Mesh(new THREE.TorusGeometry(2.6, 0.09, 6, 24, Math.PI), toonMat('#e8d8a8'));
+    rope.rotation.z = Math.PI; rope.scale.y = 0.18; rope.position.y = 4.85;
+    t.add(rope);
+    for (let i = -2; i <= 2; i++) {
+      const paper = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.5), toonMat('#ffffff', { side: THREE.DoubleSide }));
+      paper.position.set(i * 0.9, 4.5 - (1 - Math.abs(i) / 2.6) * 0.42, 0);
+      t.add(paper);
+    }
     t.position.set(x, 0, z);
     t.rotation.y = a;
+    t.scale.setScalar(k);
     g.add(t);
+    return t;
   };
   ringPlacement(4, ARENA_RADIUS + 3, ARENA_RADIUS + 3, () => 0, (x, z, a) => torii(x, z, a));
-  const stone = toonMat('#9a9aa8');
+  // Allée de portiques qui mène à la pagode, derrière le parvis
+  for (let i = 0; i < 3; i++) torii(0, -(ARENA_RADIUS + 9 + i * 6), 0, 0.92 - i * 0.06);
+
+  // Lanternes de pierre, avec leur halo
+  const stone = toonMat('#9a94a8');
   const lights = [];
-  ringPlacement(8, ARENA_RADIUS + 1.5, ARENA_RADIUS + 1.5, () => 0.5, (x, z) => {
+  const halos = [];
+  const lantern = (x, z, k = 1) => {
     const l = new THREE.Group();
     const base = toonPart(new THREE.CylinderGeometry(0.3, 0.45, 1.2, 6), stone, { outline: 0.03 });
     base.position.y = 0.6;
@@ -209,43 +345,96 @@ function buildTemple(g, rng) {
     roof.position.y = 2.05; roof.rotation.y = Math.PI / 4;
     const glow = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.35, 0.82), glowMat('#ffb050', 2.2));
     glow.position.y = 1.5;
-    l.add(base, box, roof, glow);
+    const hl = halo('#ffa040', 3.2, 0.55);
+    hl.position.y = 1.5;
+    l.add(base, box, roof, glow, hl);
     l.position.set(x, 0, z);
+    l.scale.setScalar(k);
     g.add(l);
     lights.push(glow);
-  });
+    halos.push(hl);
+  };
+  ringPlacement(8, ARENA_RADIUS + 2.6, ARENA_RADIUS + 2.6, () => 0.39, (x, z) => lantern(x, z));
+  for (let i = 0; i < 3; i++) for (const sd of [-1, 1]) lantern(sd * 4.2, -(ARENA_RADIUS + 9 + i * 6), 0.9);
+
+  // Pagode et sanctuaires, dans la brume du fond
+  const wood = toonMat('#8a2a2e');
+  const slate = toonMat('#2a2440');
+  const winGlow = glowMat('#ffb860', 1.6);
+  const main = pagoda(5, 6.5, wood, slate, winGlow);
+  main.position.set(0, 0, -(ARENA_RADIUS + 34));
+  main.scale.setScalar(1.2);
+  g.add(main);
+  for (const [x, z, n, w] of [[-34, -44, 3, 5], [38, -40, 3, 4.6], [-52, 10, 2, 5], [48, 26, 2, 5]]) {
+    const p = pagoda(n, w, wood, slate, winGlow);
+    p.position.set(x, 0, z);
+    p.rotation.y = Math.atan2(x, z);
+    g.add(p);
+  }
+
+  // Cerisiers aux houppiers ronds, en trois roses
   const trunk = toonMat('#4a3028');
-  const pink = toonMat('#ffb0c8', { flatShading: true });
-  ringPlacement(10, ARENA_RADIUS + 6, ARENA_RADIUS + 14, rng, (x, z) => {
-    const h = 3 + rng() * 2;
-    const tr = toonPart(new THREE.CylinderGeometry(0.25, 0.4, h, 6), trunk, { outline: 0.03 });
+  const pinks = ['#ffb0c8', '#ff8ab4', '#ffd2e2'].map((c) => toonMat(c, { flatShading: true }));
+  ringPlacement(16, ARENA_RADIUS + 6, ARENA_RADIUS + 18, rng, (x, z) => {
+    if (Math.abs(x) < 7 && z < 0) return; // l'allée reste dégagée
+    const h = 3 + rng() * 2.5;
+    const tr = toonPart(new THREE.CylinderGeometry(0.22, 0.42, h, 6), trunk, { outline: 0.03 });
     tr.position.set(x, h / 2, z);
+    tr.rotation.z = (rng() - 0.5) * 0.25;
     g.add(tr);
-    for (let k = 0; k < 3; k++) {
-      const c = toonPart(new THREE.IcosahedronGeometry(1.6 + rng(), 0), pink, { outline: 0.04 });
-      c.position.set(x + rand(-1, 1), h + rand(0, 1.5), z + rand(-1, 1));
+    for (let k = 0; k < 4; k++) {
+      const c = toonPart(new THREE.IcosahedronGeometry(1.3 + rng() * 0.9, 1), pinks[k % 3], { outline: 0.04 });
+      c.position.set(x + rand(-1.3, 1.3), h + rand(-0.2, 1.4), z + rand(-1.3, 1.3));
+      c.scale.y = 0.8;
       g.add(c);
     }
   });
-  ringPlacement(7, 70, 120, rng, (x, z) => {
-    const h = 25 + rng() * 30;
-    const m = new THREE.Mesh(new THREE.ConeGeometry(18 + rng() * 10, h, 6), toonMat('#4a3a6a', { flatShading: true }));
+
+  // Montagnes en deux plans : proches et sombres, lointaines et brumeuses
+  ringPlacement(9, 75, 100, rng, (x, z) => {
+    const h = 22 + rng() * 22;
+    const m = new THREE.Mesh(new THREE.ConeGeometry(16 + rng() * 10, h, 6), toonMat('#3a2c58', { flatShading: true }));
     m.position.set(x, h / 2 - 3, z);
     g.add(m);
   });
-  const moon = new THREE.Mesh(new THREE.CircleGeometry(9, 32), new THREE.MeshBasicMaterial({ color: new THREE.Color('#fff2d8').multiplyScalar(1.4), fog: false }));
-  moon.position.set(-60, 70, -150);
+  ringPlacement(11, 140, 175, rng, (x, z) => {
+    const h = 45 + rng() * 40;
+    const m = new THREE.Mesh(new THREE.ConeGeometry(26 + rng() * 14, h, 5), toonMat('#7a4a8a', { flatShading: true }));
+    m.position.set(x, h / 2 - 4, z);
+    // Neige au sommet
+    const cap = new THREE.Mesh(new THREE.ConeGeometry((26 + 14 * 0.5) * 0.28, h * 0.22, 5), toonMat('#f0d8f0', { flatShading: true }));
+    cap.position.y = h * 0.39;
+    m.add(cap);
+    g.add(m);
+  });
+
+  // Lune et son halo
+  const moon = new THREE.Mesh(new THREE.CircleGeometry(11, 40), new THREE.MeshBasicMaterial({ color: new THREE.Color('#fff2d8').multiplyScalar(1.5), fog: false }));
+  moon.position.set(-55, 72, -150);
   moon.lookAt(0, 0, 0);
   g.add(moon);
+  const moonHalo = halo('#ffd8f0', 90, 0.5);
+  moonHalo.material.fog = false;
+  moonHalo.position.copy(moon.position).multiplyScalar(0.98);
+  g.add(moonHalo);
   return {
-    sky: skyDome('#1a1240', '#a0508a', '#2a1a3a', 0.6),
-    fog: ['#6a3a6a', 40, 170],
-    sun: { color: '#ffc8e0', intensity: 1.9, dir: [-25, 35, -30] },
-    hemi: ['#b080ff', '#3a2a3a', 1.2],
-    update: (t) => { for (const l of lights) l.material.opacity = 0.8 + Math.sin(t * 7 + l.id) * 0.2; },
+    sky: skyDome('#0e0a2e', '#d86a8a', '#3a2040', 0.9),
+    fog: ['#6a3a70', 45, 200],
+    sun: { color: '#ffd0e4', intensity: 1.9, dir: [-25, 35, -30] },
+    hemi: ['#b48aff', '#3a2a3a', 1.15],
+    update: (t) => {
+      lights.forEach((l, i) => { l.material.opacity = 0.8 + Math.sin(t * 7 + i * 1.7) * 0.2; });
+      halos.forEach((hl, i) => { hl.material.opacity = 0.45 + Math.sin(t * 5 + i * 2.3) * 0.1; });
+    },
     ambient: (p, dt) => {
       if (Math.random() < dt * 14) {
         p.emit({ x: rand(-22, 22), y: rand(6, 10), z: rand(-22, 22), count: 1, dir: [0.6, -0.5, 0.2], cone: 0.4, speed: 1.6, color: '#ffa8c8', size: 0.16, life: 6, drag: 0.05, hdr: 0.9 });
+      }
+      // Lucioles dorées autour du parvis
+      if (Math.random() < dt * 3) {
+        const a = Math.random() * Math.PI * 2;
+        const r = ARENA_RADIUS + rand(-2, 6);
+        p.emit({ x: Math.sin(a) * r, y: rand(0.4, 3), z: Math.cos(a) * r, count: 1, dir: [0, 1, 0], cone: 1.2, speed: 0.4, color: '#ffd070', size: 0.1, life: 4, drag: 0.2, hdr: 1.6 });
       }
     },
   };
