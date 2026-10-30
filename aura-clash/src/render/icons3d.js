@@ -3,7 +3,7 @@
 //   - objets : pièces de Ryō (petite pile, gros tas), étoile d'XP, éclair de boost, parchemin de titre,
 //     cristal de fragments, coffre mystère.
 import * as THREE from 'three';
-import { createCharacterModel } from './riggedModel.js';
+import { createCharacterModel, faceOf } from './riggedModel.js';
 import { CHAR_BY_ID } from '../game/characters.js';
 import { dressed, SKINS } from '../game/techniques.js';
 import { setupRenderer, makeScene } from './chest3d.js';
@@ -176,9 +176,10 @@ function renderSkins(renderer, canvas, charId) {
     for (let i = 0; i < 40; i++) { f.st += 0.03; model.update(0.03, f, { portrait: true }); }
     model.aura.visible = false;
     const head = new THREE.Vector3();
-    model.head.getWorldPosition(head);
-    cam.position.set(head.x + 0.4, head.y + 0.05, head.z + 2.7);
-    cam.lookAt(head.x, head.y - 0.36, head.z);
+    model.root.updateMatrixWorld(true);
+    const k = faceOf(model, head);
+    cam.position.set(head.x + 0.4 * k, head.y - 0.07 * k, head.z + 2.7 * k);
+    cam.lookAt(head.x, head.y - 0.48 * k, head.z);
     renderer.render(scene, cam);
     cache.set(`skin:${sk.id}:${charId}`, canvas.toDataURL('image/png'));
     model.dispose();

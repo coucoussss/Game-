@@ -105,7 +105,9 @@ class App {
         f.state = 'victory';
         this.backdrop.models[0].poseT = 0;
       }
-      rig.setFocus({ mode: 'showcase', x: 0, y: 0, z: 0, yaw: 0, t: 0 });
+      // Modèles animés (silhouette « chibi », plus large) : filmés d'un peu plus loin
+      const wide = this.backdrop.models[0] && this.backdrop.models[0].model.rigged ? 1.3 : 1;
+      rig.setFocus({ mode: 'showcase', x: 0, y: 0, z: 0, yaw: 0, t: 0, k: wide });
     } else if (mode === 'gallery') {
       // Galerie : un seul modèle, caméra libre (rotation et zoom pilotés par l'écran de galerie)
       if (prevMode !== 'gallery') this.stage.setArena('temple');
@@ -168,7 +170,7 @@ class App {
     const keepExpr = g.expr;
     if (keepExpr) { const se = m.model.setExpression; m.model.setExpression = () => {}; m.model.update(dt, f, extra); m.model.setExpression = se; } else m.model.update(dt, f, extra);
     if (g.auto) g.yaw += dt * 0.35;
-    const k = def.look.size || 1;
+    const k = (def.look.size || 1) * (m.model.rigged ? 1.45 : 1);
     const rig = this.stage.rig;
     if (rig.focus && rig.focus.mode === 'manual') {
       const d = g.dist * k;

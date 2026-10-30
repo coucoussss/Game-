@@ -75,6 +75,22 @@ export async function loadRiggedModels(onProgress = () => {}) {
   }
 }
 
+/**
+ * Centre du visage d'un modèle (dans `out`, coordonnées monde) et échelle de cadrage : 1 pour un
+ * modèle dessiné de taille normale, plus pour les géants et les têtes « chibi », que la caméra
+ * doit filmer de plus loin pour garder le même plan.
+ */
+export function faceOf(model, out) {
+  if (model.face) {
+    model.face.getWorldPosition(out);
+    return model.root.scale.x * model.headScale * 0.8;
+  }
+  model.head.getWorldPosition(out);
+  const sc = model.root.scale.x;
+  out.y += 0.12 * sc;
+  return sc;
+}
+
 export function hasRiggedModel(id) {
   return !!(TEMPLATES[id] && CLIPS.idle);
 }
@@ -316,7 +332,11 @@ export class RiggedModel {
           m = new THREE.MeshToonMaterial({ color: new THREE.Color('#2a1446'), transparent: true, opacity: 0.75, emissive: new THREE.Color('#3a1a6a') });
         } else {
           const color = src.map ? new THREE.Color('#ffffff') : (src.color ? src.color.clone() : new THREE.Color('#cccccc'));
-          m = animeMat(color, { map: src.map || null, transparent: !!src.transparent, alphaTest: src.alphaTest || 0, side: src.side });
+          // Légère lumière propre (texture en émission) : les personnages restent lisibles dans les arènes de nuit
+          m = animeMat(color, {
+            map: src.map || null, emissiveMap: src.map || null, emissive: new THREE.Color(src.map ? '#4a4a4a' : '#000000'),
+            transparent: !!src.transparent, alphaTest: src.alphaTest || 0, side: src.side,
+          });
           if (m.map) m.map.colorSpace = THREE.SRGBColorSpace;
           if (tint) recolor(m, tint);
         }
@@ -395,6 +415,10 @@ export class RiggedModel {
     } else if (B.head && B.top) headK = clamp(B.head.getWorldPosition(new THREE.Vector3()).distanceTo(B.top.getWorldPosition(new THREE.Vector3())) / 0.33, 0.35, 1.2);
     this.headScale = headK;
     this.head = make(B.head, I, headK);
+    // Centre du visage (cadrage des portraits et des gros plans)
+    this.face = new THREE.Object3D();
+    this.face.position.set(0, 0.16, 0.05);
+    this.head.add(this.face);
     this.torso = make(B.spine, I);
     this.hips = make(B.hips, I);
     this.shL = make(B.shL, DOWN_TO_LEFT);

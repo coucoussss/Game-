@@ -10,10 +10,12 @@
   --blue: #3a9cff;
   --red: #ff3a52;
   --panel: rgba(12, 10, 28, 0.82);
-  --font: 'Segoe UI', 'Trebuchet MS', system-ui, sans-serif;
+  --font: 'Nunito', 'Segoe UI', 'Trebuchet MS', system-ui, sans-serif;
   --display: 'Dela Gothic One', 'Arial Black', 'Impact', 'Segoe UI Black', var(--font);
 }
 * { box-sizing: border-box; }
+/* Police de titre en un seul poids : pas de faux gras (empâté), l'italique synthétique est voulu */
+html { font-synthesis: style; }
 html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--fg); font-family: var(--font); user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
 #game { touch-action: none; }
 .screen { touch-action: manipulation; }
@@ -1306,3 +1308,84 @@ body.ui-results .attack-bars { opacity: 0; transition: opacity 0.3s; }
 .sh-skin-art::before { content: ''; position: absolute; inset: 8%; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--a) 65%, transparent), transparent 70%); }
 .sh-skin-art img { position: relative; width: 100%; height: 100%; object-fit: contain; }
 .sh-skin:not(.own) .sh-skin-art img { filter: saturate(0.5) brightness(0.6); }
+
+/* ============================================================================================
+   Finition « premium » : entrées animées, lumière, relief des panneaux, révélation des récompenses
+   ============================================================================================ */
+
+/* Entrée des écrans et des éléments, en cascade */
+@keyframes scrIn { from { opacity: 0; transform: translateY(1.2vh); } }
+@keyframes itemIn { from { opacity: 0; transform: translateX(-2vw) skewX(-10deg); } }
+@keyframes cardIn { from { opacity: 0; transform: translateY(2vh) scale(0.94); } }
+.screen { animation: scrIn 0.32s cubic-bezier(0.2, 0.9, 0.3, 1) both; }
+.menu-list > .btn { animation: itemIn 0.38s cubic-bezier(0.2, 0.9, 0.3, 1) both; }
+.menu-list > .btn:nth-child(2) { animation-delay: 0.04s; } .menu-list > .btn:nth-child(3) { animation-delay: 0.08s; }
+.menu-list > .btn:nth-child(4) { animation-delay: 0.12s; } .menu-list > .btn:nth-child(5) { animation-delay: 0.16s; }
+.menu-list > .btn:nth-child(6) { animation-delay: 0.2s; } .menu-list > .btn:nth-child(n+7) { animation-delay: 0.24s; }
+.sh-offer, .ct-chest, .sh-chest, .lg-day, .ps-cell { animation: cardIn 0.4s cubic-bezier(0.2, 0.9, 0.3, 1) both; }
+.sh-offer:nth-child(2), .ct-chest:nth-child(2), .ps-cell:nth-child(2) { animation-delay: 0.05s; }
+.sh-offer:nth-child(3), .ct-chest:nth-child(3), .ps-cell:nth-child(3) { animation-delay: 0.1s; }
+.sh-offer:nth-child(4), .ct-chest:nth-child(4), .ps-cell:nth-child(4) { animation-delay: 0.15s; }
+.sh-offer:nth-child(n+5), .ct-chest:nth-child(n+5), .ps-cell:nth-child(n+5) { animation-delay: 0.2s; }
+
+/* Vignette douce derrière les menus : le décor 3D reste visible, le texte gagne en contraste */
+#ui:has(> .screen)::before { content: ''; position: fixed; inset: 0; pointer-events: none; z-index: -1;
+  background: radial-gradient(ellipse 120% 90% at 60% 45%, transparent 40%, rgba(4, 3, 12, 0.55) 100%); }
+
+/* Boutons : reflet qui balaie le bouton actif, relief au survol */
+.btn { position: relative; overflow: hidden; transition: transform 0.14s ease-out, background 0.14s, box-shadow 0.14s, filter 0.14s; }
+.btn::after { content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(105deg, transparent 30%, rgba(255, 255, 255, 0.45) 48%, transparent 66%); transform: translateX(-130%); }
+.btn.focus::after, .btn:focus-visible::after { animation: btnShine 0.7s ease-out; }
+@keyframes btnShine { to { transform: translateX(130%); } }
+.btn.focus, .btn:focus-visible { box-shadow: 0 0.6vh 2vh rgba(255, 160, 40, 0.35); }
+.btn:active:not(:disabled) { transform: skewX(-10deg) translateX(1.2vw) scale(0.97); filter: brightness(1.15); }
+
+/* Cartes de récompense : reflet de verre, relief, survol */
+.rw-card { box-shadow: inset 0 0 0 2px var(--rc), inset 0 1.2vh 1.6vh -1vh rgba(255, 255, 255, 0.25), 0 0.6vh 1.4vh rgba(0, 0, 0, 0.5);
+  transition: transform 0.16s ease-out, filter 0.16s; }
+.rw-card::before { content: ''; position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
+  background: radial-gradient(ellipse 80% 45% at 50% 0%, rgba(255, 255, 255, 0.18), transparent 70%); }
+.rw-card.r-epic::after { animation: shine 3.4s ease-in-out infinite; }
+.rw-thumb { filter: drop-shadow(0 0.5vh 0.8vh rgba(0, 0, 0, 0.6)); }
+.ps-cell:hover .rw-card, .lg-day:hover .rw-card, .sh-offer:hover { transform: translateY(-0.5vh); filter: brightness(1.12); }
+.sh-offer { transition: transform 0.16s ease-out, filter 0.16s; }
+
+/* Révélation : cartes plus grandes, nom de la rareté, étincelles, fond teinté par la rareté */
+.reveal { background: radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--rc) 38%, rgba(8, 6, 20, 0.9)), rgba(3, 3, 8, 0.97) 72%); }
+.reveal::after { content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(circle at 50% 110%, color-mix(in srgb, var(--rc) 28%, transparent), transparent 55%); }
+.rv-title { font-size: 5.6vh; background: linear-gradient(180deg, #fff 30%, color-mix(in srgb, var(--rc) 70%, #fff)); -webkit-background-clip: text; background-clip: text;
+  color: transparent; text-shadow: none; filter: drop-shadow(0 0 1.6vh var(--rc)) drop-shadow(0.4vh 0.4vh 0 #000); animation: rvTitle 0.6s cubic-bezier(0.2, 1.4, 0.4, 1) both; }
+@keyframes rvTitle { from { opacity: 0; transform: skewX(-8deg) scale(1.6); letter-spacing: 0.4em; } }
+.rv-slot { position: relative; width: 17vh; height: 22vh; }
+.rv-front { flex-direction: column; gap: 0.8vh; }
+.rv-front .rw-card { height: calc(100% - 3.4vh); border-radius: 1.4vh; }
+.rv-front .rw-thumb { width: 9vh; height: 9vh; object-fit: contain; }
+.rv-front .rw-portrait { width: 10vh; height: 10vh; }
+.rv-front .rw-lbl { font-size: 1.7vh; padding: 0 0.6vh; }
+.rv-rar { font: italic 400 1.6vh var(--display); letter-spacing: 0.08em; color: var(--rc); text-transform: uppercase; text-shadow: 0 0 1.2vh var(--rc), 0 0.2vh 0 #000; }
+.rv-back { border-radius: 1.4vh; background: radial-gradient(circle at 50% 40%, #3a2a78, #140e30 75%); box-shadow: inset 0 0 0 3px #6a58d0, 0 1vh 3vh rgba(0, 0, 0, 0.6); }
+.rv-back span { font: 400 8vh var(--display); color: #8a78f0; text-shadow: 0 0 2vh #6a58d0; animation: rvQ 1.2s ease-in-out infinite alternate; }
+@keyframes rvQ { to { transform: scale(1.12); text-shadow: 0 0 4vh #a898ff; } }
+.rv-spark { position: absolute; left: 50%; top: 45%; width: 1vh; height: 1vh; border-radius: 50%; pointer-events: none; opacity: 0;
+  background: #fff; box-shadow: 0 0 1.2vh 0.4vh var(--rc, #ffd23f); }
+.rv-slot.flip .rv-spark { animation: rvSpark 0.9s cubic-bezier(0.1, 0.8, 0.3, 1) var(--d) both; }
+@keyframes rvSpark { 0% { opacity: 1; transform: rotate(var(--a)) translateY(0) scale(1.4); } 100% { opacity: 0; transform: rotate(var(--a)) translateY(-16vh) scale(0.2); } }
+.rv-slot.r-legendary .rv-spark { background: #fff6c8; box-shadow: 0 0 1.4vh 0.5vh #ffc23a; }
+.rv-slot.r-epic .rv-spark { box-shadow: 0 0 1.2vh 0.4vh #b45cff; }
+.rv-slot.r-mythic .rv-spark { box-shadow: 0 0 1.4vh 0.5vh #ff3a5a; }
+.rv-ok { min-width: 22vh; justify-content: center; font-size: 2.6vh; }
+
+/* Titres d'écran : léger dégradé et lueur */
+.menu-title { background: linear-gradient(180deg, #ffffff 40%, #ffd9a0); -webkit-background-clip: text; background-clip: text; color: transparent;
+  -webkit-text-stroke: 0; text-shadow: none; filter: drop-shadow(0.5vh 0.5vh 0 var(--red)) drop-shadow(0 0 1.4vh rgba(255, 120, 80, 0.35)); }
+
+@media (prefers-reduced-motion: reduce) {
+  .screen, .menu-list > .btn, .sh-offer, .ct-chest, .sh-chest, .lg-day, .ps-cell, .rv-title { animation: none !important; }
+}
+
+/* Logo : la police de titre est plus large, on borne la taille à la largeur de l'écran (mobile) */
+.logo-a, .logo-b { font-size: min(16vh, 19vw); }
+.logo-jp { letter-spacing: min(1em, 3vw); }
+@media (max-aspect-ratio: 3/4) { .logo-a, .logo-b { font-size: min(11vh, 18vw); } }

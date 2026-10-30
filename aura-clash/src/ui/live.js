@@ -123,8 +123,13 @@ export const liveScreens = {
       <div class="rv-rays"></div>
       <div class="rv-title">${chest ? `COFFRE ${esc(RARITY_BY_ID[chest.r].name.toUpperCase())}` : esc(title)}</div>
       ${chest || extraChests.length ? '<div class="rv-chest"></div>' : ''}
-      <div class="rv-cards">${all.map((r, i) => `<div class="rv-slot" style="--i:${i}"><div class="rv-flip"><div class="rv-back">?</div><div class="rv-front">${this.rewardCard(r)}</div></div></div>`).join('')}</div>
-      <button class="btn rv-ok">Continuer</button>
+      <div class="rv-cards">${all.map((r, i) => {
+        const rr = RARITY_BY_ID[rewardRarity(r)];
+        // Étincelles autour des cartes rares (positions fixes, animées en CSS)
+        const sparks = ['epic', 'legendary', 'mythic'].includes(rr.id) ? Array.from({ length: 8 }, (_, k) => `<i class="rv-spark" style="--a:${k * 45}deg;--d:${(k % 3) * 0.12}s"></i>`).join('') : '';
+        return `<div class="rv-slot" style="--i:${i}"><div class="rv-flip"><div class="rv-back"><span>?</span></div><div class="rv-front">${this.rewardCard(r)}<b class="rv-rar" style="--rc:${rr.color}">${esc(rr.name)}</b></div></div>${sparks}</div>`;
+      }).join('')}</div>
+      <button class="btn gold rv-ok">Continuer</button>
     </div>`);
     document.body.appendChild(ov);
     // Coffre 3D vivant (chute, tremblement, ouverture) ; dessin vectoriel si WebGL échoue

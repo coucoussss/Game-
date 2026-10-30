@@ -107,7 +107,8 @@ export class CameraRig {
         wantFov = 40;
       } else if (f.mode === 'showcase') {
         const a = this.time * 0.25;
-        wantPos.set(f.x + Math.sin(a) * 4.5, 1.6, f.z + Math.cos(a) * 4.5 + 0.5);
+        const d = 4.5 * (f.k || 1);
+        wantPos.set(f.x + Math.sin(a) * d, 1.6, f.z + Math.cos(a) * d + 0.5);
         wantLook.set(f.x, 1.1, f.z);
         wantFov = 38;
       } else if (f.mode === 'manual') {

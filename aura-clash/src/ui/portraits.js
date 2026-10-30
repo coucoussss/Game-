@@ -1,7 +1,7 @@
 // Portraits des personnages : chaque modèle 3D est rendu une fois au démarrage, en gros plan,
 // dans une petite image (utilisée par l'écran de sélection et l'interface de combat).
 import * as THREE from 'three';
-import { createCharacterModel } from '../render/riggedModel.js';
+import { createCharacterModel, faceOf } from '../render/riggedModel.js';
 import { CHARACTERS } from '../game/characters.js';
 import { MONSTERS } from '../game/monsters.js';
 
@@ -34,10 +34,10 @@ export function renderPortraits() {
     for (let i = 0; i < 30; i++) model.update(0.03, { x: 0, y: 0, z: 0, yaw: -0.35, vx: 0, vy: 0, vz: 0, state: 'idle', st: 0, onGround: true, flash: 0 }, { portrait: true });
     model.aura.visible = false;
     const head = new THREE.Vector3();
-    model.head.getWorldPosition(head);
-    const k = def.look.size || 1; // les géants sont cadrés de plus loin
-    camera.position.set(head.x + 0.25 * k, head.y + 0.05 * k, head.z + 1.9 * k);
-    camera.lookAt(head.x, head.y - 0.12 * k, head.z);
+    model.root.updateMatrixWorld(true);
+    const k = faceOf(model, head); // géants et têtes « chibi » : cadrés de plus loin
+    camera.position.set(head.x + 0.25 * k, head.y - 0.07 * k, head.z + 1.9 * k);
+    camera.lookAt(head.x, head.y - 0.24 * k, head.z);
     renderer.setClearColor(0x000000, 0);
     renderer.render(scene, camera);
     out[def.id] = renderer.domElement.toDataURL('image/png');

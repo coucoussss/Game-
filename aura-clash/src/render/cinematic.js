@@ -3,6 +3,7 @@
 // cible), un décor de lignes de vitesse aux couleurs de l'aura qui remplace l'arène, et un sceau
 // magique qui tourne au sol.
 import * as THREE from 'three';
+import { faceOf } from './riggedModel.js';
 import { sealTexture } from './fx.js';
 
 const tmp = new THREE.Vector3();
@@ -128,9 +129,8 @@ export class CineDirector {
       this.overlay.flash('#ffffff', 0.07);
       this.audio.play(shot === 0 ? 'teleport' : 'dash');
     }
-    c.model.head.getWorldPosition(tmp);
-    const sc = c.model.root.scale.x; // géants (boss du mode Vagues) : plans élargis
-    const hx = tmp.x; const hy = tmp.y + 0.12 * sc; const hz = tmp.z;
+    const sc = faceOf(c.model, tmp); // géants (boss du mode Vagues) et têtes « chibi » : plans élargis
+    const hx = tmp.x; const hy = tmp.y; const hz = tmp.z;
     if (shot === 0) {
       // Gros plan sur le regard, qui avance lentement
       const p = k / 0.3;

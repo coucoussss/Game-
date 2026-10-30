@@ -2,7 +2,7 @@
 // (gros plan sur celui qui parle, plan à deux, plan large, contre-plongée), avec une boîte de
 // dialogue façon visual novel (portrait, nom, texte qui s'écrit), des poses et des effets.
 import * as THREE from 'three';
-import { createCharacterModel } from '../render/riggedModel.js';
+import { createCharacterModel, faceOf } from '../render/riggedModel.js';
 import { CHAR_BY_ID } from '../game/characters.js';
 import { tr } from '../i18n/i18n.js';
 import { ARENAS } from '../render/arenas.js';
@@ -262,15 +262,15 @@ export class StoryScene {
     const b = this.models[1] || a;
     const fx = Math.sin(sp.f.yaw);
     const fz = Math.cos(sp.f.yaw);
-    sp.model.head.getWorldPosition(tmp);
-    const hx = tmp.x; const hy = tmp.y + 0.1; const hz = tmp.z;
+    const fs = faceOf(sp.model, tmp);
+    const hx = tmp.x; const hy = tmp.y; const hz = tmp.z;
     const drift = this.lineT * 0.05;
     const f = { mode: 'manual', pos: new THREE.Vector3(), look: new THREE.Vector3(), fov: 40, roll: 0 };
     switch (line.shot) {
       case 'close':
         // Plan poitrine, de trois quarts face, cadré sur le visage
-        f.pos.set(sp.f.x + fx * (2.1 - drift) + fz * 0.55, 1.62, sp.f.z + fz * (2.1 - drift) - fx * 0.55);
-        f.look.set(sp.f.x, Math.max(1.2, hy - 0.2), sp.f.z);
+        f.pos.set(sp.f.x + fx * (2.1 - drift) * Math.max(1, fs * 0.7) + fz * 0.55, hy + 0.05, sp.f.z + fz * (2.1 - drift) * Math.max(1, fs * 0.7) - fx * 0.55);
+        f.look.set(sp.f.x, hy - 0.15 * fs, sp.f.z);
         f.fov = 30;
         break;
       case 'low':
