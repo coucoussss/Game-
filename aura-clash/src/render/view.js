@@ -3,7 +3,8 @@
 import { DebrisSystem } from './debris.js';
 import { withRankAura } from '../game/ranked.js';
 import * as THREE from 'three';
-import { CharacterModel, buildFox, buildDragon, strikeTime, ANIMS } from './model.js';
+import { buildFox, buildDragon, strikeTime, ANIMS } from './model.js';
+import { createCharacterModel } from './riggedModel.js';
 import { BeamVisual, flameMaterial, Trail } from './fx.js';
 import { CineDirector } from './cinematic.js';
 import { glowMat, toonMat, toonPart } from './toon.js';
@@ -48,7 +49,7 @@ export class MatchView {
   /** Ajoute le modèle d'un combattant (mode Vagues : les ennemis arrivent en cours de combat). */
   addFighter(charId, costume = null, rankAura = null) {
     const def = withRankAura(dressed(CHAR_BY_ID[charId], costume), rankAura);
-    const model = new CharacterModel(def);
+    const model = createCharacterModel(def);
     this.stage.scene.add(model.root);
     this.models.push({ model, def, prevMt: 0, prevMove: '', trailT: 0 });
   }
@@ -361,7 +362,7 @@ export class MatchView {
     let g = this.ghosts.find((x) => x.t >= x.life);
     if (!g) {
       if (this.ghosts.length >= 4) return;
-      const model = new CharacterModel(CHAR_BY_ID[f.charId], { ghost: true });
+      const model = createCharacterModel(CHAR_BY_ID[f.charId], { ghost: true });
       this.stage.scene.add(model.root);
       g = { model, t: 0, life: 0.45 };
       this.ghosts.push(g);
@@ -583,7 +584,7 @@ export class MatchView {
 
     if (e.kind === 'minion') {
       if (e.type === 'clone') {
-        const m = new CharacterModel(CHAR_BY_ID.kage, { ghost: true });
+        const m = createCharacterModel(CHAR_BY_ID.kage, { ghost: true });
         scene.add(m.root);
         const fake = { x: 0, y: 0, z: 0, yaw: 0, vx: 0, vy: 0, vz: 0, state: 'idle', st: 0, moveId: '', mt: 0, onGround: true, flash: 0 };
         return {

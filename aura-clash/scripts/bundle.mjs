@@ -22,7 +22,7 @@ const options = {
   minify: !watch,
   sourcemap: watch ? 'inline' : false,
   legalComments: 'none',
-  loader: { '.mp3': 'dataurl' }, // la musique de combat est intégrée au jeu
+  loader: { '.mp3': 'dataurl', '.glb': 'binary' }, // musique de combat et modèles 3D intégrés au jeu
   logLevel: 'info',
 };
 

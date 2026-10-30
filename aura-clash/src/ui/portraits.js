@@ -1,7 +1,7 @@
 // Portraits des personnages : chaque modèle 3D est rendu une fois au démarrage, en gros plan,
 // dans une petite image (utilisée par l'écran de sélection et l'interface de combat).
 import * as THREE from 'three';
-import { CharacterModel } from '../render/model.js';
+import { createCharacterModel } from '../render/riggedModel.js';
 import { CHARACTERS } from '../game/characters.js';
 import { MONSTERS } from '../game/monsters.js';
 
@@ -28,7 +28,7 @@ export function renderPortraits() {
     const rim = new THREE.DirectionalLight(def.aura, 3);
     rim.position.set(-3, 2, -3);
     scene.add(rim);
-    const model = new CharacterModel(def);
+    const model = createCharacterModel(def);
     scene.add(model.root);
     model.update(0.016, { x: 0, y: 0, z: 0, yaw: -0.35, vx: 0, vy: 0, vz: 0, state: 'idle', st: 0, onGround: true, flash: 0 });
     for (let i = 0; i < 30; i++) model.update(0.03, { x: 0, y: 0, z: 0, yaw: -0.35, vx: 0, vy: 0, vz: 0, state: 'idle', st: 0, onGround: true, flash: 0 }, { portrait: true });

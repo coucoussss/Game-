@@ -7,7 +7,7 @@ import { Input } from './core/input.js';
 import { AudioEngine } from './core/audio.js';
 import { Stage } from './render/stage.js';
 import { MatchView } from './render/view.js';
-import { CharacterModel } from './render/model.js';
+import { createCharacterModel, loadRiggedModels } from './render/riggedModel.js';
 import { Overlay } from './ui/overlay.js';
 import { Hud } from './ui/hud.js';
 import { UI } from './ui/screens.js';
@@ -81,7 +81,7 @@ class App {
       this.backdrop.models = [];
     };
     const addModel = (id, x, z, yaw, outfit) => {
-      const model = new CharacterModel(dressed(CHAR_BY_ID[id], outfit === undefined ? this.profile.outfitFor(id) : outfit));
+      const model = createCharacterModel(dressed(CHAR_BY_ID[id], outfit === undefined ? this.profile.outfitFor(id) : outfit));
       this.stage.scene.add(model.root);
       const f = { x, y: 0, z, yaw, vx: 0, vy: 0, vz: 0, state: 'idle', st: 0, moveId: '', mt: 0, onGround: true, flash: 0, transformed: false };
       this.backdrop.models.push({ model, f, id });
@@ -288,9 +288,18 @@ class App {
   }
 }
 
-function boot() {
+async function boot() {
   startDomTranslation();
   platform.init();
+  // Chargement des modèles 3D animés, avec une barre de progression
+  const loading = document.getElementById('loading');
+  const bar = loading && loading.querySelector('.bar > i');
+  try {
+    await loadRiggedModels((k) => { if (bar) bar.style.width = `${Math.round(k * 100)}%`; });
+  } catch (err) {
+    console.warn('Modèles 3D non chargés, modèles dessinés utilisés', err);
+  }
+  if (loading) loading.remove();
   try {
     window.app = new App();
   } catch (err) {

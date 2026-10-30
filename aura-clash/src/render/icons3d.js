@@ -3,7 +3,7 @@
 //   - objets : pièces de Ryō (petite pile, gros tas), étoile d'XP, éclair de boost, parchemin de titre,
 //     cristal de fragments, coffre mystère.
 import * as THREE from 'three';
-import { CharacterModel } from './model.js';
+import { createCharacterModel } from './riggedModel.js';
 import { CHAR_BY_ID } from '../game/characters.js';
 import { dressed, SKINS } from '../game/techniques.js';
 import { setupRenderer, makeScene } from './chest3d.js';
@@ -169,7 +169,7 @@ function renderSkins(renderer, canvas, charId) {
     const rim2 = new THREE.DirectionalLight(sk.aura, 2);
     rim2.position.set(3, 1, -3);
     scene.add(rim2);
-    const model = new CharacterModel(def);
+    const model = createCharacterModel(def);
     scene.add(model.root);
     // Pose de victoire (bras levés : la tenue se voit en entier)
     const f = { x: 0, y: 0, z: 0, yaw: -0.35, vx: 0, vy: 0, vz: 0, state: 'victory', st: 0, onGround: true, flash: 0 };

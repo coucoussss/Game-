@@ -2,7 +2,7 @@
 // (gros plan sur celui qui parle, plan à deux, plan large, contre-plongée), avec une boîte de
 // dialogue façon visual novel (portrait, nom, texte qui s'écrit), des poses et des effets.
 import * as THREE from 'three';
-import { CharacterModel } from '../render/model.js';
+import { createCharacterModel } from '../render/riggedModel.js';
 import { CHAR_BY_ID } from '../game/characters.js';
 import { tr } from '../i18n/i18n.js';
 import { ARENAS } from '../render/arenas.js';
@@ -59,7 +59,7 @@ export class StoryScene {
     const left = this.ch.cast.filter((id) => allies.has(id));
     const right = this.ch.cast.filter((id) => !allies.has(id));
     const place = (ids, side) => ids.forEach((id, k) => {
-      const model = new CharacterModel(CHAR_BY_ID[id]);
+      const model = createCharacterModel(CHAR_BY_ID[id]);
       stage.scene.add(model.root);
       const z = k === 0 ? 0 : (k % 2 ? 1.7 : -1.7);
       const x = side * (2.1 + (k ? 1.3 : 0));
