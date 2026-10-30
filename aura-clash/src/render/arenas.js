@@ -102,23 +102,69 @@ function ringPlacement(n, r0, r1, rng, fn) {
   }
 }
 
+/** Taches douces (dégradé radial) : base des sols peints. */
+function blobs(c, s, n, colors, r0, r1, alpha = 0.5) {
+  for (let i = 0; i < n; i++) {
+    const x = Math.random() * s; const y = Math.random() * s; const r = r0 + Math.random() * (r1 - r0);
+    const col = colors[Math.floor(Math.random() * colors.length)];
+    const gr = c.createRadialGradient(x, y, 0, x, y, r);
+    gr.addColorStop(0, col.replace('A', String(alpha))); gr.addColorStop(1, col.replace('A', '0'));
+    c.fillStyle = gr; c.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+}
+
+/** Grain fin (bruit de pixels clairs et sombres). */
+function grain(c, s, n, light = 0.06, dark = 0.08, size = 3) {
+  for (let i = 0; i < n; i++) {
+    c.fillStyle = Math.random() < 0.5 ? `rgba(255,255,255,${light})` : `rgba(0,0,0,${dark})`;
+    c.fillRect(Math.random() * s, Math.random() * s, 1 + Math.random() * size, 1 + Math.random() * size);
+  }
+}
+
+/** Fissure qui se ramifie. */
+function crack(c, x, y, a, len, depth, draw) {
+  for (let k = 0; k < len; k++) {
+    const nx = x + Math.cos(a) * (8 + Math.random() * 10);
+    const ny = y + Math.sin(a) * (8 + Math.random() * 10);
+    draw(x, y, nx, ny, 1 - k / len);
+    x = nx; y = ny; a += (Math.random() - 0.5) * 0.9;
+    if (depth > 0 && Math.random() < 0.18) crack(c, x, y, a + (Math.random() < 0.5 ? 0.9 : -0.9), Math.floor(len * 0.5), depth - 1, draw);
+  }
+}
+
 // --- Constructeurs ---------------------------------------------------------------------------
 
 function buildCliffs(g, rng) {
-  const tex = canvasTexture(512, (c, s) => {
-    c.fillStyle = '#5f9c46'; c.fillRect(0, 0, s, s);
-    for (let i = 0; i < 2500; i++) {
-      c.fillStyle = ['#5f9e43', '#7fbf5a', '#689f4a', '#8ccc66'][i % 4];
-      c.fillRect(Math.random() * s, Math.random() * s, 3 + Math.random() * 5, 2 + Math.random() * 3);
+  // Plateau herbeux : verts naturels en taches, terre battue au centre, pierres plates et fleurs
+  const tex = canvasTexture(2048, (c, s) => {
+    c.fillStyle = '#5a8a3e'; c.fillRect(0, 0, s, s);
+    blobs(c, s, 260, ['rgba(70,110,48,A)', 'rgba(110,150,70,A)', 'rgba(90,130,60,A)', 'rgba(130,150,80,A)'], 40, 160, 0.55);
+    // Brins d'herbe peints
+    for (let i = 0; i < 40000; i++) {
+      const x = Math.random() * s; const y = Math.random() * s;
+      c.strokeStyle = ['rgba(60,100,40,0.5)', 'rgba(140,180,90,0.45)', 'rgba(100,140,60,0.5)'][i % 3];
+      c.lineWidth = 1.5; c.beginPath(); c.moveTo(x, y); c.lineTo(x + (Math.random() - 0.5) * 4, y - 4 - Math.random() * 5); c.stroke();
     }
-    for (let i = 0; i < 18; i++) {
-      c.fillStyle = 'rgba(160,140,110,0.85)';
-      c.beginPath();
-      c.ellipse(Math.random() * s, Math.random() * s, 10 + Math.random() * 30, 8 + Math.random() * 18, Math.random() * 3, 0, Math.PI * 2);
-      c.fill();
+    // Terre battue au centre, là où l'on se bat
+    const cx = s / 2; const ppu = s / (2 * (ARENA_RADIUS + 14));
+    const dirt = c.createRadialGradient(cx, cx, 0, cx, cx, 9 * ppu);
+    dirt.addColorStop(0, 'rgba(170,140,100,0.85)'); dirt.addColorStop(0.55, 'rgba(160,130,90,0.6)'); dirt.addColorStop(1, 'rgba(160,130,90,0)');
+    c.fillStyle = dirt; c.fillRect(0, 0, s, s);
+    blobs(c, s, 60, ['rgba(150,120,80,A)', 'rgba(185,155,110,A)'], 15, 50, 0.35);
+    // Pierres plates
+    for (let i = 0; i < 26; i++) {
+      const a = Math.random() * Math.PI * 2; const d = (3 + Math.random() * 12) * ppu;
+      const x = cx + Math.cos(a) * d; const y = cx + Math.sin(a) * d; const r = (0.4 + Math.random() * 0.6) * ppu;
+      c.fillStyle = 'rgba(40,40,30,0.35)'; c.beginPath(); c.ellipse(x + 3, y + 4, r, r * 0.75, a, 0, Math.PI * 2); c.fill();
+      c.fillStyle = `rgb(${150 + Math.random() * 30 | 0},${145 + Math.random() * 25 | 0},${130 + Math.random() * 20 | 0})`;
+      c.beginPath(); c.ellipse(x, y, r, r * 0.75, a, 0, Math.PI * 2); c.fill();
+      c.fillStyle = 'rgba(255,255,240,0.18)'; c.beginPath(); c.ellipse(x - r * 0.2, y - r * 0.2, r * 0.6, r * 0.4, a, 0, Math.PI * 2); c.fill();
     }
-    c.strokeStyle = 'rgba(255,255,255,0.25)'; c.lineWidth = 3;
-    c.beginPath(); c.arc(s / 2, s / 2, s * 0.2, 0, Math.PI * 2); c.stroke();
+    grain(c, s, 30000, 0.05, 0.06, 2);
+    for (let i = 0; i < 900; i++) {
+      c.fillStyle = ['#fff4a0', '#ffffff', '#ffb0d0', '#c0a0ff'][i % 4];
+      c.beginPath(); c.arc(Math.random() * s, Math.random() * s, 2.5, 0, Math.PI * 2); c.fill();
+    }
   });
   g.add(floorDisc(ARENA_RADIUS + 14, tex));
   g.add(edgeRing('#fff4c0'));
@@ -149,7 +195,7 @@ function buildCliffs(g, rng) {
   return {
     sky: skyDome('#2f4f9a', '#ff9e6a', '#5a3a50'),
     fog: ['#e6a07a', 45, 190],
-    sun: { color: '#ffe0b0', intensity: 2.6, dir: [-30, 40, 20] },
+    sun: { color: '#ffe0b0', intensity: 2.2, dir: [-30, 40, 20] },
     hemi: ['#9ec8ff', '#5a4a30', 1.1],
     ambient: (p, dt) => {
       if (Math.random() < dt * 6) p.emit({ x: rand(-20, 20), y: rand(0.5, 6), z: rand(-20, 20), count: 1, dir: [1, 0.2, 0.3], cone: 0.4, speed: 2, color: '#d8f080', size: 0.12, life: 4, drag: 0.1, hdr: 0.8 });
@@ -454,21 +500,35 @@ function buildTemple(g, rng) {
 }
 
 function buildNeon(g, rng) {
-  const tex = canvasTexture(512, (c, s) => {
-    c.fillStyle = '#3a3c48'; c.fillRect(0, 0, s, s);
-    for (let i = 0; i < 1500; i++) {
-      const v = 50 + Math.random() * 20;
-      c.fillStyle = `rgb(${v},${v},${v + 10})`;
-      c.fillRect(Math.random() * s, Math.random() * s, 2, 2);
+  // Toit d'immeuble : dalles de béton, joints, marquage d'hélipad, bandes de sécurité au bord
+  const tex = canvasTexture(2048, (c, s) => {
+    c.fillStyle = '#1c1c26'; c.fillRect(0, 0, s, s);
+    const n = 18; const cell = s / n;
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+      const v = 56 + Math.random() * 14;
+      c.fillStyle = `rgb(${v | 0},${v + 2 | 0},${v + 12 | 0})`;
+      c.fillRect(x * cell + 5, y * cell + 5, cell - 10, cell - 10);
+      c.fillStyle = 'rgba(255,255,255,0.08)'; c.fillRect(x * cell + 5, y * cell + 5, cell - 10, 3);
     }
-    c.strokeStyle = '#e8d040'; c.lineWidth = 6;
-    c.beginPath(); c.arc(s / 2, s / 2, s * 0.22, 0, Math.PI * 2); c.stroke();
-    c.fillStyle = '#e8d040'; c.font = 'bold 120px Arial'; c.textAlign = 'center'; c.textBaseline = 'middle';
-    c.fillText('H', s / 2, s / 2);
-    c.strokeStyle = 'rgba(255,255,255,0.2)'; c.lineWidth = 2;
-    for (let i = 0; i < 8; i++) { c.beginPath(); c.moveTo(0, (i * s) / 8); c.lineTo(s, (i * s) / 8); c.stroke(); }
+    grain(c, s, 60000, 0.05, 0.1, 2);
+    blobs(c, s, 40, ['rgba(20,22,34,A)'], 15, 50, 0.3); // taches d'humidité
+    const cx = s / 2;
+    // Hélipad : cercle et H peints, un peu usés
+    c.strokeStyle = 'rgba(232,208,64,0.85)'; c.lineWidth = 14;
+    c.beginPath(); c.arc(cx, cx, s * 0.2, 0, Math.PI * 2); c.stroke();
+    c.lineWidth = 4; c.beginPath(); c.arc(cx, cx, s * 0.18, 0, Math.PI * 2); c.stroke();
+    c.fillStyle = 'rgba(232,208,64,0.85)';
+    const u = s * 0.02;
+    c.fillRect(cx - 4 * u, cx - 5 * u, 2 * u, 10 * u); c.fillRect(cx + 2 * u, cx - 5 * u, 2 * u, 10 * u); c.fillRect(cx - 2 * u, cx - u, 4 * u, 2 * u);
+    grain(c, s, 8000, 0, 0.25, 4); // usure de la peinture
+    // Bandes de sécurité jaunes et noires près du bord
+    const R = s * 0.465;
+    for (let i = 0; i < 120; i++) {
+      c.strokeStyle = i % 2 ? '#1a1a1a' : '#d8b830'; c.lineWidth = 18;
+      c.beginPath(); c.arc(cx, cx, R, (i / 120) * Math.PI * 2, ((i + 1) / 120) * Math.PI * 2); c.stroke();
+    }
   });
-  g.add(floorDisc(ARENA_RADIUS + 3, tex, { color: new THREE.Color('#c0c4d8') }));
+  g.add(floorDisc(ARENA_RADIUS + 3, tex, { color: new THREE.Color('#e8eaff'), emissive: new THREE.Color('#ffffff'), emissiveMap: tex, emissiveIntensity: 0.18 }));
   g.add(edgeRing('#40f0ff'));
   const wallMat = toonMat('#2a2c38');
   const ledge = toonPart(new THREE.CylinderGeometry(ARENA_RADIUS + 3.2, ARENA_RADIUS + 3.2, 1.2, 48, 1, true), wallMat, { outline: 0 });
@@ -519,7 +579,7 @@ function buildNeon(g, rng) {
     sky: skyDome('#05040f', '#2a1048', '#120818', 0.4),
     fog: ['#1a0c2c', 35, 140],
     sun: { color: '#a0b8ff', intensity: 1.3, dir: [20, 40, 25] },
-    hemi: ['#6a4aff', '#ff2a8a', 1.0],
+    hemi: ['#6a4aff', '#ff2a8a', 1.2],
     update: (t) => { signs.forEach((s, i) => { s.material.opacity = Math.sin(t * 13 + i * 7) > -0.95 ? 1 : 0.2; }); },
     ambient: (p, dt) => {
       const n = Math.floor(dt * 160);
@@ -529,19 +589,20 @@ function buildNeon(g, rng) {
 }
 
 function buildGlacier(g, rng) {
-  const tex = canvasTexture(512, (c, s) => {
+  // Glace bleue profonde : zones plus sombres, givre, fissures blanches ramifiées
+  const tex = canvasTexture(2048, (c, s) => {
     const grd = c.createRadialGradient(s / 2, s / 2, 10, s / 2, s / 2, s / 2);
-    grd.addColorStop(0, '#d8f4ff'); grd.addColorStop(1, '#9ad0f0');
+    grd.addColorStop(0, '#a8cce4'); grd.addColorStop(1, '#6a9cc4');
     c.fillStyle = grd; c.fillRect(0, 0, s, s);
-    c.strokeStyle = 'rgba(255,255,255,0.7)'; c.lineWidth = 2;
-    for (let i = 0; i < 40; i++) {
-      c.beginPath();
-      let x = Math.random() * s; let y = Math.random() * s;
-      c.moveTo(x, y);
-      for (let k = 0; k < 4; k++) { x += rand(-40, 40); y += rand(-40, 40); c.lineTo(x, y); }
-      c.stroke();
+    blobs(c, s, 120, ['rgba(70,120,170,A)', 'rgba(150,200,230,A)', 'rgba(40,90,150,A)'], 60, 220, 0.4);
+    blobs(c, s, 160, ['rgba(240,250,255,A)'], 20, 70, 0.45); // plaques de givre
+    for (let i = 0; i < 45; i++) {
+      crack(c, Math.random() * s, Math.random() * s, Math.random() * 6.3, 12, 2, (x0, y0, x1, y1, k) => {
+        c.strokeStyle = `rgba(255,255,255,${0.35 + k * 0.4})`; c.lineWidth = 1 + k * 2;
+        c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke();
+      });
     }
-    for (let i = 0; i < 600; i++) { c.fillStyle = 'rgba(255,255,255,0.9)'; c.fillRect(Math.random() * s, Math.random() * s, 2, 2); }
+    grain(c, s, 20000, 0.12, 0.04, 2);
   });
   g.add(floorDisc(ARENA_RADIUS + 16, tex));
   g.add(edgeRing('#ffffff'));
@@ -581,8 +642,8 @@ function buildGlacier(g, rng) {
   return {
     sky: skyDome('#020818', '#1a3a6a', '#0a1428', 0.9),
     fog: ['#3a5a8a', 50, 200],
-    sun: { color: '#d0e8ff', intensity: 2.0, dir: [25, 40, -20] },
-    hemi: ['#a0d0ff', '#4a6a8a', 1.3],
+    sun: { color: '#d0e8ff', intensity: 1.7, dir: [25, 40, -20] },
+    hemi: ['#a0d0ff', '#4a6a8a', 1.05],
     update: (t) => { auroraMat.uniforms.uTime.value = t; },
     ambient: (p, dt) => {
       const n = Math.floor(dt * 50) + (Math.random() < (dt * 50) % 1 ? 1 : 0);
@@ -592,21 +653,34 @@ function buildGlacier(g, rng) {
 }
 
 function buildVolcano(g, rng) {
-  const tex = canvasTexture(512, (c, s) => {
-    c.fillStyle = '#2a2026'; c.fillRect(0, 0, s, s);
-    for (let i = 0; i < 2000; i++) {
-      const v = 30 + Math.random() * 25;
-      c.fillStyle = `rgb(${v + 6},${v},${v + 2})`;
-      c.fillRect(Math.random() * s, Math.random() * s, 4, 3);
+  // Basalte en colonnes hexagonales, joints où la lave affleure
+  const tex = canvasTexture(2048, (c, s) => {
+    c.fillStyle = '#140c0e'; c.fillRect(0, 0, s, s);
+    const r = 46; const w = Math.sqrt(3) * r;
+    for (let row = -1; row * r * 1.5 < s + r; row++) {
+      for (let col = -1; col * w < s + w; col++) {
+        const x = col * w + (row % 2 ? w / 2 : 0); const y = row * r * 1.5;
+        const v = 34 + Math.random() * 22;
+        c.fillStyle = `rgb(${v + 8 | 0},${v | 0},${v + 2 | 0})`;
+        c.beginPath();
+        for (let k = 0; k < 6; k++) { const a = Math.PI / 6 + (k * Math.PI) / 3; c[k ? 'lineTo' : 'moveTo'](x + Math.cos(a) * (r - 4), y + Math.sin(a) * (r - 4)); }
+        c.closePath(); c.fill();
+        c.fillStyle = 'rgba(255,220,200,0.06)'; c.beginPath(); c.arc(x - r * 0.2, y - r * 0.2, r * 0.45, 0, Math.PI * 2); c.fill();
+      }
     }
-    c.lineWidth = 3;
-    for (let i = 0; i < 30; i++) {
-      c.strokeStyle = i % 2 ? '#ff6a1a' : '#ffb03a';
-      c.beginPath();
-      let x = Math.random() * s; let y = Math.random() * s;
-      c.moveTo(x, y);
-      for (let k = 0; k < 5; k++) { x += rand(-35, 35); y += rand(-35, 35); c.lineTo(x, y); }
-      c.stroke();
+    grain(c, s, 30000, 0.04, 0.12, 3);
+    // Lave dans les fissures (lueur large puis cœur vif)
+    for (let i = 0; i < 28; i++) {
+      const x = Math.random() * s; const y = Math.random() * s; const a = Math.random() * 6.3;
+      for (const [wd, col] of [[10, 'rgba(255,90,20,0.25)'], [4, 'rgba(255,120,30,0.9)'], [1.6, 'rgba(255,220,120,1)']]) {
+        let seed = i * 7919;
+        const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+        let px = x; let py = y; let pa = a;
+        c.strokeStyle = col; c.lineWidth = wd; c.lineCap = 'round';
+        c.beginPath(); c.moveTo(px, py);
+        for (let k = 0; k < 14; k++) { px += Math.cos(pa) * 14; py += Math.sin(pa) * 14; pa += (rnd() - 0.5) * 1.0; c.lineTo(px, py); }
+        c.stroke();
+      }
     }
   });
   const floor = floorDisc(ARENA_RADIUS + 1.5, tex, { emissive: new THREE.Color('#ffffff'), emissiveMap: tex, emissiveIntensity: 0.25 });
@@ -747,7 +821,16 @@ const DETAILS = {
     // Flaques de pluie qui reflètent les néons
     const pud = new THREE.CircleGeometry(1, 20);
     pud.rotateX(-Math.PI / 2);
-    scatter(g, pud, new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.35, depthWrite: false }), 40, 1, ARENA_RADIUS - 1, rng, { y: 0.03, scale: [0.6, 2.2], flatY: 1, colors: ['#3a2a7a', '#1a4a8a', '#6a1a6a', '#1a6a7a'] });
+    const pudTex = canvasTexture(128, (c, sz) => {
+      // Flaque aux bords irréguliers et fondus
+      for (let i = 0; i < 6; i++) {
+        const x = sz / 2 + (Math.random() - 0.5) * sz * 0.35; const y = sz / 2 + (Math.random() - 0.5) * sz * 0.35; const r = sz * (0.18 + Math.random() * 0.15);
+        const gr = c.createRadialGradient(x, y, 0, x, y, r);
+        gr.addColorStop(0, 'rgba(255,255,255,0.9)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+        c.fillStyle = gr; c.fillRect(0, 0, sz, sz);
+      }
+    });
+    scatter(g, pud, new THREE.MeshBasicMaterial({ color: '#ffffff', map: pudTex, transparent: true, opacity: 0.5, depthWrite: false, blending: THREE.AdditiveBlending }), 28, 1, ARENA_RADIUS - 1, rng, { y: 0.03, scale: [0.4, 1.4], flatY: 1, colors: ['#3a1a6a', '#103a6a', '#5a1050', '#105a6a'] });
     scatter(g, new THREE.BoxGeometry(0.4, 0.05, 0.25), toonMat('#4a4a5a'), 60, 2, ARENA_RADIUS, rng, { y: 0.03, scale: [0.6, 1.4] });
   },
   glacier(g, rng) {
