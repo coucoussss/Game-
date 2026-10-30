@@ -47,12 +47,14 @@ export const CHARACTERS = [
     title: 'Guerrier à aura',
     blurb: 'Concentre son ki en sphères et en un rayon dévastateur. Se transforme pour décupler sa puissance.',
     hp: 950, speed: 6.6, weight: 1,
-    aura: '#6fc8ff', auraAlt: '#ffd23f',
+    aura: '#6fc8ff', auraAlt: '#9af6ff',
     stance: 'fists', aiRange: 2.2, aiZoning: 0.35,
+    // Design original : veste de tempête bleu nuit, pantalon blanc, écharpe rouge, cheveux argentés
+    // (transformation : cheveux cyan électrique)
     look: {
-      skin: '#f2c8a0', hair: '#1b1b2a', hairAlt: '#ffd84a', hairStyle: 'spiky', eyes: '#2a7bff',
-      top: '#ff7a1a', topAlt: '#2a4cff', pants: '#ff7a1a', belt: '#1d2bb0', boots: '#1d2bb0',
-      extras: ['wristbands', 'gi'], body: 'm', emblem: '武', emblemColor: '#1d2bb0',
+      skin: '#f2c8a0', hair: '#dfe6f2', hairAlt: '#7ff0ff', hairStyle: 'spiky', eyes: '#ffb030',
+      top: '#1f2d5c', topAlt: '#163a7a', pants: '#eceaf2', belt: '#c0262f', boots: '#15182a', accent: '#c0262f',
+      extras: ['wristbands', 'gi', 'scarf'], body: 'm', emblem: '嵐', emblemColor: '#ff4a3a',
     },
     moves: {
       light1: { name: 'Direct', anim: 'jab', dur: 0.3, cancel: 0.16, chain: 'light2', air: true, lunge: [[0, 0.1, 3]], actions: [hit(0.09, 30)] },
@@ -68,7 +70,7 @@ export const CHARACTERS = [
       },
       special: {
         name: 'Transformation', cost: 50, anim: 'powerup', dur: 1.05, invuln: [0, 1.05], alt: 'special2',
-        actions: [sfx(0.05, 'charge'), fx(0.03, 'powerupGather'), { t: 0.55, a: 'buff', buff: 'transform', dur: 16 }, { t: 0.55, a: 'ring', maxR: 4.5, speed: 22, dmg: 20, type: 'kd', fxColor: '#ffd23f' }],
+        actions: [sfx(0.05, 'charge'), fx(0.03, 'powerupGather'), { t: 0.55, a: 'buff', buff: 'transform', dur: 16 }, { t: 0.55, a: 'ring', maxR: 4.5, speed: 22, dmg: 20, type: 'kd', fxColor: '#9af6ff' }],
       },
       special2: {
         name: 'Super sphère de ki', cost: 35, anim: 'beam', dur: 0.8, cancel: 0.62,

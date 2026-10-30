@@ -195,6 +195,12 @@ export class UI {
     el.querySelector('.press').addEventListener('click', () => {
       this.app.audio.play('ui_start');
       this.app.input.menuActions(); // la touche qui a fermé l'écran titre ne valide pas aussi le menu
+      // Tout premier lancement : on joue tout de suite (combat guidé), les menus viendront après
+      const prof = this.app.profile;
+      if (!prof.data.tutorialDone && !(prof.data.stats && prof.data.stats.fights)) {
+        new Tutorial(this.app, 'kael').start();
+        return;
+      }
       this.mainMenu();
       // Lien d'invitation CrazyGames : rejoint directement le salon
       const room = parseCode(platform.inviteRoom());
@@ -233,6 +239,7 @@ export class UI {
     // Modes de jeu : une seule colonne, le Classé en tête ; le détail n'apparaît qu'au survol
     const modes = [
       { kanji: '級', label: 'Classé', hint: this.rankText(r), color: '#ffd23f', badge: dailyAvailable(r) ? '×2' : '', hero: true, action: () => this.rankedMenu() },
+      { kanji: '速', label: 'Combat rapide', hint: 'un combat tout de suite, adversaire au hasard', color: '#ff5a3a', action: () => this.quickPlay() },
       { kanji: '物', label: 'Mode Histoire', hint: `${done} / ${CHAPTERS.length} chapitres`, color: '#ff8a3a', action: () => this.storyMenu() },
       { kanji: '波', label: 'Mode Vagues', hint: `niveau ${Math.min(WAVE_LEVELS, prof.levelUnlocked())} / ${WAVE_LEVELS}`, color: '#ff3a5a', action: () => this.wavesMenu() },
       { kanji: '塔', label: 'Défis du jour', hint: `boss du jour · la Tour (étage ${live.tower.floor})`, color: '#7fd8ff', badge: live.boss.day !== dayIndexNow() || !live.boss.won ? 'BOSS' : '', action: () => this.challengeHub() },
@@ -333,6 +340,22 @@ export class UI {
       this.loginPopupDay = dayIndexNow();
       setTimeout(() => { if (this.screen && this.screen.el === el) this.loginScreen(true); }, 500);
     }
+  }
+
+  /** Combat rapide : ton combattant favori contre un adversaire et une arène au hasard. */
+  quickPlay() {
+    const prof = this.app.profile;
+    const mine = prof.playableIds();
+    const me = mine.includes(this.avatarOf()) ? this.avatarOf() : mine[0] || 'kael';
+    const pool = CHARACTERS.filter((c) => !c.monster && c.id !== me).map((c) => c.id);
+    const diff = this.app.settings.data.game.difficulty;
+    this.app.startBattle({
+      role: 'local', arena: randomArena(), difficulty: diff,
+      fighters: [
+        { charId: me, team: 0, ctrl: { type: 'human', player: 0 }, mods: prof.modsFor(me) },
+        { charId: randomOf(pool), team: 1, ctrl: { type: 'cpu', level: diff } },
+      ],
+    });
   }
 
   /** Titre affiché : celui choisi parmi les titres gagnés, sinon le titre de rang. */

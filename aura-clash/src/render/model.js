@@ -1047,7 +1047,7 @@ export class CharacterModel {
       for (const m of this.hairMats) {
         if (m !== this.hairMats[0] && !m.userData.hairMain) continue;
         m.color.copy(c);
-        m.userData.baseEmissive = new THREE.Color(on ? '#8a6a00' : '#000000');
+        m.userData.baseEmissive = new THREE.Color(on ? '#006a8a' : '#000000');
       }
       this.lastFlash = -1;
     }

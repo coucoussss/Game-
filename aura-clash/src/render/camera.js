@@ -77,8 +77,11 @@ export class CameraRig {
     const sl = Math.hypot(this.side.x, this.side.z) || 1;
     this.side.x /= sl; this.side.z /= sl;
 
-    const dist = Math.min(30, Math.max(8.5, 6 + spread * 0.85));
-    const height = 2.6 + spread * 0.18 + cy * 0.5;
+    // Plus près de l'action ; en format portrait, on recule pour garder les deux combattants
+    const asp = this.camera.aspect || 1.6;
+    const fit = asp < 1.2 ? Math.min(2, 1.2 / asp) : 1;
+    const dist = Math.min(30, Math.max(6.2, 4.4 + spread * 0.74 * fit));
+    const height = 2.2 + spread * 0.16 + cy * 0.5;
     const wantPos = new THREE.Vector3(cx + this.side.x * dist, height, cz + this.side.z * dist);
     const wantLook = new THREE.Vector3(cx, 1.1 + cy * 0.6, cz);
     let wantFov = opts.fov || 50;
