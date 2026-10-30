@@ -58,7 +58,21 @@ function flameMaterial(style, color, seed, layer) {
       uTongues: { value: style.tongues + layer * 2 }, uSpeed: { value: style.speed * (1 + layer * 0.25) },
       uSoft: { value: style.soft }, uLayer: { value: layer },
     },
-    vertexShader: FLAME_VERT,
+    // Silhouette ondulante et effilée vers le haut : la coque ne se lit plus comme un cylindre
+    vertexShader: /* glsl */`
+      uniform float uTime, uSeed, uSpeed, uInt;
+      varying vec2 vUv; varying vec3 vN; varying vec3 vV;
+      void main() {
+        vUv = uv;
+        float a = uv.x * 6.2831853;
+        float wob = sin(a * 3.0 + uv.y * 7.0 - uTime * uSpeed * 1.3 + uSeed) * 0.5 + sin(a * 5.0 - uv.y * 4.0 + uTime * 2.1) * 0.5;
+        float k = (1.0 + wob * 0.12 * uv.y) * mix(1.0, 0.45, smoothstep(0.2, 1.0, uv.y)) * (0.92 + 0.08 * uInt);
+        vec3 p = vec3(position.x * k, position.y, position.z * k);
+        vec4 mv = modelViewMatrix * vec4(p, 1.0);
+        vN = normalize(normalMatrix * normal);
+        vV = normalize(-mv.xyz);
+        gl_Position = projectionMatrix * mv;
+      }`,
     fragmentShader: /* glsl */`
       uniform float uTime, uInt, uSeed, uTongues, uSpeed, uSoft, uLayer;
       uniform vec3 uColor, uCore, uDark;
@@ -79,7 +93,7 @@ function flameMaterial(style, color, seed, layer) {
         float core = smoothstep(0.55, 0.55 + uSoft, shape);
         float rim = 1.0 - abs(dot(vN, vV));
         // Bords de la coque adoucis : sinon le cylindre se lit comme un tube de verre aux faibles intensités
-        float vis = body * (0.07 + pow(rim, 1.4) * 1.2) * (1.0 - smoothstep(0.8, 1.0, rim)) * smoothstep(0.0, 0.05, y) * clamp(uInt * 1.6, 0.0, 1.0);
+        float vis = body * (0.025 + pow(rim, 1.6) * 1.25) * (1.0 - smoothstep(0.8, 1.0, rim)) * smoothstep(0.0, 0.05, y) * clamp(uInt * 1.6, 0.0, 1.0);
         vec3 col = mix(uColor, uCore, core * (1.0 - uLayer * 0.4));
         ${normal
     ? 'col = mix(uDark, col, 0.25 + core * 0.75); gl_FragColor = vec4(col, vis * 0.85);'

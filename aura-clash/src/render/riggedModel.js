@@ -334,8 +334,10 @@ export class RiggedModel {
           const color = src.map ? new THREE.Color('#ffffff') : (src.color ? src.color.clone() : new THREE.Color('#cccccc'));
           // Légère lumière propre (texture en émission) : les personnages restent lisibles dans les arènes de nuit
           m = animeMat(color, {
-            map: src.map || null, emissiveMap: src.map || null, emissive: new THREE.Color(src.map ? '#4a4a4a' : '#000000'),
+            map: src.map || null, emissiveMap: src.map || null, emissive: new THREE.Color(src.map ? '#5a5a5a' : '#000000'),
             transparent: !!src.transparent, alphaTest: src.alphaTest || 0, side: src.side,
+            // Modèles texturés : pas de trame manga (elle salit les aplats), un liseré de contre-jour à la place
+            tone: false, rim: 0.4, rimLight: 0.22,
           });
           if (m.map) m.map.colorSpace = THREE.SRGBColorSpace;
           if (tint) recolor(m, tint);

@@ -148,7 +148,7 @@ class App {
           m.f.mt = 0;
         }
       }
-      m.model.update(dt, m.f, { auraBoost: this.backdrop.mode === 'select' ? 0.6 : 0.12 });
+      m.model.update(dt, m.f, { auraBoost: this.backdrop.mode === 'select' ? 0.4 : 0.12 });
     }
     this.stage.rig.update(dt, this.backdrop.models.map((m) => ({ ...m.f, team: 0, alive: true })));
   }

@@ -160,7 +160,7 @@ function stepGradient(key, values) {
   return t;
 }
 
-export function animeMat(color, { face = false, rim = 0.32, ...extra } = {}) {
+export function animeMat(color, { face = false, rim = 0.32, tone = true, rimLight = 0, ...extra } = {}) {
   const { flatShading, ...rest } = extra;
   const m = new THREE.MeshToonMaterial({
     color: new THREE.Color(color),
@@ -173,7 +173,8 @@ export function animeMat(color, { face = false, rim = 0.32, ...extra } = {}) {
     shader.fragmentShader = shader.fragmentShader.replace(marker, `
       float rimF = 1.0 - abs(dot(normalize(normal), normalize(vViewPosition)));
       outgoingLight += diffuseColor.rgb * ${k} * smoothstep(0.6, 0.7, rimF);
-      ${face ? '' : `
+      ${rimLight ? `outgoingLight += vec3(1.0, 0.95, 0.9) * ${rimLight.toFixed(3)} * smoothstep(0.72, 0.85, rimF); // liseré de contre-jour` : ''}
+      ${face || !tone ? '' : `
       #if NUM_DIR_LIGHTS > 0
         // Trame manga : points réguliers (grille à 45°) dans les zones à l'ombre
         float ndl = dot(normalize(normal), directionalLights[0].direction);
@@ -185,6 +186,6 @@ export function animeMat(color, { face = false, rim = 0.32, ...extra } = {}) {
       #endif`}
       ${marker}`);
   };
-  m.customProgramCacheKey = () => `anime-${k}-${face ? 1 : 0}`;
+  m.customProgramCacheKey = () => `anime-${k}-${face ? 1 : 0}-${tone ? 1 : 0}-${rimLight}`;
   return m;
 }
