@@ -280,10 +280,9 @@ export class RiggedModel {
       shL: bone('LeftArm'), shR: bone('RightArm'), handL: bone('LeftHand'), handR: bone('RightHand'),
       footL: bone('LeftToeBase') || bone('LeftFoot'), footR: bone('RightToeBase') || bone('RightFoot'),
     };
-    // Mise à l'échelle : la base du crâne à la même hauteur que celle du modèle dessiné
-    const headY = this.bones.head.getWorldPosition(new THREE.Vector3()).y;
+    // Mise à l'échelle : même taille que le modèle dessiné (sommet du crâne, sans les mèches dressées)
     const box = new THREE.Box3().setFromObject(this.rig);
-    const s = donorHead.y / Math.max(1e-4, headY);
+    const s = (donorHead.y + 0.3) / Math.max(1e-4, box.max.y - box.min.y);
     this.rig.scale.multiplyScalar(s);
     this.rig.position.y -= box.min.y * s; // pieds au sol
     this.rig.updateMatrixWorld(true);

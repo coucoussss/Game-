@@ -10,7 +10,7 @@
 //
 // Usage : node scripts/models.mjs [--tex 1024]
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -48,9 +48,27 @@ async function readSource(file) {
   return io.read(out);
 }
 
-/** « mixamorig:Hips », « mixamorig1:Hips » ou « mixamorigHips » → « Hips ». */
+// Noms d'os des autres squelettes courants (KayKit, Blender « rigify » simplifié) → noms Mixamo
+const BONE_ALIASES = {
+  hips: 'Hips', spine: 'Spine', chest: 'Spine2', neck: 'Neck', head: 'Head',
+  'upperarm.l': 'LeftArm', 'lowerarm.l': 'LeftForeArm', 'hand.l': 'LeftHand',
+  'upperarm.r': 'RightArm', 'lowerarm.r': 'RightForeArm', 'hand.r': 'RightHand',
+  'upperleg.l': 'LeftUpLeg', 'lowerleg.l': 'LeftLeg', 'foot.l': 'LeftFoot', 'toes.l': 'LeftToeBase',
+  'upperleg.r': 'RightUpLeg', 'lowerleg.r': 'RightLeg', 'foot.r': 'RightFoot', 'toes.r': 'RightToeBase',
+};
+
+/** « mixamorig:Hips », « mixamorig1:Hips », « mixamorigHips » ou « hips » → « Hips ». */
 function cleanBoneNames(doc) {
-  for (const n of doc.getRoot().listNodes()) n.setName(n.getName().replace(/^mixamorig\d*[:_]?/, ''));
+  for (const n of doc.getRoot().listNodes()) {
+    const name = n.getName().replace(/^mixamorig\d*[:_]?/, '');
+    n.setName(BONE_ALIASES[name] || name);
+  }
+}
+
+/** Réglages facultatifs d'un dossier (config.json) : { remove: [noms de nœuds à supprimer] }. */
+function configOf(folder) {
+  const f = join(folder, 'config.json');
+  return existsSync(f) ? JSON.parse(readFileSync(f, 'utf8')) : {};
 }
 
 async function buildCharacter(id) {
@@ -61,6 +79,13 @@ async function buildCharacter(id) {
   const doc = await readSource(src);
   cleanBoneNames(doc);
   for (const a of doc.getRoot().listAnimations()) a.dispose(); // les animations viennent de anims.glb
+  // Pièces inutiles (armes et boucliers d'origine : le jeu accroche les siennes)
+  const { remove = [] } = configOf(folder);
+  for (const n of doc.getRoot().listNodes()) {
+    if (!remove.includes(n.getName())) continue;
+    n.traverse((c) => { const m = c.getMesh(); if (m) m.dispose(); });
+    n.dispose();
+  }
   await doc.transform(
     weld(),
     dedup(),
@@ -81,23 +106,39 @@ async function buildAnims() {
   if (!files.length) return existsSync(join(ANIM_DIR, 'anims.glb')) ? ['(déjà prêtes)'] : [];
   const out = new (await import('@gltf-transform/core')).Document();
   out.createBuffer();
+  // clips.json : { "<nom dans le jeu>": "<nom du clip dans une bibliothèque .glb>" } ; sinon un clip par fichier
+  const map = existsSync(join(ANIM_DIR, 'clips.json')) ? JSON.parse(readFileSync(join(ANIM_DIR, 'clips.json'), 'utf8')) : null;
   const names = [];
   for (const f of files.sort()) {
-    const name = basename(f, extname(f));
     const doc = await readSource(join(ANIM_DIR, f));
     cleanBoneNames(doc);
     const anims = doc.getRoot().listAnimations().filter((a) => a.listChannels().length);
     if (!anims.length) { console.warn(`  ${f} : aucune animation, ignoré`); continue; }
-    // On ne garde que les rotations (+ la translation du bassin) : les proportions des personnages diffèrent
-    const a = anims[0];
-    for (const ch of a.listChannels()) {
-      const path = ch.getTargetPath();
-      const node = ch.getTargetNode();
-      if (path === 'rotation' || (path === 'translation' && node && node.getName() === 'Hips')) continue;
-      ch.getSampler().dispose();
-      ch.dispose();
+    const kept = [];
+    for (const a of anims) {
+      const ours = map ? Object.keys(map).filter((k) => map[k] === a.getName()) : [];
+      if (map && ours.length) { a.setName(ours[0]); kept.push(a); } else if (!map && a === anims[0]) { a.setName(basename(f, extname(f))); kept.push(a); } else a.dispose();
+      // Un même clip sous plusieurs noms : copie des canaux
+      for (const extra of ours.slice(1)) {
+        const c = doc.createAnimation(extra);
+        for (const ch of a.listChannels()) {
+          const smp = doc.createAnimationSampler().setInput(ch.getSampler().getInput()).setOutput(ch.getSampler().getOutput()).setInterpolation(ch.getSampler().getInterpolation());
+          c.addSampler(smp).addChannel(doc.createAnimationChannel().setTargetNode(ch.getTargetNode()).setTargetPath(ch.getTargetPath()).setSampler(smp));
+        }
+        kept.push(c);
+      }
     }
-    a.setName(name);
+    // On ne garde que les rotations (+ la translation du bassin) : les proportions des personnages diffèrent
+    for (const a of kept) {
+      for (const ch of a.listChannels()) {
+        const path = ch.getTargetPath();
+        const node = ch.getTargetNode();
+        if (path === 'rotation' || (path === 'translation' && node && node.getName() === 'Hips')) continue;
+        ch.getSampler().dispose();
+        ch.dispose();
+      }
+      names.push(a.getName());
+    }
     for (const m of doc.getRoot().listMeshes()) m.dispose();
     for (const s of doc.getRoot().listSkins()) s.dispose();
     for (const t of doc.getRoot().listTextures()) t.dispose();
@@ -105,7 +146,6 @@ async function buildAnims() {
     const { mergeDocuments, unpartition } = await import('@gltf-transform/functions');
     mergeDocuments(out, doc);
     await out.transform(unpartition());
-    names.push(name);
   }
   await out.transform(
     resample({ tolerance: 1e-4 }),
