@@ -4,6 +4,23 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+
+// Étalonnage final : couleurs un peu plus saturées et contrastées, vignette douce (look « anime »)
+const GradeShader = {
+  uniforms: { tDiffuse: { value: null }, uSat: { value: 1.14 }, uContrast: { value: 1.06 }, uVignette: { value: 0.32 } },
+  vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: `uniform sampler2D tDiffuse; uniform float uSat; uniform float uContrast; uniform float uVignette; varying vec2 vUv;
+    void main() {
+      vec4 c = texture2D(tDiffuse, vUv);
+      float l = dot(c.rgb, vec3(0.2126, 0.7152, 0.0722));
+      vec3 col = mix(vec3(l), c.rgb, uSat);
+      col = (col - 0.18) * uContrast + 0.18;
+      vec2 d = vUv - 0.5;
+      col *= 1.0 - uVignette * smoothstep(0.35, 0.85, length(d * vec2(1.15, 1.0)));
+      gl_FragColor = vec4(max(col, 0.0), c.a);
+    }`,
+};
 import { buildArena } from './arenas.js';
 import { Particles, Effects } from './fx.js';
 import { CameraRig } from './camera.js';
@@ -39,6 +56,8 @@ export class Stage {
     this.composer.addPass(new RenderPass(this.scene, this.camera));
     this.bloom = new UnrealBloomPass(new THREE.Vector2(512, 512), 0.55, 0.4, 0.92);
     this.composer.addPass(this.bloom);
+    this.grade = new ShaderPass(GradeShader);
+    this.composer.addPass(this.grade);
     this.composer.addPass(new OutputPass());
 
     this.arena = null;

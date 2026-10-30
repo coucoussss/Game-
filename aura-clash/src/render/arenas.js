@@ -106,7 +106,7 @@ function ringPlacement(n, r0, r1, rng, fn) {
 
 function buildCliffs(g, rng) {
   const tex = canvasTexture(512, (c, s) => {
-    c.fillStyle = '#6fae4f'; c.fillRect(0, 0, s, s);
+    c.fillStyle = '#5f9c46'; c.fillRect(0, 0, s, s);
     for (let i = 0; i < 2500; i++) {
       c.fillStyle = ['#5f9e43', '#7fbf5a', '#689f4a', '#8ccc66'][i % 4];
       c.fillRect(Math.random() * s, Math.random() * s, 3 + Math.random() * 5, 2 + Math.random() * 3);
@@ -472,11 +472,101 @@ function buildVolcano(g, rng) {
 
 const BUILDERS = { cliffs: buildCliffs, temple: buildTemple, neon: buildNeon, glacier: buildGlacier, volcano: buildVolcano };
 
+// --- Détails du sol (instanciés : des milliers d'éléments pour un seul appel de rendu) -------------
+
+/** Touffe d'herbe : trois brins croisés, sombres à la base et clairs à la pointe. */
+function tuftGeo(base, tip) {
+  const pos = [];
+  const col = [];
+  const cb = new THREE.Color(base);
+  const ct = new THREE.Color(tip);
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI;
+    const dx = Math.cos(a) * 0.06;
+    const dz = Math.sin(a) * 0.06;
+    const lean = (i - 1) * 0.05;
+    pos.push(-dx, 0, -dz, dx, 0, dz, lean, 0.32 + i * 0.04, lean * 0.5);
+    col.push(cb.r, cb.g, cb.b, cb.r, cb.g, cb.b, ct.r, ct.g, ct.b);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.computeVertexNormals();
+  return g;
+}
+
+/**
+ * Sème `n` copies d'une forme entre les rayons r0 et r1 (en évitant de trop charger le centre).
+ * opts : scale [min, max], y, tilt (inclinaison aléatoire), colors (teintes par copie), center (part au centre).
+ */
+function scatter(g, geo, mat, n, r0, r1, rng, opts = {}) {
+  const mesh = new THREE.InstancedMesh(geo, mat, n);
+  const d = new THREE.Object3D();
+  const [s0, s1] = opts.scale || [0.8, 1.3];
+  const c = new THREE.Color();
+  for (let i = 0; i < n; i++) {
+    const a = rng() * Math.PI * 2;
+    // Distribution plus dense vers les bords (le centre reste lisible pour le combat)
+    const r = r0 + Math.sqrt(rng()) * (r1 - r0);
+    d.position.set(Math.sin(a) * r, opts.y || 0, Math.cos(a) * r);
+    const t = opts.tilt || 0;
+    d.rotation.set((rng() - 0.5) * t, rng() * Math.PI * 2, (rng() - 0.5) * t);
+    d.scale.setScalar(s0 + rng() * (s1 - s0));
+    if (opts.flatY) d.scale.y *= opts.flatY;
+    d.updateMatrix();
+    mesh.setMatrixAt(i, d.matrix);
+    if (opts.colors) mesh.setColorAt(i, c.set(opts.colors[Math.floor(rng() * opts.colors.length)]));
+  }
+  mesh.receiveShadow = !!opts.receive;
+  mesh.castShadow = false;
+  g.add(mesh);
+  return mesh;
+}
+
+const DETAILS = {
+  cliffs(g, rng) {
+    const grass = toonMat('#ffffff', { vertexColors: true, side: THREE.DoubleSide });
+    scatter(g, tuftGeo('#3f7a32', '#9ad86a'), grass, 2600, 2, ARENA_RADIUS + 12, rng, { scale: [0.7, 1.6] });
+    scatter(g, tuftGeo('#4a8a3a', '#c8f080'), grass, 900, ARENA_RADIUS - 2, ARENA_RADIUS + 12, rng, { scale: [1.4, 2.4] });
+    // Fleurs des champs
+    scatter(g, new THREE.SphereGeometry(0.06, 6, 4), toonMat('#ffffff'), 420, 4, ARENA_RADIUS + 10, rng, { y: 0.22, scale: [0.8, 1.4], colors: ['#ffe14a', '#ffffff', '#ff8ac8', '#b48aff', '#ff7a4a'] });
+    scatter(g, new THREE.DodecahedronGeometry(0.18, 0), toonMat('#9a8a78', { flatShading: true }), 90, 3, ARENA_RADIUS + 8, rng, { scale: [0.5, 1.6], tilt: 1, flatY: 0.6, colors: ['#9a8a78', '#7a6e62', '#b0a08c'] });
+  },
+  temple(g, rng) {
+    // Pétales de cerisier tombés au sol
+    const petal = new THREE.CircleGeometry(0.07, 5);
+    petal.rotateX(-Math.PI / 2);
+    scatter(g, petal, toonMat('#ffffff', { side: THREE.DoubleSide }), 1400, 0, ARENA_RADIUS + 10, rng, { y: 0.025, scale: [0.6, 1.4], colors: ['#ffc0d8', '#ff9ac0', '#ffe0ec', '#f0a0c8'] });
+    const grass = toonMat('#ffffff', { vertexColors: true, side: THREE.DoubleSide });
+    scatter(g, tuftGeo('#3a5a3a', '#8ab070'), grass, 700, ARENA_RADIUS - 1, ARENA_RADIUS + 12, rng, { scale: [0.8, 1.8] });
+    scatter(g, new THREE.DodecahedronGeometry(0.15, 0), toonMat('#8a8090', { flatShading: true }), 70, 2, ARENA_RADIUS + 6, rng, { scale: [0.5, 1.4], tilt: 1, flatY: 0.5 });
+  },
+  neon(g, rng) {
+    // Flaques de pluie qui reflètent les néons
+    const pud = new THREE.CircleGeometry(1, 20);
+    pud.rotateX(-Math.PI / 2);
+    scatter(g, pud, new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.35, depthWrite: false }), 40, 1, ARENA_RADIUS - 1, rng, { y: 0.03, scale: [0.6, 2.2], flatY: 1, colors: ['#3a2a7a', '#1a4a8a', '#6a1a6a', '#1a6a7a'] });
+    scatter(g, new THREE.BoxGeometry(0.4, 0.05, 0.25), toonMat('#4a4a5a'), 60, 2, ARENA_RADIUS, rng, { y: 0.03, scale: [0.6, 1.4] });
+  },
+  glacier(g, rng) {
+    const ice = toonMat('#cfefff', { flatShading: true, transparent: true, opacity: 0.92 });
+    scatter(g, new THREE.ConeGeometry(0.12, 0.6, 5), ice, 220, ARENA_RADIUS - 4, ARENA_RADIUS + 12, rng, { y: 0.2, scale: [0.6, 2.2], tilt: 0.6 });
+    const mound = new THREE.SphereGeometry(0.6, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2);
+    scatter(g, mound, toonMat('#f4fbff'), 90, 3, ARENA_RADIUS + 10, rng, { scale: [0.5, 1.8], flatY: 0.35 });
+    scatter(g, new THREE.OctahedronGeometry(0.08, 0), glowMat('#bff4ff', 1.2), 160, 2, ARENA_RADIUS + 6, rng, { y: 0.06, scale: [0.6, 1.5] });
+  },
+  volcano(g, rng) {
+    scatter(g, new THREE.DodecahedronGeometry(0.22, 0), toonMat('#2a1e22', { flatShading: true }), 200, 2, ARENA_RADIUS + 2, rng, { scale: [0.4, 1.8], tilt: 1, flatY: 0.55, colors: ['#2a1e22', '#3a2a2a', '#1e1418'] });
+    scatter(g, new THREE.OctahedronGeometry(0.06, 0), glowMat('#ff7a1a', 2), 260, 1, ARENA_RADIUS + 2, rng, { y: 0.04, scale: [0.5, 1.6] });
+  },
+};
+
 /** Construit une arène complète (décor + ciel + lumières). */
 export function buildArena(id) {
   const group = new THREE.Group();
   const rng = seeded(id.length * 7919 + id.charCodeAt(0));
   const info = (BUILDERS[id] || buildCliffs)(group, rng);
+  if (DETAILS[id]) DETAILS[id](group, rng);
   group.add(info.sky);
   return { id, group, radius: ARENA_RADIUS, ...info };
 }

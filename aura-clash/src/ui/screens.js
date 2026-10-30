@@ -198,7 +198,7 @@ export class UI {
       // Tout premier lancement : on joue tout de suite (combat guidé), les menus viendront après
       const prof = this.app.profile;
       if (!prof.data.tutorialDone && !(prof.data.stats && prof.data.stats.fights)) {
-        new Tutorial(this.app, 'kael').start();
+        new Tutorial(this.app, 'kael', { short: true }).start();
         return;
       }
       this.mainMenu();

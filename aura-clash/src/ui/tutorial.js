@@ -5,6 +5,8 @@ import { MAX_ENERGY } from '../game/constants.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export const TUTORIAL_REWARD = 300;
+/** Étapes du premier lancement : le minimum pour s'amuser tout de suite. */
+const SHORT = ['Se déplacer', 'Enchaînement léger', 'Attaque lourde', 'Ultime'];
 
 /**
  * Étapes. `dummy` : comportement du mannequin ; `setup(match, me)` : préparation ;
@@ -72,9 +74,12 @@ const STEPS = [
 ];
 
 export class Tutorial {
-  constructor(app, charId) {
+  /** opts.short : premier lancement, 4 étapes essentielles puis un vrai combat facile. */
+  constructor(app, charId, opts = {}) {
     this.app = app;
     this.charId = charId;
+    this.short = !!opts.short;
+    this.steps = this.short ? STEPS.filter((s) => SHORT.includes(s.title)) : STEPS;
     this.i = 0;
     this.st = {};
     this.doneT = 0;
@@ -111,8 +116,8 @@ export class Tutorial {
     this.st = {};
     const b = this.app.battle;
     if (!b) return;
-    if (i >= STEPS.length) { this.finish(); return; }
-    const step = STEPS[i];
+    if (i >= this.steps.length) { this.finish(); return; }
+    const step = this.steps[i];
     b.setDummyMode(step.dummy || 'stand');
     const me = b.match.fighters[0];
     if (step.setup) step.setup(b.match, me);
@@ -120,27 +125,27 @@ export class Tutorial {
   }
 
   render(done) {
-    const step = STEPS[this.i];
+    const step = this.steps[this.i];
     const k = (a) => this.key(a);
     this.el.className = `tuto-panel ${done ? 'done' : ''}`;
-    this.el.innerHTML = `<div class="tuto-step">TUTORIEL — ÉTAPE ${this.i + 1} / ${STEPS.length}</div>
+    this.el.innerHTML = `<div class="tuto-step">TUTORIEL — ÉTAPE ${this.i + 1} / ${this.steps.length}</div>
       <div class="tuto-title">${done ? '✔ ' : ''}${esc(step.title)}</div>
       <div class="tuto-text">${step.text(k)}</div>
       ${step.note ? `<div class="tuto-note">${esc(step.note)}</div>` : ''}
-      <div class="tuto-bar">${STEPS.map((_, j) => `<i class="${j < this.i || (done && j === this.i) ? 'ok' : j === this.i ? 'cur' : ''}"></i>`).join('')}</div>
+      <div class="tuto-bar">${this.steps.map((_, j) => `<i class="${j < this.i || (done && j === this.i) ? 'ok' : j === this.i ? 'cur' : ''}"></i>`).join('')}</div>
       <div class="tuto-hint">Échap : options et sortie du tutoriel</div>`;
   }
 
   /** Appelé par le combat à chaque image, avec les événements de la simulation. */
   update(dt, events, match) {
-    if (this.finished || this.i >= STEPS.length) return;
+    if (this.finished || this.i >= this.steps.length) return;
     if (this.doneT > 0) {
       this.doneT -= dt;
       if (this.doneT <= 0) this.enter(this.i + 1);
       return;
     }
     const me = match.fighters[0];
-    if (STEPS[this.i].check({ me, match, ev: events, st: this.st })) {
+    if (this.steps[this.i].check({ me, match, ev: events, st: this.st })) {
       this.doneT = 1.1;
       this.render(true);
       this.app.audio.play('roundWin');
@@ -154,11 +159,25 @@ export class Tutorial {
     const first = !prof.data.tutorialDone;
     if (first) { prof.data.tutorialDone = true; prof.earn(TUTORIAL_REWARD); }
     this.el.className = 'tuto-panel done';
-    this.el.innerHTML = `<div class="tuto-title">TUTORIEL TERMINÉ !</div>
+    this.el.innerHTML = this.short
+      ? `<div class="tuto-title">PRÊT AU COMBAT !</div><div class="tuto-text">Premier vrai combat : bats ton adversaire !${first ? ` <b>+${TUTORIAL_REWARD} Ryō</b>` : ''}</div>`
+      : `<div class="tuto-title">TUTORIEL TERMINÉ !</div>
       <div class="tuto-text">Tu maîtrises les bases.${first ? ` <b>+${TUTORIAL_REWARD} Ryō</b>` : ''}</div>`;
     app.audio.play('transform');
     setTimeout(() => {
       if (app.tutorial !== this) return;
+      if (this.short) {
+        // Enchaîne sur un vrai combat facile (les autres techniques s'apprennent dans « Tutoriel »)
+        this.dispose();
+        app.startBattle({
+          role: 'local', arena: 'cliffs',
+          fighters: [
+            { charId: this.charId, team: 0, ctrl: { type: 'human', player: 0 } },
+            { charId: 'kage', team: 1, ctrl: { type: 'cpu', level: 'easy' } },
+          ],
+        });
+        return;
+      }
       app.endBattle();
     }, 2600);
   }
