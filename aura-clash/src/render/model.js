@@ -2,6 +2,7 @@
 // procédurale : squelette de groupes (hanches → torse → tête, épaules → coudes…), poses-clés
 // interpolées, et chaînes à ressort pour les cheveux et les vêtements (écharpe, cape, jupe…).
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { toonMat, toonPart, toonPartSmooth, glowMat, animeMat, GLSL_NOISE } from './toon.js';
 import { limbGeo, flareGeo, torsoGeo, headGeo, faceZ, shoeGeo, faceGeo, lockGeo, deformHead } from './anatomy.js';
 import { faceTexture, emblemTexture } from './face.js';
@@ -347,11 +348,17 @@ export class CharacterModel {
   }
 
   /** Main en poing : paume, doigts repliés, pouce. */
+  /** Poing fermé : paume arrondie, quatre doigts repliés, pouce, jointures. */
   buildHand(hand, skin, side, b) {
-    this.part(new THREE.BoxGeometry(0.085 * b, 0.075 * b, 0.07 * b), skin, hand, [0, -0.01, 0], null, 0.01);
-    this.part(new THREE.BoxGeometry(0.088 * b, 0.05 * b, 0.075 * b), skin, hand, [0, -0.06, 0.012], [0.3, 0, 0], 0.01);
-    this.part(new THREE.BoxGeometry(0.028 * b, 0.06 * b, 0.032 * b), skin, hand, [side * -0.04 * b, -0.03, 0.035], [0, 0, side * 0.4], 0.008);
+    this.part(new RoundedBoxGeometry(0.085 * b, 0.08 * b, 0.065 * b, 3, 0.022 * b), skin, hand, [0, -0.01, 0], null, 0.01);
+    for (let i = 0; i < 4; i++) {
+      const x = (-0.03 + i * 0.02) * b;
+      const f = this.part(new THREE.CapsuleGeometry(0.0115 * b, 0.034 * b, 4, 8), skin, hand, [x, -0.055 * b, 0.022 * b], [Math.PI / 2 - 0.2, 0, 0], 0.006);
+      f.scale.set(1, 1, 1);
+    }
+    this.part(new THREE.CapsuleGeometry(0.012 * b, 0.035 * b, 4, 8), skin, hand, [side * -0.046 * b, -0.03 * b, 0.026 * b], [0.3, 0, side * 0.9], 0.006);
   }
+
 
   buildFace(head, L) {
     const R = 0.2;
@@ -1019,7 +1026,7 @@ export class CharacterModel {
       if (i > 0) pv.position.y = -o.len;
       p.add(pv);
       const w = o.w * (1 - (i / o.segs) * 0.35);
-      this.part(new THREE.BoxGeometry(w, o.len, o.t), o.mat, pv, [0, -o.len / 2, 0], null, 0.012);
+      this.part(new RoundedBoxGeometry(w, o.len * 1.04, o.t, 2, Math.min(o.t, w) * 0.45), o.mat, pv, [0, -o.len / 2, 0], null, 0.012);
       pivots.push({ g: pv, ax: o.rest[0], az: o.rest[1], vx: 0, vz: 0 });
       p = pv;
     }
