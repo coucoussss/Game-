@@ -206,66 +206,79 @@ function pagoda(tiers, w, wood, roof, glow) {
 }
 
 function buildTemple(g, rng) {
-  // Dalles de pierre irrégulières, joints sombres, mousse et un sceau doré gravé au centre
-  const tex = canvasTexture(1024, (c, s) => {
-    c.fillStyle = '#4a405a'; c.fillRect(0, 0, s, s);
-    const n = 26;
-    const cell = s / n;
-    for (let y = 0; y < n; y++) {
-      const off = (y % 2) * cell * 0.5;
-      for (let x = -1; x < n; x++) {
-        const w = cell * (Math.random() < 0.3 ? 1.5 : 1);
-        const px = x * cell + off;
-        const v = Math.random();
-        const r = 112 + v * 34, gg = 104 + v * 30, b = 128 + v * 30;
-        c.fillStyle = `rgb(${r | 0},${gg | 0},${b | 0})`;
-        c.fillRect(px + 2, y * cell + 2, w - 4, cell - 4);
-        // Arête éclairée en haut, ombre en bas
-        c.fillStyle = 'rgba(255,240,255,0.12)'; c.fillRect(px + 3, y * cell + 3, w - 6, 3);
-        c.fillStyle = 'rgba(20,10,30,0.25)'; c.fillRect(px + 3, y * cell + cell - 6, w - 6, 3);
-        // Grain de la pierre
-        for (let k = 0; k < 14; k++) {
-          c.fillStyle = Math.random() < 0.5 ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.08)';
-          c.fillRect(px + 4 + Math.random() * (w - 10), y * cell + 4 + Math.random() * (cell - 10), 2 + Math.random() * 6, 2 + Math.random() * 3);
-        }
-        // Fissures
-        if (Math.random() < 0.15) {
-          c.strokeStyle = 'rgba(30,20,40,0.5)'; c.lineWidth = 1.5;
-          c.beginPath(); let cx = px + w * Math.random(), cy = y * cell + 4; c.moveTo(cx, cy);
-          for (let k = 0; k < 4; k++) { cx += (Math.random() - 0.5) * 18; cy += cell / 5; c.lineTo(cx, cy); }
-          c.stroke();
-        }
-      }
-    }
-    // Mousse dans les joints, plus dense vers l'extérieur
-    for (let i = 0; i < 260; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const d = s * (0.18 + Math.sqrt(Math.random()) * 0.32);
-      c.fillStyle = `rgba(${70 + Math.random() * 30},${110 + Math.random() * 40},${70},${0.25 + Math.random() * 0.3})`;
-      c.beginPath(); c.ellipse(s / 2 + Math.cos(a) * d, s / 2 + Math.sin(a) * d, 4 + Math.random() * 14, 2 + Math.random() * 6, Math.random() * 3, 0, Math.PI * 2); c.fill();
-    }
-    // Sceau central : double cercle doré et huit rayons
+  // Parvis pavé en anneaux concentriques : pierres claires et chaudes, joints fins, centre usé et lumineux
+  const FLOOR_R = ARENA_RADIUS + 1.4;
+  const tex = canvasTexture(2048, (c, s) => {
     const cx = s / 2;
-    c.strokeStyle = 'rgba(40,24,40,0.55)'; c.lineWidth = 14;
-    c.beginPath(); c.arc(cx, cx, s * 0.155, 0, Math.PI * 2); c.stroke();
-    c.strokeStyle = 'rgba(232,190,90,0.6)'; c.lineWidth = 5;
-    c.beginPath(); c.arc(cx, cx, s * 0.155, 0, Math.PI * 2); c.stroke();
-    c.lineWidth = 2.5;
-    c.beginPath(); c.arc(cx, cx, s * 0.135, 0, Math.PI * 2); c.stroke();
-    c.beginPath(); c.arc(cx, cx, s * 0.05, 0, Math.PI * 2); c.stroke();
-    for (let i = 0; i < 8; i++) {
-      const a = (i / 8) * Math.PI * 2;
-      c.beginPath(); c.moveTo(cx + Math.cos(a) * s * 0.055, cx + Math.sin(a) * s * 0.055); c.lineTo(cx + Math.cos(a) * s * 0.13, cx + Math.sin(a) * s * 0.13); c.stroke();
-      c.fillStyle = 'rgba(232,190,90,0.6)';
-      c.beginPath(); c.arc(cx + Math.cos(a + 0.39) * s * 0.145, cx + Math.sin(a + 0.39) * s * 0.145, 4, 0, Math.PI * 2); c.fill();
+    const ppu = s / (2 * FLOOR_R); // pixels par unité
+    c.fillStyle = '#5c5560'; c.fillRect(0, 0, s, s);
+    const stone = (r0, r1, a0, a1) => {
+      const v = Math.random();
+      const warm = Math.random() < 0.25;
+      const L = 150 + v * 26;
+      c.fillStyle = warm ? `rgb(${L + 10 | 0},${L - 4 | 0},${L - 16 | 0})` : `rgb(${L | 0},${L - 6 | 0},${L - 2 | 0})`;
+      const j = 1.6 / r1; // joint (radians)
+      c.beginPath();
+      c.arc(cx, cx, r1 - 1.6, a0 + j, a1 - j);
+      c.arc(cx, cx, r0 + 1.6, a1 - j, a0 + j, true);
+      c.closePath();
+      c.fill();
+      // Arête claire côté intérieur et léger dégradé (pierre bombée)
+      c.strokeStyle = 'rgba(255,250,240,0.18)'; c.lineWidth = 2;
+      c.beginPath(); c.arc(cx, cx, r0 + 3, a0 + j * 2, a1 - j * 2); c.stroke();
+      c.strokeStyle = 'rgba(40,30,40,0.18)';
+      c.beginPath(); c.arc(cx, cx, r1 - 3, a0 + j * 2, a1 - j * 2); c.stroke();
+    };
+    // Disque central d'une seule pierre
+    c.fillStyle = '#b4aaa8';
+    c.beginPath(); c.arc(cx, cx, 1.5 * ppu, 0, Math.PI * 2); c.fill();
+    let r = 1.5 * ppu;
+    let ring = 0;
+    while (r < FLOOR_R * ppu) {
+      const w = (ring % 4 === 3 ? 0.55 : 1.15) * ppu; // un anneau étroit toutes les quatre rangées
+      const n = Math.max(6, Math.round((2 * Math.PI * (r + w / 2)) / (1.5 * ppu)));
+      const off = Math.random() * Math.PI;
+      for (let i = 0; i < n; i++) {
+        const a0 = off + (i / n) * Math.PI * 2;
+        const a1 = off + ((i + 1) / n) * Math.PI * 2;
+        stone(r, r + w, a0, a1);
+      }
+      r += w;
+      ring++;
     }
-    // Pétales tombés
-    for (let i = 0; i < 500; i++) {
-      c.fillStyle = ['rgba(255,170,205,0.85)', 'rgba(255,215,230,0.8)', 'rgba(240,140,190,0.8)'][i % 3];
-      c.beginPath(); c.ellipse(Math.random() * s, Math.random() * s, 3, 1.8, Math.random() * 3, 0, Math.PI * 2); c.fill();
+    // Grain de la pierre
+    for (let i = 0; i < 26000; i++) {
+      c.fillStyle = Math.random() < 0.5 ? 'rgba(255,255,255,0.05)' : 'rgba(30,20,30,0.07)';
+      c.fillRect(Math.random() * s, Math.random() * s, 1 + Math.random() * 3, 1 + Math.random() * 2);
+    }
+    // Usure : centre plus clair, bords plus sombres et moussus
+    const gr = c.createRadialGradient(cx, cx, 0, cx, cx, cx);
+    gr.addColorStop(0, 'rgba(255,240,225,0.16)'); gr.addColorStop(0.45, 'rgba(255,240,225,0)');
+    gr.addColorStop(0.82, 'rgba(30,20,40,0.12)'); gr.addColorStop(1, 'rgba(30,20,40,0.4)');
+    c.fillStyle = gr; c.fillRect(0, 0, s, s);
+    for (let i = 0; i < 180; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const d = cx * (0.72 + Math.random() * 0.28);
+      c.fillStyle = `rgba(${80 + Math.random() * 30},${105 + Math.random() * 30},72,${0.18 + Math.random() * 0.22})`;
+      c.beginPath(); c.ellipse(cx + Math.cos(a) * d, cx + Math.sin(a) * d, 6 + Math.random() * 18, 3 + Math.random() * 8, a, 0, Math.PI * 2); c.fill();
+    }
+    // Emblème discret gravé sur la pierre centrale
+    c.strokeStyle = 'rgba(70,50,50,0.45)'; c.lineWidth = 5;
+    c.beginPath(); c.arc(cx, cx, 1.15 * ppu, 0, Math.PI * 2); c.stroke();
+    c.strokeStyle = 'rgba(214,170,90,0.55)'; c.lineWidth = 3;
+    c.beginPath(); c.arc(cx, cx, 1.15 * ppu, 0, Math.PI * 2); c.stroke();
+    c.beginPath(); c.arc(cx, cx, 0.35 * ppu, 0, Math.PI * 2); c.stroke();
+    // Ligne de démarcation des combattants : un anneau de pierre dorée plus loin
+    c.strokeStyle = 'rgba(214,170,90,0.35)'; c.lineWidth = 4;
+    c.beginPath(); c.arc(cx, cx, 6.2 * ppu, 0, Math.PI * 2); c.stroke();
+    // Quelques pétales tombés
+    for (let i = 0; i < 700; i++) {
+      c.fillStyle = ['rgba(255,170,205,0.8)', 'rgba(255,215,230,0.75)', 'rgba(240,140,190,0.75)'][i % 3];
+      c.beginPath(); c.ellipse(Math.random() * s, Math.random() * s, 3.5, 2, Math.random() * 3, 0, Math.PI * 2); c.fill();
     }
   });
-  g.add(floorDisc(ARENA_RADIUS + 1.4, tex));
+  tex.anisotropy = 8;
+  g.add(floorDisc(FLOOR_R, tex));
   // Terre et herbe autour du parvis, jusqu'à l'horizon
   const ground = new THREE.Mesh(new THREE.CircleGeometry(230, 48).rotateX(-Math.PI / 2), toonMat('#2e2a3e'));
   ground.position.y = -0.04;
