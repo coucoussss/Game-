@@ -13,6 +13,7 @@ import { dressed } from '../game/techniques.js';
 import { HazardView } from './hazardView.js';
 
 const tmp = new THREE.Vector3();
+const tmpV = new THREE.Vector3();
 const rand = (a, b) => a + Math.random() * (b - a);
 
 const PROJ_COLORS = {
@@ -157,6 +158,13 @@ export class MatchView {
         react: f.state === 'hitstun' ? vm.react : null,
         intro: state.phase === 'intro' && !state.training,
       });
+      // La victime tremble pendant l'arrêt sur image
+      if (vm.shakeT > 0) {
+        vm.shakeT -= dt;
+        const a = 0.06 * Math.min(1, vm.shakeT / 0.08);
+        vm.model.root.position.x += (Math.random() - 0.5) * a * 2;
+        vm.model.root.position.z += (Math.random() - 0.5) * a * 2;
+      }
       this.fighterFx(dt, vm, f, p, frozen);
       // Un combattant projeté s'écrase au sol : débris et poussière (plus il tombe de haut, plus c'est violent)
       if (!frozen && vm.prevY !== undefined && vm.prevY > 0.8 && f.y < 0.25 && (f.state === 'knockdown' || f.state === 'ko' || f.state === 'hitstun')) {
@@ -832,6 +840,17 @@ export class MatchView {
             const vt = this.models[ev.tgt];
             if (vt) vt.react = { kind: big ? 'heavy' : 'light', side: Math.random() < 0.5 ? -1 : 1 };
             fx.mangaHit(ev.x, ev.y, ev.z, big);
+            // Chiffre de dégâts au point d'impact
+            if (ev.dmg >= 1) {
+              tmpV.set(ev.x, ev.y + 0.3, ev.z).project(cam);
+              if (tmpV.z < 1) {
+                const r = this.stage.renderer.domElement.getBoundingClientRect();
+                this.overlay.damage(r.left + (tmpV.x * 0.5 + 0.5) * r.width, r.top + (0.5 - tmpV.y * 0.5) * r.height, Math.round(ev.dmg), ev.counter ? 'crit' : big ? 'heavy' : 'light');
+              }
+            }
+            // Vibration sur mobile pour les gros coups
+            if (big && document.body.classList.contains('touch-on') && navigator.vibrate) { try { navigator.vibrate(ev.kind === 'kd' ? 45 : 25); } catch { /* ignoré */ } }
+            if (vt) vt.shakeT = big ? 0.16 : 0.09;
             p.emit({ x: ev.x, y: ev.y, z: ev.z, count: big ? 26 : 10, speed: big ? 14 : 9, color: '#ffffff', size: big ? 0.26 : 0.18, life: 0.28, drag: 5 });
             p.emit({ x: ev.x, y: ev.y, z: ev.z, count: big ? 18 : 6, speed: big ? 9 : 5, color: c, size: big ? 0.4 : 0.26, life: 0.38, drag: 4 });
             fx.flash(ev.x, ev.y, ev.z, big ? 2.6 : 1.2, big ? 0.12 : 0.08, '#ffffff');

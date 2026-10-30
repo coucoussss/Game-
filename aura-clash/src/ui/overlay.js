@@ -101,6 +101,18 @@ export class Overlay {
     this.impactDur = Math.max(this.impactT, dur);
   }
 
+  /** Chiffre de dégâts qui jaillit au point d'impact (x, y en pixels d'écran). */
+  damage(x, y, n, kind = 'light') {
+    const el = document.createElement('div');
+    el.className = `dmg-pop ${kind}`;
+    el.textContent = n;
+    el.style.left = `${x}px`;
+    el.style.top = `${y}px`;
+    el.style.setProperty('--dx', `${(Math.random() - 0.5) * 6}vh`);
+    this.root.appendChild(el);
+    setTimeout(() => el.remove(), 900);
+  }
+
   /** Monde en noir et blanc (temps suspendu, juste avant un coup décisif). */
   mono(dur) {
     this.monoT = Math.max(this.monoT, dur);
