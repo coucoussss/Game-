@@ -10,9 +10,6 @@ const dist = join(root, 'dist');
 const out = join(root, 'release', 'artifact');
 const css = readFileSync(join(dist, 'style.css'), 'utf8');
 const page = `<title>Aura Clash</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&display=swap">
 <style>
 ${css}
 </style>
