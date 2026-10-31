@@ -33,7 +33,7 @@ export class Stage {
     this.renderer.toneMapping = THREE.NeutralToneMapping; // garde les couleurs franches et adoucit les hautes lumières
     this.renderer.toneMappingExposure = 1.05;
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap; // bords d'ombre doux, sans escaliers
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(50, 16 / 9, 0.1, 600);
     this.rig = new CameraRig(this.camera);
@@ -44,7 +44,7 @@ export class Stage {
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(2048, 2048);
     const sc = this.sun.shadow.camera;
-    sc.left = -24; sc.right = 24; sc.top = 24; sc.bottom = -24; sc.near = 1; sc.far = 140;
+    sc.left = -19; sc.right = 19; sc.top = 19; sc.bottom = -19; sc.near = 1; sc.far = 140;
     this.sun.shadow.bias = -0.0006;
     this.sun.shadow.normalBias = 0.03;
     this.scene.add(this.sun, this.sun.target);

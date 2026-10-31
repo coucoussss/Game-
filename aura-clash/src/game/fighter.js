@@ -236,8 +236,14 @@ export class Fighter {
         this.vx += (inp.mx * spd - this.vx) * k;
         this.vz += (inp.mz * spd - this.vz) * k;
       } else {
-        this.vx = inp.mx * spd;
-        this.vz = inp.mz * spd;
+        // Démarrage vif mais progressif, freinage encore plus sec : les pas ont du poids
+        // sans rendre les déplacements mous (≈ 0,1 s pour atteindre la vitesse de marche)
+        const wx = inp.mx * spd;
+        const wz = inp.mz * spd;
+        const braking = wx * this.vx + wz * this.vz <= 0.01 * spd * spd;
+        const k = Math.min(1, dt * (braking ? 30 : 20));
+        this.vx += (wx - this.vx) * k;
+        this.vz += (wz - this.vz) * k;
       }
       const moving = inp.mx * inp.mx + inp.mz * inp.mz > 0.01;
       if (this.state !== 'land') this.setState(moving ? 'walk' : 'idle');

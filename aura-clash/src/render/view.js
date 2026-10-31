@@ -22,6 +22,8 @@ const PROJ_COLORS = {
   bolt: '#fff38a', windblade: '#ffc8ec', rock: '#b09070', darkorb: '#ff2a5a',
 };
 
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
 export class MatchView {
   constructor(stage, audio, hud, overlay) {
     this.stage = stage;
@@ -166,6 +168,7 @@ export class MatchView {
         vm.model.root.position.z += (Math.random() - 0.5) * a * 2;
       }
       this.fighterFx(dt, vm, f, p, frozen);
+      this.motionFx(dt, vm, f, p, frozen);
       // Un combattant projeté s'écrase au sol : débris et poussière (plus il tombe de haut, plus c'est violent)
       if (!frozen && vm.prevY !== undefined && vm.prevY > 0.8 && f.y < 0.25 && (f.state === 'knockdown' || f.state === 'ko' || f.state === 'hitstun')) {
         const k = Math.min(1.8, 0.5 + vm.peakY / 3);
@@ -808,6 +811,108 @@ export class MatchView {
     });
   }
 
+  /** Direction (x, z) de l'attaquant vers la victime d'un coup, ou null. */
+  hitDir(ev, state) {
+    const A = state.fighters[ev.att];
+    const T = state.fighters[ev.tgt];
+    if (!A || !T) return null;
+    const dx = T.x - A.x;
+    const dz = T.z - A.z;
+    const l = Math.hypot(dx, dz);
+    return l > 1e-3 ? [dx / l, dz / l] : [Math.sin(A.yaw), Math.cos(A.yaw)];
+  }
+
+  /**
+   * Ce qui donne son « sens » à un coup : gerbe d'étincelles projetée dans l'axe de la frappe
+   * (elles retombent sous la gravité), traits d'impact qui traversent la victime, et pour les gros
+   * coups un anneau dressé face à l'attaquant.
+   */
+  directionalHit(ev, state, big, color) {
+    const d = this.hitDir(ev, state);
+    if (!d) return;
+    const p = this.stage.particles;
+    const fx = this.stage.effects;
+    const [dx, dz] = d;
+    p.emit({ x: ev.x, y: ev.y, z: ev.z, count: big ? 22 : 10, dir: [dx, 0.35, dz], cone: 0.45, speed: big ? 17 : 11, color: '#fff2b0', size: big ? 0.13 : 0.1, life: 0.42, gravity: 16, drag: 1.2, hdr: 2 });
+    // Traits d'impact : de part et d'autre du point de contact, dans l'axe du coup
+    const n = big ? 3 : 2;
+    for (let i = 0; i < n; i++) {
+      const sx = -dz * (Math.random() - 0.5) * 0.7;
+      const sz = dx * (Math.random() - 0.5) * 0.7;
+      const sy = (Math.random() - 0.5) * 0.6;
+      const len = (big ? 1.9 : 1.1) * (0.7 + Math.random() * 0.5);
+      fx.streak(ev.x + sx - dx * 0.2, ev.y + sy, ev.z + sz - dz * 0.2, ev.x + sx + dx * len, ev.y + sy * 1.4, ev.z + sz + dz * len, i ? color : '#ffffff', big ? 0.2 : 0.14, big ? 0.07 : 0.05);
+    }
+    if (big) fx.orientedRing(ev.x + dx * 0.25, ev.y, ev.z + dz * 0.25, dx, 0, dz, 0.2, 1.6, 0.22, '#ffffff');
+  }
+
+  /**
+   * Poids des déplacements (modèles animés) : le corps penche dans le sens de la course et se
+   * redresse en freinant, s'écrase un instant à l'atterrissage ; poussière sous les pieds en
+   * course, dans les virages secs et quand on glisse sous un coup ; traînée lumineuse des esquives.
+   */
+  motionFx(dt, vm, f, p, frozen) {
+    const model = vm.model;
+    if (frozen || dt <= 0) return;
+    const vx = f.vx || 0;
+    const vz = f.vz || 0;
+    const speed = Math.hypot(vx, vz);
+    const ax = (vx - (vm.mvx ?? vx)) / dt;
+    const az = (vz - (vm.mvz ?? vz)) / dt;
+    vm.mvx = vx; vm.mvz = vz;
+    const ground = f.onGround !== false && f.y < 0.05;
+    if (model.rigged && model.body) {
+      const yaw = model.dispYaw ?? f.yaw;
+      const sy = Math.sin(yaw);
+      const cy = Math.cos(yaw);
+      const free = ['idle', 'walk', 'land', 'dodge', 'air'].includes(f.state);
+      const vF = vx * sy + vz * cy;
+      const vS = vx * cy - vz * sy;
+      const aF = ax * sy + az * cy;
+      const aS = ax * cy - az * sy;
+      let leanF = 0;
+      let leanS = 0;
+      if (free) {
+        leanF = clamp(vF * 0.022 + aF * 0.0035, -0.2, 0.24);
+        leanS = clamp(-vS * 0.02 - aS * 0.003, -0.2, 0.2);
+      }
+      const k = Math.min(1, dt * 10);
+      vm.leanF = (vm.leanF || 0) + (leanF - (vm.leanF || 0)) * k;
+      vm.leanS = (vm.leanS || 0) + (leanS - (vm.leanS || 0)) * k;
+      model.body.rotation.x = vm.leanF;
+      model.body.rotation.z = vm.leanS;
+      // Atterrissage : écrasement bref puis rebond
+      if (vm.wasAir && ground && (f.state === 'land' || f.state === 'idle' || f.state === 'walk')) vm.squash = 1;
+      vm.squash = Math.max(0, (vm.squash || 0) - dt * 6);
+      const q = Math.sin(vm.squash * Math.PI) * 0.12 * vm.squash;
+      model.body.scale.set(1 + q * 0.6, 1 - q, 1 + q * 0.6);
+    }
+    vm.wasAir = !ground;
+    if (!ground) return;
+    vm.stepT = (vm.stepT || 0) - dt;
+    const turnHard = Math.hypot(ax, az) > 60 && speed > 2;
+    if (f.state === 'walk' || f.state === 'idle') {
+      if ((speed > 5 && vm.stepT <= 0) || (turnHard && vm.stepT <= 0.1)) {
+        vm.stepT = 0.2;
+        p.emit({ x: f.x - vx * 0.03, y: 0.08, z: f.z - vz * 0.03, count: 3, flat: true, speed: 1.2, color: '#d8c8b4', size: 0.35, sizeEnd: 0.7, life: 0.4, hdr: 0.5, drag: 3 });
+      }
+    } else if (f.state === 'hitstun' && speed > 4 && vm.stepT <= 0) {
+      // Glissade sous l'impact : sillon de poussière
+      vm.stepT = 0.035;
+      p.emit({ x: f.x, y: 0.06, z: f.z, count: 2, dir: [-vx / speed, 0.5, -vz / speed], cone: 0.5, speed: 2, color: '#d8c8b4', size: 0.4, sizeEnd: 0.8, life: 0.45, hdr: 0.5, drag: 3 });
+    } else if (f.state === 'dodge' && f.st < 0.05 && !vm.dodgeStreak && !vm.def.teleportDodge) {
+      vm.dodgeStreak = { x: f.x, z: f.z };
+    }
+    if (vm.dodgeStreak && f.state !== 'dodge') {
+      const s0 = vm.dodgeStreak;
+      vm.dodgeStreak = null;
+      const color = f.transformed ? vm.def.auraAlt || vm.def.aura : vm.def.aura;
+      if (Math.hypot(f.x - s0.x, f.z - s0.z) > 1) {
+        for (const h of [0.5, 1.1, 1.6]) this.stage.effects.streak(s0.x, h, s0.z, f.x, h, f.z, color, 0.25, 0.06);
+      }
+    }
+  }
+
   // --- Événements de la simulation -------------------------------------------------------------
 
   handleEvents(events, state) {
@@ -833,6 +938,8 @@ export class MatchView {
           if (ev.blocked) {
             p.emit({ x: ev.x, y: ev.y, z: ev.z, count: 14, speed: 7, color: '#8ac8ff', size: 0.18, life: 0.25, drag: 5 });
             fx.burstRing(ev.x, ev.y, ev.z, 0.3, 1.0, 0.18, '#8ac8ff', cam);
+            const d = this.hitDir(ev, state);
+            if (d) p.emit({ x: ev.x, y: ev.y, z: ev.z, count: 10, dir: [-d[0], 0.5, -d[1]], cone: 0.6, speed: 9, color: '#d8f0ff', size: 0.12, life: 0.35, gravity: 14, drag: 1.5 });
             a.play('block');
           } else {
             const c = ev.color || '#ffffff';
@@ -854,6 +961,7 @@ export class MatchView {
             p.emit({ x: ev.x, y: ev.y, z: ev.z, count: big ? 26 : 10, speed: big ? 14 : 9, color: '#ffffff', size: big ? 0.26 : 0.18, life: 0.28, drag: 5 });
             p.emit({ x: ev.x, y: ev.y, z: ev.z, count: big ? 18 : 6, speed: big ? 9 : 5, color: c, size: big ? 0.4 : 0.26, life: 0.38, drag: 4 });
             fx.flash(ev.x, ev.y, ev.z, big ? 2.6 : 1.2, big ? 0.12 : 0.08, '#ffffff');
+            this.directionalHit(ev, state, big, c);
             if (big) this.overlay.speedLines(0.18, 0.6);
             this.stage.rig.addPunch(ev.kind === 'kd' ? 3.5 : big ? 1.6 : 0.5);
             if (ev.kind === 'kd') this.overlay.impactFrame(0.07);

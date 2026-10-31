@@ -334,7 +334,7 @@ export class RiggedModel {
           const color = src.map ? new THREE.Color('#ffffff') : (src.color ? src.color.clone() : new THREE.Color('#cccccc'));
           // Légère lumière propre (texture en émission) : les personnages restent lisibles dans les arènes de nuit
           m = animeMat(color, {
-            map: src.map || null, emissiveMap: src.map || null, emissive: new THREE.Color(src.map ? '#5a5a5a' : '#000000'),
+            map: src.map || null, emissiveMap: src.map || null, emissive: new THREE.Color(src.map ? '#383838' : '#000000'),
             transparent: !!src.transparent, alphaTest: src.alphaTest || 0, side: src.side,
             // Modèles texturés : pas de trame manga (elle salit les aplats), un liseré de contre-jour à la place
             tone: false, rim: 0.4, rimLight: 0.22,
@@ -356,7 +356,7 @@ export class RiggedModel {
         const geo = mesh.geometry;
         geo.computeBoundingBox();
         const w = mesh.matrixWorld.getMaxScaleOnAxis() || 1;
-        const hull = new THREE.SkinnedMesh(geo, extrudeOutlineMat(0.011 / Math.max(1e-5, w)));
+        const hull = new THREE.SkinnedMesh(geo, extrudeOutlineMat(0.016 / Math.max(1e-5, w)));
         hull.bind(mesh.skeleton, mesh.bindMatrix);
         hull.frustumCulled = false;
         hull.userData.outline = true;

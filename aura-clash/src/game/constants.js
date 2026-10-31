@@ -22,6 +22,7 @@ export const JUMP_VELOCITY = 12;
 export const INPUT_BUFFER = 0.16; // une touche pressée reste « en attente » ce temps-là
 export const ROUNDS_TO_WIN = 2; // deux manches gagnantes (best of 3)
 export const FIGHTER_RADIUS = 0.42;
+export const BODY_GAP = 1.05; // écart minimal entre deux combattants (corps visibles)
 export const FIGHTER_HEIGHT = 1.8;
 
 /** Entrée vide (personnage figé pendant les annonces, les cinématiques…). */

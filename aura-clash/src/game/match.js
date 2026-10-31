@@ -5,7 +5,7 @@ import { Fighter } from './fighter.js';
 import { CHAR_BY_ID } from './characters.js';
 import { createHazards, updateHazards, groundGrip, hitProps } from './hazards.js';
 import {
-  HIT_TYPES, MAX_ENERGY, NO_INPUT, ROUNDS_TO_WIN, FIGHTER_RADIUS, FIGHTER_HEIGHT,
+  HIT_TYPES, MAX_ENERGY, NO_INPUT, ROUNDS_TO_WIN, FIGHTER_RADIUS, FIGHTER_HEIGHT, BODY_GAP,
 } from './constants.js';
 
 const DEG = Math.PI / 180;
@@ -384,7 +384,9 @@ export class Match {
   /** Les combattants ne se traversent pas. */
   separate() {
     const fs = this.fighters;
-    const min = FIGHTER_RADIUS * 2;
+    // Corps des modèles « chibi » (grosse tête, épaules larges) : écart minimal plus grand que la
+    // zone touchable, pour que deux combattants collés ne s'interpénètrent pas à l'écran
+    const min = BODY_GAP;
     for (let i = 0; i < fs.length; i++) {
       for (let j = i + 1; j < fs.length; j++) {
         const a = fs[i];
@@ -397,9 +399,11 @@ export class Match {
         if (d >= min) continue;
         const nx = d > 1e-4 ? dx / d : 1;
         const nz = d > 1e-4 ? dz / d : 0;
-        const push = (min - d) / 2;
-        a.x -= nx * push; a.z -= nz * push;
-        b.x += nx * push; b.z += nz * push;
+        // Celui qui avance (élan d'un coup, marche) pousse un peu l'autre, sans le traverser
+        const pa = a.state === 'move' && b.state !== 'move' ? 0.35 : b.state === 'move' && a.state !== 'move' ? 0.65 : 0.5;
+        const over = min - d;
+        a.x -= nx * over * pa; a.z -= nz * over * pa;
+        b.x += nx * over * (1 - pa); b.z += nz * over * (1 - pa);
       }
     }
   }
