@@ -136,17 +136,10 @@ class App {
       m.poseT = (m.poseT || 0) + dt;
       if (this.backdrop.mode === 'select' && m.poseT > 1.6) m.f.state = 'idle';
       if (this.backdrop.mode !== 'select') {
-        // Les deux combattants du menu s'échauffent : petits enchaînements de temps en temps
+        // Les deux combattants du menu se fixent, en garde, sans attaquer
         m.f.st += dt;
-        if (m.f.state === 'move') {
-          m.f.mt += dt;
-          const mv = CHAR_BY_ID[m.id].moves[m.f.moveId];
-          if (m.f.mt > mv.dur) { m.f.state = 'idle'; m.f.moveId = ''; }
-        } else if (Math.random() < dt * 0.4) {
-          m.f.state = 'move';
-          m.f.moveId = ['light1', 'light2', 'heavy', 'ranged'][Math.floor(Math.random() * 4)];
-          m.f.mt = 0;
-        }
+        m.f.state = 'idle';
+        m.f.moveId = '';
       }
       m.model.update(dt, m.f, { auraBoost: this.backdrop.mode === 'select' ? 0.4 : 0.12 });
     }
