@@ -2976,8 +2976,9 @@ Meta.whenReady(() => {
 
   // le joueur ne voit sur le champ de bataille que ce que son char connaît (radio comprise) ; mort, il suit
   // ce que voit son équipe
-  // dès le début de la bataille (introduction comprise), tous les ennemis sont repérés : 60 s pour les situer
-  function visibleToPlayer(t) { return t.team === 0 || t.dead || (state === 'intro' || (state === 'play' && waveTime < 60)) || (player && !player.dead && player.knows ? player.knows : spotted[0]).has(t); }
+  // Les ennemis sont toujours visibles du joueur, sauf au cœur d'un écran de fumée
+  const inSmoke = t => { for (const s of smokes) if (Math.hypot(t.x - s.x, t.y - s.y) < s.r * 0.8) return true; return false; };
+  function visibleToPlayer(t) { return t.team === 0 || t.dead || !inSmoke(t); }
 
   // ===================== Simulation du métal (metal.js) =====================
   // Calage : vitesse limite propre à la simulation, Vlim = A · (T/d)^b / cos(θ)^c (mesurée par dichotomie),
