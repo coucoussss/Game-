@@ -12,7 +12,7 @@ modélisés en 3D par le code et les sons sont synthétisés en temps réel (Web
 ## Lancer le jeu
 
 Ouvrir `chars/index.html` dans un navigateur récent, au clavier et à la souris.
-Le fichier `chars/steel-front.html` contient tout le jeu en un seul fichier, à ouvrir directement.
+Le fichier `chars/front-d-acier.html` contient tout le jeu en un seul fichier, à ouvrir directement.
 
 ## Commandes
 
@@ -276,7 +276,7 @@ Tout est synthétisé par la Web Audio API (`audio.js`), sans fichier.
 ## Publication sur CrazyGames
 
 Le jeu est prêt pour CrazyGames : téléverser le contenu du dossier `chars/` (ou l'archive
-`chars/dist/steel-front-crazygames.zip`) comme jeu HTML5, `index.html` à la racine.
+`chars/dist/front-d-acier-crazygames.zip`) comme jeu HTML5, `index.html` à la racine.
 
 - **SDK CrazyGames v3** (`meta.js`) : `loadingStart` / `loadingStop` autour du chargement,
   `gameplayStart` / `gameplayStop` en début et fin de bataille, en pause et pendant les publicités,
@@ -313,7 +313,7 @@ Le jeu est prêt pour CrazyGames : téléverser le contenu du dossier `chars/` (
   fanfare synthétisée et `happytime`.
 - **Polices** : Oswald et Inter sont livrées dans `fonts/` (variables 400 à 700, sous-ensemble latin,
   70 Ko, licence SIL OFL jointe). Aucune requête vers Google Fonts : rien ne bloque le premier
-  affichage, rien ne part chez un tiers. `steel-front.html` les intègre en base64.
+  affichage, rien ne part chez un tiers. `front-d-acier.html` les intègre en base64.
 - **Contenu sensible** : ni drapeau, ni runes SS, ni symbole de régime ; les seuls marquages admis sont
   la croix des blindés (Balkenkreuz) et les numéros tactiques, et aucun camouflage ne reprend les
   couleurs d'un drapeau (*Victory Parade* : olive, sable et laiton). Chaque bataille s'ouvre sur une

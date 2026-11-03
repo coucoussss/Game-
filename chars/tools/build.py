@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Construit les versions publiables de Steel Front à partir de chars/ :
-#  - steel-front.html : tout le jeu dans un seul fichier (scripts locaux intégrés) ;
-#  - dist/steel-front-crazygames.zip : index.html, scripts et ressources pour CrazyGames.
+#  - front-d-acier.html : tout le jeu dans un seul fichier (scripts locaux intégrés) ;
+#  - dist/front-d-acier-crazygames.zip : index.html, scripts et ressources pour CrazyGames.
 # Usage : python3 tools/build.py
 import base64, os, re, zipfile
 
@@ -25,7 +25,7 @@ def font(m):
 
 single = re.sub(r'<script src="([^"]+)"></script>', inline, html)
 single = re.sub(r'url\((fonts/[^)]+\.woff2)\)', font, single)
-open('steel-front.html', 'w', encoding='utf-8').write(single)
+open('front-d-acier.html', 'w', encoding='utf-8').write(single)
 
 # ressources servies à côté de la page (polices, musique, images) : tout ce que index.html référence
 assets = set(local)
@@ -39,17 +39,17 @@ for d in ('fonts', 'music', 'img'):
                 if not f.endswith('.md'):
                     assets.add(os.path.join(base, f))
 os.makedirs('dist', exist_ok=True)
-out = 'dist/steel-front-crazygames.zip'
+out = 'dist/front-d-acier-crazygames.zip'
 with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as z:
     z.write('index.html')
     for a in sorted(assets):
         z.write(a)
-print('steel-front.html', os.path.getsize('steel-front.html'), 'octets')
+print('front-d-acier.html', os.path.getsize('front-d-acier.html'), 'octets')
 print(out, os.path.getsize(out), 'octets,', len(assets) + 1, 'fichiers')
 
 # version 2D : même jeu, vue de dessus imposée (window.STEEL_VIEW_2D lu par game.js)
-s2 = open('steel-front.html', encoding='utf-8').read()
+s2 = open('front-d-acier.html', encoding='utf-8').read()
 s2 = s2.replace('<title>Steel Front', '<title>Steel Front 2D', 1)
 i = s2.index('<script>')
-open('steel-front-2d.html', 'w', encoding='utf-8').write(s2[:i] + '<script>window.STEEL_VIEW_2D = true;</script>\n' + s2[i:])
-print('steel-front-2d.html', os.path.getsize('steel-front-2d.html'), 'octets')
+open('front-d-acier-2d.html', 'w', encoding='utf-8').write(s2[:i] + '<script>window.STEEL_VIEW_2D = true;</script>\n' + s2[i:])
+print('front-d-acier-2d.html', os.path.getsize('front-d-acier-2d.html'), 'octets')
