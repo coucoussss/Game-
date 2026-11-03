@@ -284,6 +284,7 @@ Meta.whenReady(() => {
   const inBattle = () => state === 'intro' || state === 'play' || state === 'ending';
   let levelIdx = 0, waveIdx = 0, chosenType = 'medium';
   let bullets = [], mgCamT = -99;
+  let marks = []; // traces de chenilles au sol (vue 2D)
   let tanks = [], shells = [], parts = [], texts = [], feed = [], smokes = [], logs = [], runners = [];
   let obstacles = [], bushes = [];
   let player = null, specIdx = 0;
@@ -958,7 +959,7 @@ Meta.whenReady(() => {
     if (W3D0) for (const t of tanks) if (t.scar3) { W3D0.free(t.scar3.hull); W3D0.free(t.scar3.turret); }
     reviveT = 0; reviveUsed = false;
     clearFalls3();
-    tanks = []; shells = []; bullets = []; smokes = []; texts = []; feed = []; parts = []; logs = []; runners = []; ribbons = []; ribbonQ = []; flares = []; hitMk = null; slowT = 0;
+    marks = []; tanks = []; shells = []; bullets = []; smokes = []; texts = []; feed = []; parts = []; logs = []; runners = []; ribbons = []; ribbonQ = []; flares = []; hitMk = null; slowT = 0;
     dmgDirs = []; radio = null; radioQ = []; chat = {}; deathCamT = 0; killCard = null; flareT = [rnd(15, 30), rnd(20, 40)];
     if (obstacles.some(o => o.type === 'wreck')) { obstacles = obstacles.filter(o => o.type !== 'wreck'); buildGrid(); }
     orders = { kind: 'free', pos: null, target: null, t: 0 }; reinf = []; veils = [];
@@ -1018,6 +1019,8 @@ Meta.whenReady(() => {
         tanks.push(t);
       });
     }
+    // prime : le char ennemi le plus lourd est marqué, une récompense en plus s'il tombe
+    if (mode === 'campagne' && !boot) { const b = tanks.find(k => k.team === 1); if (b) { b.bounty = Math.round(200 + 120 * b.T.br); setTimeout(() => { if (b.bounty && !b.dead) addLog(`BOUNTY: destroy the marked ${b.T.name} for +✪ ${b.bounty}`, '#ff6a5a'); }, 400); } }
     camX = player.x + 300; camY = player.y;
     Sfx.setTank(player.T.id, player.T.D.rated, player.T.D.trav.kind);
     Sfx.setRoom(lv.forest ? 'forest' : lv.city ? 'city' : lv.desert ? 'desert' : lv.snow ? 'snow' : 'open');
@@ -2340,6 +2343,7 @@ Meta.whenReady(() => {
     const moved = Math.hypot(t.x - ox, t.y - oy);
     t.vx = mvx; t.vy = mvy;
     t.treadPhase += t.speed * dt;
+    if (!t.dead && Math.abs(t.speed) > 6 && (t.markD = (t.markD || 0) + Math.abs(t.speed) * dt) > 9) { t.markD = 0; const c = Math.cos(t.angle), n = Math.sin(t.angle); for (const o of [-8, 8]) { marks.push({ x: t.x - n * o, y: t.y + c * o, a: t.angle, life: 14 }); } if (marks.length > 420) marks.splice(0, marks.length - 420); }
     // chaque chenille avance à sa vitesse : v ∓ ω·B/2 (droite, gauche) ; la chenille cassée ne tourne plus
     for (const k of [0, 1]) {
       const side = k === 0 ? 1 : -1;
@@ -3841,7 +3845,7 @@ Meta.whenReady(() => {
     t.fires = [];
     if (how === 'brewed') brewUp(t);
     const ff = by && by !== t && by.team === t.team, enemy = by === player && t.team !== player.team;
-    feed.unshift({ a: by ? by.name : '—', at: by ? by.team : -1, v: t.name, vt: t.team, ff, det: how === 'brewed', how, life: 7 });
+    feed.unshift({ a: by ? by.name : '—', at: by ? by.team : -1, v: t.name, vt: t.team, ff, det: how === 'brewed', how, key: t.lastHit && t.lastHit.by === by ? t.lastHit.key : '', life: 7 });
     if (feed.length > 6) feed.pop();
     if (by === player) {
       if (ff) { waveStats.tk++; showMsg('Ally destroyed by your fire!', '#ff7a4a', 2.5, 2); }
@@ -3870,6 +3874,7 @@ Meta.whenReady(() => {
     if (t.T.cls === 'Heavy tank') done = Meta.track('killheavy') || done;
     if (done) missionToast();
     ws.longest = Math.max(ws.longest, m);
+    if (t.bounty) { ws.streakCr += t.bounty; ws.bountyCr = t.bounty; floatText(t.x, t.y - 62, `BOUNTY +✪ ${t.bounty}`, '#ff6a5a', 1.4); goldRibbon('🎯 BOUNTY COLLECTED', `+✪ ${t.bounty}`); t.bounty = 0; }
     ws.killT.push(now); ws.streak++;
     const k = ws.streak >= 5 ? 1.5 : ws.streak >= 3 ? 1.25 : ws.streak >= 2 ? 1.1 : 1;
     if (k > 1) { ws.streakCr += Math.round(150 * (k - 1)); floatText(t.x, t.y - 44, `Streak ×${k}`, '#ffd76a', 1); }
@@ -4222,6 +4227,7 @@ Meta.whenReady(() => {
       if (s.life <= 0) smokes.splice(i, 1);
     }
     for (let i = texts.length - 1; i >= 0; i--) { const t = texts[i]; t.life -= dt; t.y -= 22 * dt; if (t.life <= 0) texts.splice(i, 1); }
+    for (let i = marks.length - 1; i >= 0; i--) if ((marks[i].life -= dt) <= 0) marks.splice(i, 1);
     for (let i = feed.length - 1; i >= 0; i--) { feed[i].life -= dt; if (feed[i].life <= 0) feed.splice(i, 1); }
     for (let i = ribbons.length - 1; i >= 0; i--) if ((ribbons[i].life -= dt) <= 0) ribbons.splice(i, 1);
     while (ribbons.length < 4 && ribbonQ.length) ribbons.push(ribbonQ.shift());
@@ -5316,6 +5322,9 @@ Meta.whenReady(() => {
     ctx.fillStyle = '#0d0f0c'; ctx.fillRect(0, 0, cv.width, cv.height);
     ctx.setTransform(DPR * S, 0, 0, DPR * S, DPR * (W / 2 - camX * S + sx), DPR * (H / 2 - camY * S + sy));
     ctx.drawImage(groundCv, 0, 0);
+    ctx.fillStyle = '#000';
+    for (const m of marks) { ctx.globalAlpha = Math.min(0.28, m.life * 0.04); ctx.save(); ctx.translate(m.x, m.y); ctx.rotate(m.a); ctx.fillRect(-4, -1, 8, 2); ctx.restore(); }
+    ctx.globalAlpha = 1;
     const vx0 = camX - hw - 80, vx1 = camX + hw + 80, vy0 = camY - hh - 80, vy1 = camY + hh + 80;
     const inView = (x, y) => x > vx0 && x < vx1 && y > vy0 && y < vy1;
 
@@ -5369,6 +5378,13 @@ Meta.whenReady(() => {
 
   function drawTank(t) {
     const T = t.T, sp = SPR[T.id];
+    if (t.bounty && !t.dead) { // cible de prime : anneau rouge pulsant
+      const p = 1 + 0.12 * Math.sin(gameTime * 6);
+      ctx.save(); ctx.strokeStyle = '#ff5a48'; ctx.lineWidth = 2; ctx.globalAlpha = 0.85;
+      ctx.beginPath(); ctx.arc(t.x, t.y, 34 * p, 0, 7); ctx.stroke();
+      ctx.setLineDash([6, 8]); ctx.beginPath(); ctx.arc(t.x, t.y, 44 * p, gameTime, gameTime + 7); ctx.stroke();
+      ctx.font = '700 11px sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#ff7a68'; ctx.fillText('BOUNTY', t.x, t.y - 52); ctx.restore();
+    }
     if (sp) {
       const hxp = sp.hx * PX, hyp = sp.hy * PX, rtp = sp.rt * PX;
       ctx.save();
@@ -5964,7 +5980,7 @@ Meta.whenReady(() => {
     feed.forEach((f, i) => {
       const y = ui.feedY + i * 20;
       ctx.globalAlpha = Math.min(1, f.life);
-      const mid = f.ff ? ' ✖ FRIENDLY FIRE ✖ ' : f.det ? ' 💥 ' : ' ⟶ ', how = f.how ? ` · ${HOW[f.how]}` : '';
+      const mid = f.ff ? ' ✖ FRIENDLY FIRE ✖ ' : f.det ? ' 💥 ' : f.key === 'HE' ? ' ✸ ' : f.key === 'HEAT' ? ' ◎ ' : f.key ? ' ➤ ' : ' ⟶ ', how = f.how ? ` · ${HOW[f.how]}` : '';
       fitFont(f.a + mid + f.v + how, ui.feedW - 16, 12, 600);
       const wA = ctx.measureText(f.a).width, wM = ctx.measureText(mid).width, wV = ctx.measureText(f.v).width, wH = ctx.measureText(how).width;
       ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(10, y - 13, wA + wM + wV + wH + 16, 18);
@@ -7195,7 +7211,7 @@ Meta.whenReady(() => {
     $('resDet').open = innerHeight >= 620;
     $('resSum').textContent = 'Battle report' + (nm ? ` · ${nm} medal${nm > 1 ? 's' : ''}` : '');
     $('result').querySelector('.box').scrollTop = 0;
-    $('resTable').insertAdjacentHTML('beforeend', `<tr><td>Battle rating: ${T.name} vs enemies</td><td>${bBR.p.toFixed(1)} vs ${bBR.e.toFixed(1)}</td></tr>` + medalRows(ws) + (ws.streakCr ? `<tr><td>Kill streak bonus</td><td>+✪ ${fmt(ws.streakCr)}</td></tr>` : '') +
+    $('resTable').insertAdjacentHTML('beforeend', `<tr><td>Battle rating: ${T.name} vs enemies</td><td>${bBR.p.toFixed(1)} vs ${bBR.e.toFixed(1)}</td></tr>` + medalRows(ws) + (ws.streakCr ? `<tr><td>${ws.bountyCr ? 'Streak and bounty bonus' : 'Kill streak bonus'}</td><td>+✪ ${fmt(ws.streakCr)}</td></tr>` : '') +
       (ws.revenge && r.win ? '<tr><td>Revenge bonus</td><td>×1.5</td></tr>' : '') + (Meta.diff().mul !== 1 ? `<tr><td>${Meta.diff().name} difficulty</td><td>×${Meta.diff().mul}</td></tr>` : '') + (!assisted() ? '<tr><td>Realistic aiming</td><td>×1.1</td></tr>' : '') +
       (g.penalty ? `<tr><td>Friendly fire penalty</td><td class="bad">−✪ ${fmt(g.penalty)}</td></tr>` : ''));
     const t0 = performance.now(), count = () => {
@@ -7224,8 +7240,24 @@ Meta.whenReady(() => {
         b.className = 'btn' + (alt ? ' alt' : ''); b.textContent = label;
         b.onclick = () => leaveResult(fn);
         btns.appendChild(b);
+        if (!alt && !btns.querySelector('.big')) offerNext(b); // « encore une bataille » : le premier bouton est mis en avant
       },
     };
+  }
+  // « Encore une bataille » : gros bouton avec anneau de 10 s ; le moindre geste sur l'écran annule le départ automatique
+  let offerId = 0;
+  function offerNext(b) {
+    const id = ++offerId, t0 = performance.now(), ring = document.createElement('i'), box = $('result');
+    b.classList.add('big'); b.prepend(ring);
+    const stop = () => { offerId++; ring.remove(); box.removeEventListener('pointerdown', stop); box.removeEventListener('keydown', stop); };
+    box.addEventListener('pointerdown', stop); box.addEventListener('keydown', stop);
+    const tick = () => {
+      if (id !== offerId || state !== 'result') return;
+      const k = (performance.now() - t0) / 10000;
+      if (k >= 1) { stop(); b.click(); return; }
+      ring.style.setProperty('--p', Math.round(k * 360) + 'deg'); requestAnimationFrame(tick);
+    };
+    setTimeout(() => { if (id === offerId) requestAnimationFrame(tick); }, 1500); // après le décompte des gains
   }
   function leaveResult(fn) { if (state !== 'result') return; Sfx.init(); hide('result'); state = 'leaving'; Meta.midgame(fn); }
   // Objectifs suivants : barre de grade animée, bon de guerre, char, pièce, maîtrise ou mission la plus
