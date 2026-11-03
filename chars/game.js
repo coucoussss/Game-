@@ -2271,6 +2271,9 @@ Meta.whenReady(() => {
     Fx.splash(t.x, t.y, 0.6); Sfx.impact(listenerDist(t.x, t.y));
     if (!t.iceMsg && (t === player || visibleToPlayer(t))) { t.iceMsg = true; addLog(`The ice gives way under ${t === player ? 'your tank' : 'the ' + t.T.name}!`, '#ffb070'); }
   }
+  // ACCEL_K2D : la dynamique du groupe motopropulseur tourne 3 fois plus vite (un char atteint sa vitesse maximale en quelques secondes)
+  const DRIVE_K2D = 10, TURN_K2D = 3, ACCEL_K2D = 3;
+  const driveK = () => W3D ? 1 : DRIVE_K2D, turnK = () => W3D ? 1 : TURN_K2D;
   function updateTank(t, dt) {
     if (t.dead) {
       t.deadT += dt;
@@ -2327,16 +2330,22 @@ Meta.whenReady(() => {
     t.bumpK = 1 + ((gR.bump || 0) + (gL.bump || 0)) / 2;
     if (waterLogic(t, dt, c)) return;
     const vPre = t.speed, lPre = t.vl, a0 = t.angle, ox = t.x, oy = t.y;
-    Vehicle.step(t, D, c, dt, PX);
-    t.angle = angNorm(t.angle + t.turnRate * dt);
-    const c2 = Math.cos(t.angle), s2 = Math.sin(t.angle);
-    t.x += (c2 * t.speed - s2 * t.vl) * dt;
-    t.y += (s2 * t.speed + c2 * t.vl) * dt;
-    collideObstacles(t, vPre, lPre, a0);
+    Vehicle.step(t, D, c, dt * (W3D ? 1 : ACCEL_K2D), PX);
+    // Vue 2D : la carte est un plan vu de dessus, où la vitesse réelle semble une marche. Le déplacement est
+    // multiplié par DRIVE_K2D (en 4 petits pas pour que les collisions tiennent) et le braquage par TURN_K2D ;
+    // la dynamique (vitesse, effort, énergie des chocs) reste celle du modèle réel.
+    const KD = driveK(), KT = turnK();
+    t.angle = angNorm(t.angle + t.turnRate * dt * KT);
+    const c2 = Math.cos(t.angle), s2 = Math.sin(t.angle), nSub = KD > 1 ? 4 : 1, kd = KD / nSub;
+    for (let i = 0; i < nSub; i++) {
+      t.x += (c2 * t.speed - s2 * t.vl) * dt * kd;
+      t.y += (s2 * t.speed + c2 * t.vl) * dt * kd;
+      collideObstacles(t, vPre, lPre, a0);
+    }
     clampMap(t);
     bridgeRails(t);
     // vitesse réelle : ce qu'un obstacle ou le bord de la carte a retenu est perdu, sans élan fantôme
-    const mvx = (t.x - ox) / dt, mvy = (t.y - oy) / dt, va = mvx * c2 + mvy * s2, la = mvy * c2 - mvx * s2;
+    const mvx = (t.x - ox) / dt, mvy = (t.y - oy) / dt, va = (mvx * c2 + mvy * s2) / KD, la = (mvy * c2 - mvx * s2) / KD;
     t.spin = Math.abs(t.speed - va);
     if (Math.abs(va) < Math.abs(t.speed)) t.speed = va;
     if (Math.abs(la) < Math.abs(t.vl)) t.vl = la;
@@ -6213,7 +6222,7 @@ Meta.whenReady(() => {
       ctx.textAlign = 'left'; ctx.font = '700 11px system-ui, sans-serif';
       const st = [];
       const gr = player.shiftT > 0 ? '·' : player.gear > 0 ? String(player.gear) : player.gear < 0 ? 'R' + -player.gear : 'N';
-      st.push([`${Math.round(Math.abs(player.speed) / PX * 3.6)} km/h · ${gr} · ${Math.round(player.rpmA / 50) * 50} rpm`, '#d8d4c6']);
+      st.push([`${Math.round(Math.abs(player.speed) / PX * 3.6 * driveK())} km/h · ${gr} · ${Math.round(player.rpmA / 50) * 50} rpm`, '#d8d4c6']);
       if (player.swap) st.push([`${CREW_ABBR[player.swap.from]} → ${CREW_ABBR[player.swap.role]} ${player.swap.t.toFixed(0)} s`, '#8cc8ff']);
       else if (player.aid) st.push([`First aid ${player.aid.t.toFixed(0)} s`, '#8cc8ff']);
       const K = a => kb ? keyName(a) : '';
