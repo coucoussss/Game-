@@ -4806,11 +4806,20 @@ Meta.whenReady(() => {
     };
     W3D0.onRestored = () => { clearTimeout(lostT); if (!W3D) use2D(false); reupload3D(); if (state !== 'menu') toast('3D view restored'); };
   }
-  function use2D(on) {
+  function use2D(on, quiet) {
     const c3 = document.getElementById('game3d');
-    if (on) { setSight(false); W3D = null; c3.style.display = 'none'; if (state !== 'menu') toast('3D unavailable: switching to the 2D view'); }
+    if (on) { setSight(false); W3D = null; c3.style.display = 'none'; if (state !== 'menu' && !quiet) toast('3D unavailable: switching to the 2D view'); }
     else { W3D = W3D0; c3.style.display = ''; cam3.init = false; }
     redraw = true;
+  }
+  // Vue choisie (option « View » ou page 2D) : la vue 2D de dessus est une vraie version du jeu, avec le même
+  // relief, les mêmes ombres de pente et les mêmes règles. Le changement se fait au menu ou au départ d'une bataille.
+  const want2D = () => !!window.STEEL_VIEW_2D || (Meta.P.opts.view || '3d') === '2d';
+  function syncView() {
+    if (!W3D0) return;
+    const w = want2D();
+    if (w && W3D) use2D(true, true);
+    else if (!w && !W3D && !W3D0.lost) use2D(false, true);
   }
   // après un retour du contexte : sol, décor et cicatrices de blindage renvoyés au GPU
   function reupload3D() {
@@ -6952,6 +6961,8 @@ Meta.whenReady(() => {
     $('oSfx').value = o.sfx; $('oMusic').value = o.music; $('oQuality').value = o.quality; $('oHitcam').value = o.hitcam; $('oBallistics').value = o.ballistics || 'real';
     $('oAssist').value = o.assist; $('oSens').value = o.sens; $('oSensSight').value = o.sensSight; $('oInvert').checked = o.invertY; $('oShake').value = o.shake;
     $('oSlowmo').checked = o.slowmo; $('oCalm').checked = o.calm; $('oCb').checked = o.cb; $('oHud').value = o.hud;
+    $('oView').value = want2D() ? '2d' : '3d'; $('oView').disabled = !W3D0 || !!window.STEEL_VIEW_2D;
+    if (state === 'menu') syncView();
     buildBinds();
   }
   // réglages simples : curseurs (nombres), cases (booléens) et listes
@@ -6962,6 +6973,7 @@ Meta.whenReady(() => {
   $('oBindReset').onclick = () => { Meta.P.opts.binds = {}; Meta.save(); buildBinds(); };
   $('oSfx').oninput = e => { Meta.P.opts.sfx = +e.target.value; Meta.save(); applyOptions(); };
   $('oMusic').oninput = e => { Meta.P.opts.music = +e.target.value; Meta.save(); applyOptions(); playMusic(); };
+  $('oView').onchange = e => { Meta.P.opts.view = e.target.value; Meta.save(); applyOptions(); toast(e.target.value === '2d' ? 'Top-down 2D view' : '3D view'); };
   $('oQuality').onchange = e => { Meta.P.opts.quality = e.target.value; Meta.save(); dynReset(true); applyOptions(); };
   $('oHitcam').onchange = e => { Meta.P.opts.hitcam = e.target.value; Meta.save(); applyOptions(); };
   $('oBallistics').onchange = e => { Meta.P.opts.ballistics = e.target.value; Meta.save(); applyOptions(); };
@@ -7017,7 +7029,7 @@ Meta.whenReady(() => {
     const w = a ? a.wind * rnd(0.7, 1.15) : 0, wa = rnd(0, TAU);
     WIND.x = Math.cos(wa) * w; WIND.y = Math.sin(wa) * w;
   }
-  function startLevel() { setAir(L().atm); genMap(); setup3D(); dynReset(false); spawnWave(); }
+  function startLevel() { setAir(L().atm); genMap(); syncView(); setup3D(); dynReset(false); spawnWave(); }
   // ===================== Réparation (publicité récompensée ou kit) =====================
   // Le compte à rebours de 8 s est figé pendant la publicité de réparation (15 à 30 s sur CrazyGames)
   // et quand l'onglet est masqué ; la réparation n'est appliquée que si l'écran est encore ouvert.

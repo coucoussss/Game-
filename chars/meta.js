@@ -353,7 +353,7 @@ const Meta = (() => {
     // réglages : caméra d'impact (off, high : moments forts, all : chaque coup), ralenti des destructions,
     // sensibilités, axe vertical, secousses, taille de l'interface, visée assistée ou réaliste, palette
     // pour daltoniens, mouvements réduits, commandes réassignées ; tut : tutoriel (étape suivante, fini)
-    opts: { sfx: 0.8, music: 0.6, quality: defQuality(), hitcam: 'high', mute: false, ballistics: 'real', difficulty: 'regular', slowmo: true,
+    opts: { sfx: 0.8, music: 0.6, quality: defQuality(), hitcam: 'high', view: '3d', mute: false, ballistics: 'real', difficulty: 'regular', slowmo: true,
       sens: 1, sensSight: 1, invertY: false, shake: 1, hud: 1, assist: 'assist', cb: false, calm: false, binds: {} },
     tut: { step: 0, done: false }, seen: [], parts: {}, adProg: {}, featDay: '', feat: '',
     unlocked: 0, survBest: 0,
