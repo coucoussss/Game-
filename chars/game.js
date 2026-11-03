@@ -6428,6 +6428,21 @@ Meta.whenReady(() => {
     setTimeout(() => d.remove(), 3300);
   }
   function tankThumb(id) {
+    const sp = want2D() && SPR[id];
+    if (sp) { // vue 2D : carte vue de dessus, dessinée avec les sprites de la bataille
+      const key = '2d:' + id;
+      if (!thumbCache[key]) {
+        const c = document.createElement('canvas'); c.width = 480; c.height = 260; const x = c.getContext('2d');
+        const k = Math.min(400 / (sp.hull[0].width), 200 / sp.hull[0].height, 3), hw = sp.hull[0].width * k, hh = sp.hull[0].height * k, tw = sp.tur[0].width * k;
+        x.fillStyle = '#2a3326'; x.fillRect(0, 0, 480, 260);
+        x.translate(240, 130); x.rotate(-0.2);
+        x.globalAlpha = 0.4; x.drawImage(sp.hullSh, -hw / 2 + 5, -hh / 2 + 7, hw, hh); x.globalAlpha = 1;
+        x.drawImage(sp.hull[0], -hw / 2, -hh / 2, hw, hh);
+        x.rotate(0.45); x.drawImage(sp.tur[0], -tw / 2, -tw / 2, tw, tw);
+        thumbCache[key] = c.toDataURL('image/png');
+      }
+      return thumbCache[key];
+    }
     const sk = Meta.skinOf(id), key = id + ':' + sk.id;
     if (!thumbCache[key] && R3 && !R3.lost) {
       drawTank3D(id, 480, 260, 0.75, 0.3, false, 0.25, [0.07, 0.08, 0.07, 1], sk);
@@ -6486,7 +6501,29 @@ Meta.whenReady(() => {
     $('startBtn').textContent = cw ? `▶ Continue · wave ${cw + 1}/${WAVES}` : !P.stats.battles && !P.tut.done ? '▶ Play' : '⚔ Deploy';
     $('restartLnk').hidden = !cw;
     $('x2Pill').hidden = !P.x2; $('x2N').textContent = P.x2;
+    renderHero();
   }
+  // Accueil : grande carte « Jouer » (reprise ou nouvelle bataille), bandeau des objectifs du jour, prochain déblocage
+  function renderHero() {
+    const P = Meta.P, T = TYPES[chosenType], cw = contWave(), owned = P.tanks.includes(chosenType);
+    $('heroImg').src = tankThumb(chosenType) || '';
+    $('heroKick').textContent = cw ? 'Battle in progress' : 'Ready for battle';
+    $('heroName').textContent = T.name;
+    $('heroInfo').textContent = `${MODES[mode].name} · ${L().name} · ${Meta.diff().name}`;
+    const hp = $('heroPlay'); hp.disabled = !owned; hp.textContent = $('startBtn').textContent;
+    $('heroNew').hidden = !cw;
+    const ms = P.missions, done = ms.filter(m => { const d = Meta.mDef(m.id); return d && m.prog >= d.goal; }).length, cl = Meta.claimable().length, left = Meta.crateLeft(), bd = Meta.bond();
+    const chip = (tab, k, v, rdy) => `<div class="gchip${rdy ? ' rdy' : ''}" data-go="${tab}"><small>${k}</small><b>${v}</b></div>`;
+    $('gstrip').innerHTML = chip('missions', 'Missions', `${done}/${ms.length} done`, cl > 0) +
+      chip('wheel', 'Supply crate', left ? `${Math.floor(left / 3600000)}h ${String(Math.floor(left / 60000) % 60).padStart(2, '0')}m` : 'Ready!', !left) +
+      chip('missions', 'Daily streak', `Day ${P.streak}`, false) +
+      chip('missions', 'War Bond', bd.max ? 'Complete' : `Tier ${bd.tier}/${bd.n}`, Meta.bondReady() > 0);
+    for (const c of $('gstrip').children) c.onclick = () => document.querySelector(`.tab[data-tab="${c.dataset.go}"]`).click();
+    const g = Meta.nextGoals(chosenType)[0];
+    $('nextu').innerHTML = g ? `Next unlock: <b>${g.kind === 'tank' ? TYPES[g.id].name : g.name}</b> · ${g.battles > 0 ? `about ${g.battles} battle${g.battles > 1 ? 's' : ''}` : 'ready!'}<div class="bar"><i style="width:${Math.round(clamp(g.p, 0, 1) * 100)}%"></i></div>` : '';
+  }
+  $('heroPlay').onclick = () => $('startBtn').click();
+  $('heroNew').onclick = () => { $('restartLnk').onclick(); $('startBtn').click(); };
   const MODE_EM = { campagne: '🎖', survie: '☠', duel: '⚔' };
   // vague de reprise du secteur choisi (dernière bataille de campagne interrompue), 0 sinon
   const contWave = () => { const l = Meta.P.last; return l && mode === 'campagne' && l.mode === 'campagne' && l.level === levelIdx && l.wave > 0 && l.wave < WAVES ? l.wave : 0; };
