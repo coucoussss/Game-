@@ -1,1087 +1,149 @@
 {
-  "$GMProject": "v1",
-  "%Name": "VraisFanGames",
-  "AudioGroups": [
-    {
-      "$GMAudioGroup": "v1",
-      "%Name": "audiogroup_default",
-      "name": "audiogroup_default",
-      "resourceType": "GMAudioGroup",
-      "resourceVersion": "2.0",
-      "targets": -1
-    }
+  "$GMProject":"v1",
+  "%Name":"VraisFanGames",
+  "AudioGroups":[
+    {"$GMAudioGroup":"v1","%Name":"audiogroup_default","exportDir":"","name":"audiogroup_default","resourceType":"GMAudioGroup","resourceVersion":"2.0","targets":-1,},
   ],
-  "configs": {
-    "children": [],
-    "name": "Default"
+  "configs":{
+    "children":[],
+    "name":"Default",
   },
-  "defaultScriptType": 1,
-  "Folders": [],
-  "ForcedPrefabProjectReferences": [],
-  "IncludedFiles": [
-    {
-      "$GMIncludedFile": "",
-      "%Name": "data.json",
-      "CopyToMask": -1,
-      "filePath": "datafiles",
-      "name": "data.json",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "font.ttf",
-      "CopyToMask": -1,
-      "filePath": "datafiles",
-      "name": "font.ttf",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "LB.ogg",
-      "CopyToMask": -1,
-      "filePath": "datafiles/music",
-      "name": "LB.ogg",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "LB1.ogg",
-      "CopyToMask": -1,
-      "filePath": "datafiles/music",
-      "name": "LB1.ogg",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "LB15.ogg",
-      "CopyToMask": -1,
-      "filePath": "datafiles/music",
-      "name": "LB15.ogg",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "LB2.ogg",
-      "CopyToMask": -1,
-      "filePath": "datafiles/music",
-      "name": "LB2.ogg",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "b_blueberry.ogg",
-      "CopyToMask": -1,
-      "filePath": "datafiles/music",
-      "name": "b_blueberry.ogg",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "b_cross.ogg",
-      "CopyToMask": -1,
-      "filePath": "datafiles/music",
-      "name": "b_cross.ogg",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "b_dust.ogg",
-      "CopyToMask": -1,
-      "filePath": "datafiles/music",
-      "name": "b_dust.ogg",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "b_dusttrust1.ogg",
-      "CopyToMask": -1,
-      "filePath": "datafiles/music",
-      "name": "b_dusttrust1.ogg",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "b_dusttrust2.ogg",
-      "CopyToMask": -1,
-      "filePath": "datafiles/music",
-      "name": "b_dusttrust2.ogg",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "b_dusttrust3.ogg",
-      "CopyToMask": -1,
-      "filePath": "datafiles/music",
-      "name": "b_dusttrust3.ogg",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "b_geno.ogg",
-      "CopyToMask": -1,
-      "filePath": "datafiles/music",
-      "name": "b_geno.ogg",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "b_horror.ogg",
-      "CopyToMask": -1,
-      "filePath": "datafiles/music",
-      "name": "b_horror.ogg",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "b_ink1.ogg",
-      "CopyToMask": -1,
-      "filePath": "datafiles/music",
-      "name": "b_ink1.ogg",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "b_ink2.ogg",
-      "CopyToMask": -1,
-      "filePath": "datafiles/music",
-      "name": "b_ink2.ogg",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "b_ink3.ogg",
-      "CopyToMask": -1,
-      "filePath": "datafiles/music",
-      "name": "b_ink3.ogg",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "b_outer.ogg",
-      "CopyToMask": -1,
-      "filePath": "datafiles/music",
-      "name": "b_outer.ogg",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "b_razz.ogg",
-      "CopyToMask": -1,
-      "filePath": "datafiles/music",
-      "name": "b_razz.ogg",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "b_red.ogg",
-      "CopyToMask": -1,
-      "filePath": "datafiles/music",
-      "name": "b_red.ogg",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "mus_combat.ogg",
-      "CopyToMask": -1,
-      "filePath": "datafiles/music",
-      "name": "mus_combat.ogg",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "mus_intense.ogg",
-      "CopyToMask": -1,
-      "filePath": "datafiles/music",
-      "name": "mus_intense.ogg",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "mus_menu.ogg",
-      "CopyToMask": -1,
-      "filePath": "datafiles/music",
-      "name": "mus_menu.ogg",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "charge.ogg",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sfx",
-      "name": "charge.ogg",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "dust.ogg",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sfx",
-      "name": "dust.ogg",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "fire.ogg",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sfx",
-      "name": "fire.ogg",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "heal.ogg",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sfx",
-      "name": "heal.ogg",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "hit.ogg",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sfx",
-      "name": "hit.ogg",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "hurt.ogg",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sfx",
-      "name": "hurt.ogg",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "move.ogg",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sfx",
-      "name": "move.ogg",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "phase.ogg",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sfx",
-      "name": "phase.ogg",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "select.ogg",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sfx",
-      "name": "select.ogg",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "slash.ogg",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sfx",
-      "name": "slash.ogg",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "text.ogg",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sfx",
-      "name": "text.ogg",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "blaster_0.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "blaster_0.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "blaster_1.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "blaster_1.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "blaster_2.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "blaster_2.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "blaster_3.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "blaster_3.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "blaster_4.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "blaster_4.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "blaster_5.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "blaster_5.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_0.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_0.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_0_a0.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_0_a0.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_0_a1.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_0_a1.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_1.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_1.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_10.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_10.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_11.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_11.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_12.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_12.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_13.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_13.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_2.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_2.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_3.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_3.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_3_a0.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_3_a0.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_3_a1.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_3_a1.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_4.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_4.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_4_a0.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_4_a0.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_4_a1.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_4_a1.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_4_a10.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_4_a10.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_4_a11.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_4_a11.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_4_a2.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_4_a2.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_4_a3.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_4_a3.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_4_a4.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_4_a4.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_4_a5.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_4_a5.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_4_a6.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_4_a6.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_4_a7.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_4_a7.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_4_a8.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_4_a8.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_4_a9.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_4_a9.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_5.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_5.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_5_a0.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_5_a0.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_5_a1.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_5_a1.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_5_a2.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_5_a2.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_5_a3.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_5_a3.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_5_a4.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_5_a4.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_5_a5.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_5_a5.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_6.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_6.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_6_a0.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_6_a0.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_6_a1.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_6_a1.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_6_a2.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_6_a2.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_7.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_7.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_8.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_8.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_8_a0.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_8_a0.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_8_a1.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_8_a1.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_8_a2.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_8_a2.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_8_a3.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_8_a3.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_8_a4.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_8_a4.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_8_a5.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_8_a5.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_8_a6.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_8_a6.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_8_a7.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_8_a7.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_8_a8.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_8_a8.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_8_p2.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_8_p2.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_9.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_9.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_9_a0.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_9_a0.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "boss_9_a1.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "boss_9_a1.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "gaster.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "gaster.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "lb_0.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "lb_0.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "lb_0_a0.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "lb_0_a0.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "lb_0_a1.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "lb_0_a1.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "lb_0_a2.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "lb_0_a2.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "lb_0_a3.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "lb_0_a3.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "lb_0_a4.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "lb_0_a4.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "lb_0_a5.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "lb_0_a5.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "lb_1.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "lb_1.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "lb_1_a0.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "lb_1_a0.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "lb_1_a1.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "lb_1_a1.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "lb_1_a2.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "lb_1_a2.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "lb_1_a3.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "lb_1_a3.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "lb_1_a4.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "lb_1_a4.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "lb_1_a5.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "lb_1_a5.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "lb_2.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "lb_2.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "lb_2_a0.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "lb_2_a0.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "lb_2_a1.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "lb_2_a1.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "lb_2_a2.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "lb_2_a2.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "lb_2_a3.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "lb_2_a3.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    },
-    {
-      "$GMIncludedFile": "",
-      "%Name": "lb_2_a4.png",
-      "CopyToMask": -1,
-      "filePath": "datafiles/sprites",
-      "name": "lb_2_a4.png",
-      "resourceType": "GMIncludedFile",
-      "resourceVersion": "2.0"
-    }
+  "defaultScriptType":1,
+  "Folders":[],
+  "ForcedPrefabProjectReferences":[],
+  "IncludedFiles":[
+    {"$GMIncludedFile":"","%Name":"data.drive.json","CopyToMask":-1,"filePath":"datafiles","name":"data.drive.json","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"data.json","CopyToMask":-1,"filePath":"datafiles","name":"data.json","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"font.ttf","CopyToMask":-1,"filePath":"datafiles","name":"font.ttf","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"b_blueberry.ogg","CopyToMask":-1,"filePath":"datafiles/music","name":"b_blueberry.ogg","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"b_cross.ogg","CopyToMask":-1,"filePath":"datafiles/music","name":"b_cross.ogg","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"b_dust.ogg","CopyToMask":-1,"filePath":"datafiles/music","name":"b_dust.ogg","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"b_dusttrust1.ogg","CopyToMask":-1,"filePath":"datafiles/music","name":"b_dusttrust1.ogg","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"b_dusttrust2.ogg","CopyToMask":-1,"filePath":"datafiles/music","name":"b_dusttrust2.ogg","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"b_dusttrust3.ogg","CopyToMask":-1,"filePath":"datafiles/music","name":"b_dusttrust3.ogg","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"b_geno.ogg","CopyToMask":-1,"filePath":"datafiles/music","name":"b_geno.ogg","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"b_horror.ogg","CopyToMask":-1,"filePath":"datafiles/music","name":"b_horror.ogg","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"b_ink1.ogg","CopyToMask":-1,"filePath":"datafiles/music","name":"b_ink1.ogg","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"b_ink2.ogg","CopyToMask":-1,"filePath":"datafiles/music","name":"b_ink2.ogg","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"b_ink3.ogg","CopyToMask":-1,"filePath":"datafiles/music","name":"b_ink3.ogg","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"b_outer.ogg","CopyToMask":-1,"filePath":"datafiles/music","name":"b_outer.ogg","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"b_razz.ogg","CopyToMask":-1,"filePath":"datafiles/music","name":"b_razz.ogg","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"b_red.ogg","CopyToMask":-1,"filePath":"datafiles/music","name":"b_red.ogg","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"LB.ogg","CopyToMask":-1,"filePath":"datafiles/music","name":"LB.ogg","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"LB1.ogg","CopyToMask":-1,"filePath":"datafiles/music","name":"LB1.ogg","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"LB15.ogg","CopyToMask":-1,"filePath":"datafiles/music","name":"LB15.ogg","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"LB2.ogg","CopyToMask":-1,"filePath":"datafiles/music","name":"LB2.ogg","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"mus_combat.ogg","CopyToMask":-1,"filePath":"datafiles/music","name":"mus_combat.ogg","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"mus_intense.ogg","CopyToMask":-1,"filePath":"datafiles/music","name":"mus_intense.ogg","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"mus_menu.ogg","CopyToMask":-1,"filePath":"datafiles/music","name":"mus_menu.ogg","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"charge.ogg","CopyToMask":-1,"filePath":"datafiles/sfx","name":"charge.ogg","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"dust.ogg","CopyToMask":-1,"filePath":"datafiles/sfx","name":"dust.ogg","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"fire.ogg","CopyToMask":-1,"filePath":"datafiles/sfx","name":"fire.ogg","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"heal.ogg","CopyToMask":-1,"filePath":"datafiles/sfx","name":"heal.ogg","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"hit.ogg","CopyToMask":-1,"filePath":"datafiles/sfx","name":"hit.ogg","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"hurt.ogg","CopyToMask":-1,"filePath":"datafiles/sfx","name":"hurt.ogg","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"move.ogg","CopyToMask":-1,"filePath":"datafiles/sfx","name":"move.ogg","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"phase.ogg","CopyToMask":-1,"filePath":"datafiles/sfx","name":"phase.ogg","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"select.ogg","CopyToMask":-1,"filePath":"datafiles/sfx","name":"select.ogg","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"slash.ogg","CopyToMask":-1,"filePath":"datafiles/sfx","name":"slash.ogg","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"text.ogg","CopyToMask":-1,"filePath":"datafiles/sfx","name":"text.ogg","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"blaster_0.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"blaster_0.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"blaster_1.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"blaster_1.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"blaster_2.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"blaster_2.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"blaster_3.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"blaster_3.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"blaster_4.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"blaster_4.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"blaster_5.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"blaster_5.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_0_a0.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_0_a0.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_0_a1.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_0_a1.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_0.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_0.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_1.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_1.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_10.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_10.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_11.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_11.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_12.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_12.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_13.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_13.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_2.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_2.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_3_a0.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_3_a0.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_3_a1.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_3_a1.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_3.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_3.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_4_a0.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_4_a0.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_4_a1.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_4_a1.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_4_a10.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_4_a10.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_4_a11.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_4_a11.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_4_a2.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_4_a2.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_4_a3.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_4_a3.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_4_a4.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_4_a4.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_4_a5.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_4_a5.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_4_a6.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_4_a6.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_4_a7.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_4_a7.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_4_a8.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_4_a8.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_4_a9.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_4_a9.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_4.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_4.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_5_a0.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_5_a0.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_5_a1.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_5_a1.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_5_a2.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_5_a2.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_5_a3.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_5_a3.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_5_a4.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_5_a4.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_5_a5.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_5_a5.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_5.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_5.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_6_a0.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_6_a0.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_6_a1.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_6_a1.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_6_a2.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_6_a2.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_6.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_6.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_7.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_7.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_8_a0.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_8_a0.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_8_a1.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_8_a1.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_8_a2.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_8_a2.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_8_a3.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_8_a3.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_8_a4.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_8_a4.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_8_a5.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_8_a5.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_8_a6.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_8_a6.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_8_a7.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_8_a7.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_8_a8.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_8_a8.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_8_p2.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_8_p2.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_8.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_8.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_9_a0.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_9_a0.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_9_a1.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_9_a1.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"boss_9.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"boss_9.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"gaster.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"gaster.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"lb_0_a0.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"lb_0_a0.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"lb_0_a1.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"lb_0_a1.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"lb_0_a2.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"lb_0_a2.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"lb_0_a3.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"lb_0_a3.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"lb_0_a4.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"lb_0_a4.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"lb_0_a5.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"lb_0_a5.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"lb_0.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"lb_0.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"lb_1_a0.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"lb_1_a0.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"lb_1_a1.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"lb_1_a1.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"lb_1_a2.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"lb_1_a2.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"lb_1_a3.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"lb_1_a3.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"lb_1_a4.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"lb_1_a4.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"lb_1_a5.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"lb_1_a5.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"lb_1.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"lb_1.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"lb_2_a0.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"lb_2_a0.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"lb_2_a1.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"lb_2_a1.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"lb_2_a2.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"lb_2_a2.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"lb_2_a3.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"lb_2_a3.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"lb_2_a4.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"lb_2_a4.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"lb_2.png","CopyToMask":-1,"filePath":"datafiles/sprites","name":"lb_2.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
   ],
-  "isEcma": false,
-  "LibraryEmitters": [],
-  "MetaData": {
-    "IDEVersion": "2026.0.0.16"
+  "isEcma":false,
+  "LibraryEmitters":[],
+  "MetaData":{
+    "IDEVersion":"2026.0.0.16",
   },
-  "name": "VraisFanGames",
-  "resources": [
-    {
-      "id": {
-        "name": "obj_game",
-        "path": "objects/obj_game/obj_game.yy"
-      }
-    },
-    {
-      "id": {
-        "name": "rm_main",
-        "path": "rooms/rm_main/rm_main.yy"
-      }
-    },
-    {
-      "id": {
-        "name": "scr_game",
-        "path": "scripts/scr_game/scr_game.yy"
-      }
-    }
+  "name":"VraisFanGames",
+  "resources":[
+    {"id":{"name":"obj_game","path":"objects/obj_game/obj_game.yy",},},
+    {"id":{"name":"rm_main","path":"rooms/rm_main/rm_main.yy",},},
+    {"id":{"name":"scr_game","path":"scripts/scr_game/scr_game.yy",},},
   ],
-  "resourceType": "GMProject",
-  "resourceVersion": "2.0",
-  "RoomOrderNodes": [
-    {
-      "roomId": {
-        "name": "rm_main",
-        "path": "rooms/rm_main/rm_main.yy"
-      }
-    }
+  "resourceType":"GMProject",
+  "resourceVersion":"2.0",
+  "RoomOrderNodes":[
+    {"roomId":{"name":"rm_main","path":"rooms/rm_main/rm_main.yy",},},
   ],
-  "templateType": null,
-  "TextureGroups": [
-    {
-      "$GMTextureGroup": "",
-      "%Name": "Default",
-      "autocrop": true,
-      "border": 2,
-      "compressFormat": "bz2",
-      "customOptions": "",
-      "directory": "",
-      "groupParent": null,
-      "isScaled": true,
-      "loadType": "default",
-      "mipsToGenerate": 0,
-      "name": "Default",
-      "resourceType": "GMTextureGroup",
-      "resourceVersion": "2.0",
-      "targets": -1
-    }
-  ]
+  "templateType":null,
+  "TextureGroups":[
+    {"$GMTextureGroup":"","%Name":"Default","autocrop":true,"border":2,"compressFormat":"bz2","customOptions":"","directory":"","groupParent":null,"isScaled":true,"loadType":"default","mipsToGenerate":0,"name":"Default","resourceType":"GMTextureGroup","resourceVersion":"2.0","targets":-1,},
+  ],
 }
