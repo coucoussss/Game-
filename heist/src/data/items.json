@@ -1,0 +1,53 @@
+[
+  {
+    "id": "crowbar",
+    "name": "Pied-de-biche",
+    "kind": "tool",
+    "description": "Force les portes et les coffres, bruyamment. Peut faire peur, de près.",
+    "price": 25,
+    "suspicion": 0.5,
+    "speedFactor": 1,
+    "threatRange": 2.5
+  },
+  {
+    "id": "wire-cutters",
+    "name": "Coupe-fil",
+    "kind": "tool",
+    "description": "Tranche les câbles d'une boîte à fusibles sans un bruit.",
+    "price": 40,
+    "suspicion": 0.2,
+    "speedFactor": 1,
+    "threatRange": 0
+  },
+  {
+    "id": "ski-mask",
+    "name": "Cagoule",
+    "kind": "wearable",
+    "description": "Personne ne pourra te reconnaître. Mais en pleine rue, ça se remarque.",
+    "price": 30,
+    "suspicion": 0.8,
+    "speedFactor": 1,
+    "threatRange": 0
+  },
+  {
+    "id": "pistol",
+    "name": "Pistolet rouillé",
+    "kind": "weapon",
+    "description": "Il a vécu. Il impose le silence à distance.",
+    "price": 180,
+    "suspicion": 1,
+    "speedFactor": 1,
+    "threatRange": 8
+  },
+  {
+    "id": "plate-carrier",
+    "name": "Gilet porte-plaques",
+    "kind": "wearable",
+    "description": "Arrête les balles, pas les regards. Lourd : on court moins vite.",
+    "price": 450,
+    "suspicion": 1,
+    "speedFactor": 0.8,
+    "threatRange": 0,
+    "model": "models/plate-carrier.glb"
+  }
+]

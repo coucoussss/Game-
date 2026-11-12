@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sans Filet</title>
+    <style>
+      :root {
+        --paper: #e9e2cc;
+        --ink: #1f1b14;
+        --accent: #c0392b;
+        --intel: #6fcf97;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #05070c; color: #eee; font-family: system-ui, sans-serif; }
+      #game, #hud { position: fixed; inset: 0; }
+      #hud { pointer-events: none; user-select: none; }
+      .hud-top { position: absolute; top: 14px; left: 16px; text-shadow: 0 1px 3px #000; }
+      .hud-clock { font-size: 20px; font-weight: 700; letter-spacing: 0.5px; }
+      .hud-money { margin-top: 4px; font-size: 16px; }
+      .hud-money .clean { color: #9be29b; }
+      .hud-money .dirty { color: #e2b45a; }
+      .hud-heat { position: absolute; top: 14px; right: 16px; font-size: 13px; text-shadow: 0 1px 3px #000; display: flex; align-items: center; gap: 8px; }
+      .hud-heat .bar { display: inline-block; width: 110px; height: 8px; background: #0008; border: 1px solid #fff4; }
+      .hud-heat .bar span { display: block; height: 100%; background: linear-gradient(90deg, #e2b45a, #e0452b); }
+      .hud-heat b { color: #ff6b5a; }
+      .hud-alert { position: absolute; top: 60px; left: 50%; transform: translateX(-50%); padding: 6px 14px; border-radius: 4px; font-weight: 700; letter-spacing: 1px; opacity: 0; transition: opacity 0.3s; background: #000a; }
+      .hud-alert.on { opacity: 1; }
+      .hud-alert.danger { background: #a3131399; animation: blink 0.8s infinite; }
+      @keyframes blink { 50% { opacity: 0.55; } }
+      .hud-cross { position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: #fffc; box-shadow: 0 0 2px #000; }
+      .hud-cross.threat { background: var(--accent); width: 10px; height: 10px; margin: -5px 0 0 -5px; }
+      .hud-look { position: absolute; left: 50%; top: 50%; width: 30px; height: 30px; margin: -15px 0 0 -15px; border-radius: 50%; display: none;
+        -webkit-mask: radial-gradient(circle, transparent 11px, #000 12px); mask: radial-gradient(circle, transparent 11px, #000 12px); }
+      .hud-prompt { position: absolute; left: 50%; top: 58%; transform: translateX(-50%); font-size: 16px; text-shadow: 0 1px 3px #000, 0 0 8px #000; white-space: nowrap; }
+      .hud-progress { position: absolute; left: 50%; top: 63%; width: 200px; height: 6px; margin-left: -100px; background: #0009; border: 1px solid #fff5; display: none; }
+      .hud-progress-fill { height: 100%; width: 0; background: #f2c94c; }
+      .hud-slots { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; }
+      .slot { padding: 6px 10px; background: #000a; border: 1px solid #fff3; border-radius: 3px; font-size: 13px; }
+      .slot b { color: #aaa; margin-right: 4px; }
+      .slot.held { border-color: #f2c94c; background: #3a2f0dcc; }
+      .slot.worn i { color: #9be29b; font-style: normal; }
+      .slot.empty { color: #999; }
+      .hud-toasts { position: absolute; top: 74px; left: 16px; width: min(420px, 80vw); display: flex; flex-direction: column; gap: 6px; }
+      .toast { padding: 7px 10px; background: #000b; border-left: 3px solid #aaa; font-size: 13px; line-height: 1.35; transition: opacity 1s; }
+      .toast-intel { border-color: var(--intel); }
+      .toast-danger { border-color: var(--accent); color: #ffb3a8; font-weight: 700; }
+      .toast.fade { opacity: 0; }
+      .hud-panel { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; background: #000a; pointer-events: auto; padding: 16px; }
+      .card { background: var(--paper); color: var(--ink); max-width: 640px; width: 100%; max-height: 92vh; overflow: auto; padding: 24px 28px; border-radius: 4px; box-shadow: 0 10px 40px #000; }
+      .card.wide { max-width: 940px; }
+      .card h1 { margin: 0 0 6px; font-size: 42px; letter-spacing: 6px; }
+      .card h2 { margin: 0 0 10px; }
+      .card h2 small { font-weight: 400; color: #6a604a; font-size: 14px; }
+      .card h2.ok { color: #2f7a4a; }
+      .card h2.ko, .card .ko { color: var(--accent); }
+      .card .sub { font-style: italic; color: #5a5040; }
+      .card button { font: inherit; padding: 8px 16px; background: var(--ink); color: var(--paper); border: 0; border-radius: 3px; cursor: pointer; }
+      .card button:disabled { opacity: 0.35; cursor: default; }
+      .card .msg { font-weight: 700; }
+      table.keys { width: 100%; border-collapse: collapse; margin: 14px 0 18px; font-size: 14px; }
+      table.keys td { padding: 4px 6px; border-bottom: 1px solid #0001; }
+      table.keys td:nth-child(odd) { font-weight: 700; white-space: nowrap; }
+      table.shop { width: 100%; border-collapse: collapse; }
+      table.shop td { padding: 8px 6px; border-bottom: 1px solid #0002; vertical-align: middle; }
+      table.shop tr.owned { opacity: 0.55; }
+      table.shop .price { font-weight: 700; white-space: nowrap; text-align: right; }
+      .nb-body { display: flex; gap: 16px; flex-wrap: wrap; }
+      .nb-body canvas { width: min(600px, 100%); height: auto; border: 1px solid #0003; }
+      .nb-body ul { flex: 1; min-width: 220px; margin: 0; padding-left: 0; list-style: none; font-size: 14px; }
+      .nb-body li { margin-bottom: 8px; display: flex; gap: 8px; }
+      .nb-body li.empty { color: #7a705a; font-style: italic; }
+      .dot { flex: none; width: 10px; height: 10px; border-radius: 50%; margin-top: 4px; border: 1px solid #0006; }
+    </style>
+  </head>
+  <body>
+    <div id="game"></div>
+    <div id="hud"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
