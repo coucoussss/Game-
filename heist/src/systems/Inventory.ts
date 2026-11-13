@@ -10,6 +10,13 @@ export class Inventory {
   readonly worn = new Set<ItemId>();
   cash: number;
   dirty = 0;
+  /** Total d'argent blanchi depuis le début : il débloque le matériel du Fourgue. */
+  laundered = 0;
+  /** Balles dans le chargeur, et en réserve. */
+  mag = 0;
+  ammo = 0;
+  /** Points de blindage restants dans les plaques du gilet. */
+  armor = 0;
 
   constructor(
     private readonly defs: ReadonlyMap<ItemId, ItemDef>,
@@ -34,9 +41,14 @@ export class Inventory {
     return true;
   }
 
+  /** Objets qu'on peut prendre en main ou enfiler (tout sauf l'équipement passif). */
+  holdable(): ItemId[] {
+    return this.items.filter((id) => this.def(id).kind !== 'gear');
+  }
+
   /** Sélectionne l'objet de l'emplacement `slot` (à partir de 0) ; le même emplacement le range. */
   select(slot: number): void {
-    const id = this.items[slot];
+    const id = this.holdable()[slot];
     if (id === undefined) return;
     this.held = this.held === id ? null : id;
   }
@@ -64,6 +76,7 @@ export class Inventory {
   speedFactor(): number {
     let f = 1;
     for (const id of this.worn) f *= this.def(id).speedFactor;
+    if (this.held !== null && !this.worn.has(this.held)) f *= this.def(this.held).speedFactor;
     return f;
   }
 
@@ -76,8 +89,28 @@ export class Inventory {
     return this.held === null ? 0 : this.def(this.held).threatRange;
   }
 
-  buy(id: ItemId): 'ok' | 'owned' | 'poor' {
+  /** Le Fourgue ne propose un objet qu'à ceux qui ont déjà fait leurs preuves. */
+  unlocked(id: ItemId): boolean {
+    return this.laundered >= this.def(id).unlock;
+  }
+
+  /** Blindage effectif : les plaques ne servent que si le gilet est porté. */
+  activeArmor(): number {
+    return this.worn.has('plate-carrier') ? this.armor : 0;
+  }
+
+  /** Recharge le pistolet depuis la réserve. Renvoie vrai si des balles ont été chargées. */
+  reload(magazine: number): boolean {
+    const need = Math.min(magazine - this.mag, this.ammo);
+    if (need <= 0) return false;
+    this.mag += need;
+    this.ammo -= need;
+    return true;
+  }
+
+  buy(id: ItemId): 'ok' | 'owned' | 'poor' | 'locked' {
     if (this.has(id)) return 'owned';
+    if (!this.unlocked(id)) return 'locked';
     const price = this.def(id).price;
     if (this.cash < price) return 'poor';
     this.cash -= price;
@@ -89,6 +122,7 @@ export class Inventory {
   launder(fee: number): number {
     const clean = Math.floor(this.dirty * (1 - fee));
     this.cash += clean;
+    this.laundered += clean;
     this.dirty = 0;
     return clean;
   }
@@ -100,6 +134,9 @@ export class Inventory {
     this.worn.clear();
     this.held = null;
     this.dirty = 0;
+    this.mag = 0;
+    this.ammo = 0;
+    this.armor = 0;
     return lost;
   }
 }

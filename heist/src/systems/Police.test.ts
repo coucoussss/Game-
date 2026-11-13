@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DRIVE_TIME, Police } from './Police';
 
-const rules = { policeEta: 40, policeEtaPerHeat: 0.2, policeMinEta: 15, policeSearch: 30 };
+const rules = { policeEta: 40, policeEtaPerHeat: 0.2, policeEtaPerTier: 5, policeMinEta: 15, policeSearch: 30 };
 
 describe('Police', () => {
   it('arrive plus vite quand la chaleur monte, sans descendre sous le minimum', () => {
@@ -9,6 +9,7 @@ describe('Police', () => {
     expect(p.etaFor(0)).toBe(40);
     expect(p.etaFor(50)).toBe(30);
     expect(p.etaFor(1000)).toBe(15);
+    expect(p.etaFor(0, 2)).toBe(30);
   });
 
   it('arrive, fouille, puis repart', () => {

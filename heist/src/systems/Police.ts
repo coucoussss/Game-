@@ -8,6 +8,7 @@ export type PoliceState = 'idle' | 'en-route' | 'searching' | 'leaving';
 export interface PoliceRules {
   readonly policeEta: number;
   readonly policeEtaPerHeat: number;
+  readonly policeEtaPerTier: number;
   readonly policeMinEta: number;
   readonly policeSearch: number;
 }
@@ -26,16 +27,18 @@ export class Police {
 
   constructor(private readonly rules: PoliceRules) {}
 
-  etaFor(heat: number): number {
-    return Math.max(this.rules.policeMinEta, this.rules.policeEta - heat * this.rules.policeEtaPerHeat);
+  /** Plus la cible est importante et plus le joueur est connu, plus la police arrive vite. */
+  etaFor(heat: number, tier = 0): number {
+    const r = this.rules;
+    return Math.max(r.policeMinEta, r.policeEta - heat * r.policeEtaPerHeat - tier * r.policeEtaPerTier);
   }
 
   /** Déclenche un appel. Renvoie vrai si la police n'était pas déjà en route. */
-  call(heat: number, loud: boolean): boolean {
+  call(heat: number, loud: boolean, tier = 0): boolean {
     this.loud = this.loud || loud;
     if (this.state === 'en-route' || this.state === 'searching') return false;
     this.state = 'en-route';
-    this.eta = this.etaFor(heat);
+    this.eta = this.etaFor(heat, tier);
     this.timer = this.eta;
     return true;
   }
@@ -59,6 +62,11 @@ export class Police {
         break;
     }
     return this.state;
+  }
+
+  /** Prolonge la fouille tant que les agents ont une piste. */
+  extendSearch(min: number): void {
+    if (this.state === 'searching') this.timer = Math.max(this.timer, min);
   }
 
   reset(): void {

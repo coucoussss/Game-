@@ -1,276 +1,412 @@
 import * as THREE from 'three';
-import type { LevelDef, Rect } from '../data/types';
+import { propRect } from '../data';
+import type { DoorDef, GameData } from '../data/types';
 import { daylight } from '../systems/Clock';
+import type { Point } from '../systems/geometry';
 import type { World } from '../systems/World';
+import { box, chrome, flat, glass, metalDark, put, rbox, shadows, surface } from './build';
+import { CityView, Sky, type LightSource } from './CityView';
+import { Human, lookFor } from './models/human';
+import { makeDrill } from './models/items';
+import { cashPallet, makeCamera, makeDisplayCase, makeFuseBox, makeSafe, makeVaultDoor } from './models/props';
+import { glowTexture } from './textures';
+import { loadModel } from './Viewmodel';
 
-/** Boîte posée au sol, de `rect` en plan et de hauteur `h`, à partir de l'altitude `y0`. */
-export function box(rect: Rect, h: number, material: THREE.Material, y0 = 0): THREE.Mesh {
-  const w = rect.max[0] - rect.min[0];
-  const d = rect.max[1] - rect.min[1];
-  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
-  mesh.position.set((rect.min[0] + rect.max[0]) / 2, y0 + h / 2, (rect.min[1] + rect.max[1]) / 2);
-  return mesh;
+/** Nombre de lumières ponctuelles réellement calculées : on les attribue aux sources les plus utiles. */
+const POOL = 10;
+
+interface DoorView {
+  readonly def: DoorDef;
+  readonly pivot: THREE.Object3D;
+  readonly openAngle: number;
+  /** Les portes vitrées coulissent au lieu de pivoter. */
+  readonly sliding: boolean;
+  angle: number;
 }
 
-const mats = new Map<string, THREE.MeshLambertMaterial>();
-export function mat(color: string): THREE.MeshLambertMaterial {
-  let m = mats.get(color);
-  if (!m) {
-    m = new THREE.MeshLambertMaterial({ color });
-    mats.set(color, m);
-  }
-  return m;
-}
-
-/** Texture de bruit légère, pour casser l'aspect uni des grandes surfaces. */
-function grainTexture(base: string, spread: number, repeat: number): THREE.CanvasTexture {
-  const c = document.createElement('canvas');
-  c.width = c.height = 128;
-  const g = c.getContext('2d');
-  if (g) {
-    g.fillStyle = base;
-    g.fillRect(0, 0, 128, 128);
-    for (let i = 0; i < 2200; i++) {
-      const v = Math.floor(Math.random() * spread);
-      g.fillStyle = `rgba(${v},${v},${v},0.08)`;
-      g.fillRect(Math.random() * 128, Math.random() * 128, 2, 2);
-    }
-  }
-  const t = new THREE.CanvasTexture(c);
-  t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  t.repeat.set(repeat, repeat);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
-}
-
-function signTexture(lines: readonly string[], bg: string, fg: string, w = 512, h = 128): THREE.CanvasTexture {
-  const c = document.createElement('canvas');
-  c.width = w;
-  c.height = h;
-  const g = c.getContext('2d');
-  if (g) {
-    g.fillStyle = bg;
-    g.fillRect(0, 0, w, h);
-    g.fillStyle = fg;
-    g.textAlign = 'center';
-    g.textBaseline = 'middle';
-    const size = Math.floor(h / (lines.length + 0.6));
-    g.font = `bold ${size}px sans-serif`;
-    lines.forEach((line, i) => g.fillText(line, w / 2, (h / (lines.length + 1)) * (i + 1)));
-  }
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
+interface LinkedView {
+  readonly container: string;
+  readonly update: (amount: number, dt: number) => void;
 }
 
 /**
- * Le décor : sol, bâtiments, portes, accessoires et éclairage. `update` suit l'heure, le courant et les portes.
+ * La partie vivante du décor : ciel et soleil, ombres, réserve de lumières, portes, caméras, boîtiers
+ * électriques, coffres, vitrines, chambre forte, le Fourgue et son étal.
  */
 export class LevelView {
+  readonly city: CityView;
+  /** Sources éphémères (gyrophares, coups de feu) ajoutées par les autres vues avant chaque `update`. */
+  readonly transient: LightSource[] = [];
+  private readonly sky: Sky;
   private readonly hemi = new THREE.HemisphereLight('#9fb4d8', '#2a2622', 1);
   private readonly sun = new THREE.DirectionalLight('#fff1d6', 1);
-  private readonly lamps: THREE.PointLight[] = [];
-  private readonly storeLights: THREE.PointLight[] = [];
-  private readonly hideoutLight = new THREE.PointLight('#ffb36b', 6, 12, 1.6);
-  private readonly frontDoor: THREE.Mesh;
-  private readonly backDoor: THREE.Group;
-  private readonly cameraLed: THREE.Mesh;
-  private readonly cables: THREE.Mesh;
-  private readonly storeSign: THREE.MeshBasicMaterial;
-  private readonly registerScreen: THREE.MeshBasicMaterial;
-  private readonly skyDay = new THREE.Color('#8fb2d9');
-  private readonly skyNight = new THREE.Color('#0b1020');
-  private readonly sky = new THREE.Color();
+  private readonly pool: THREE.PointLight[] = [];
+  private readonly glows: { sprite: THREE.Sprite; source: LightSource }[] = [];
+  private readonly doors: DoorView[] = [];
+  private readonly cameras: { site: string; led: THREE.Mesh }[] = [];
+  private readonly fuses: { site: string; parts: ReturnType<typeof makeFuseBox>; door: number }[] = [];
+  private readonly linked: LinkedView[] = [];
+  private readonly cases: { pos: Point; container: string; glass: THREE.Group; broken: boolean }[] = [];
+  private vault: { door: THREE.Group; drill: THREE.Object3D; base: THREE.Vector3; angle: number; site: string } | null = null;
+  private readonly fence: Human;
+  private vest: THREE.Object3D | null = null;
+  private readonly fenceLight: LightSource;
+  private readonly tmp = new THREE.Vector3();
+  private readonly top = new THREE.Color();
+  private readonly horizon = new THREE.Color();
 
   constructor(
     private readonly scene: THREE.Scene,
-    private readonly level: LevelDef,
+    private readonly data: GameData,
   ) {
+    const level = data.level;
+    this.city = new CityView(scene, level, data.propKinds);
+    this.sky = new Sky(scene);
     scene.add(this.hemi, this.sun, this.sun.target);
-    this.sun.position.set(-20, 30, 10);
+    this.sun.castShadow = true;
+    this.sun.shadow.mapSize.set(2048, 2048);
+    const cam = this.sun.shadow.camera;
+    cam.left = cam.bottom = -34;
+    cam.right = cam.top = 34;
+    cam.near = 1;
+    cam.far = 140;
+    this.sun.shadow.bias = -0.0004;
+    this.sun.shadow.normalBias = 0.03;
+    scene.fog = new THREE.Fog('#141a2a', 30, 150);
 
-    this.buildGround();
-    for (const w of level.walls) scene.add(box(w.rect, w.height, mat(w.color)));
-    this.buildRoofs();
-
-    // Portes.
-    const front = level.doors.find((d) => d.id === 'store-front');
-    const back = level.doors.find((d) => d.id === 'store-back');
-    const glass = new THREE.MeshLambertMaterial({ color: '#9fc4c9', transparent: true, opacity: 0.35 });
-    this.frontDoor = box(front?.rect ?? level.store, front?.height ?? 2.4, glass);
-    scene.add(this.frontDoor);
-    this.backDoor = new THREE.Group();
-    if (back) {
-      const w = back.rect.max[0] - back.rect.min[0];
-      const leaf = new THREE.Mesh(new THREE.BoxGeometry(w, back.height, 0.08), mat(back.color));
-      leaf.position.set(w / 2, back.height / 2, 0);
-      this.backDoor.add(leaf);
-      this.backDoor.position.set(back.rect.min[0], 0, (back.rect.min[1] + back.rect.max[1]) / 2);
+    for (let i = 0; i < POOL; i++) {
+      const l = new THREE.PointLight('#ffffff', 0, 10, 2);
+      scene.add(l);
+      this.pool.push(l);
     }
-    scene.add(this.backDoor);
-
-    // Supérette : enseigne, caisse, caméra, boîte à fusibles.
-    this.storeSign = new THREE.MeshBasicMaterial({ map: signTexture(['SUPÉRETTE LUMIÈRE', '8 h – 22 h'], '#1d3b2a', '#e8f5c8') });
-    const sign = new THREE.Mesh(new THREE.PlaneGeometry(4, 0.8), this.storeSign);
-    sign.position.set(8, 2.75, -3.97);
-    scene.add(sign);
-
-    const register = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.25, 0.35), mat('#2b2d31'));
-    register.position.set(6, 1.13, -7.8);
-    this.registerScreen = new THREE.MeshBasicMaterial({ color: '#57e389' });
-    const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.12), this.registerScreen);
-    screen.position.set(0, 0.2, 0.05);
-    screen.rotation.x = -0.4;
-    register.add(screen);
-    scene.add(register);
-
-    const dial = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.04, 16), mat('#a8a8a8'));
-    dial.rotation.x = Math.PI / 2;
-    dial.position.set(2.9, 0.55, -12.88);
-    scene.add(dial);
-
-    this.cameraLed = new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 8), new THREE.MeshBasicMaterial({ color: '#ff2020' }));
-    for (const cam of level.cameras) {
-      const body = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.14, 0.32), mat('#d8d8d0'));
-      body.position.set(cam.pos[0], cam.y, cam.pos[1]);
-      body.rotation.y = Math.PI / 2 - cam.facing;
-      body.rotation.x = 0.35;
-      scene.add(body);
-      this.cameraLed.position.set(0, 0.04, 0.17);
-      body.add(this.cameraLed);
+    const glowMap = glowTexture();
+    for (const source of this.city.handles.lights) {
+      if (source.tag !== 'street' && source.tag !== 'alley') continue;
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowMap, color: source.color, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false }));
+      sprite.position.copy(source.pos);
+      sprite.scale.setScalar(source.tag === 'street' ? 2.6 : 1.4);
+      scene.add(sprite);
+      this.glows.push({ sprite, source });
     }
 
-    const fuse = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.6, 0.15), mat('#7d8389'));
-    fuse.position.set(8, 1.5, -14.12);
-    scene.add(fuse);
-    this.cables = new THREE.Mesh(new THREE.BoxGeometry(0.06, 1.4, 0.06), mat('#1a1a1a'));
-    this.cables.position.set(8, 2.5, -14.09);
-    scene.add(this.cables);
-
-    this.buildProps();
-
-    for (const l of level.lamps) {
-      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 4, 8), mat('#2c2f33'));
-      post.position.set(l[0], 2, l[1]);
-      const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.12, 0.3), new THREE.MeshBasicMaterial({ color: '#ffd9a0' }));
-      head.position.set(0, 2, 0);
-      post.add(head);
-      scene.add(post);
-      const light = new THREE.PointLight('#ffcf8a', 0, 16, 1.2);
-      light.position.set(l[0], 3.7, l[1]);
-      scene.add(light);
-      this.lamps.push(light);
+    for (const d of level.doors) this.buildDoor(d);
+    for (const c of level.cameras) {
+      const m = makeCamera();
+      put(m.root, c.pos[0], c.y, c.pos[1], 0, Math.PI / 2 - c.facing, 0);
+      m.head.rotation.x = 0.4;
+      // Le support est fixé au mur : on recule le boîtier vers lui.
+      m.root.translateZ(-0.12);
+      shadows(m.root);
+      scene.add(m.root);
+      this.cameras.push({ site: c.site, led: m.led });
     }
-    for (const p of [[5, -6.5], [11, -6.5], [8, -12.5]] as const) {
-      const light = new THREE.PointLight('#e9f6ff', 0, 10, 1.5);
-      light.position.set(p[0], 2.9, p[1]);
-      scene.add(light);
-      this.storeLights.push(light);
-      const tube = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.05, 0.15), new THREE.MeshBasicMaterial({ color: '#f2fbff' }));
-      tube.position.copy(light.position).setY(3.17);
-      tube.userData.tube = true;
-      scene.add(tube);
-      light.userData.tube = tube;
+    for (const it of level.interactables) {
+      if (it.kind !== 'fuse-box' || !it.site) continue;
+      const parts = makeFuseBox();
+      put(parts.root, it.pos[0], it.y, it.pos[1], 0, Math.PI, 0);
+      parts.root.translateZ(-0.06);
+      shadows(parts.root);
+      scene.add(parts.root);
+      this.fuses.push({ site: it.site, parts, door: 0 });
     }
-    this.hideoutLight.position.set(-15, 2.7, -9);
-    scene.add(this.hideoutLight);
-    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8), new THREE.MeshBasicMaterial({ color: '#ffd08a' }));
-    bulb.position.copy(this.hideoutLight.position);
-    scene.add(bulb);
+    this.buildDynamicProps();
 
-    scene.fog = new THREE.Fog(this.skyNight, 15, 60);
+    // Le Fourgue, son étal, sa lanterne, et le gilet en vitrine.
+    const f = level.fence;
+    this.fence = new Human(lookFor('fence'));
+    this.fence.update(0, f.pos[0], f.pos[1], f.facing, 'idle');
+    scene.add(this.fence.root);
+    this.fenceLight = { pos: new THREE.Vector3(f.pos[0] + 0.85, 1.1, f.pos[1] + 0.65), color: new THREE.Color('#ffb040'), range: 9, power: 10, level: 0, tag: 'fence' };
+    this.city.handles.lights.push(this.fenceLight);
+    void loadModel('models/plate-carrier.glb', 0.55, false)
+      .then((vest) => {
+        put(vest, f.pos[0] - 0.4, 0.86, f.pos[1] + 0.9, 0, -0.5, 0);
+        shadows(vest);
+        scene.add(vest);
+        this.vest = vest;
+      })
+      .catch((err: unknown) => console.warn('Modèle du gilet introuvable :', err));
   }
 
-  private buildGround(): void {
-    const b = this.level.bounds;
-    const all: Rect = { min: [b.min[0] - 20, b.min[1] - 20], max: [b.max[0] + 20, b.max[1] + 20] };
-    const asphalt = new THREE.MeshLambertMaterial({ map: grainTexture('#2c2d30', 255, 30) });
-    this.scene.add(box(all, 0.02, asphalt, -0.02));
-    const pave = new THREE.MeshLambertMaterial({ map: grainTexture('#6a6862', 255, 12) });
-    this.scene.add(box({ min: [b.min[0], -4], max: [b.max[0], -2.4] }, 0.12, pave));
-    this.scene.add(box({ min: [b.min[0], 4.2], max: [b.max[0], 6] }, 0.12, pave));
-    const gravel = new THREE.MeshLambertMaterial({ map: grainTexture('#3d3a35', 255, 16) });
-    this.scene.add(box({ min: [b.min[0], b.min[1]], max: [b.max[0], -14] }, 0.03, gravel));
-    // Marquage au sol.
-    for (let x = b.min[0] + 2; x < b.max[0]; x += 4) {
-      this.scene.add(box({ min: [x, 0.95], max: [x + 2, 1.05] }, 0.01, mat('#c9c3a8'), 0.0));
+  private buildDoor(d: DoorDef): void {
+    const len = d.alongX ? d.rect.max[0] - d.rect.min[0] : d.rect.max[1] - d.rect.min[1];
+    const cx = (d.rect.min[0] + d.rect.max[0]) / 2;
+    const cz = (d.rect.min[1] + d.rect.max[1]) / 2;
+    if (d.role === 'vault') {
+      const v = makeVaultDoor(len);
+      put(v.root, cx, 0, cz, 0, d.alongX ? 0 : Math.PI / 2, 0);
+      shadows(v.root);
+      this.scene.add(v.root);
+      const drill = makeDrill();
+      drill.scale.setScalar(1.6);
+      put(drill, cx, 1.15, cz + 0.62, 0, Math.PI, 0);
+      drill.visible = false;
+      this.scene.add(drill);
+      this.vault = { door: v.door, drill, base: drill.position.clone(), angle: 0, site: d.site ?? 'bank' };
+      return;
     }
-    this.scene.add(box(this.level.store, 0.02, new THREE.MeshLambertMaterial({ map: grainTexture('#b8b4a6', 120, 6) }), 0.12));
-    this.scene.add(box(this.level.hideout, 0.02, new THREE.MeshLambertMaterial({ map: grainTexture('#55524c', 255, 6) }), 0.01));
+    const height = d.role === 'front' ? 2.45 : d.role === 'back' ? 2.15 : 2.15;
+    const leaf = new THREE.Group();
+    const w = len - 0.04;
+    if (d.role === 'front') {
+      // Porte vitrée à cadre chromé, poignée bâton, autocollants d'horaires.
+      leaf.add(put(box(w, height, 0.03, glass('#cfe6ec', 0.22)), w / 2, height / 2, 0));
+      for (const x of [0.03, w - 0.03]) leaf.add(put(box(0.06, height, 0.05, chrome()), x, height / 2, 0));
+      for (const y of [0.04, height - 0.04]) leaf.add(put(box(w, 0.08, 0.05, chrome()), w / 2, y, 0));
+      leaf.add(put(box(w, 0.3, 0.05, chrome()), w / 2, 0.15, 0));
+      for (const s of [-1, 1]) leaf.add(put(box(0.03, 0.9, 0.03, chrome()), w - 0.18, 1.1, s * 0.06));
+      leaf.add(put(box(0.5, 0.18, 0.002, flat('#ffffff', { rough: 0.6 })), w / 2, 1.5, 0.017));
+    } else if (d.role === 'back') {
+      const steelMat = surface('metal', '#59606a');
+      leaf.add(put(box(w, height, 0.06, steelMat), w / 2, height / 2, 0));
+      for (const s of [-1, 1]) {
+        leaf.add(put(box(w * 0.75, 0.06, 0.06, flat('#c0392b', { rough: 0.4, metal: 0.4 })), w / 2, 1.0, s * 0.06));
+        leaf.add(put(box(0.08, 0.12, 0.05, metalDark()), w * 0.12, 1.0, s * 0.05));
+      }
+      leaf.add(put(rbox(0.1, 0.2, 0.04, 0.01, flat('#d8d8d0')), w - 0.12, 2.0, 0.05));
+    } else {
+      const woodMat = surface('wood', '#5a3d27');
+      leaf.add(put(box(w, height, 0.05, woodMat), w / 2, height / 2, 0));
+      for (const y of [0.55, 1.5]) leaf.add(put(box(w - 0.2, 0.7, 0.06, surface('wood', '#4a3020')), w / 2, y, 0));
+      for (const s of [-1, 1]) leaf.add(put(box(0.12, 0.02, 0.04, chrome()), w - 0.12, 1.0, s * 0.04));
+      leaf.add(put(box(0.06, 0.06, 0.07, flat('#111')), w - 0.12, 1.15, 0));
+    }
+    shadows(leaf);
+    const pivot = new THREE.Group();
+    pivot.add(leaf);
+    put(pivot, d.alongX ? d.rect.min[0] + 0.02 : cx, 0.01, d.alongX ? cz : d.rect.min[1] + 0.02, 0, d.alongX ? 0 : -Math.PI / 2, 0);
+    this.scene.add(pivot);
+    // La porte s'ouvre vers l'intérieur du bâtiment qui la contient.
+    const building = this.data.level.buildings.find(
+      (b) => cx >= b.rect.min[0] - 0.01 && cx <= b.rect.max[0] + 0.01 && cz >= b.rect.min[1] - 0.01 && cz <= b.rect.max[1] + 0.01 && !b.solid,
+    );
+    const center = building ? (d.alongX ? (building.rect.min[1] + building.rect.max[1]) / 2 : (building.rect.min[0] + building.rect.max[0]) / 2) : 0;
+    const here = d.alongX ? cz : cx;
+    const openAngle = (here > center ? 1 : -1) * 1.55;
+    this.doors.push({ def: d, pivot, openAngle, sliding: d.role === 'front', angle: 0 });
   }
 
-  private buildRoofs(): void {
-    this.scene.add(box(this.level.store, 0.2, mat('#3a3631'), 3.2));
-    this.scene.add(box(this.level.hideout, 0.2, mat('#34383c'), 3.0));
-  }
-
-  private buildProps(): void {
-    const s = this.scene;
-    // Marchandises sur les étagères.
-    const colors = ['#c94f4f', '#e0b14a', '#4f8ac9', '#6fb35a', '#d9d4c7'];
-    let i = 0;
-    for (const shelf of [{ x0: 3, x1: 6, z: -5.75 }, { x0: 10, x1: 12.8, z: -5.95 }]) {
-      for (let x = shelf.x0 + 0.2; x < shelf.x1 - 0.1; x += 0.35) {
-        for (const y of [0.55, 1.05, 1.62]) {
-          const p = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.3, 0.3), mat(colors[i++ % colors.length] ?? '#fff'));
-          p.position.set(x, y, shelf.z);
-          s.add(p);
+  /** Coffres, vitrines et palette de billets : leur aspect suit le contenu du contenant le plus proche. */
+  private buildDynamicProps(): void {
+    const level = this.data.level;
+    const nearestContainer = (x: number, z: number): string | null => {
+      let best: string | null = null;
+      let bestD = 1.6;
+      for (const it of level.interactables) {
+        if (it.kind !== 'container') continue;
+        const d = Math.hypot(it.pos[0] - x, it.pos[1] - z);
+        if (d < bestD) {
+          bestD = d;
+          best = it.id;
         }
       }
+      return best;
+    };
+    for (const p of level.props) {
+      const kind = this.data.propKinds.get(p.type);
+      if (!kind) continue;
+      const r = propRect(p.pos, kind, p.rot);
+      const x = (r.min[0] + r.max[0]) / 2;
+      const z = (r.min[1] + r.max[1]) / 2;
+      const container = nearestContainer(p.pos[0], p.pos[1]);
+      if (p.type === 'safe') {
+        const s = makeSafe(p.variant ?? 0);
+        put(s.root, x, 0, z, 0, (-(p.rot ?? 0) * Math.PI) / 2, 0);
+        shadows(s.root);
+        this.scene.add(s.root);
+        let angle = 0;
+        if (container) {
+          this.linked.push({
+            container,
+            update: (amount, dt) => {
+              angle += ((amount > 0 ? 0 : -1.9) - angle) * Math.min(1, dt * 3);
+              s.door.rotation.y = angle;
+            },
+          });
+        }
+      } else if (p.type === 'display-case') {
+        const c = makeDisplayCase();
+        put(c.root, x, 0, z);
+        shadows(c.root);
+        this.scene.add(c.root);
+        if (container) {
+          this.linked.push({ container, update: (amount) => (c.jewels.visible = amount > 0) });
+          this.cases.push({ pos: { x, z }, container, glass: c.glass, broken: false });
+        }
+      } else if (p.type === 'cash-pallet') {
+        const base = put(box(1.2, 0.12, 0.9, surface('wood', '#9a7a54')), x, 0.06, z);
+        const full = put(cashPallet(), x, 0, z);
+        shadows(full);
+        this.scene.add(base, full);
+        if (container) this.linked.push({ container, update: (amount) => (full.visible = amount > 0) });
+      }
     }
-    // Planque : manteau, oreiller, plan.
-    const coat = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.9, 0.5), mat('#4a3a2a'));
-    coat.position.set(-19.65, 1.3, -6);
-    s.add(coat);
-    const pillow = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.12, 0.4), mat('#c8c2b4'));
-    pillow.position.set(-19.2, 0.66, -13.3);
-    s.add(pillow);
-    const plan = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.8), new THREE.MeshBasicMaterial({ map: signTexture(['PLAN', '· · ·'], '#d8d2bd', '#2a4a8a', 256, 170) }));
-    plan.rotation.x = -Math.PI / 2;
-    plan.position.set(-12.2, 0.91, -8.4);
-    s.add(plan);
-    // Ruelle : couvercle de benne, caisses du Fourgue.
-    const lid = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.08, 1.3), mat('#24392a'));
-    lid.position.set(17.2, 1.35, -16.4);
-    lid.rotation.x = -0.25;
-    s.add(lid);
-    for (const [x, z] of [[-6, -18.4], [-6.3, -17.7]] as const) {
-      const crate = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.6, 0.6), mat('#6b5236'));
-      crate.position.set(x, 0.3, z);
-      s.add(crate);
-    }
-    // Vitrine de la supérette, éclairée de l'intérieur.
-    const shopWindow = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 1.4), new THREE.MeshBasicMaterial({ color: '#f3e6b0', transparent: true, opacity: 0.25 }));
-    shopWindow.position.set(4.5, 1.5, -3.97);
-    s.add(shopWindow);
   }
 
-  update(world: World, time: number): void {
+  /** Une vitrine vient d'être brisée : on retire sa cloche de verre. */
+  shatter(pos: Point): THREE.Vector3 | null {
+    let best: (typeof this.cases)[number] | null = null;
+    let bestD = 2;
+    for (const c of this.cases) {
+      const d = Math.hypot(c.pos.x - pos.x, c.pos.z - pos.z);
+      if (d < bestD && !c.broken) {
+        bestD = d;
+        best = c;
+      }
+    }
+    if (!best) return null;
+    best.broken = true;
+    best.glass.visible = false;
+    return new THREE.Vector3(best.pos.x, 1.05, best.pos.z);
+  }
+
+  /** Les vitrines brisées sont remplacées au matin. */
+  repairCases(): void {
+    for (const c of this.cases) {
+      c.broken = false;
+      c.glass.visible = true;
+    }
+  }
+
+  update(world: World, camera: THREE.Camera, dt: number, time: number): void {
     const hour = world.clock.hour;
     const day = daylight(hour);
-    this.sky.copy(this.skyNight).lerp(this.skyDay, day);
-    this.scene.background = this.sky;
-    if (this.scene.fog instanceof THREE.Fog) this.scene.fog.color.copy(this.sky);
-    this.hemi.intensity = 0.25 + day * 1.4;
-    this.sun.intensity = day * 1.6;
-    this.sun.color.set(day < 0.6 ? '#ffb27a' : '#fff1d6');
-
     const night = 1 - day;
-    for (const l of this.lamps) l.intensity = night * 60;
-    // La boutique est éclairée quand elle a du courant : tout le jour, et en veilleuse la nuit.
-    const storeLit = world.powered ? (world.storeOpen ? 30 : 8) : 0;
-    for (const l of this.storeLights) {
-      l.intensity = storeLit;
-      const tube = l.userData.tube as THREE.Mesh | undefined;
-      if (tube) tube.visible = storeLit > 0;
-    }
-    this.hideoutLight.intensity = 25 + night * 15;
-    this.storeSign.color.set(world.powered ? '#ffffff' : '#333333');
-    this.registerScreen.color.set(world.powered ? '#57e389' : '#111111');
-    this.cameraLed.visible = world.powered && Math.sin(time * 4) > -0.2;
-    this.cables.material = world.powered ? mat('#1a1a1a') : mat('#7a3b1d');
 
-    this.frontDoor.visible = !world.doorOpen('store-front');
-    this.backDoor.rotation.y = world.doorOpen('store-back') ? -1.6 : 0;
+    // Ciel : dégradé jour / crépuscule / nuit.
+    const dusk = Math.max(0, 1 - Math.abs(hour - 19.8) / 1.6) + Math.max(0, 1 - Math.abs(hour - 6.8) / 1.3);
+    this.top.set('#060912').lerp(new THREE.Color('#3a6cb4'), day);
+    this.horizon.set('#141b2c').lerp(new THREE.Color('#b3cde6'), day).lerp(new THREE.Color('#e8905a'), Math.min(0.75, dusk * 0.8));
+    this.sky.uniforms.top.value.copy(this.top);
+    this.sky.uniforms.horizon.value.copy(this.horizon);
+    this.sky.uniforms.night.value = night;
+    const a = ((hour - 6) / 14) * Math.PI;
+    const sunDir = this.tmp.set(Math.cos(a) * 0.85, Math.sin(a), 0.45).normalize();
+    this.sky.uniforms.sunDir.value.copy(sunDir);
+    const moonA = (((hour + 12) % 24) - 6) / 14 * Math.PI;
+    const moonDir = new THREE.Vector3(Math.cos(moonA) * 0.7, Math.max(0.25, Math.sin(moonA)), -0.5).normalize();
+    this.sky.uniforms.moonDir.value.copy(moonDir);
+    this.sky.uniforms.sunColor.value.set(dusk > 0.3 ? '#ffb070' : '#fff2d0');
+    this.sky.mesh.position.copy(camera.position);
+    if (this.scene.fog instanceof THREE.Fog) {
+      this.scene.fog.color.copy(this.horizon).multiplyScalar(0.85);
+      this.scene.fog.near = 25 + day * 20;
+      this.scene.fog.far = 110 + day * 90;
+    }
+
+    // Soleil le jour, lune la nuit : une seule lumière directionnelle, avec ombres autour du joueur.
+    const useSun = day > 0.12 && sunDir.y > 0.05;
+    const dir = useSun ? sunDir : moonDir;
+    this.sun.intensity = useSun ? 0.4 + day * 2.4 : 0.32;
+    this.sun.color.set(useSun ? (dusk > 0.3 ? '#ffb27a' : '#fff1d6') : '#9fb4e8');
+    const p = world.player.pos;
+    // Ancrage au pas de la carte d'ombre, pour qu'elles ne scintillent pas en marchant.
+    const snap = 68 / 2048;
+    const sx = Math.round(p.x / snap) * snap;
+    const sz = Math.round(p.z / snap) * snap;
+    this.sun.target.position.set(sx, 0, sz);
+    this.sun.position.set(sx + dir.x * 60, dir.y * 60, sz + dir.z * 60);
+    this.hemi.color.copy(this.top).lerp(new THREE.Color('#ffffff'), 0.3);
+    this.hemi.groundColor.set('#2a2622');
+    this.hemi.intensity = 0.28 + day * 0.85;
+
+    // Niveaux des sources de lumière.
+    const lights = this.city.handles.lights;
+    for (const s of lights) {
+      if (s.tag === 'street' || s.tag === 'alley') s.level = Math.min(1, night * 1.4);
+      else if (s.tag === 'hideout') s.level = 1;
+      else if (s.tag === 'fence') s.level = world.fencePresent ? 1 : 0;
+      else {
+        const site = world.site(s.tag);
+        s.level = !site || !site.powered ? 0 : world.siteOpen(site) ? 1 : 0.28;
+      }
+    }
+    for (const m of this.city.handles.nightGlow) m.emissiveIntensity = night * (m === this.city.handles.nightGlow[2] ? 2.5 : 1.2);
+    this.city.handles.skyline.emissiveIntensity = night * 0.45;
+    for (const [id, mats] of this.city.handles.sitePower) {
+      const site = world.site(id);
+      const on = !site || site.powered;
+      const lvl = !on ? 0 : site && !world.siteOpen(site) ? 0.35 : 1;
+      for (const m of mats) m.emissiveIntensity = lvl * (m.map ? 0.7 : 1.6);
+    }
+    this.assignLights(camera.position);
+    for (const g of this.glows) {
+      const lvl = g.source.level;
+      g.sprite.visible = lvl > 0.02;
+      (g.sprite.material as THREE.SpriteMaterial).opacity = lvl * 0.85;
+    }
+
+    // Portes.
+    for (const d of this.doors) {
+      const target = world.doorOpen(d.def.id) ? d.openAngle : 0;
+      d.angle += (target - d.angle) * Math.min(1, dt * 7);
+      const leaf = d.pivot.children[0];
+      if (!leaf) continue;
+      if (d.sliding) {
+        // Glisse le long du mur, côté intérieur, jusqu'à dégager le passage.
+        const t = Math.abs(d.angle) / 1.55;
+        leaf.position.set(-t * (d.def.alongX ? d.def.rect.max[0] - d.def.rect.min[0] : d.def.rect.max[1] - d.def.rect.min[1]) * 0.96, 0, -0.12 * Math.sign(d.openAngle) * Math.min(1, t * 4));
+      } else leaf.rotation.set(0, d.angle, 0);
+    }
+    if (this.vault) {
+      const site = world.site(this.vault.site);
+      const target = site?.vaultOpen ? -1.75 : 0;
+      this.vault.angle += (target - this.vault.angle) * Math.min(1, dt * 0.6);
+      this.vault.door.rotation.y = this.vault.angle;
+      const drilling = site?.drill !== null && site?.drill !== undefined;
+      this.vault.drill.visible = drilling;
+      // La perceuse vibre contre l'acier.
+      if (drilling) this.vault.drill.position.set(this.vault.base.x + Math.sin(time * 90) * 0.004, this.vault.base.y + Math.cos(time * 77) * 0.004, this.vault.base.z);
+    }
+    for (const c of this.cameras) c.led.visible = (world.site(c.site)?.powered ?? false) && Math.sin(time * 4) > -0.3;
+    for (const f of this.fuses) {
+      const site = world.site(f.site);
+      if (!site) continue;
+      const open = site.fuseUnlocked || !site.def.lockedFuseBox || !site.powered;
+      f.door += ((open ? -1.9 : 0) - f.door) * Math.min(1, dt * 5);
+      f.parts.door.rotation.y = f.door;
+      f.parts.padlock.visible = site.def.lockedFuseBox && !site.fuseUnlocked;
+      f.parts.cables.visible = site.powered;
+      f.parts.cut.visible = !site.powered;
+    }
+    for (const l of this.linked) l.update(world.containers.get(l.container)?.amount ?? 0, dt);
+
+    // Le Fourgue.
+    const present = world.fencePresent;
+    this.fence.root.visible = present;
+    const f = this.data.level.fence;
+    if (present) this.fence.update(dt, f.pos[0], f.pos[1], f.facing, 'idle');
+    if (this.vest) {
+      this.vest.visible = present && !world.inventory.has('plate-carrier');
+      this.vest.rotation.y += dt * 0.5;
+    }
+  }
+
+  /** Attribue la réserve de lumières aux sources qui comptent le plus pour la caméra. */
+  private assignLights(cam: THREE.Vector3): void {
+    const candidates: { s: LightSource; score: number }[] = [];
+    for (const list of [this.city.handles.lights, this.transient]) {
+      for (const s of list) {
+        if (s.level <= 0.01) continue;
+        const d = s.pos.distanceTo(cam);
+        if (d > s.range + 45) continue;
+        candidates.push({ s, score: (s.power * s.level) / (1 + d * d * 0.015) });
+      }
+    }
+    candidates.sort((a, b) => b.score - a.score);
+    for (let i = 0; i < POOL; i++) {
+      const l = this.pool[i];
+      const c = candidates[i];
+      if (!l) continue;
+      if (!c) {
+        l.intensity = 0;
+        continue;
+      }
+      l.position.copy(c.s.pos);
+      l.color.copy(c.s.color);
+      l.distance = c.s.range;
+      l.intensity = c.s.power * c.s.level;
+    }
+    this.transient.length = 0;
   }
 }

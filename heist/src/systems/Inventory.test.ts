@@ -14,10 +14,14 @@ describe('Inventory', () => {
   it('achète avec l’argent propre uniquement', () => {
     const inv = new Inventory(data.items, 40);
     inv.dirty = 1000;
-    expect(inv.buy('pistol')).toBe('poor');
+    expect(inv.buy('pistol')).toBe('locked');
+    expect(inv.buy('crowbar')).toBe('ok');
+    inv.cash = 40;
     expect(inv.buy('wire-cutters')).toBe('ok');
     expect(inv.cash).toBe(0);
     expect(inv.buy('wire-cutters')).toBe('owned');
+    inv.laundered = 300;
+    expect(inv.buy('pistol')).toBe('poor');
   });
 
   it('blanchit en prélevant une commission', () => {
@@ -43,6 +47,27 @@ describe('Inventory', () => {
     expect(inv.visibleSuspicion()).toBeCloseTo(0.8);
     inv.toggleWear('plate-carrier');
     expect(inv.speedFactor()).toBeLessThan(1);
+  });
+
+  it('ne compte pas le sac parmi les objets à prendre en main', () => {
+    const inv = new Inventory(data.items, 0);
+    inv.add('duffel-bag');
+    inv.add('crowbar');
+    inv.select(0);
+    expect(inv.held).toBe('crowbar');
+  });
+
+  it('recharge depuis la réserve, et le blindage ne compte que gilet porté', () => {
+    const inv = new Inventory(data.items, 0);
+    inv.add('plate-carrier');
+    inv.armor = 100;
+    expect(inv.activeArmor()).toBe(0);
+    inv.toggleWear('plate-carrier');
+    expect(inv.activeArmor()).toBe(100);
+    inv.ammo = 5;
+    expect(inv.reload(8)).toBe(true);
+    expect(inv.mag).toBe(5);
+    expect(inv.reload(8)).toBe(false);
   });
 
   it('confisque tout le matériel et le butin', () => {
