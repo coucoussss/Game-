@@ -375,7 +375,13 @@ export class LevelView {
     const present = world.fencePresent;
     this.fence.root.visible = present;
     const f = this.data.level.fence;
-    if (present) this.fence.update(dt, f.pos[0], f.pos[1], f.facing, 'idle');
+    if (present) {
+      const pl = world.player.pos;
+      const d = Math.hypot(pl.x - f.pos[0], pl.z - f.pos[1]);
+      this.fence.gaze = d < 8 ? new THREE.Vector3(pl.x, world.eyeHeight(), pl.z) : null;
+      this.fence.setDetail(d < 16);
+      this.fence.update(dt, f.pos[0], f.pos[1], f.facing, 'idle');
+    }
     if (this.vest) {
       this.vest.visible = present && !world.inventory.has('plate-carrier');
       this.vest.rotation.y += dt * 0.5;

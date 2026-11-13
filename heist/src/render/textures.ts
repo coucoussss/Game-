@@ -34,9 +34,11 @@ function rng(seed: number): () => number {
   };
 }
 
+/** Couleur CSS d'une `THREE.Color` (stockée en linéaire : on repasse en sRGB pour le canvas). */
 function css(c: THREE.Color, mul = 1, alpha = 1): string {
+  const s = c.clone().convertLinearToSRGB();
   const f = (v: number) => Math.max(0, Math.min(255, Math.round(v * 255 * mul)));
-  return `rgba(${f(c.r)},${f(c.g)},${f(c.b)},${alpha})`;
+  return `rgba(${f(s.r)},${f(s.g)},${f(s.b)},${alpha})`;
 }
 
 function gray(v: number, alpha = 1): string {
@@ -382,7 +384,7 @@ const painters: Record<SurfaceKind, Painter> = {
 };
 
 /** Carte de normales tirée d'une carte de relief (filtre de Sobel, bords raccordés). */
-function normalFromHeight(height: HTMLCanvasElement, strength: number): HTMLCanvasElement {
+export function normalFromHeight(height: HTMLCanvasElement, strength: number): HTMLCanvasElement {
   const size = height.width;
   const src = height.getContext('2d')?.getImageData(0, 0, size, size).data;
   const out = document.createElement('canvas');

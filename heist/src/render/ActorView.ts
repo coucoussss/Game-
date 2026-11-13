@@ -39,6 +39,7 @@ export class ActorView {
   private readonly red: LightSource = { pos: new THREE.Vector3(), color: new THREE.Color('#ff2a2a'), range: 22, power: 60, level: 0, tag: 'police' };
   private readonly blue: LightSource = { pos: new THREE.Vector3(), color: new THREE.Color('#2a5cff'), range: 22, power: 60, level: 0, tag: 'police' };
   private world: World | null = null;
+  private readonly eye = new THREE.Vector3();
 
   constructor(private readonly scene: THREE.Scene) {
     shadows(this.car.root);
@@ -65,6 +66,8 @@ export class ActorView {
     for (const b of world.staff) modes.set(b.npc.id, b.mode);
 
     const seen = new Set<string>();
+    const pl = world.player.pos;
+    this.eye.set(pl.x, world.eyeHeight(), pl.z);
     for (const npc of world.everyone()) {
       seen.add(npc.id);
       let body = this.bodies.get(npc.id);
@@ -84,6 +87,12 @@ export class ActorView {
       body.speed += ((inst > 12 ? 0 : inst) - body.speed) * Math.min(1, dt * 8);
       body.lastX = npc.pos.x;
       body.lastZ = npc.pos.z;
+      // Regard : on suit des yeux le joueur s'il est proche, menaçant, ou si l'on est sur ses gardes.
+      const d = Math.hypot(npc.pos.x - pl.x, npc.pos.z - pl.z);
+      const alert = npc.compliant > 0 || npc.hostile || npc.suspicion > 0.2 || npc.aiming;
+      body.human.gaze = d < (alert ? 25 : 6) && npc.down === 'no' ? this.eye : null;
+      // Détails fins (doigts, coutures, cils…) seulement de près.
+      body.human.setDetail(d < 16);
       body.human.update(dt, npc.pos.x, npc.pos.z, npc.facing, poseOf(npc, modes.get(npc.id) ?? null, body.speed), body.speed);
     }
     for (const [id, body] of this.bodies) {

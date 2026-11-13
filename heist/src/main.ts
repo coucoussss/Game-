@@ -1,5 +1,6 @@
 import { loadGameData } from './data';
 import { Game } from './render/Game';
+import { Portrait } from './render/Portrait';
 
 const container = document.getElementById('game');
 const hud = document.getElementById('hud');
@@ -17,10 +18,15 @@ function storage(): { getItem(k: string): string | null; setItem(k: string, v: s
   }
 }
 
-const game = new Game(container, hud, loadGameData(), storage());
-game.run();
-
-// Accès de débogage depuis la console : `__heist.world`.
-if (new URLSearchParams(location.search).has('debug')) {
-  (window as unknown as { __heist: Game }).__heist = game;
+const params = new URLSearchParams(location.search);
+if (params.has('portrait')) {
+  // Studio de portraits : les personnages seuls, pour les juger de près.
+  const studio = new Portrait(container);
+  (window as unknown as { __portrait: Portrait }).__portrait = studio;
+  studio.run();
+} else {
+  const game = new Game(container, hud, loadGameData(), storage());
+  game.run();
+  // Accès de débogage depuis la console : `__heist.world`.
+  if (params.has('debug')) (window as unknown as { __heist: Game }).__heist = game;
 }

@@ -49,7 +49,21 @@ Après chaque étape, `npm run build` et `npm test` doivent passer.
     vitrines, chambre forte, le Fourgue), `ActorView` (personnages, voiture de police), `Viewmodel`
     (bras et objet tenu), `Effects` (balles, éclats, étincelles), `Hud`, `Input`, `Sfx` (WebAudio pur).
   - `build.ts` : matériaux et géométries partagés, `bake`. `textures.ts` : matières procédurales
-    (couleur + normales).
+    (couleur + normales). Les couleurs `THREE.Color` sont linéaires : on les repasse en sRGB avant de
+    peindre un canvas.
+  - **Personnages** (`models/human.ts`, `models/rig.ts`, `models/charMaterials.ts`) :
+    - `RigBuilder` : on accroche des pièces modelées à ~55 os (doigts phalange par phalange, mâchoire,
+      paupières, sourcils, yeux), puis tout est fusionné par matériau en `SkinnedMesh`. Les poids par
+      sommet (genoux, coudes, cou, mâchoire, torse) donnent une peau qui se plie au lieu de se casser.
+    - Anatomie sculptée (torse en révolution déformée, crâne et visage par bosses gaussiennes), nez,
+      lèvres, oreilles, yeux à iris strié ; cheveux, barbes et couvre-chefs en **bandes de cuir chevelu**
+      (`scalpBand`) qui épousent le crâne avec des bords nets.
+    - Garde-robe par rôle (`lookFor`) : uniformes, gilet tactique, ceinturon avec étui, costume, tablier,
+      sweat à capuche, jeans à surpiqûres, chaussures lacées… Les détails fins (`detail: true`) sont
+      masqués au-delà de 16 m.
+    - Animation : marche (déroulé du pied, contre-rotation du buste), course, attitudes au repos propres
+      à chaque rôle, regard qui suit le joueur, clignements, peur (sourcils, bouche), téléphone, cigarette
+      (fumée), visée à deux mains, recroquevillé, à terre.
 
 ## Règles du jeu
 
@@ -75,6 +89,8 @@ Après chaque étape, `npm run build` et `npm test` doivent passer.
 
 ## Développement
 
+- `?portrait` ouvre le **studio de portraits** : tous les personnages alignés, pilotables par
+  `window.__portrait` (`view` : face, body, back, hands, lineup ; `focus` ; `pose`).
 - `?debug` expose `window.__heist` ; `?play` saute l'écran titre ; `?hour=23` règle l'heure ;
   `?give=all` donne tout le matériel ; `?seed=4` fixe la graine.
 - Le rendu logiciel des conteneurs (SwiftShader) met ~1,5 s par image : pour des captures, couper
