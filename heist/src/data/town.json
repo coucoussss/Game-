@@ -1,0 +1,2884 @@
+{
+ "bounds": {
+  "min": [
+   -70,
+   -19
+  ],
+  "max": [
+   70,
+   8
+  ]
+ },
+ "spawn": [
+  -45,
+  -9
+ ],
+ "hideout": {
+  "min": [
+   -50,
+   -14
+  ],
+  "max": [
+   -40,
+   -4
+  ]
+ },
+ "buildings": [
+  {
+   "id": "block-a",
+   "rect": {
+    "min": [
+     -70,
+     -14
+    ],
+    "max": [
+     -52,
+     -4
+    ]
+   },
+   "height": 9,
+   "style": "brick",
+   "color": "#7b4a3c",
+   "solid": true
+  },
+  {
+   "id": "hideout",
+   "rect": {
+    "min": [
+     -50,
+     -14
+    ],
+    "max": [
+     -40,
+     -4
+    ]
+   },
+   "height": 3.2,
+   "style": "concrete",
+   "color": "#6b6f73",
+   "floor": "concrete",
+   "openings": {
+    "s": [
+     {
+      "from": -46,
+      "to": -44
+     }
+    ]
+   }
+  },
+  {
+   "id": "block-b",
+   "rect": {
+    "min": [
+     -38,
+     -14
+    ],
+    "max": [
+     -22,
+     -4
+    ]
+   },
+   "height": 7,
+   "style": "plaster",
+   "color": "#8a8372",
+   "solid": true
+  },
+  {
+   "id": "store",
+   "rect": {
+    "min": [
+     -20,
+     -14
+    ],
+    "max": [
+     -8,
+     -4
+    ]
+   },
+   "height": 3.4,
+   "style": "brick",
+   "color": "#8c6f5a",
+   "site": "store",
+   "floor": "tile",
+   "openings": {
+    "s": [
+     {
+      "from": -19.2,
+      "to": -16,
+      "window": true
+     },
+     {
+      "from": -15,
+      "to": -13,
+      "door": {
+       "id": "store-front",
+       "role": "front"
+      }
+     }
+    ],
+    "n": [
+     {
+      "from": -10,
+      "to": -9,
+      "door": {
+       "id": "store-back",
+       "role": "back"
+      }
+     }
+    ]
+   },
+   "partitions": [
+    {
+     "axis": "x",
+     "at": -11,
+     "from": -20,
+     "to": -8,
+     "openings": [
+      {
+       "from": -18,
+       "to": -16.8
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "block-c",
+   "rect": {
+    "min": [
+     -6,
+     -14
+    ],
+    "max": [
+     6,
+     -4
+    ]
+   },
+   "height": 11,
+   "style": "brick",
+   "color": "#5f4a44",
+   "solid": true
+  },
+  {
+   "id": "jewelry",
+   "rect": {
+    "min": [
+     8,
+     -14
+    ],
+    "max": [
+     24,
+     -4
+    ]
+   },
+   "height": 3.6,
+   "style": "stone",
+   "color": "#b9b2a2",
+   "site": "jewelry",
+   "floor": "wood",
+   "openings": {
+    "s": [
+     {
+      "from": 9,
+      "to": 14,
+      "window": true
+     },
+     {
+      "from": 15,
+      "to": 17,
+      "door": {
+       "id": "jewel-front",
+       "role": "front"
+      }
+     },
+     {
+      "from": 18,
+      "to": 23,
+      "window": true
+     }
+    ],
+    "n": [
+     {
+      "from": 22,
+      "to": 23,
+      "door": {
+       "id": "jewel-back",
+       "role": "back"
+      }
+     }
+    ]
+   },
+   "partitions": [
+    {
+     "axis": "x",
+     "at": -10.5,
+     "from": 8,
+     "to": 24,
+     "openings": [
+      {
+       "from": 20,
+       "to": 21,
+       "door": {
+        "id": "jewel-staff",
+        "role": "inner"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "block-d",
+   "rect": {
+    "min": [
+     26,
+     -14
+    ],
+    "max": [
+     36,
+     -4
+    ]
+   },
+   "height": 8,
+   "style": "plaster",
+   "color": "#77808a",
+   "solid": true
+  },
+  {
+   "id": "bank",
+   "rect": {
+    "min": [
+     38,
+     -14
+    ],
+    "max": [
+     62,
+     -4
+    ]
+   },
+   "height": 4.4,
+   "style": "stone",
+   "color": "#c9c4b6",
+   "site": "bank",
+   "floor": "marble",
+   "openings": {
+    "s": [
+     {
+      "from": 40,
+      "to": 47,
+      "window": true
+     },
+     {
+      "from": 49,
+      "to": 51,
+      "door": {
+       "id": "bank-front",
+       "role": "front"
+      }
+     },
+     {
+      "from": 53,
+      "to": 60,
+      "window": true
+     }
+    ],
+    "n": [
+     {
+      "from": 59,
+      "to": 60,
+      "door": {
+       "id": "bank-back",
+       "role": "back"
+      }
+     }
+    ]
+   },
+   "partitions": [
+    {
+     "axis": "x",
+     "at": -9,
+     "from": 38,
+     "to": 62,
+     "openings": [
+      {
+       "from": 38.2,
+       "to": 59.5,
+       "window": true
+      },
+      {
+       "from": 60,
+       "to": 61,
+       "door": {
+        "id": "bank-staff",
+        "role": "inner"
+       }
+      }
+     ]
+    },
+    {
+     "axis": "x",
+     "at": -11.6,
+     "from": 38,
+     "to": 62,
+     "openings": [
+      {
+       "from": 43,
+       "to": 44.5,
+       "door": {
+        "id": "bank-vault",
+        "role": "vault"
+       }
+      },
+      {
+       "from": 54,
+       "to": 55
+      }
+     ]
+    },
+    {
+     "axis": "z",
+     "at": 48,
+     "from": -14,
+     "to": -11.6,
+     "openings": []
+    }
+   ]
+  },
+  {
+   "id": "block-e",
+   "rect": {
+    "min": [
+     64,
+     -14
+    ],
+    "max": [
+     70,
+     -4
+    ]
+   },
+   "height": 10,
+   "style": "brick",
+   "color": "#6d4f48",
+   "solid": true
+  },
+  {
+   "id": "south-1",
+   "rect": {
+    "min": [
+     -70,
+     6
+    ],
+    "max": [
+     -46,
+     8
+    ]
+   },
+   "height": 10,
+   "style": "brick",
+   "color": "#6a4a40",
+   "solid": true
+  },
+  {
+   "id": "south-2",
+   "rect": {
+    "min": [
+     -46,
+     6
+    ],
+    "max": [
+     -20,
+     8
+    ]
+   },
+   "height": 7,
+   "style": "plaster",
+   "color": "#8b8577",
+   "solid": true
+  },
+  {
+   "id": "south-3",
+   "rect": {
+    "min": [
+     -20,
+     6
+    ],
+    "max": [
+     2,
+     8
+    ]
+   },
+   "height": 12,
+   "style": "concrete",
+   "color": "#5d636b",
+   "solid": true
+  },
+  {
+   "id": "south-4",
+   "rect": {
+    "min": [
+     2,
+     6
+    ],
+    "max": [
+     30,
+     8
+    ]
+   },
+   "height": 8,
+   "style": "brick",
+   "color": "#7a5548",
+   "solid": true
+  },
+  {
+   "id": "south-5",
+   "rect": {
+    "min": [
+     30,
+     6
+    ],
+    "max": [
+     52,
+     8
+    ]
+   },
+   "height": 6.5,
+   "style": "plaster",
+   "color": "#9a9484",
+   "solid": true
+  },
+  {
+   "id": "south-6",
+   "rect": {
+    "min": [
+     52,
+     6
+    ],
+    "max": [
+     70,
+     8
+    ]
+   },
+   "height": 10,
+   "style": "concrete",
+   "color": "#656a72",
+   "solid": true
+  },
+  {
+   "id": "alley-fence",
+   "rect": {
+    "min": [
+     -70,
+     -19.2
+    ],
+    "max": [
+     70,
+     -19
+    ]
+   },
+   "height": 2.6,
+   "style": "metal",
+   "color": "#3a3f3c",
+   "solid": true
+  },
+  {
+   "id": "end-west",
+   "rect": {
+    "min": [
+     -70.3,
+     -19
+    ],
+    "max": [
+     -70,
+     8
+    ]
+   },
+   "height": 2.6,
+   "style": "metal",
+   "color": "#3a3f3c",
+   "solid": true
+  },
+  {
+   "id": "end-east",
+   "rect": {
+    "min": [
+     70,
+     -19
+    ],
+    "max": [
+     70.3,
+     8
+    ]
+   },
+   "height": 2.6,
+   "style": "metal",
+   "color": "#3a3f3c",
+   "solid": true
+  }
+ ],
+ "props": [
+  {
+   "type": "bed",
+   "pos": [
+    -48.7,
+    -13.2
+   ]
+  },
+  {
+   "type": "table",
+   "pos": [
+    -42.2,
+    -8.4
+   ]
+  },
+  {
+   "type": "locker",
+   "pos": [
+    -49.5,
+    -9
+   ],
+   "rot": 3
+  },
+  {
+   "type": "workbench",
+   "pos": [
+    -42.5,
+    -13.4
+   ]
+  },
+  {
+   "type": "counter",
+   "pos": [
+    -15,
+    -7.8
+   ]
+  },
+  {
+   "type": "shelf",
+   "pos": [
+    -17.5,
+    -5.75
+   ]
+  },
+  {
+   "type": "shelf",
+   "pos": [
+    -10.6,
+    -5.95
+   ]
+  },
+  {
+   "type": "fridge",
+   "pos": [
+    -8.6,
+    -9.6
+   ],
+   "rot": 1
+  },
+  {
+   "type": "safe",
+   "pos": [
+    -19.3,
+    -13.3
+   ]
+  },
+  {
+   "type": "dumpster",
+   "pos": [
+    -2,
+    -16.6
+   ]
+  },
+  {
+   "type": "stall",
+   "pos": [
+    -30,
+    -17.6
+   ]
+  },
+  {
+   "type": "van",
+   "pos": [
+    -34.5,
+    -17.3
+   ]
+  },
+  {
+   "type": "crate",
+   "pos": [
+    -28.3,
+    -18.3
+   ]
+  },
+  {
+   "type": "crate",
+   "pos": [
+    -31.9,
+    -18.4
+   ]
+  },
+  {
+   "type": "dumpster",
+   "pos": [
+    56,
+    -16.8
+   ],
+   "variant": 1
+  },
+  {
+   "type": "crate",
+   "pos": [
+    30,
+    -18.2
+   ]
+  },
+  {
+   "type": "crate",
+   "pos": [
+    30.9,
+    -18.3
+   ]
+  },
+  {
+   "type": "display-case",
+   "pos": [
+    10.5,
+    -6.2
+   ]
+  },
+  {
+   "type": "display-case",
+   "pos": [
+    13,
+    -6.2
+   ]
+  },
+  {
+   "type": "display-case",
+   "pos": [
+    19,
+    -6.2
+   ]
+  },
+  {
+   "type": "display-case",
+   "pos": [
+    21.5,
+    -6.2
+   ]
+  },
+  {
+   "type": "display-case",
+   "pos": [
+    16,
+    -7.4
+   ]
+  },
+  {
+   "type": "jewel-counter",
+   "pos": [
+    14.5,
+    -9.05
+   ]
+  },
+  {
+   "type": "safe",
+   "pos": [
+    9.0,
+    -13.2
+   ],
+   "variant": 1
+  },
+  {
+   "type": "desk",
+   "pos": [
+    14,
+    -12.9
+   ]
+  },
+  {
+   "type": "teller-desk",
+   "pos": [
+    44,
+    -9.45
+   ]
+  },
+  {
+   "type": "teller-desk",
+   "pos": [
+    50,
+    -9.45
+   ]
+  },
+  {
+   "type": "teller-desk",
+   "pos": [
+    56,
+    -9.45
+   ]
+  },
+  {
+   "type": "column",
+   "pos": [
+    43,
+    -6.6
+   ]
+  },
+  {
+   "type": "column",
+   "pos": [
+    57,
+    -6.6
+   ]
+  },
+  {
+   "type": "bench",
+   "pos": [
+    39.2,
+    -6
+   ],
+   "rot": 3
+  },
+  {
+   "type": "desk",
+   "pos": [
+    55,
+    -13.0
+   ]
+  },
+  {
+   "type": "deposit-boxes",
+   "pos": [
+    40.5,
+    -13.55
+   ]
+  },
+  {
+   "type": "deposit-boxes",
+   "pos": [
+    45.5,
+    -13.55
+   ]
+  },
+  {
+   "type": "cash-pallet",
+   "pos": [
+    42.9,
+    -13.2
+   ]
+  },
+  {
+   "type": "car",
+   "pos": [
+    -58,
+    3.3
+   ]
+  },
+  {
+   "type": "car",
+   "pos": [
+    -31,
+    3.3
+   ],
+   "variant": 1
+  },
+  {
+   "type": "car",
+   "pos": [
+    -3,
+    3.3
+   ],
+   "variant": 2
+  },
+  {
+   "type": "car",
+   "pos": [
+    12,
+    3.3
+   ],
+   "variant": 3
+  },
+  {
+   "type": "car",
+   "pos": [
+    33,
+    3.3
+   ],
+   "variant": 4
+  },
+  {
+   "type": "car",
+   "pos": [
+    47,
+    3.3
+   ],
+   "variant": 5
+  },
+  {
+   "type": "trash-can",
+   "pos": [
+    -21,
+    -3.4
+   ]
+  },
+  {
+   "type": "trash-can",
+   "pos": [
+    7,
+    -3.4
+   ]
+  },
+  {
+   "type": "trash-can",
+   "pos": [
+    37,
+    -3.4
+   ]
+  },
+  {
+   "type": "hydrant",
+   "pos": [
+    -39,
+    -2.75
+   ]
+  },
+  {
+   "type": "hydrant",
+   "pos": [
+    25,
+    -2.75
+   ]
+  },
+  {
+   "type": "bench",
+   "pos": [
+    0,
+    -3.55
+   ]
+  },
+  {
+   "type": "bench",
+   "pos": [
+    30,
+    -3.55
+   ]
+  },
+  {
+   "type": "planter",
+   "pos": [
+    47.6,
+    -3.3
+   ]
+  },
+  {
+   "type": "planter",
+   "pos": [
+    52.4,
+    -3.3
+   ]
+  },
+  {
+   "type": "planter",
+   "pos": [
+    14,
+    -3.3
+   ],
+   "variant": 1
+  },
+  {
+   "type": "planter",
+   "pos": [
+    18,
+    -3.3
+   ],
+   "variant": 1
+  },
+  {
+   "type": "barrier",
+   "pos": [
+    -69.4,
+    1
+   ]
+  },
+  {
+   "type": "barrier",
+   "pos": [
+    69.4,
+    1
+   ]
+  },
+  {
+   "type": "ac-unit",
+   "pos": [
+    -24,
+    -14.3
+   ]
+  },
+  {
+   "type": "ac-unit",
+   "pos": [
+    2,
+    -14.3
+   ]
+  },
+  {
+   "type": "ac-unit",
+   "pos": [
+    31,
+    -14.3
+   ]
+  }
+ ],
+ "sites": [
+  {
+   "id": "store",
+   "name": "Supérette Lumière",
+   "tier": 1,
+   "rect": {
+    "min": [
+     -20,
+     -14
+    ],
+    "max": [
+     -8,
+     -4
+    ]
+   },
+   "staffOnly": [
+    {
+     "min": [
+      -19.8,
+      -10.9
+     ],
+     "max": [
+      -8.2,
+      -8.2
+     ]
+    },
+    {
+     "min": [
+      -19.8,
+      -13.8
+     ],
+     "max": [
+      -8.2,
+      -11.1
+     ]
+    }
+   ],
+   "open": 8,
+   "close": 22,
+   "policeStop": [
+    -14,
+    0
+   ],
+   "lockedFuseBox": false
+  },
+  {
+   "id": "jewelry",
+   "name": "Bijouterie Aurore",
+   "tier": 2,
+   "rect": {
+    "min": [
+     8,
+     -14
+    ],
+    "max": [
+     24,
+     -4
+    ]
+   },
+   "staffOnly": [
+    {
+     "min": [
+      8.2,
+      -10.4
+     ],
+     "max": [
+      23.8,
+      -9.3
+     ]
+    },
+    {
+     "min": [
+      8.2,
+      -13.8
+     ],
+     "max": [
+      23.8,
+      -10.6
+     ]
+    }
+   ],
+   "open": 10,
+   "close": 19,
+   "policeStop": [
+    16,
+    0
+   ],
+   "lockedFuseBox": true
+  },
+  {
+   "id": "bank",
+   "name": "Banque Centrale du Crédit",
+   "tier": 3,
+   "rect": {
+    "min": [
+     38,
+     -14
+    ],
+    "max": [
+     62,
+     -4
+    ]
+   },
+   "staffOnly": [
+    {
+     "min": [
+      38.2,
+      -11.5
+     ],
+     "max": [
+      61.8,
+      -9.1
+     ]
+    },
+    {
+     "min": [
+      38.2,
+      -13.8
+     ],
+     "max": [
+      61.8,
+      -11.7
+     ]
+    }
+   ],
+   "open": 9,
+   "close": 17,
+   "policeStop": [
+    50,
+    0
+   ],
+   "lockedFuseBox": true
+  }
+ ],
+ "interactables": [
+  {
+   "id": "coat",
+   "kind": "cash",
+   "name": "Vieux manteau",
+   "pos": [
+    -49.7,
+    -6
+   ],
+   "y": 1.4,
+   "amount": 40
+  },
+  {
+   "id": "dumpster",
+   "kind": "pickup",
+   "name": "Benne à ordures",
+   "pos": [
+    -2,
+    -15.9
+   ],
+   "y": 1.2,
+   "item": "crowbar"
+  },
+  {
+   "id": "fence",
+   "kind": "fence",
+   "name": "Le Fourgue",
+   "pos": [
+    -30,
+    -17.4
+   ],
+   "y": 1.2
+  },
+  {
+   "id": "bed",
+   "kind": "bed",
+   "name": "Matelas",
+   "pos": [
+    -48.7,
+    -12.5
+   ],
+   "y": 0.5
+  },
+  {
+   "id": "plan-table",
+   "kind": "plan-table",
+   "name": "Table de plan",
+   "pos": [
+    -42.2,
+    -7.7
+   ],
+   "y": 0.8
+  },
+  {
+   "id": "store-register",
+   "kind": "register",
+   "name": "Caisse",
+   "pos": [
+    -16,
+    -7.8
+   ],
+   "y": 1.15,
+   "site": "store"
+  },
+  {
+   "id": "store-safe",
+   "kind": "container",
+   "name": "Coffre",
+   "pos": [
+    -19.3,
+    -12.8
+   ],
+   "y": 0.7,
+   "site": "store",
+   "container": {
+    "tool": "crowbar",
+    "time": 8,
+    "noisy": true,
+    "pickTime": 12,
+    "amount": [
+     500,
+     500
+    ],
+    "refillDays": 1,
+    "alarmed": false,
+    "carAlarm": 0,
+    "collects": true,
+    "verb": "Forcer le coffre"
+   }
+  },
+  {
+   "id": "store-fuse",
+   "kind": "fuse-box",
+   "name": "Boîtier électrique",
+   "pos": [
+    -14,
+    -14.15
+   ],
+   "y": 1.5,
+   "site": "store"
+  },
+  {
+   "id": "store-front-door",
+   "kind": "door",
+   "name": "Porte d'entrée",
+   "pos": [
+    -14,
+    -4.1
+   ],
+   "y": 1.2,
+   "site": "store",
+   "door": "store-front"
+  },
+  {
+   "id": "store-back-door",
+   "kind": "door",
+   "name": "Porte arrière",
+   "pos": [
+    -9.5,
+    -13.9
+   ],
+   "y": 1.2,
+   "site": "store",
+   "door": "store-back"
+  },
+  {
+   "id": "jewel-fuse",
+   "kind": "fuse-box",
+   "name": "Boîtier électrique",
+   "pos": [
+    12,
+    -14.15
+   ],
+   "y": 1.5,
+   "site": "jewelry"
+  },
+  {
+   "id": "jewel-front-door",
+   "kind": "door",
+   "name": "Porte d'entrée",
+   "pos": [
+    16,
+    -4.1
+   ],
+   "y": 1.2,
+   "site": "jewelry",
+   "door": "jewel-front"
+  },
+  {
+   "id": "jewel-back-door",
+   "kind": "door",
+   "name": "Porte arrière",
+   "pos": [
+    22.5,
+    -13.9
+   ],
+   "y": 1.2,
+   "site": "jewelry",
+   "door": "jewel-back"
+  },
+  {
+   "id": "jewel-staff-door",
+   "kind": "door",
+   "name": "Porte du personnel",
+   "pos": [
+    20.5,
+    -10.5
+   ],
+   "y": 1.2,
+   "site": "jewelry",
+   "door": "jewel-staff"
+  },
+  {
+   "id": "jewel-safe",
+   "kind": "container",
+   "name": "Coffre du bijoutier",
+   "pos": [
+    9.0,
+    -12.7
+   ],
+   "y": 0.7,
+   "site": "jewelry",
+   "container": {
+    "tool": "crowbar",
+    "time": 10,
+    "noisy": true,
+    "pickTime": 14,
+    "amount": [
+     2500,
+     2500
+    ],
+    "refillDays": 3,
+    "alarmed": false,
+    "carAlarm": 0,
+    "collects": false,
+    "verb": "Forcer le coffre"
+   }
+  },
+  {
+   "id": "bank-fuse",
+   "kind": "fuse-box",
+   "name": "Boîtier électrique",
+   "pos": [
+    52,
+    -14.15
+   ],
+   "y": 1.5,
+   "site": "bank"
+  },
+  {
+   "id": "bank-front-door",
+   "kind": "door",
+   "name": "Porte d'entrée",
+   "pos": [
+    50,
+    -4.1
+   ],
+   "y": 1.2,
+   "site": "bank",
+   "door": "bank-front"
+  },
+  {
+   "id": "bank-back-door",
+   "kind": "door",
+   "name": "Porte arrière",
+   "pos": [
+    59.5,
+    -13.9
+   ],
+   "y": 1.2,
+   "site": "bank",
+   "door": "bank-back"
+  },
+  {
+   "id": "bank-staff-door",
+   "kind": "door",
+   "name": "Porte du personnel",
+   "pos": [
+    60.5,
+    -9.0
+   ],
+   "y": 1.2,
+   "site": "bank",
+   "door": "bank-staff"
+  },
+  {
+   "id": "bank-vault-drill",
+   "kind": "vault-drill",
+   "name": "Porte de la chambre forte",
+   "pos": [
+    43.75,
+    -11.3
+   ],
+   "y": 1.2,
+   "site": "bank",
+   "door": "bank-vault"
+  },
+  {
+   "id": "vault-cash",
+   "kind": "container",
+   "name": "Palette de billets",
+   "pos": [
+    42.9,
+    -12.6
+   ],
+   "y": 0.9,
+   "site": "bank",
+   "container": {
+    "tool": "none",
+    "time": 4,
+    "noisy": false,
+    "pickTime": 0,
+    "amount": [
+     9000,
+     9000
+    ],
+    "refillDays": 3,
+    "alarmed": false,
+    "carAlarm": 0,
+    "collects": false,
+    "verb": "Remplir le sac",
+    "behind": "bank-vault"
+   }
+  },
+  {
+   "id": "deposit-1",
+   "kind": "container",
+   "name": "Coffres individuels",
+   "pos": [
+    40.5,
+    -13.2
+   ],
+   "y": 1.2,
+   "site": "bank",
+   "container": {
+    "tool": "crowbar",
+    "time": 3,
+    "noisy": true,
+    "pickTime": 6,
+    "amount": [
+     700,
+     1200
+    ],
+    "refillDays": 3,
+    "alarmed": false,
+    "carAlarm": 0,
+    "collects": false,
+    "verb": "Forcer les coffres",
+    "behind": "bank-vault"
+   }
+  },
+  {
+   "id": "deposit-2",
+   "kind": "container",
+   "name": "Coffres individuels",
+   "pos": [
+    45.5,
+    -13.2
+   ],
+   "y": 1.2,
+   "site": "bank",
+   "container": {
+    "tool": "crowbar",
+    "time": 3,
+    "noisy": true,
+    "pickTime": 6,
+    "amount": [
+     700,
+     1200
+    ],
+    "refillDays": 3,
+    "alarmed": false,
+    "carAlarm": 0,
+    "collects": false,
+    "verb": "Forcer les coffres",
+    "behind": "bank-vault"
+   }
+  },
+  {
+   "id": "jewel-case-1",
+   "kind": "container",
+   "name": "Vitrine",
+   "pos": [
+    10.5,
+    -6.2
+   ],
+   "y": 1.0,
+   "site": "jewelry",
+   "reach": 1.7,
+   "container": {
+    "tool": "crowbar",
+    "time": 1.5,
+    "noisy": true,
+    "pickTime": 5,
+    "amount": [
+     350,
+     500
+    ],
+    "refillDays": 2,
+    "alarmed": true,
+    "carAlarm": 0,
+    "collects": false,
+    "verb": "Briser la vitrine"
+   }
+  },
+  {
+   "id": "jewel-case-2",
+   "kind": "container",
+   "name": "Vitrine",
+   "pos": [
+    13,
+    -6.2
+   ],
+   "y": 1.0,
+   "site": "jewelry",
+   "reach": 1.7,
+   "container": {
+    "tool": "crowbar",
+    "time": 1.5,
+    "noisy": true,
+    "pickTime": 5,
+    "amount": [
+     350,
+     500
+    ],
+    "refillDays": 2,
+    "alarmed": true,
+    "carAlarm": 0,
+    "collects": false,
+    "verb": "Briser la vitrine"
+   }
+  },
+  {
+   "id": "jewel-case-3",
+   "kind": "container",
+   "name": "Vitrine",
+   "pos": [
+    19,
+    -6.2
+   ],
+   "y": 1.0,
+   "site": "jewelry",
+   "reach": 1.7,
+   "container": {
+    "tool": "crowbar",
+    "time": 1.5,
+    "noisy": true,
+    "pickTime": 5,
+    "amount": [
+     350,
+     500
+    ],
+    "refillDays": 2,
+    "alarmed": true,
+    "carAlarm": 0,
+    "collects": false,
+    "verb": "Briser la vitrine"
+   }
+  },
+  {
+   "id": "jewel-case-4",
+   "kind": "container",
+   "name": "Vitrine",
+   "pos": [
+    21.5,
+    -6.2
+   ],
+   "y": 1.0,
+   "site": "jewelry",
+   "reach": 1.7,
+   "container": {
+    "tool": "crowbar",
+    "time": 1.5,
+    "noisy": true,
+    "pickTime": 5,
+    "amount": [
+     350,
+     500
+    ],
+    "refillDays": 2,
+    "alarmed": true,
+    "carAlarm": 0,
+    "collects": false,
+    "verb": "Briser la vitrine"
+   }
+  },
+  {
+   "id": "jewel-case-5",
+   "kind": "container",
+   "name": "Vitrine",
+   "pos": [
+    16,
+    -7.4
+   ],
+   "y": 1.0,
+   "site": "jewelry",
+   "reach": 1.7,
+   "container": {
+    "tool": "crowbar",
+    "time": 1.5,
+    "noisy": true,
+    "pickTime": 5,
+    "amount": [
+     350,
+     500
+    ],
+    "refillDays": 2,
+    "alarmed": true,
+    "carAlarm": 0,
+    "collects": false,
+    "verb": "Briser la vitrine"
+   }
+  },
+  {
+   "id": "bank-drawer-1",
+   "kind": "register",
+   "name": "Guichet",
+   "pos": [
+    44,
+    -8.8
+   ],
+   "y": 1.1,
+   "site": "bank",
+   "amount": 600,
+   "needsStaff": "teller-1"
+  },
+  {
+   "id": "bank-drawer-2",
+   "kind": "register",
+   "name": "Guichet",
+   "pos": [
+    50,
+    -8.8
+   ],
+   "y": 1.1,
+   "site": "bank",
+   "amount": 600,
+   "needsStaff": "teller-2"
+  },
+  {
+   "id": "bank-drawer-3",
+   "kind": "register",
+   "name": "Guichet",
+   "pos": [
+    56,
+    -8.8
+   ],
+   "y": 1.1,
+   "site": "bank",
+   "amount": 600,
+   "needsStaff": "teller-3"
+  },
+  {
+   "id": "car-trunk-1",
+   "kind": "container",
+   "name": "Coffre de voiture",
+   "pos": [
+    -60.3,
+    3.3
+   ],
+   "y": 0.9,
+   "reach": 1.7,
+   "container": {
+    "tool": "crowbar",
+    "time": 2.5,
+    "noisy": true,
+    "pickTime": 5,
+    "amount": [
+     30,
+     90
+    ],
+    "refillDays": 1,
+    "alarmed": false,
+    "carAlarm": 0.35,
+    "collects": false,
+    "verb": "Forcer le coffre"
+   }
+  },
+  {
+   "id": "car-trunk-2",
+   "kind": "container",
+   "name": "Coffre de voiture",
+   "pos": [
+    -5.3,
+    3.3
+   ],
+   "y": 0.9,
+   "reach": 1.7,
+   "container": {
+    "tool": "crowbar",
+    "time": 2.5,
+    "noisy": true,
+    "pickTime": 5,
+    "amount": [
+     30,
+     90
+    ],
+    "refillDays": 1,
+    "alarmed": false,
+    "carAlarm": 0.35,
+    "collects": false,
+    "verb": "Forcer le coffre"
+   }
+  },
+  {
+   "id": "car-trunk-3",
+   "kind": "container",
+   "name": "Coffre de voiture",
+   "pos": [
+    30.7,
+    3.3
+   ],
+   "y": 0.9,
+   "reach": 1.7,
+   "container": {
+    "tool": "crowbar",
+    "time": 2.5,
+    "noisy": true,
+    "pickTime": 5,
+    "amount": [
+     30,
+     90
+    ],
+    "refillDays": 1,
+    "alarmed": false,
+    "carAlarm": 0.35,
+    "collects": false,
+    "verb": "Forcer le coffre"
+   }
+  }
+ ],
+ "intel": [
+  {
+   "id": "fence",
+   "site": "town",
+   "text": "Le Fourgue tient boutique dans la ruelle, de 18 h à 5 h. Matériel contre argent propre ; il blanchit le sale et encaisse la dette.",
+   "pos": [
+    -30,
+    -18.4
+   ],
+   "y": 1.6,
+   "trigger": "event",
+   "range": 0,
+   "marker": "person"
+  },
+  {
+   "id": "watchman",
+   "site": "town",
+   "text": "Un veilleur de nuit armé fait le tour du pâté de maisons, de 22 h à 6 h : la rue, puis la ruelle.",
+   "pos": [
+    63,
+    -3
+   ],
+   "y": 1.6,
+   "trigger": "event",
+   "range": 0,
+   "marker": "person"
+  },
+  {
+   "id": "store-hours",
+   "site": "store",
+   "text": "Supérette : ouverte de 8 h à 22 h. Porte de devant verrouillée la nuit.",
+   "pos": [
+    -14,
+    -3.95
+   ],
+   "y": 2.95,
+   "trigger": "look",
+   "range": 14,
+   "marker": "info"
+  },
+  {
+   "id": "store-camera",
+   "site": "store",
+   "text": "Une caméra au plafond, braquée sur la caisse. Diode rouge : elle est alimentée.",
+   "pos": [
+    -8.6,
+    -4.6
+   ],
+   "y": 2.8,
+   "trigger": "look",
+   "range": 11,
+   "marker": "camera"
+  },
+  {
+   "id": "store-register",
+   "site": "store",
+   "text": "Caisse enregistreuse. Elle se remplit au fil de la journée.",
+   "pos": [
+    -16,
+    -7.8
+   ],
+   "y": 1.15,
+   "trigger": "look",
+   "range": 6,
+   "marker": "cash"
+  },
+  {
+   "id": "store-safe",
+   "site": "store",
+   "text": "Petit coffre dans l'arrière-boutique. Pied-de-biche (bruyant) ou crochets (lent).",
+   "pos": [
+    -19.3,
+    -13.3
+   ],
+   "y": 0.7,
+   "trigger": "look",
+   "range": 5,
+   "marker": "safe"
+  },
+  {
+   "id": "store-fuse",
+   "site": "store",
+   "text": "Boîtier électrique derrière la boutique : il alimente la caméra et l'alarme de porte.",
+   "pos": [
+    -14,
+    -14.15
+   ],
+   "y": 1.5,
+   "trigger": "look",
+   "range": 7,
+   "marker": "power"
+  },
+  {
+   "id": "store-back-door",
+   "site": "store",
+   "text": "Porte arrière, avec un contact d'alarme sur le chambranle.",
+   "pos": [
+    -9.5,
+    -14.0
+   ],
+   "y": 1.2,
+   "trigger": "look",
+   "range": 6,
+   "marker": "door"
+  },
+  {
+   "id": "store-clerk-break",
+   "site": "store",
+   "text": "L'employé sort fumer par la porte arrière toutes les deux heures, à la demie. Il la laisse ouverte.",
+   "pos": [
+    -9.5,
+    -15.5
+   ],
+   "y": 1.6,
+   "trigger": "event",
+   "range": 0,
+   "marker": "person"
+  },
+  {
+   "id": "store-clerk-closing",
+   "site": "store",
+   "text": "À la fermeture, l'employé vide la caisse dans le coffre avant de partir.",
+   "pos": [
+    -18.4,
+    -12.2
+   ],
+   "y": 1.6,
+   "trigger": "event",
+   "range": 0,
+   "marker": "person"
+  },
+  {
+   "id": "jewel-hours",
+   "site": "jewelry",
+   "text": "Bijouterie : ouverte de 10 h à 19 h.",
+   "pos": [
+    16,
+    -3.95
+   ],
+   "y": 3.1,
+   "trigger": "look",
+   "range": 14,
+   "marker": "info"
+  },
+  {
+   "id": "jewel-camera-1",
+   "site": "jewelry",
+   "text": "Caméra côté ouest de la salle : elle couvre les vitrines.",
+   "pos": [
+    8.6,
+    -4.6
+   ],
+   "y": 3.0,
+   "trigger": "look",
+   "range": 11,
+   "marker": "camera"
+  },
+  {
+   "id": "jewel-camera-2",
+   "site": "jewelry",
+   "text": "Caméra côté est de la salle : elle couvre l'entrée et le comptoir.",
+   "pos": [
+    23.4,
+    -4.6
+   ],
+   "y": 3.0,
+   "trigger": "look",
+   "range": 11,
+   "marker": "camera"
+  },
+  {
+   "id": "jewel-cases",
+   "site": "jewelry",
+   "text": "Cinq vitrines sous détecteur de bris de verre. Les crochets les ouvrent sans les briser.",
+   "pos": [
+    16,
+    -7.4
+   ],
+   "y": 1.0,
+   "trigger": "look",
+   "range": 7,
+   "marker": "cash"
+  },
+  {
+   "id": "jewel-staff-door",
+   "site": "jewelry",
+   "text": "Porte du personnel, verrouillée. L'arrière-boutique est derrière.",
+   "pos": [
+    20.5,
+    -10.4
+   ],
+   "y": 1.2,
+   "trigger": "look",
+   "range": 7,
+   "marker": "door"
+  },
+  {
+   "id": "jewel-safe",
+   "site": "jewelry",
+   "text": "Le coffre du bijoutier : les plus belles pièces y dorment.",
+   "pos": [
+    9.0,
+    -13.2
+   ],
+   "y": 0.7,
+   "trigger": "look",
+   "range": 6,
+   "marker": "safe"
+  },
+  {
+   "id": "jewel-fuse",
+   "site": "jewelry",
+   "text": "Boîtier électrique cadenassé. Il faut le crocheter ou le forcer avant de couper.",
+   "pos": [
+    12,
+    -14.15
+   ],
+   "y": 1.5,
+   "trigger": "look",
+   "range": 7,
+   "marker": "power"
+  },
+  {
+   "id": "jewel-back-door",
+   "site": "jewelry",
+   "text": "Porte arrière blindée, sous alarme.",
+   "pos": [
+    22.5,
+    -14.0
+   ],
+   "y": 1.2,
+   "trigger": "look",
+   "range": 6,
+   "marker": "door"
+  },
+  {
+   "id": "jewel-guard",
+   "site": "jewelry",
+   "text": "Un vigile armé se tient près de l'entrée pendant les heures d'ouverture.",
+   "pos": [
+    17.8,
+    -5.2
+   ],
+   "y": 1.6,
+   "trigger": "event",
+   "range": 0,
+   "marker": "person"
+  },
+  {
+   "id": "jewel-lunch",
+   "site": "jewelry",
+   "text": "À 13 h, le bijoutier déjeune dans l'arrière-boutique. La porte du personnel reste ouverte.",
+   "pos": [
+    14,
+    -12.2
+   ],
+   "y": 1.6,
+   "trigger": "event",
+   "range": 0,
+   "marker": "person"
+  },
+  {
+   "id": "bank-hours",
+   "site": "bank",
+   "text": "Banque : ouverte de 9 h à 17 h.",
+   "pos": [
+    50,
+    -3.95
+   ],
+   "y": 3.6,
+   "trigger": "look",
+   "range": 16,
+   "marker": "info"
+  },
+  {
+   "id": "bank-camera-1",
+   "site": "bank",
+   "text": "Caméra à l'ouest du hall.",
+   "pos": [
+    38.6,
+    -4.6
+   ],
+   "y": 3.6,
+   "trigger": "look",
+   "range": 12,
+   "marker": "camera"
+  },
+  {
+   "id": "bank-camera-2",
+   "site": "bank",
+   "text": "Caméra à l'est du hall.",
+   "pos": [
+    61.4,
+    -4.6
+   ],
+   "y": 3.6,
+   "trigger": "look",
+   "range": 12,
+   "marker": "camera"
+  },
+  {
+   "id": "bank-tellers",
+   "site": "bank",
+   "text": "Trois guichets derrière une vitre. Un guichetier menacé peut remettre sa caisse.",
+   "pos": [
+    50,
+    -9.0
+   ],
+   "y": 1.3,
+   "trigger": "look",
+   "range": 8,
+   "marker": "cash"
+  },
+  {
+   "id": "bank-staff-door",
+   "site": "bank",
+   "text": "Porte du personnel, à l'est des guichets. Verrouillée.",
+   "pos": [
+    60.5,
+    -8.9
+   ],
+   "y": 1.2,
+   "trigger": "look",
+   "range": 8,
+   "marker": "door"
+  },
+  {
+   "id": "bank-vault",
+   "site": "bank",
+   "text": "Porte de chambre forte. Seule une perceuse thermique en viendra à bout : 40 secondes de vacarme.",
+   "pos": [
+    43.75,
+    -11.5
+   ],
+   "y": 1.3,
+   "trigger": "look",
+   "range": 9,
+   "marker": "safe"
+  },
+  {
+   "id": "bank-fuse",
+   "site": "bank",
+   "text": "Boîtier électrique cadenassé, derrière la banque.",
+   "pos": [
+    52,
+    -14.15
+   ],
+   "y": 1.5,
+   "trigger": "look",
+   "range": 7,
+   "marker": "power"
+  },
+  {
+   "id": "bank-back-door",
+   "site": "bank",
+   "text": "Porte arrière de la banque : elle donne sur le bureau du directeur.",
+   "pos": [
+    59.5,
+    -14.0
+   ],
+   "y": 1.2,
+   "trigger": "look",
+   "range": 6,
+   "marker": "door"
+  },
+  {
+   "id": "bank-guards",
+   "site": "bank",
+   "text": "Deux vigiles armés le jour : un à l'entrée, un qui tourne dans le hall.",
+   "pos": [
+    51.8,
+    -5.2
+   ],
+   "y": 1.6,
+   "trigger": "event",
+   "range": 0,
+   "marker": "person"
+  },
+  {
+   "id": "bank-night-guard",
+   "site": "bank",
+   "text": "La nuit, un vigile armé fait sa ronde à l'intérieur, du hall aux guichets.",
+   "pos": [
+    50,
+    -6
+   ],
+   "y": 1.6,
+   "trigger": "event",
+   "range": 0,
+   "marker": "person"
+  }
+ ],
+ "cameras": [
+  {
+   "id": "store-camera",
+   "site": "store",
+   "pos": [
+    -8.6,
+    -4.6
+   ],
+   "y": 2.8,
+   "facing": -2.733,
+   "fov": 1.35,
+   "range": 13
+  },
+  {
+   "id": "jewel-camera-1",
+   "site": "jewelry",
+   "pos": [
+    8.6,
+    -4.6
+   ],
+   "y": 3.0,
+   "facing": -0.488,
+   "fov": 1.35,
+   "range": 13
+  },
+  {
+   "id": "jewel-camera-2",
+   "site": "jewelry",
+   "pos": [
+    23.4,
+    -4.6
+   ],
+   "y": 3.0,
+   "facing": -2.711,
+   "fov": 1.35,
+   "range": 13
+  },
+  {
+   "id": "jewel-camera-3",
+   "site": "jewelry",
+   "pos": [
+    23.4,
+    -13.4
+   ],
+   "y": 3.0,
+   "facing": 3.075,
+   "fov": 1.2,
+   "range": 15
+  },
+  {
+   "id": "bank-camera-1",
+   "site": "bank",
+   "pos": [
+    38.6,
+    -4.6
+   ],
+   "y": 3.6,
+   "facing": -0.347,
+   "fov": 1.4,
+   "range": 15
+  },
+  {
+   "id": "bank-camera-2",
+   "site": "bank",
+   "pos": [
+    61.4,
+    -4.6
+   ],
+   "y": 3.6,
+   "facing": -2.795,
+   "fov": 1.4,
+   "range": 15
+  },
+  {
+   "id": "bank-camera-3",
+   "site": "bank",
+   "pos": [
+    38.6,
+    -11.2
+   ],
+   "y": 3.6,
+   "facing": 0.055,
+   "fov": 1.0,
+   "range": 22
+  },
+  {
+   "id": "bank-camera-4",
+   "site": "bank",
+   "pos": [
+    38.6,
+    -13.4
+   ],
+   "y": 3.6,
+   "facing": 0.108,
+   "fov": 1.3,
+   "range": 10
+  }
+ ],
+ "staff": [
+  {
+   "id": "clerk",
+   "site": "store",
+   "role": "clerk",
+   "name": "L'employé",
+   "armed": false,
+   "from": 7.75,
+   "to": 22,
+   "post": [
+    -16,
+    -9
+   ],
+   "postFacing": 1.5708,
+   "arrive": [
+    [
+     -69,
+     -3
+    ],
+    [
+     -14,
+     -3
+    ],
+    [
+     -14,
+     -5.5
+    ],
+    [
+     -11,
+     -7
+    ],
+    [
+     -11,
+     -9
+    ],
+    [
+     -16,
+     -9
+    ]
+   ],
+   "leave": [
+    [
+     -16,
+     -9
+    ],
+    [
+     -17.4,
+     -10
+    ],
+    [
+     -18.4,
+     -12.2
+    ],
+    [
+     -17.4,
+     -10
+    ],
+    [
+     -11,
+     -9
+    ],
+    [
+     -11,
+     -7
+    ],
+    [
+     -14,
+     -5.5
+    ],
+    [
+     -14,
+     -3
+    ],
+    [
+     -69,
+     -3
+    ]
+   ],
+   "depositAt": 2,
+   "pause": {
+    "every": 2,
+    "minute": 30,
+    "duration": 12,
+    "path": [
+     [
+      -16,
+      -9
+     ],
+     [
+      -17.4,
+      -10
+     ],
+     [
+      -17.4,
+      -12.2
+     ],
+     [
+      -9.5,
+      -12.4
+     ],
+     [
+      -9.5,
+      -15.5
+     ]
+    ],
+    "facing": -1.5708,
+    "door": "store-back",
+    "intel": "store-clerk-break"
+   },
+   "leaveIntel": "store-clerk-closing"
+  },
+  {
+   "id": "jeweler",
+   "site": "jewelry",
+   "role": "jeweler",
+   "name": "Le bijoutier",
+   "armed": false,
+   "from": 9.75,
+   "to": 19,
+   "post": [
+    14.5,
+    -9.9
+   ],
+   "postFacing": 1.5708,
+   "arrive": [
+    [
+     69,
+     -3
+    ],
+    [
+     16,
+     -3
+    ],
+    [
+     16,
+     -5.2
+    ],
+    [
+     20.5,
+     -8
+    ],
+    [
+     20.5,
+     -9.9
+    ],
+    [
+     14.5,
+     -9.9
+    ]
+   ],
+   "pause": {
+    "every": 13,
+    "minute": 0,
+    "duration": 20,
+    "path": [
+     [
+      14.5,
+      -9.9
+     ],
+     [
+      20.5,
+      -9.9
+     ],
+     [
+      20.5,
+      -12
+     ],
+     [
+      14,
+      -12.2
+     ]
+    ],
+    "facing": -1.5708,
+    "door": "jewel-staff",
+    "intel": "jewel-lunch"
+   }
+  },
+  {
+   "id": "jewel-guard",
+   "site": "jewelry",
+   "role": "guard",
+   "name": "Le vigile",
+   "armed": true,
+   "from": 9.75,
+   "to": 19,
+   "post": [
+    17.8,
+    -5.2
+   ],
+   "postFacing": -2.4,
+   "arrive": [
+    [
+     69,
+     -3.4
+    ],
+    [
+     17,
+     -3.4
+    ],
+    [
+     17.8,
+     -5.2
+    ]
+   ],
+   "seenIntel": "jewel-guard"
+  },
+  {
+   "id": "watchman",
+   "site": "jewelry",
+   "role": "watchman",
+   "name": "Le veilleur de nuit",
+   "armed": true,
+   "from": 22,
+   "to": 6,
+   "post": [
+    63,
+    -3
+   ],
+   "postFacing": 3.1416,
+   "arrive": [
+    [
+     69,
+     -3
+    ],
+    [
+     63,
+     -3
+    ]
+   ],
+   "patrol": [
+    [
+     63,
+     -3
+    ],
+    [
+     -21,
+     -3
+    ],
+    [
+     -21,
+     -16.5
+    ],
+    [
+     63,
+     -16.5
+    ]
+   ],
+   "seenIntel": "watchman"
+  },
+  {
+   "id": "bank-guard-1",
+   "site": "bank",
+   "role": "guard",
+   "name": "Le vigile de l'entrée",
+   "armed": true,
+   "from": 8.75,
+   "to": 17,
+   "post": [
+    51.8,
+    -5.2
+   ],
+   "postFacing": -2.2,
+   "arrive": [
+    [
+     69,
+     -3.6
+    ],
+    [
+     51,
+     -3.6
+    ],
+    [
+     51.8,
+     -5.2
+    ]
+   ],
+   "seenIntel": "bank-guards"
+  },
+  {
+   "id": "bank-guard-2",
+   "site": "bank",
+   "role": "guard",
+   "name": "Le vigile du hall",
+   "armed": true,
+   "from": 8.75,
+   "to": 17,
+   "post": [
+    41,
+    -5.5
+   ],
+   "postFacing": 0,
+   "arrive": [
+    [
+     69,
+     -3.8
+    ],
+    [
+     50.3,
+     -3.8
+    ],
+    [
+     50.3,
+     -5.5
+    ],
+    [
+     41,
+     -5.5
+    ]
+   ],
+   "patrol": [
+    [
+     41,
+     -5.5
+    ],
+    [
+     59,
+     -5.5
+    ],
+    [
+     59,
+     -7.8
+    ],
+    [
+     41,
+     -7.8
+    ]
+   ],
+   "seenIntel": "bank-guards"
+  },
+  {
+   "id": "bank-night-guard",
+   "site": "bank",
+   "role": "guard",
+   "name": "Le vigile de nuit",
+   "armed": true,
+   "from": 17,
+   "to": 8.75,
+   "post": [
+    50,
+    -6
+   ],
+   "postFacing": 1.5708,
+   "arrive": [
+    [
+     69,
+     -3.5
+    ],
+    [
+     50,
+     -3.5
+    ],
+    [
+     50,
+     -6
+    ]
+   ],
+   "patrol": [
+    [
+     50,
+     -6
+    ],
+    [
+     41,
+     -6
+    ],
+    [
+     41,
+     -7.8
+    ],
+    [
+     59,
+     -7.8
+    ],
+    [
+     60.5,
+     -7.8
+    ],
+    [
+     60.5,
+     -10.3
+    ],
+    [
+     42,
+     -10.3
+    ],
+    [
+     60.5,
+     -10.3
+    ],
+    [
+     60.5,
+     -7.8
+    ],
+    [
+     59,
+     -6
+    ]
+   ],
+   "seenIntel": "bank-night-guard"
+  },
+  {
+   "id": "teller-1",
+   "site": "bank",
+   "role": "teller",
+   "name": "Un guichetier",
+   "armed": false,
+   "from": 8.75,
+   "to": 17,
+   "post": [
+    44,
+    -10.2
+   ],
+   "postFacing": 1.5708,
+   "arrive": [
+    [
+     69,
+     -3.2
+    ],
+    [
+     50,
+     -3.2
+    ],
+    [
+     50,
+     -6
+    ],
+    [
+     60.5,
+     -7.5
+    ],
+    [
+     60.5,
+     -10.2
+    ],
+    [
+     44,
+     -10.2
+    ]
+   ]
+  },
+  {
+   "id": "teller-2",
+   "site": "bank",
+   "role": "teller",
+   "name": "Un guichetier",
+   "armed": false,
+   "from": 8.75,
+   "to": 17,
+   "post": [
+    50,
+    -10.2
+   ],
+   "postFacing": 1.5708,
+   "arrive": [
+    [
+     69,
+     -3.5
+    ],
+    [
+     50,
+     -3.2
+    ],
+    [
+     50,
+     -6
+    ],
+    [
+     60.5,
+     -7.5
+    ],
+    [
+     60.5,
+     -10.2
+    ],
+    [
+     50,
+     -10.2
+    ]
+   ]
+  },
+  {
+   "id": "teller-3",
+   "site": "bank",
+   "role": "teller",
+   "name": "Un guichetier",
+   "armed": false,
+   "from": 8.75,
+   "to": 17,
+   "post": [
+    56,
+    -10.2
+   ],
+   "postFacing": 1.5708,
+   "arrive": [
+    [
+     69,
+     -3.8
+    ],
+    [
+     50,
+     -3.2
+    ],
+    [
+     50,
+     -6
+    ],
+    [
+     60.5,
+     -7.5
+    ],
+    [
+     60.5,
+     -10.2
+    ],
+    [
+     56,
+     -10.2
+    ]
+   ]
+  }
+ ],
+ "pedestrians": [
+  {
+   "id": "ped-1",
+   "path": [
+    [
+     -66,
+     4.9
+    ],
+    [
+     66,
+     4.9
+    ]
+   ],
+   "from": 7,
+   "to": 23,
+   "variant": 0
+  },
+  {
+   "id": "ped-2",
+   "path": [
+    [
+     66,
+     -3.2
+    ],
+    [
+     -66,
+     -3.2
+    ]
+   ],
+   "from": 6.5,
+   "to": 21,
+   "variant": 1
+  },
+  {
+   "id": "ped-3",
+   "path": [
+    [
+     -66,
+     -3
+    ],
+    [
+     -14,
+     -3
+    ],
+    [
+     -14,
+     -5
+    ],
+    [
+     -12,
+     -6.8
+    ],
+    [
+     -14,
+     -5
+    ],
+    [
+     -14,
+     -3
+    ],
+    [
+     30,
+     -3
+    ]
+   ],
+   "from": 8.5,
+   "to": 21.5,
+   "variant": 2
+  },
+  {
+   "id": "ped-4",
+   "path": [
+    [
+     66,
+     4.9
+    ],
+    [
+     50,
+     4.9
+    ],
+    [
+     50,
+     -3
+    ],
+    [
+     50,
+     -6.5
+    ],
+    [
+     47,
+     -8.2
+    ],
+    [
+     50,
+     -6.5
+    ],
+    [
+     50,
+     -3
+    ],
+    [
+     20,
+     -3
+    ]
+   ],
+   "from": 9.2,
+   "to": 16.6,
+   "variant": 3
+  },
+  {
+   "id": "ped-5",
+   "path": [
+    [
+     -66,
+     4.9
+    ],
+    [
+     16,
+     4.9
+    ],
+    [
+     16,
+     -3
+    ],
+    [
+     16,
+     -5.4
+    ],
+    [
+     12.2,
+     -5.3
+    ],
+    [
+     16,
+     -5.4
+    ],
+    [
+     16,
+     -3
+    ],
+    [
+     66,
+     -3
+    ]
+   ],
+   "from": 10.3,
+   "to": 18.4,
+   "variant": 4
+  }
+ ],
+ "lamps": [
+  [
+   -62,
+   -2.7
+  ],
+  [
+   -46,
+   -2.7
+  ],
+  [
+   -30,
+   -2.7
+  ],
+  [
+   -14,
+   -2.7
+  ],
+  [
+   2,
+   -2.7
+  ],
+  [
+   18,
+   -2.7
+  ],
+  [
+   34,
+   -2.7
+  ],
+  [
+   50,
+   -2.7
+  ],
+  [
+   66,
+   -2.7
+  ],
+  [
+   -28,
+   -18.6
+  ],
+  [
+   0,
+   -18.6
+  ],
+  [
+   30,
+   -18.6
+  ],
+  [
+   55,
+   -18.6
+  ]
+ ],
+ "fence": {
+  "pos": [
+   -30,
+   -18.45
+  ],
+  "facing": 1.5708,
+  "openFrom": 18,
+  "openTo": 5
+ },
+ "policeSpawn": [
+  69,
+  1
+ ]
+}

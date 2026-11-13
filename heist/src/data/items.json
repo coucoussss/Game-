@@ -1,0 +1,18 @@
+[
+  { "id": "crowbar", "name": "Pied-de-biche", "kind": "tool", "price": 25, "unlock": 0, "suspicion": 0.5, "speedFactor": 1, "threatRange": 2.5,
+    "description": "Force portes, coffres et vitrines, bruyamment. Assomme qui ne t'a pas vu venir." },
+  { "id": "wire-cutters", "name": "Coupe-fil", "kind": "tool", "price": 40, "unlock": 0, "suspicion": 0.2, "speedFactor": 1, "threatRange": 0,
+    "description": "Tranche les câbles d'un boîtier électrique : plus de caméras, plus d'alarme." },
+  { "id": "ski-mask", "name": "Cagoule", "kind": "wearable", "price": 30, "unlock": 0, "suspicion": 0.8, "speedFactor": 1, "threatRange": 0,
+    "description": "Personne ne pourra te reconnaître. Mais en pleine rue, ça se remarque." },
+  { "id": "lockpicks", "name": "Crochets", "kind": "tool", "price": 200, "unlock": 300, "suspicion": 0.3, "speedFactor": 1, "threatRange": 0,
+    "description": "Ouvre serrures, cadenas et vitrines sans un bruit. Plus lent que la force." },
+  { "id": "duffel-bag", "name": "Sac de sport", "kind": "gear", "price": 250, "unlock": 300, "suspicion": 0, "speedFactor": 1, "threatRange": 0,
+    "description": "Sans lui, tes poches débordent vite. Avec lui, tu emportes un vrai butin." },
+  { "id": "pistol", "name": "Pistolet 9 mm", "kind": "weapon", "price": 400, "unlock": 300, "suspicion": 1, "speedFactor": 1, "threatRange": 10,
+    "description": "Il impose le silence à distance. Chaque coup de feu réveille le quartier." },
+  { "id": "plate-carrier", "name": "Gilet porte-plaques", "kind": "wearable", "price": 800, "unlock": 1500, "suspicion": 1, "speedFactor": 0.85, "threatRange": 0,
+    "description": "Ses plaques encaissent les balles à ta place. Lourd et impossible à cacher." },
+  { "id": "drill", "name": "Perceuse thermique", "kind": "tool", "price": 1500, "unlock": 1500, "suspicion": 0.9, "speedFactor": 0.9, "threatRange": 0,
+    "description": "Vient à bout d'une porte de chambre forte. Longue, et tout le monde l'entend." }
+]
