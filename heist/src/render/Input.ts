@@ -18,8 +18,18 @@ export class Input {
   private slot: number | null = null;
   private wheel = 0;
   private readonly once = new Set<string>();
+  /**
+   * Mode de secours quand le navigateur refuse de capturer la souris (cadre intégré, téléphone) :
+   * on regarde en glissant, un clic bref tire.
+   */
+  fallback = false;
+  private drag = 0;
+  private clickPulse = false;
 
   constructor(private readonly element: HTMLElement) {
+    document.addEventListener('pointerlockerror', () => {
+      this.fallback = true;
+    });
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Tab' || e.code === 'Space') e.preventDefault();
       if (!e.repeat) this.once.add(e.code);
@@ -35,18 +45,25 @@ export class Input {
     element.addEventListener('mousedown', (e) => {
       if (e.button === 0) this.left = true;
       if (e.button === 2) this.right = true;
+      this.drag = 0;
     });
     window.addEventListener('mouseup', (e) => {
-      if (e.button === 0) this.left = false;
+      if (e.button === 0) {
+        // En mode de secours, un clic sans glissement vaut un tir.
+        if (this.fallback && !this.locked && this.drag < 6) this.clickPulse = true;
+        this.left = false;
+      }
       if (e.button === 2) this.right = false;
     });
     element.addEventListener('contextmenu', (e) => e.preventDefault());
     element.addEventListener('wheel', (e) => {
-      if (this.locked) this.wheel += Math.sign(e.deltaY);
+      if (this.active) this.wheel += Math.sign(e.deltaY);
     });
     document.addEventListener('mousemove', (e) => {
-      if (!this.locked) return;
-      const s = this.sensitivity * this.zoom;
+      const dragging = this.fallback && !this.locked && (e.buttons & 3) !== 0 && e.target === this.element;
+      if (!this.locked && !dragging) return;
+      if (dragging) this.drag += Math.abs(e.movementX) + Math.abs(e.movementY);
+      const s = this.sensitivity * this.zoom * (dragging ? 1.6 : 1);
       this.facing += e.movementX * s;
       this.pitch = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, this.pitch - e.movementY * s));
     });
@@ -57,12 +74,22 @@ export class Input {
   }
 
   lock(): void {
+    if (this.fallback) return;
     try {
       const r = this.element.requestPointerLock?.() as unknown;
-      if (r instanceof Promise) r.catch(() => undefined);
+      if (r instanceof Promise) r.catch(() => (this.fallback = true));
     } catch {
-      // Navigateur sans verrouillage du pointeur : on joue quand même.
+      this.fallback = true;
     }
+    // Certains cadres ignorent la demande sans erreur : on bascule si rien ne s'est passé.
+    setTimeout(() => {
+      if (!this.locked && document.hasFocus()) this.fallback = true;
+    }, 600);
+  }
+
+  /** La souris est utilisable pour jouer (capturée, ou en mode de secours). */
+  get active(): boolean {
+    return this.locked || this.fallback;
   }
 
   unlock(): void {
@@ -91,6 +118,12 @@ export class Input {
     this.wheel = 0;
   }
 
+  private takeClick(): boolean {
+    const c = this.clickPulse;
+    this.clickPulse = false;
+    return c;
+  }
+
   read(): PlayerInput {
     const k = (c: string) => this.keys.has(c);
     const forward = (k('KeyW') || k('ArrowUp') ? 1 : 0) - (k('KeyS') || k('ArrowDown') ? 1 : 0);
@@ -105,8 +138,8 @@ export class Input {
       sprint: k('ShiftLeft') || k('ShiftRight'),
       crouch: k('KeyC') || k('ControlLeft'),
       interact: k('KeyE') || k('KeyF'),
-      fire: this.left && this.locked,
-      aim: this.right && this.locked,
+      fire: (this.left && this.locked) || this.takeClick(),
+      aim: this.right && this.active,
       reload: k('KeyR'),
       slot,
     };

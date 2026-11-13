@@ -5,9 +5,47 @@ import type { World } from '../systems/World';
 import { put } from './build';
 import { makeArms, makeCrowbar, makeCutters, makeDrill, makeLockpicks, makeMask, makePistol, type FpsArms } from './models/items';
 
-/** Charge un modèle glb et le ramène à une hauteur donnée, posé sur son socle et centré. */
-export async function loadModel(url: string, height: number, zUp: boolean): Promise<THREE.Object3D> {
-  const gltf = await new GLTFLoader().loadAsync(url);
+/**
+ * Le gilet : en .glb, ou encodé en base64 dans un fichier texte là où le .glb n'est pas servi (page
+ * publiée en artefact, dont le cadre n'accepte que certains types de fichiers).
+ */
+export const VEST_URLS = ['models/plate-carrier.glb', 'models/plate-carrier.glb.txt'];
+
+function vestLoader(): GLTFLoader {
+  const loader = new GLTFLoader();
+  // Textures chargées par des <img> (blob:) plutôt que par fetch : plus tolérant aux politiques de sécurité.
+  loader.register((parser) => {
+    parser.textureLoader = new THREE.TextureLoader(parser.options.manager);
+    return { name: 'img-textures' };
+  });
+  return loader;
+}
+
+async function loadGltf(url: string): Promise<Awaited<ReturnType<GLTFLoader['parseAsync']>>> {
+  if (!url.endsWith('.txt')) return vestLoader().loadAsync(url);
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Modèle introuvable : ${url}`);
+  const b64 = (await res.text()).trim();
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return vestLoader().parseAsync(bytes.buffer, '');
+}
+
+/** Charge un modèle (premier fichier disponible) et le ramène à une hauteur donnée, posé et centré. */
+export async function loadModel(urls: string | readonly string[], height: number, zUp: boolean): Promise<THREE.Object3D> {
+  const list = typeof urls === 'string' ? [urls] : urls;
+  let gltf: Awaited<ReturnType<GLTFLoader['parseAsync']>> | null = null;
+  let lastError: unknown = null;
+  for (const url of list) {
+    try {
+      gltf = await loadGltf(url);
+      break;
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  if (!gltf) throw lastError;
   const inner = gltf.scene;
   if (zUp) inner.rotation.x = -Math.PI / 2;
   const holder = new THREE.Group();
@@ -69,7 +107,7 @@ export class Viewmodel {
       ['ski-mask', makeMask],
     ];
     for (const [id, fn] of make) this.addModel(id, fn());
-    void loadModel('models/plate-carrier.glb', 0.55, false)
+    void loadModel(VEST_URLS, 0.55, false)
       .then((vest) => {
         this.addModel('plate-carrier', vest);
         this.current = null;

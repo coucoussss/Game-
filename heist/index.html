@@ -15,6 +15,7 @@
         --serif: Georgia, 'Times New Roman', serif;
       }
       * { box-sizing: border-box; }
+      :root { color-scheme: dark; }
       html, body { margin: 0; height: 100%; overflow: hidden; background: #05070c; color: #eee; font-family: var(--ui); }
       #game, #hud { position: fixed; inset: 0; }
       #hud { pointer-events: none; user-select: none; }
@@ -109,6 +110,7 @@
       table.keys { width: 100%; border-collapse: collapse; margin: 14px 0 4px; font-size: 13px; }
       table.keys td { padding: 5px 6px; border-bottom: 1px solid #0001; }
       table.keys td:nth-child(odd) { font-weight: 700; white-space: nowrap; }
+      .hint { font-size: 12px; opacity: 0.7; margin: 6px 0 0; }
       .wallet { display: flex; gap: 18px; flex-wrap: wrap; margin: 8px 0; font-size: 14px; }
       .wallet b { display: block; font-size: 18px; }
       .shop-actions { display: flex; gap: 10px; flex-wrap: wrap; margin: 10px 0; }

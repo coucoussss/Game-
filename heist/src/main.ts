@@ -19,7 +19,7 @@ function storage(): { getItem(k: string): string | null; setItem(k: string, v: s
 }
 
 const params = new URLSearchParams(location.search);
-if (params.has('portrait')) {
+if (params.has('portrait') || location.hash === '#portrait') {
   // Studio de portraits : les personnages seuls, pour les juger de près.
   const studio = new Portrait(container);
   (window as unknown as { __portrait: Portrait }).__portrait = studio;

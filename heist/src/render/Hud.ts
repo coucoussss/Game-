@@ -331,7 +331,8 @@ export class Hud {
         <tr><td>Clic droit</td><td>braquer son arme (tenir en respect)</td><td>Clic gauche</td><td>tirer, frapper, enfiler</td></tr>
         <tr><td>R</td><td>recharger</td><td>Tab</td><td>carnet de repérage</td></tr>
         <tr><td>Échap</td><td>pause</td><td></td><td></td></tr>
-      </table>`;
+      </table>
+      <p class="hint">Si la souris ne se laisse pas capturer : glisser pour regarder, clic bref pour tirer.</p>`;
   }
 
   private renderTitle(): void {

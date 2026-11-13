@@ -10,7 +10,7 @@ import { Human, lookFor } from './models/human';
 import { makeDrill } from './models/items';
 import { cashPallet, makeCamera, makeDisplayCase, makeFuseBox, makeSafe, makeVaultDoor } from './models/props';
 import { glowTexture } from './textures';
-import { loadModel } from './Viewmodel';
+import { loadModel, VEST_URLS } from './Viewmodel';
 
 /** Nombre de lumières ponctuelles réellement calculées : on les attribue aux sources les plus utiles. */
 const POOL = 10;
@@ -118,7 +118,7 @@ export class LevelView {
     scene.add(this.fence.root);
     this.fenceLight = { pos: new THREE.Vector3(f.pos[0] + 0.85, 1.1, f.pos[1] + 0.65), color: new THREE.Color('#ffb040'), range: 9, power: 10, level: 0, tag: 'fence' };
     this.city.handles.lights.push(this.fenceLight);
-    void loadModel('models/plate-carrier.glb', 0.55, false)
+    void loadModel(VEST_URLS, 0.55, false)
       .then((vest) => {
         put(vest, f.pos[0] - 0.4, 0.86, f.pos[1] + 0.9, 0, -0.5, 0);
         shadows(vest);
