@@ -503,6 +503,7 @@ function bossPose(tp) {
 function patUpdate(p, tt) {
 	if (floor(tt/1.5) != floor((tt - DT)/1.5)) bossAnim();
 	for (var i = 0; i < array_length(p.subs); i++) subUpdate(p.subs[i], p.lv, tt);
+	var jp = opt(p.spec, "jump", 0); if (jp > 0 && floor(tt/jp) != floor((tt - DT)/jp)) setBox(p.w, p.h, rnd(150, 490), rnd(232, 300));
 	var sw = opt(p.spec, "sway", 0); if (sw > 0) setBox(p.w, p.h, BCX + sin(tt*1.3)*sw, BCY + sin(tt*.9 + 1)*sw*.25);
 	if (opt(p.spec, "shrink", false)) { var k = 1 - .35 * min(1, tt / p.dur); setBox(p.w * k, p.h * k); }
 }
@@ -648,7 +649,8 @@ function subUpdate(s, lv, tt) {
 			if (side == 0) { xx = rnd(box.x, box.x + box.w); yy = box.y - 34; } else if (side == 1) { xx = rnd(box.x, box.x + box.w); yy = box.y + box.h + 34; }
 			else if (side == 2) { xx = box.x - 34; yy = rnd(box.y, box.y + box.h); } else { xx = box.x + box.w + 34; yy = rnd(box.y, box.y + box.h); }
 			var tx = P.x + rnd(-24, 24), ty = P.y + rnd(-24, 24);
-			addB({ kind: "blaster", x: xx, y: yy, ang: arctan2(ty - yy, tx - xx), t: -i*.18, charge: opt(o, "charge", .65), fire: .35, wd: opt(o, "width", 26), sc: 1, color: c }); }
+			if (opt(o, "side", -1) >= 0) { side = o.side; xx = (side == 2) ? box.x - 60 : box.x + box.w + 60; yy = box.y + box.h*rnd(.2, .8); tx = box.x + box.w/2; ty = yy; }
+			addB({ kind: "blaster", x: xx, y: yy, ang: arctan2(ty - yy, tx - xx), t: -i*.18, charge: opt(o, "charge", .65), fire: .35, wd: opt(o, "width", 26), sc: 1, color: c, core: (opt(o, "core", "") != "") ? hexc(o.core) : -1 }); }
 		break;
 	case "floor":
 		s.n = max(.35, opt(o, "rate", .85) - lv*.12); dir = choose(1, -1); var hh = rnd(opt(o, "min", 18), opt(o, "max", 44)) + lv*5;
@@ -728,6 +730,14 @@ function subUpdate(s, lv, tt) {
 		for (i = 0; i < 9; i++) addB({ x: box.x + (ng[i] mod 3)*box.w/3 + 2, y: box.y + floor(ng[i]/3)*box.h/3 + 2, w: box.w/3 - 4, h: box.h/3 - 4, warn: .7 + i*opt(o, "step", .36), life: .3, kind: "pix", color: c, num: i + 1 });
 		break;
 	case "zigzag": // Ink (rouge) : rayon qui rebondit en zigzag d'une paroi à l'autre
+		if (opt(o, "diag", false)) { // vidéo : segments à 45°, cyan / orange / blanc, nouveau tracé toutes les 0,5 s
+			s.n = opt(o, "rate", .5); xx = rnd(box.x + 8, box.x + box.w - 8); yy = box.y; dir = choose(1, -1); var zc = [hexc("#22e4ff"), hexc("#ff9a2e"), c_white], zi = irandom(2);
+			for (i = 0; i < 8 && yy < box.y + box.h; i++) { var zl = (dir > 0) ? box.x + box.w - xx : xx - box.x; if (zl < 2) { dir = -dir; continue; }
+				var zx2 = xx + dir*zl, zy2 = yy + zl; if (zy2 > box.y + box.h) { zx2 = xx + dir*(box.y + box.h - yy); zy2 = box.y + box.h; }
+				addB({ kind: "line", x1: xx, y1: yy, x2: zx2, y2: zy2, wd: opt(o, "width", 4), warn: opt(o, "warn", .18), life: .32, color: zc[(zi + i) mod 3] });
+				xx = zx2; yy = zy2; dir = -dir; }
+			break;
+		}
 		s.n = max(1, opt(o, "rate", 1.5) - lv*.1); N = opt(o, "seg", 4); k = irandom(1); xx = rnd(box.x + box.w*.3, box.x + box.w*.7); yy = box.y - 30;
 		for (i = 0; i < N; i++) { var zx = ((i + k) mod 2 == 0) ? box.x : box.x + box.w, zy = box.y + (i + rnd(.6, 1))*box.h/N; if (i == N - 1) zy = box.y + box.h + 30;
 			addB({ kind: "line", x1: xx, y1: yy, x2: zx, y2: zy, wd: opt(o, "width", 7), warn: opt(o, "warn", .7), life: .35, color: (i mod 2 == 0) ? c : hexc(opt(o, "color2", "#ff9a2e")) });
@@ -747,6 +757,38 @@ function subUpdate(s, lv, tt) {
 	case "bluebars": // Ink bleu : barres verticales qui montent du sol ou pendent du plafond et glissent
 		s.n = max(.6, opt(o, "rate", 1.2) - lv*.08); sp = opt(o, "speed", 70) + lv*8; dir = choose(1, -1); var bh = box.h*rnd(.35, .62), top = random(1) < .35;
 		addB({ x: dir > 0 ? box.x - 6 : box.x + box.w, y: top ? box.y : box.y + box.h - bh, w: 5, h: bh, vx: dir*sp, vy: 0, life: (box.w + 12)/sp, oa: 1, color: c, kind: "rect" });
+		break;
+	case "sparks": // Ink jaune : petits éclats en nœud papillon qui traversent l'écran
+		s.n = max(.12, opt(o, "rate", .22) - lv*.02); sp = opt(o, "speed", 95) + lv*10; var se = irandom(3), sx0, sy0;
+		if (se == 0) { sx0 = rnd(0, 640); sy0 = -10; } else if (se == 1) { sx0 = rnd(0, 640); sy0 = 400; } else if (se == 2) { sx0 = -10; sy0 = rnd(40, 400); } else { sx0 = 650; sy0 = rnd(40, 400); }
+		var sa0 = arctan2(rnd(box.y, box.y + box.h) - sy0, rnd(box.x, box.x + box.w) - sx0);
+		addB({ kind: "bowtie", x: sx0, y: sy0, vx: cos(sa0)*sp, vy: sin(sa0)*sp, rot: rnd(0, 6.28), life: 9, color: c });
+		break;
+	case "twinkle": // Ink orange : petits points blancs qui scintillent et dérivent dans la boîte
+		s.n = opt(o, "rate", .14);
+		addB({ kind: "rect", x: rnd(box.x + 6, box.x + box.w - 9), y: rnd(box.y + 6, box.y + box.h - 9), w: 3, h: 3, vx: rnd(-18, 18), vy: rnd(-18, 18), warn: .25, life: rnd(2, 3.5), oa: 1, color: c });
+		break;
+	case "fanblast": // Ink magenta : salves de blasters groupés en haut et empilés à gauche, de plus en plus nombreux
+		s.n = opt(o, "rate", 1.1); s.ph += 1; var fco = (opt(o, "core", "") != "") ? hexc(o.core) : -1, fn1 = min(opt(o, "max", 6), 2 + s.ph), fx0 = rnd(.05, .55), fy0 = rnd(.05, .5);
+		for (i = 0; i < fn1; i++) {
+			if (i mod 2 == 0 || random(1) < .5) addB({ kind: "blaster", x: box.x + (fx0 + (i div 2)*.09 + (i mod 2)*.04)*box.w, y: box.y - 40, ang: pi/2, t: 0, charge: opt(o, "charge", .55), fire: .45, wd: opt(o, "width", 14), sc: .7, color: c, core: fco, noaim: true });
+			else addB({ kind: "blaster", x: box.x - 40, y: box.y + (fy0 + (i div 2)*.09)*box.h, ang: 0, t: 0, charge: opt(o, "charge", .55), fire: .45, wd: opt(o, "width", 14), sc: .7, color: c, core: fco, noaim: true }); }
+		break;
+	case "growblock": // Ink violet : carré violet plein qui grandit au centre de la boîte
+		s.n = 999;
+		addB({ kind: "grow", x: box.x + box.w/2, y: box.y + box.h/2, w: 0, h: 0, age: 0, gt: opt(o, "time", 2.5), max: min(box.w, box.h)*opt(o, "size", .42), oa: 1, color: c });
+		break;
+	case "thrust": // Ink violet : os qui jaillissent des coins (en X) ou du milieu des bords, puis se rétractent
+		s.n = max(.5, opt(o, "rate", .8) - lv*.05); L = min(box.w, box.h)*.34; var tdg = random(1) < .55;
+		if (tdg) { for (i = 0; i < 4; i++) { xx = (i mod 2 == 0) ? box.x : box.x + box.w; yy = (i < 2) ? box.y : box.y + box.h;
+				addB({ kind: "thrust", x1: xx, y1: yy, ux: ((i mod 2 == 0) ? 1 : -1)*.7071, uy: ((i < 2) ? 1 : -1)*.7071, len: L*1.1, age: 0, color: c_white }); } }
+		else { var tv = random(1) < .5;
+			addB({ kind: "thrust", x1: tv ? box.x + box.w/2 : box.x, y1: tv ? box.y : box.y + box.h/2, ux: tv ? 0 : 1, uy: tv ? 1 : 0, len: L, age: 0, color: c_white });
+			addB({ kind: "thrust", x1: tv ? box.x + box.w/2 : box.x + box.w, y1: tv ? box.y + box.h : box.y + box.h/2, ux: tv ? 0 : -1, uy: tv ? -1 : 0, len: L, age: 0, color: c_white }); }
+		break;
+	case "cuts": // Ink rouge : entailles rouges qui coupent la boîte
+		s.n = max(.35, opt(o, "rate", .6) - lv*.05); xx = rnd(box.x, box.x + box.w); yy = rnd(box.y, box.y + box.h); a = rnd(0, 3.14); L = rnd(30, 55);
+		addB({ kind: "line", x1: xx - cos(a)*L, y1: yy - sin(a)*L, x2: xx + cos(a)*L, y2: yy + sin(a)*L, wd: 3, warn: .4, life: .25, color: c });
 		break;
 	case "wallspikes": // Ink bleu : rangée de pointes fixes sur le mur de gauche
 		s.n = 999;
@@ -1098,6 +1140,21 @@ function stepFight() {
 				if (b.k > .6 && abs(P.x - b.x) < thw + 1 && P.y - P.r + 1 < b.tip) hurt = true;
 			}
 			break;
+		case "bowtie":
+			b.x += b.vx*DT; b.y += b.vy*DT; b.rot += DT*6; b.life -= DT;
+			if (b.life <= 0 || b.x < -40 || b.x > 680 || b.y < -40 || b.y > 440) b.dead = true;
+			if (sqr(b.x - P.x) + sqr(b.y - P.y) < sqr(P.r + 3)) { hurt = true; b.dead = true; }
+			break;
+		case "grow":
+			b.age += DT; var gsz = min(1, b.age/b.gt)*b.max; b.w = gsz; b.h = gsz;
+			if (gsz > 4 && rectHitP({ x: b.x - gsz/2, y: b.y - gsz/2, w: gsz, h: gsz })) hurt = true;
+			break;
+		case "thrust":
+			b.age += DT; var tk = (b.age < .35) ? b.age/.35 : ((b.age < .65) ? 1 : max(0, 1 - (b.age - .65)/.25));
+			b.tx2 = b.x1 + b.ux*b.len*tk; b.ty2 = b.y1 + b.uy*b.len*tk;
+			if (tk > .2 && segDist(P.x, P.y, b.x1, b.y1, b.tx2, b.ty2) < 3 + P.r - 2) hurt = true;
+			if (b.age > .9) b.dead = true;
+			break;
 		case "redline":
 			b.a += DT; b.on = (b.a mod (b.lines + b.red)) < b.lines;
 			if (b.on) b.off += b.v*DT;
@@ -1210,6 +1267,16 @@ function drawDecor(f, dc) {
 		for (var side2 = -1; side2 <= 1; side2 += 2) { var ax = box.x + box.w/2 + side2*(box.w/2 + 70), ay = box.y + box.h/2;
 			for (i = 0; i < 9; i++) { a = t*1.6*side2 + i*.33; draw_set_alpha(.35 + i*.07); draw_set_colour(c); draw_circle(ax + cos(a)*34, ay + sin(a)*34, 3 + i*.25, false); } }
 		draw_set_alpha(1); }
+	else if (dc == "cubes") { // carrés jaunes en fil de fer qui tournent de part et d'autre
+		draw_set_colour(c); var CP = [[95, 120, 30], [70, 250, 22], [140, 330, 18], [545, 120, 30], [575, 250, 22], [505, 330, 18]];
+		for (i = 0; i < 6; i++) { var cc = CP[i], ca = t*(.6 + i*.13)*((i mod 2 == 0) ? 1 : -1), cr = cc[2];
+			for (var e = 0; e < 4; e++) draw_line(cc[0] + cos(ca + e*pi/2)*cr, cc[1] + sin(ca + e*pi/2)*cr, cc[0] + cos(ca + (e + 1)*pi/2)*cr, cc[1] + sin(ca + (e + 1)*pi/2)*cr); } }
+	else if (dc == "hearts") { // cadre extérieur + trois cœurs rouges témoins autour de la boîte
+		draw_set_alpha(.45); draw_set_colour(c); draw_rectangle(box.x - 26, box.y - 26, box.x + box.w + 26, box.y + box.h + 26, true); draw_set_alpha(1);
+		heart(box.x - 46, box.y + box.h/2, c_red, .6); heart(box.x + box.w + 46, box.y + box.h/2, c_red, .6); heart(box.x + box.w/2, box.y + box.h + 44, c_red, .6); }
+	else if (dc == "sickles") { // faucilles rouges qui tournent autour d'Ink
+		for (i = 0; i < 6; i++) { a = t*.8 + i*pi/3; var sx2 = 320 + cos(a)*150, sy2 = 105 + sin(a)*70;
+			for (var q = 0; q < 9; q++) { var qa = a + 1.6 + q*.16; draw_set_colour(c); draw_circle(sx2 + cos(qa)*14, sy2 + sin(qa)*14, 1 + q*.45, false); } } }
 	else if (dc == "dots") { // chaîne de gros points bleus qui défile derrière la boîte
 		draw_set_alpha(.28); draw_set_colour(c);
 		for (i = 0; i < 18; i++) { var dx2 = ((i*42 + t*40) mod 756) - 58; draw_circle(dx2, box.y + box.h/2 + sin(i*.9 + t)*8, 13, false); }
@@ -1300,6 +1367,9 @@ function drawBullets() {
 		case "blaster": break;
 		case "arrow": break;
 		case "trident": break;
+		case "bowtie": break;
+		case "grow": draw_set_colour(b.color); draw_rectangle(b.x - b.w/2, b.y - b.h/2, b.x + b.w/2, b.y + b.h/2, false); break;
+		case "thrust": if (variable_struct_exists(b, "tx2")) lineBone(b.x1, b.y1, b.tx2, b.ty2, 5, b.color); break;
 		case "spikes":
 			draw_set_colour(b.color); var nsp = max(1, floor(b.h/13));
 			for (var sq = 0; sq < nsp; sq++) { var sy0 = b.y + sq*b.h/nsp; draw_triangle(b.x, sy0 + 1, b.x, sy0 + b.h/nsp - 1, b.x + b.w, sy0 + b.h/nsp/2, false); }
@@ -1350,8 +1420,8 @@ function drawBoss(f) {
 		draw_set_colour(c_black); draw_circle(xx - 12, yy + 58, 7, false); draw_circle(xx + 12, yy + 58, 7, false);
 	}
 }
-function drawFrame(x1, y1, w, h, col = c_white) {
-	draw_set_colour(c_black); draw_rectangle(x1, y1, x1 + w, y1 + h, false);
+function drawFrame(x1, y1, w, h, col = c_white, fill = c_black) {
+	draw_set_colour(fill); draw_rectangle(x1, y1, x1 + w, y1 + h, false);
 	draw_set_colour(col); for (var i = 0; i < 4; i++) draw_rectangle(x1 - 2 - i + 2, y1 - 2 - i + 2, x1 + w + i, y1 + h + i, true);
 }
 function drawHud(f) {
@@ -1525,7 +1595,7 @@ function drawFight() {
 	var fl0 = (f.state == "enemy" && !is_undefined(f.pat) && opt(f.pat.spec, "floorline", false));
 	if (f.state == "enemy" && !is_undefined(f.pat)) drawDecor(f, opt(f.pat.spec, "decor", ""));
 	if (fl0) { draw_set_colour(f.frameC); draw_rectangle(0, box.y + box.h, 640, box.y + box.h + 3, false); }
-	else drawFrame(box.x, box.y, box.w, box.h, (f.state == "enemy") ? opt(f, "frameC", c_white) : c_white);
+	else drawFrame(box.x, box.y, box.w, box.h, (f.state == "enemy") ? opt(f, "frameC", c_white) : c_white, (f.state == "enemy" && !is_undefined(f.pat)) ? hexc(opt(f.pat.spec, "fill", "#000000")) : c_black);
 	if (!is_undefined(f.level)) { draw_set_colour(f.levelColor); draw_rectangle(box.x, f.level, box.x + box.w, box.y + box.h, false); draw_set_colour(f.levelEdge); draw_line_width(box.x, f.level, box.x + box.w, f.level, 2); }
 	if (f.state == "dialog" && !is_undefined(dlg)) {
 		var L = dlg.lines[dlg.i], who = lineSpeaker(L), s = string_copy(lineText(L), 1, floor(dlg.c));
@@ -1551,6 +1621,9 @@ function drawFight() {
 		matrix_set(matrix_world, ident);
 		draw_surface_part(surf, max(0, box.x), max(0, box.y), box.w, box.h, max(0, box.x), max(0, box.y));
 		for (i = 0; i < array_length(B); i++) if (B[i].kind == "trident" && B[i].age >= 0) drawTrident(B[i]);
+		for (i = 0; i < array_length(B); i++) if (B[i].kind == "bowtie") { var bt = B[i], bc = cos(bt.rot)*5, bs = sin(bt.rot)*5; draw_set_colour(bt.color);
+			draw_triangle(bt.x, bt.y, bt.x + bc - bs*.6, bt.y + bs + bc*.6, bt.x + bc + bs*.6, bt.y + bs - bc*.6, false);
+			draw_triangle(bt.x, bt.y, bt.x - bc - bs*.6, bt.y - bs + bc*.6, bt.x - bc + bs*.6, bt.y - bs - bc*.6, false); }
 		if (f.redOn) { draw_set_colour(make_color_rgb(255, 24, 0)); draw_rectangle(box.x - 4, box.y - 4, box.x + box.w + 4, box.y + box.h + 4, false); }
 		if (f.state == "enemy" && !is_undefined(f.pat) && opt(f.pat.spec, "gauge", false)) {
 			var gk = clamp(1 - f.patT/max(.1, f.pat.dur), 0, 1);
