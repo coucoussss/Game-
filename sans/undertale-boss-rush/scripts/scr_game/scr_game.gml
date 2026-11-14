@@ -478,6 +478,7 @@ function patInit(p) {
 		}
 	}
 	for (i = 0; i < array_length(p.subs); i++) { var dl0 = opt(p.subs[i].o, "delay0", -1); if (dl0 >= 0) p.subs[i].n = dl0; }
+	fight.rails = opt(spec, "rails", 0); fight.rail = floor(fight.rails/2);
 	var gv = opt(spec, "gravity", false);
 	if (gv) { fight.gravity = (is_bool(gv) || gv == 1) ? 1 : gv; P.vy = 0; fight.gravDir = opt(spec, "gdir", 0); fight.gravT = 0; if (fight.turn <= 2) banner = { txt: "ÂME BLEUE : HAUT POUR SAUTER", t: 2 }; }
 	if (opt(spec, "invert", false)) { fight.invert = true; banner = { txt: "COMMANDES INVERSÉES", t: 1.6 }; }
@@ -486,7 +487,7 @@ function patInit(p) {
 	var dr = opt(spec, "draw", ""); fight.drawn = dr; if (dr != "") { flashT = .55; flashC = hexc(opt(spec, "flash", "#ffffff")); sfx("phase"); banner = { txt: "INK DESSINE : " + dr, t: 2.6 }; }
 	var bn = opt(spec, "banner", ""); if (bn != "") banner = { txt: bn, t: 2.4 };
 }
-function patEnd() { fight.redOn = false; fight.frameC = c_white; fight.soulC = ""; fight.shield = false; fight.drawn = ""; scrRotT = 0; fight.slam = false; fight.gravDir = 0; fight.gravT = 0; fight.invert = false; fight.level = undefined; fight.gravity = 0; P.bound = 0; }
+function patEnd() { fight.redOn = false; fight.rails = 0; fight.frameC = c_white; fight.soulC = ""; fight.shield = false; fight.drawn = ""; scrRotT = 0; fight.slam = false; fight.gravDir = 0; fight.gravT = 0; fight.invert = false; fight.level = undefined; fight.gravity = 0; P.bound = 0; }
 function animFrames(f) { return isLB(f) ? sprLBA[min(2, f.ph)] : sprA[f.i]; }
 function bossAnim() { if (!is_undefined(fight) && is_undefined(opt(fight.b, "poses", undefined))) fight.animT = 0; }
 // Pose du bras choisie selon l'attaque qui vient de partir (champ "poses" du Sans dans data.json : catégorie -> numéros d'images)
@@ -790,6 +791,36 @@ function subUpdate(s, lv, tt) {
 		s.n = max(.35, opt(o, "rate", .6) - lv*.05); xx = rnd(box.x, box.x + box.w); yy = rnd(box.y, box.y + box.h); a = rnd(0, 3.14); L = rnd(30, 55);
 		addB({ kind: "line", x1: xx - cos(a)*L, y1: yy - sin(a)*L, x2: xx + cos(a)*L, y2: yy + sin(a)*L, wd: 3, warn: .4, life: .25, color: c });
 		break;
+	case "railcross": // Ink magenta : croix qui glissent le long des cordes
+		s.n = max(.25, opt(o, "rate", .55) - lv*.04); var rr0 = irandom(opt(fight, "rails", 3) - 1), rdir = choose(1, -1); sp = opt(o, "speed", 95) + lv*10;
+		addB({ kind: "cross", x: rdir > 0 ? box.x - 20 : box.x + box.w + 20, y: box.y + (rr0 + 1)*box.h/(max(1, opt(fight, "rails", 3)) + 1), vx: rdir*sp, vy: 0, life: (box.w + 60)/sp, color: c });
+		break;
+	case "slowbones": // Ink vert : petits os gris qui apparaissent autour de la boîte et la traversent lentement en tournant
+		s.n = max(.3, opt(o, "rate", .5) - lv*.04); a = rnd(0, 6.28); var sr0 = max(box.w, box.h)*.8; xx = box.x + box.w/2 + cos(a)*sr0; yy = box.y + box.h/2 + sin(a)*sr0;
+		var sa1 = arctan2(box.y + rnd(.2, .8)*box.h - yy, box.x + rnd(.2, .8)*box.w - xx); sp = opt(o, "speed", 50) + lv*6;
+		addB({ kind: "rbone", x: xx, y: yy, vx: cos(sa1)*sp, vy: sin(sa1)*sp, rot: rnd(0, 6.28), rv: rnd(-2, 2), len: 9, warn: .5, life: sr0*2.2/sp, color: hexc(opt(o, "color", "#8fa598")) });
+		break;
+	case "fallbones": // Ink vert (cage) : pluie d'os courts qui tombent lentement dans la boîte haute
+		s.n = max(.06, opt(o, "rate", .1) - lv*.01);
+		addB({ kind: "rbone", x: rnd(box.x + 8, box.x + box.w - 8), y: box.y - 10, vx: rnd(-8, 8), vy: opt(o, "speed", 55) + lv*6, rot: rnd(0, 6.28), rv: rnd(-1.5, 1.5), len: 8, warn: 0, life: (box.h + 30)/(opt(o, "speed", 55) + lv*6), color: c });
+		break;
+	case "roaddash": // Ink orange (route) : tirets blancs qui défilent sur deux voies
+		s.n = opt(o, "rate", .42); sp = opt(o, "speed", 150) + lv*12;
+		for (i = 0; i < 2; i++) if (random(1) < .8) addB({ kind: "rect", x: box.x + box.w + 10 + i*40, y: box.y + box.h*(i == 0 ? .38 : .72) - 2, w: 36, h: 5, vx: -sp, vy: 0, life: (box.w + 120)/sp, oa: 1, color: c });
+		break;
+	case "stars": // Ink jaune : étoiles à 5 branches qui tournent autour de la boîte (et parfois une géante)
+		s.n = max(.12, opt(o, "rate", .2) - lv*.02); var big = random(1) < .07; sp = big ? 70 : opt(o, "speed", 110) + lv*10; a = rnd(0, 6.28); sr0 = 330;
+		xx = box.x + box.w/2 + cos(a)*sr0; yy = box.y + box.h/2 + sin(a)*sr0*.7; var sa2 = arctan2(box.y + rnd(0, 1)*box.h - yy, box.x + rnd(0, 1)*box.w - xx) + rnd(-.35, .35);
+		addB({ kind: "star5", x: xx, y: yy, vx: cos(sa2)*sp, vy: sin(sa2)*sp, rot: rnd(0, 6.28), rv: rnd(-3, 3), sz: big ? 22 : 7, life: 10, color: c });
+		break;
+	case "needle": // Ink rouge (horloge) : aiguille blanche qui pivote autour du centre de la boîte et change de sens
+		s.n = 999;
+		addB({ kind: "needle", cx: box.x + box.w/2, cy: box.y + box.h/2, ang: rnd(0, 6.28), av: opt(o, "spin", 2.2), flip: 0, len: max(box.w, box.h)*.75, life: 99, color: c_white });
+		break;
+	case "reddots": // Ink rouge : points rouges qui apparaissent et clignotent dans la boîte
+		s.n = opt(o, "rate", .12);
+		addB({ kind: "rect", x: rnd(box.x + 4, box.x + box.w - 9), y: rnd(box.y + 4, box.y + box.h - 9), w: 5, h: 5, warn: .35, life: rnd(1.2, 2.2), oa: 1, color: c });
+		break;
 	case "wallspikes": // Ink bleu : rangée de pointes fixes sur le mur de gauche
 		s.n = 999;
 		addB({ x: box.x, y: box.y, w: 11, h: box.h, life: 99, oa: 1, color: c, kind: "spikes" });
@@ -1062,6 +1093,7 @@ function stepFight() {
 	if (f.invert) { dx = -dx; dy = -dy; }
 	if (P.bound > 0) { P.bound -= DT; dx = 0; dy = 0; }
 	if (opt(f, "shield", false)) { var shx0 = (kdr("right") ? 1 : 0) - (kdr("left") ? 1 : 0), shy0 = (kdr("up") ? 1 : 0) - (kdr("down") ? 1 : 0); if (shx0 != 0 || shy0 != 0) shieldDir = (round(arctan2(shy0, shx0)/(pi/4)) + 8) mod 8; dx = 0; dy = 0; P.x = box.x + box.w/2; P.y = box.y + box.h/2; }
+	if (opt(f, "rails", 0) > 0) { if (kp("up")) f.rail = max(0, f.rail - 1); if (kp("down")) f.rail = min(f.rails - 1, f.rail + 1); dy = 0; P.y = box.y + (f.rail + 1)*box.h/(f.rails + 1); }
 	P.moving = (dx != 0 || dy != 0);
 	var sp = 4, kk = DT*30;
 	P.x += dx*sp*kk;
@@ -1144,6 +1176,18 @@ function stepFight() {
 			b.x += b.vx*DT; b.y += b.vy*DT; b.rot += DT*6; b.life -= DT;
 			if (b.life <= 0 || b.x < -40 || b.x > 680 || b.y < -40 || b.y > 440) b.dead = true;
 			if (sqr(b.x - P.x) + sqr(b.y - P.y) < sqr(P.r + 3)) { hurt = true; b.dead = true; }
+			break;
+		case "cross": case "star5": case "rbone":
+			if (b.warn > 0) { b.warn -= DT; break; }
+			b.x += b.vx*DT; b.y += b.vy*DT; b.life -= DT; if (variable_struct_exists(b, "rv")) b.rot += b.rv*DT;
+			if (b.life <= 0 || b.x < -60 || b.x > 700 || b.y < -60 || b.y > 460) { b.dead = true; break; }
+			if (b.kind == "rbone") { var rc0 = cos(b.rot)*b.len, rs0 = sin(b.rot)*b.len; if (segDist(P.x, P.y, b.x - rc0, b.y - rs0, b.x + rc0, b.y + rs0) < 2 + P.r - 2) hurt = true; }
+			else if (sqr(b.x - P.x) + sqr(b.y - P.y) < sqr(P.r + (b.kind == "star5" ? b.sz*.55 : 5))) hurt = true;
+			break;
+		case "needle":
+			b.flip += DT; if (b.flip > 2.3) { b.flip = 0; b.av = -b.av*rnd(.8, 1.2); }
+			b.ang += b.av*DT; b.cx = box.x + box.w/2; b.cy = box.y + box.h/2;
+			if (segDist(P.x, P.y, b.cx - cos(b.ang)*10, b.cy - sin(b.ang)*10, b.cx + cos(b.ang)*b.len, b.cy + sin(b.ang)*b.len) < 2 + P.r - 2) hurt = true;
 			break;
 		case "grow":
 			b.age += DT; var gsz = min(1, b.age/b.gt)*b.max; b.w = gsz; b.h = gsz;
@@ -1255,6 +1299,14 @@ function btri(X, Y, c, s, k, x1, y1, x2, y2, x3, y3) {
 	draw_triangle(X + (x1*c - y1*s)*k, Y + (x1*s + y1*c)*k, X + (x2*c - y2*s)*k, Y + (x2*s + y2*c)*k, X + (x3*c - y3*s)*k, Y + (x3*s + y3*c)*k, false);
 }
 function bquad(X, Y, c, s, k, x1, y1, x2, y2) { btri(X, Y, c, s, k, x1, y1, x2, y1, x2, y2); btri(X, Y, c, s, k, x1, y1, x2, y2, x1, y2); }
+function drawFree(b) { // projectiles dessinés aussi hors de la boîte (comme dans Ink!Sans)
+	var i;
+	if (b.kind == "cross") { draw_set_colour(b.color); for (i = 0; i < 4; i++) draw_circle(b.x + cos(i*pi/2 + t*4)*4, b.y + sin(i*pi/2 + t*4)*4, 3, false); draw_circle(b.x, b.y, 2, false); }
+	else if (b.kind == "star5") { draw_set_colour(b.color); var r1 = b.sz, r2 = b.sz*.42;
+		for (i = 0; i < 5; i++) { var a1 = b.rot + i*1.2566, a2 = a1 + .6283, a3 = a1 - .6283;
+			draw_triangle(b.x, b.y, b.x + cos(a1)*r1, b.y + sin(a1)*r1, b.x + cos(a2)*r2, b.y + sin(a2)*r2, false); draw_triangle(b.x, b.y, b.x + cos(a1)*r1, b.y + sin(a1)*r1, b.x + cos(a3)*r2, b.y + sin(a3)*r2, false); } }
+	else if (b.kind == "rbone") { if (b.warn > 0) draw_set_alpha(.4); var rc = cos(b.rot)*b.len, rs = sin(b.rot)*b.len; lineBone(b.x - rc, b.y - rs, b.x + rc, b.y + rs, 4, b.color); draw_set_alpha(1); }
+}
 function drawDecor(f, dc) {
 	if (dc == "") return;
 	var i, a, c = f.frameC;
@@ -1277,6 +1329,15 @@ function drawDecor(f, dc) {
 	else if (dc == "sickles") { // faucilles rouges qui tournent autour d'Ink
 		for (i = 0; i < 6; i++) { a = t*.8 + i*pi/3; var sx2 = 320 + cos(a)*150, sy2 = 105 + sin(a)*70;
 			for (var q = 0; q < 9; q++) { var qa = a + 1.6 + q*.16; draw_set_colour(c); draw_circle(sx2 + cos(qa)*14, sy2 + sin(qa)*14, 1 + q*.45, false); } } }
+	else if (dc == "wires") { // fils orange derrière Ink
+		draw_set_alpha(.5); draw_set_colour(c); for (i = 0; i < 9; i++) { var wx = 30 + i*72 + sin(i*2.3)*12; draw_line(wx, 0, wx, 215); if (i mod 2 == 0) draw_line(wx, 60 + i*9, wx + 72, 60 + i*9); } draw_set_alpha(1); }
+	else if (dc == "digits") { // chiffres jaunes qui flottent
+		for (i = 0; i < 26; i++) { var dx3 = (i*97) mod 640, dy3 = ((i*53 + t*14*(1 + (i mod 3))) mod 420); txt(string((i*7 + floor(t*2)) mod 10), dx3, dy3, 16, merge_colour(c, c_black, .55)); } }
+	else if (dc == "rings") { // deux cercles rouges ouverts de part et d'autre d'Ink
+		draw_set_colour(c); for (var sd = -1; sd <= 1; sd += 2) for (i = 0; i < 40; i++) { a = t*.7*sd + i*.13; draw_circle(320 + sd*190 + cos(a)*34, 110 + sin(a)*34, 1.6, false); } }
+	else if (dc == "pyramids") { // triangles verts en fil de fer
+		draw_set_colour(c); for (var sd2 = -1; sd2 <= 1; sd2 += 2) { var pxm = box.x + box.w/2 + sd2*(box.w/2 + 80), pym = box.y + box.h/2;
+			draw_line(pxm, pym - 28, pxm - 22, pym + 18); draw_line(pxm, pym - 28, pxm + 22, pym + 18); draw_line(pxm - 22, pym + 18, pxm + 22, pym + 18); draw_line(pxm, pym - 28, pxm + 6, pym + 10); draw_line(pxm + 6, pym + 10, pxm - 22, pym + 18); draw_line(pxm + 6, pym + 10, pxm + 22, pym + 18); } }
 	else if (dc == "dots") { // chaîne de gros points bleus qui défile derrière la boîte
 		draw_set_alpha(.28); draw_set_colour(c);
 		for (i = 0; i < 18; i++) { var dx2 = ((i*42 + t*40) mod 756) - 58; draw_circle(dx2, box.y + box.h/2 + sin(i*.9 + t)*8, 13, false); }
@@ -1367,7 +1428,10 @@ function drawBullets() {
 		case "blaster": break;
 		case "arrow": break;
 		case "trident": break;
-		case "bowtie": break;
+		case "bowtie": case "cross": case "star5": case "rbone": break;
+		case "needle":
+			draw_set_colour(b.color); draw_line_width(b.cx - cos(b.ang)*10, b.cy - sin(b.ang)*10, b.cx + cos(b.ang)*b.len, b.cy + sin(b.ang)*b.len, 4); draw_circle(b.cx, b.cy, 4, false);
+			break;
 		case "grow": draw_set_colour(b.color); draw_rectangle(b.x - b.w/2, b.y - b.h/2, b.x + b.w/2, b.y + b.h/2, false); break;
 		case "thrust": if (variable_struct_exists(b, "tx2")) lineBone(b.x1, b.y1, b.tx2, b.ty2, 5, b.color); break;
 		case "spikes":
@@ -1596,6 +1660,7 @@ function drawFight() {
 	if (f.state == "enemy" && !is_undefined(f.pat)) drawDecor(f, opt(f.pat.spec, "decor", ""));
 	if (fl0) { draw_set_colour(f.frameC); draw_rectangle(0, box.y + box.h, 640, box.y + box.h + 3, false); }
 	else drawFrame(box.x, box.y, box.w, box.h, (f.state == "enemy") ? opt(f, "frameC", c_white) : c_white, (f.state == "enemy" && !is_undefined(f.pat)) ? hexc(opt(f.pat.spec, "fill", "#000000")) : c_black);
+	if (opt(f, "rails", 0) > 0 && f.state == "enemy") { draw_set_colour(f.frameC); for (var ri = 0; ri < f.rails; ri++) draw_line(box.x, box.y + (ri + 1)*box.h/(f.rails + 1), box.x + box.w, box.y + (ri + 1)*box.h/(f.rails + 1)); }
 	if (!is_undefined(f.level)) { draw_set_colour(f.levelColor); draw_rectangle(box.x, f.level, box.x + box.w, box.y + box.h, false); draw_set_colour(f.levelEdge); draw_line_width(box.x, f.level, box.x + box.w, f.level, 2); }
 	if (f.state == "dialog" && !is_undefined(dlg)) {
 		var L = dlg.lines[dlg.i], who = lineSpeaker(L), s = string_copy(lineText(L), 1, floor(dlg.c));
@@ -1621,6 +1686,7 @@ function drawFight() {
 		matrix_set(matrix_world, ident);
 		draw_surface_part(surf, max(0, box.x), max(0, box.y), box.w, box.h, max(0, box.x), max(0, box.y));
 		for (i = 0; i < array_length(B); i++) if (B[i].kind == "trident" && B[i].age >= 0) drawTrident(B[i]);
+		for (i = 0; i < array_length(B); i++) drawFree(B[i]);
 		for (i = 0; i < array_length(B); i++) if (B[i].kind == "bowtie") { var bt = B[i], bc = cos(bt.rot)*5, bs = sin(bt.rot)*5; draw_set_colour(bt.color);
 			draw_triangle(bt.x, bt.y, bt.x + bc - bs*.6, bt.y + bs + bc*.6, bt.x + bc + bs*.6, bt.y + bs - bc*.6, false);
 			draw_triangle(bt.x, bt.y, bt.x - bc - bs*.6, bt.y - bs + bc*.6, bt.x - bc + bs*.6, bt.y - bs - bc*.6, false); }
