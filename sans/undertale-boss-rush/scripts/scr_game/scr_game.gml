@@ -294,7 +294,7 @@ function newFight(i) {
 	fight = { i: i, b: b, hp: b.hp, max: b.hp, phase2: false, ketchup: 3, talkBonus: 1, talkN: 0, pidx: 0, turn: 0, state: "dialog",
 		pat: undefined, patT: 0, atk: undefined, menuSel: 0, flavor: pick(b.flavor), fc: 0, ph: 0, cur: undefined, lbTired: false,
 		lbSaid: false, surv: 0, lbLast: false, over: "", startPh: 0, res: undefined, resTxt: "", enemyShake: 0, dodge: 0,
-		phase3: false, gravDir: 0, gravT: 0, animT: -1, poseI: 0, poseT: 0, gravity: 0, slam: false, invert: false, level: undefined, levelColor: c_black, levelEdge: c_white };
+		redOn: false, phase3: false, gravDir: 0, gravT: 0, animT: -1, poseI: 0, poseT: 0, gravity: 0, slam: false, invert: false, level: undefined, levelColor: c_black, levelEdge: c_white };
 	if (isLB(fight)) { fight.max = 60; fight.hp = 60; fight.cur = LBPATS[0]; }
 	runT = 0; runHits = 0; paused = false;
 	P.max = opt(b, "kr", false) ? 92 : 30; P.hp = P.max; P.inv = 0; P.kr = 0; P.vy = 0; P.bound = 0; B = []; banner = undefined;
@@ -485,7 +485,7 @@ function patInit(p) {
 	var dr = opt(spec, "draw", ""); fight.drawn = dr; if (dr != "") { flashT = .55; flashC = hexc(opt(spec, "flash", "#ffffff")); sfx("phase"); banner = { txt: "INK DESSINE : " + dr, t: 2.6 }; }
 	var bn = opt(spec, "banner", ""); if (bn != "") banner = { txt: bn, t: 2.4 };
 }
-function patEnd() { fight.frameC = c_white; fight.soulC = ""; fight.shield = false; fight.drawn = ""; scrRotT = 0; fight.slam = false; fight.gravDir = 0; fight.gravT = 0; fight.invert = false; fight.level = undefined; fight.gravity = 0; P.bound = 0; }
+function patEnd() { fight.redOn = false; fight.frameC = c_white; fight.soulC = ""; fight.shield = false; fight.drawn = ""; scrRotT = 0; fight.slam = false; fight.gravDir = 0; fight.gravT = 0; fight.invert = false; fight.level = undefined; fight.gravity = 0; P.bound = 0; }
 function animFrames(f) { return isLB(f) ? sprLBA[min(2, f.ph)] : sprA[f.i]; }
 function bossAnim() { if (!is_undefined(fight) && is_undefined(opt(fight.b, "poses", undefined))) fight.animT = 0; }
 // Pose du bras choisie selon l'attaque qui vient de partir (champ "poses" du Sans dans data.json : catégorie -> numéros d'images)
@@ -668,39 +668,52 @@ function subUpdate(s, lv, tt) {
 		s.n = max(.9, opt(o, "rate", 1.8) - lv*.2); ep = edgePoint();
 		addB({ kind: "orb", x: ep[0], y: ep[1], r: 9, sp: opt(o, "speed", 120) + lv*20, home: 1.3, warn: .2, life: 1.7, color: hexc(opt(o, "color", "#ff6b8a")), shape: "reticle", burst: opt(o, "burst", 8) + round(lv*2), bcol: hexc(opt(o, "bcol", "#ffffff")), harmless: true });
 		break;
-	case "gridblast": // Dusttale : N blasters en haut + N à droite tirent ensemble -> quadrillage
+	case "gridblast": // Dusttale : N blasters en haut + N à droite -> quadrillage
 		s.n = opt(o, "rate", 4.2); N = opt(o, "n", 3); var gf = opt(o, "fire", 2.4), gwd = opt(o, "width", 20), gch = opt(o, "charge", 1.1);
+		if (opt(o, "pulse", false)) {
+			// vidéo : les blasters restent en place, glissent en groupe entre deux salves, tirent 0,33 s toutes les secondes
+			s.n = opt(o, "cyc", 1); xx = rnd(-.12, .26); yy = rnd(-.05, .3);
+			if (!variable_struct_exists(s, "bl")) { s.bl = [];
+				for (i = 0; i < N; i++) {
+					array_push(s.bl, addB({ kind: "blaster", x: box.x + (xx + i*.31)*box.w, y: box.y - 8, ang: pi/2, t: 0, charge: opt(o, "first", 2.4), fire: gf, wd: gwd, sc: .8, color: c, cyc: s.n, noaim: true, len: box.h + 4, gi: i, gs: 0 }));
+					array_push(s.bl, addB({ kind: "blaster", x: box.x + box.w + 8, y: box.y + (yy + i*.32)*box.h, ang: pi, t: 0, charge: opt(o, "first", 2.4), fire: gf, wd: gwd, sc: .8, color: c, cyc: s.n, noaim: true, len: box.w + 4, gi: i, gs: 1 })); } }
+			for (i = 0; i < array_length(s.bl); i++) { var gb = s.bl[i]; if (gb.gs == 0) gb.tx = box.x + (xx + gb.gi*.31)*box.w; else gb.ty = box.y + (yy + gb.gi*.32)*box.h; }
+			break;
+		}
 		for (i = 0; i < N; i++) {
 			addB({ kind: "blaster", x: box.x + (i + .5)/N*box.w, y: box.y - 40, ang: pi/2, t: 0, charge: gch, fire: gf, wd: gwd, sc: .8, color: c });
 			addB({ kind: "blaster", x: opt(o, "left", false) ? box.x - 40 : box.x + box.w + 40, y: box.y + (i + .5)/N*box.h, ang: opt(o, "left", false) ? 0 : pi, t: 0, charge: gch, fire: gf, wd: gwd, sc: .8, color: c }); }
 		break;
-	case "tridents": // Dusttale : 3 tridents plantés dans la moitié haute + grand os qui traverse (passer dessous)
-		s.n = opt(o, "rate", 2.4);
-		if (s.ph >= 0) { s.ph = -1; for (i = 0; i < 3; i++) addB({ x: box.x + (i + 1)/4*box.w - 15, y: box.y, w: 30, h: box.h*.55, warn: .7, life: 60, kind: "trident", age: 0, color: c }); }
-		dir = choose(1, -1); sp = opt(o, "speed", 120) + lv*15;
-		addB({ x: dir > 0 ? box.x - 12 : box.x + box.w, y: box.y, w: 12, h: box.h - opt(o, "gap", 30), vx: dir*sp, vy: 0, life: (box.w + 30)/sp + .3, color: c, kind: "bonev", tint: "white" });
+	case "tridents": // Dusttale : 3 tridents qui se plantent en alternance (gauche+droite / centre) + grand os de droite à gauche
+		s.n = opt(o, "rate", 4);
+		if (s.ph >= 0) { s.ph = -1; var tfx = [.19, .5, .82]; for (i = 0; i < 3; i++) addB({ kind: "trident", x: box.x + tfx[i]*box.w, y: box.y, slot: i, k: 0, tip: box.y - 6, age: -opt(o, "delay", 1.5), half: opt(o, "half", .5), color: c }); }
+		sp = opt(o, "speed", 176) + lv*15;
+		addB({ x: box.x + box.w + 90, y: box.y - 8, w: 12, h: box.h + 8 - opt(o, "gap", 16), vx: -sp, vy: 0, life: (box.w + 200)/sp, oa: 1, color: c, kind: "bonev", tint: "white" });
 		break;
-	case "redflash": // Dusttale : traits rouges alternés gauche/droite puis les demi-bandes s'embrasent
-		s.n = max(2.2, opt(o, "rate", 3) - lv*.2); N = opt(o, "rows", 5); k = irandom(1);
-		var rfl = opt(o, "life", .6);
-		for (i = 0; i < N; i++) addB({ x: ((i + k) mod 2 == 0) ? box.x : box.x + box.w/2, y: box.y + i*box.h/N + 1, w: box.w/2, h: box.h/N - 2, warn: opt(o, "warn", 1.3), life: rfl, kind: "redband", color: c });
-		addB({ x: box.x, y: box.y, w: box.w, h: box.h, warn: opt(o, "warn", 1.3), life: rfl, kind: "redwash", harmless: true, color: c });
+	case "redflash": // Dusttale : traits rouges qui défilent (gauche vers le haut, droite vers le bas), puis boîte rouge 2 s (traits figés et inoffensifs)
+		s.n = 999;
+		var rsp = box.h*.36, rln = opt(o, "lines", 5.8), rrd = opt(o, "red", 2.1), rv = opt(o, "speed", 40);
+		for (i = 0; i < 3; i++) {
+			addB({ kind: "redline", x: box.x, y: 0, w: box.w*.49, h: 3, side: 0, on: true, off: i*rsp + rsp*.3, sp3: rsp*3, v: -rv, a: 0, lines: rln, red: rrd, color: c });
+			addB({ kind: "redline", x: box.x + box.w*.52, y: 0, w: box.w*.48, h: 3, side: 1, on: true, off: i*rsp, sp3: rsp*3, v: rv, a: 0, lines: rln, red: rrd, color: c }); }
+		addB({ kind: "redwash", x: box.x, y: box.y, w: box.w, h: box.h, a: 0, lines: rln, red: rrd, color: c, harmless: true });
 		break;
-	case "crossbones": // Dusttale : 4 mini-os se referment en croix sur l'âme
-		s.n = max(.7, opt(o, "rate", 1.1) - lv*.1); xx = P.x; yy = P.y; sp = opt(o, "speed", 85) + lv*10; L = opt(o, "dist", 62);
-		if (random(1) < .35) {
-			N = irandom_range(3, 4); dir = irandom(3);
-			for (i = 0; i < N; i++) { k = (i - (N - 1)/2)*18;
-				if (dir == 0) addB({ x: xx + k - 2.5, y: yy - L - 14, w: 5, h: 14, vx: 0, vy: sp, life: L/sp + .3, color: c, kind: "bonev", tint: "white" });
-				else if (dir == 1) addB({ x: xx + k - 2.5, y: yy + L, w: 5, h: 14, vx: 0, vy: -sp, life: L/sp + .3, color: c, kind: "bonev", tint: "white" });
-				else if (dir == 2) addB({ x: xx - L - 14, y: yy + k - 2.5, w: 14, h: 5, vx: sp, vy: 0, life: L/sp + .3, color: c, kind: "bonev", tint: "white" });
-				else addB({ x: xx + L, y: yy + k - 2.5, w: 14, h: 5, vx: -sp, vy: 0, life: L/sp + .3, color: c, kind: "bonev", tint: "white" }); }
-			break;
+	case "crossbones": // Dusttale : groupes de mini-os autour de l'âme (cage immobile, croix qui s'ouvre, 4 os qui convergent)
+		s.n = max(.45, opt(o, "rate", .6) - lv*.05); xx = P.x; yy = P.y; k = random(1);
+		if (k < .4) { // cage 3x3 sans le centre : rester immobile
+			var cv = irandom(1) == 0;
+			for (i = 0; i < 9; i++) { if (i == 4) continue; var cdx = ((i mod 3) - 1)*21, cdy = (floor(i/3) - 1)*(cv ? 21 : 13);
+				if (cv) addB({ x: xx + cdx - 2, y: yy + cdy - 6, w: 4, h: 12, life: .55, color: c, kind: "bonev", tint: "white", oa: 1 });
+				else addB({ x: xx + cdx - 6, y: yy + cdy - 2, w: 12, h: 4, life: .55, color: c, kind: "bonev", tint: "white", oa: 1 }); }
+		} else if (k < .8) { // 4 tirets aux coins d'un rectangle, qui convergent là où était l'âme
+			for (i = 0; i < 4; i++) { var qx = (i mod 2 == 0) ? -90 : 90, qy = (i < 2) ? -64 : 64;
+				addB({ x: xx + qx - 6, y: yy + qy - 2, w: 12, h: 4, vx: -qx/.6, vy: -qy/.6, life: .6, color: c, kind: "bonev", tint: "white", oa: 1 }); }
+		} else { // croix serrée autour de l'âme, qui s'ouvre
+			addB({ x: xx - 6, y: yy - 16, w: 12, h: 4, vx: 0, vy: -150, life: .6, color: c, kind: "bonev", tint: "white", oa: 1 });
+			addB({ x: xx - 6, y: yy + 12, w: 12, h: 4, vx: 0, vy: 150, life: .6, color: c, kind: "bonev", tint: "white", oa: 1 });
+			addB({ x: xx - 16, y: yy - 6, w: 4, h: 12, vx: -150, vy: 0, life: .6, color: c, kind: "bonev", tint: "white", oa: 1 });
+			addB({ x: xx + 12, y: yy - 6, w: 4, h: 12, vx: 150, vy: 0, life: .6, color: c, kind: "bonev", tint: "white", oa: 1 });
 		}
-		addB({ x: xx - 7, y: yy - L, w: 14, h: 5, vx: 0, vy: sp, life: L/sp + .25, color: c, kind: "bonev", tint: "white" });
-		addB({ x: xx - 7, y: yy + L, w: 14, h: 5, vx: 0, vy: -sp, life: L/sp + .25, color: c, kind: "bonev", tint: "white" });
-		addB({ x: xx - L, y: yy - 7, w: 5, h: 14, vx: sp, vy: 0, life: L/sp + .25, color: c, kind: "bonev", tint: "white" });
-		addB({ x: xx + L, y: yy - 7, w: 5, h: 14, vx: -sp, vy: 0, life: L/sp + .25, color: c, kind: "bonev", tint: "white" });
 		break;
 	case "fullcol": // DustTrust / Ink : toute la boîte se remplit de colonnes cyan (ne pas bouger) ou orange (bouger)
 		s.n = opt(o, "rate", 3.2); tn = pick(opt(o, "tints", ["blue", "orange"]));
@@ -1053,7 +1066,29 @@ function stepFight() {
 				if (!variable_struct_exists(b, "shot")) { b.shot = 1; sfx("fire"); shake = max(shake, 2 + opt(b, "sc", 1)*2); spark(b.x + cos(b.ang)*26, b.y + sin(b.ang)*26, 16, b.color, 300, .4); }
 				if (b.t > b.charge + .03 && segDist(P.x, P.y, b.x, b.y, b.x + cos(b.ang)*1200, b.y + sin(b.ang)*1200) < b.wd/2 + P.r - 2) { hurt = true; hurtBl = true; }
 			}
+			if (variable_struct_exists(b, "tx")) b.x = lerp(b.x, b.tx, min(1, DT*14));
+			if (variable_struct_exists(b, "ty")) b.y = lerp(b.y, b.ty, min(1, DT*14));
+			if (variable_struct_exists(b, "cyc") && b.t > b.charge + b.fire + .05) { b.t = 0; b.charge = b.cyc - b.fire - .05; variable_struct_remove(b, "shot"); }
 			if (b.t > b.charge + b.fire + .2) b.dead = true;
+			break;
+		case "trident":
+			b.age += DT;
+			if (b.age >= 0) {
+				var tset = (b.age < .5) ? -1 : floor((b.age - .5)/b.half) mod 2, tgo = (tset < 0) ? 0 : (((b.slot == 1) == (tset == 1)) ? 1 : 0);
+				b.k = clamp(b.k + (tgo > b.k ? 1 : -1)*DT/.14, 0, 1);
+				b.tip = lerp(box.y - 6, box.y + box.h - 5, b.k);
+				var thw = (P.y > b.tip - 46) ? 17 : 6;
+				if (b.k > .6 && abs(P.x - b.x) < thw + 1 && P.y - P.r + 1 < b.tip) hurt = true;
+			}
+			break;
+		case "redline":
+			b.a += DT; b.on = (b.a mod (b.lines + b.red)) < b.lines;
+			if (b.on) b.off += b.v*DT;
+			b.y = box.y + ((b.off mod b.sp3) + b.sp3) mod b.sp3 - 6;
+			if (b.on && b.y > box.y && b.y < box.y + box.h && rectHitP(b)) hurt = true;
+			break;
+		case "redwash":
+			b.a += DT; f.redOn = (b.a mod (b.lines + b.red)) >= b.lines;
 			break;
 		case "arrow":
 			b.x += b.vx*DT; b.y += b.vy*DT; var ad = sqrt(sqr(b.x - P.x) + sqr(b.y - P.y));
@@ -1088,8 +1123,7 @@ function stepFight() {
 			if (b.warn > 0) { b.warn -= DT; break; }
 			b.x += b.vx*DT; b.y += b.vy*DT; b.life -= DT; if (b.life <= 0) b.dead = true;
 			if (b.kind == "stab") { if (!variable_struct_exists(b, "life0")) b.life0 = b.life + DT; b.pr = clamp(min((b.life0 - b.life)/.07, b.life/.09), 0, 1); }
-			if (b.kind == "trident") b.age += DT;
-			if (!b.harmless && (b.kind != "stab" || b.pr > .65) && (b.kind != "trident" || b.age > .2) && rectHitP(b)) { if (b.tint == "blue") { if (P.moving) hurt = true; } else if (b.tint == "orange") { if (!P.moving) hurt = true; } else hurt = true; }
+			if (!b.harmless && (b.kind != "stab" || b.pr > .65) && rectHitP(b)) { if (b.tint == "blue") { if (P.moving) hurt = true; } else if (b.tint == "orange") { if (!P.moving) hurt = true; } else hurt = true; }
 			if (b.splash && b.y + b.h >= floorY) { b.dead = true;
 				addB({ x: b.x, y: floorY - 9, w: 8, h: 8, vx: 150, color: b.color, kind: "tar", life: 1.4 }); addB({ x: b.x, y: floorY - 9, w: 8, h: 8, vx: -150, color: b.color, kind: "tar", life: 1.4 }); }
 			if (b.x > box.x + box.w + 120 || b.x + b.w < box.x - 120 || b.y > box.y + box.h + 30) b.dead = true;
@@ -1147,6 +1181,19 @@ function btri(X, Y, c, s, k, x1, y1, x2, y2, x3, y3) {
 	draw_triangle(X + (x1*c - y1*s)*k, Y + (x1*s + y1*c)*k, X + (x2*c - y2*s)*k, Y + (x2*s + y2*c)*k, X + (x3*c - y3*s)*k, Y + (x3*s + y3*c)*k, false);
 }
 function bquad(X, Y, c, s, k, x1, y1, x2, y2) { btri(X, Y, c, s, k, x1, y1, x2, y1, x2, y2); btri(X, Y, c, s, k, x1, y1, x2, y2, x1, y2); }
+function drawTrident(b) {
+	// trident pointe en bas : manche long, traverse, deux dents latérales évasées, dent centrale plus longue
+	var cx = b.x, ty = b.tip, hy = ty - 44;
+	draw_set_colour(b.color);
+	draw_rectangle(cx - 1, hy - box.h - 30, cx + 1, ty - 12, false);
+	draw_rectangle(cx - 3, hy - box.h - 36, cx + 3, hy - box.h - 30, false);
+	draw_rectangle(cx - 4, hy - 6, cx + 4, hy - 4, false);
+	draw_rectangle(cx - 13, hy, cx + 13, hy + 2, false);
+	draw_rectangle(cx - 14, hy, cx - 12, hy + 20, false); draw_rectangle(cx + 12, hy, cx + 14, hy + 20, false);
+	draw_triangle(cx - 17, hy + 20, cx - 10, hy + 20, cx - 13, hy + 33, false);
+	draw_triangle(cx + 10, hy + 20, cx + 17, hy + 20, cx + 13, hy + 33, false);
+	draw_triangle(cx - 5, ty - 15, cx + 5, ty - 15, cx, ty, false);
+}
 function drawBlaster(b) {
 	if (b.t < -.25) return;
 	var k = opt(b, "sc", 1), c = cos(b.ang), s = sin(b.ang), firing = b.t > b.charge, enter = clamp((b.t + .25)/.3, 0, 1);
@@ -1157,10 +1204,10 @@ function drawBlaster(b) {
 	if (b.t > b.charge && b.t < b.charge + b.fire + .2) {
 		var life = (b.t - b.charge)/(b.fire + .2), wdb = b.wd*(life < .7 ? 1 : max(0, 1 - (life - .7)/.3))*min(1, life*14)*(1 + sin(t*70)*.07);
 		var mx = X + c*22*k, my = Y + s*22*k;
-		gpu_set_blendmode(bm_add); draw_set_alpha(.3*enter); draw_set_colour(b.color); draw_line_width(mx, my, mx + c*1200, my + s*1200, wdb*1.8); gpu_set_blendmode(bm_normal); draw_set_alpha(enter);
-		draw_set_colour(b.color); draw_line_width(mx, my, mx + c*1200, my + s*1200, wdb);
+		gpu_set_blendmode(bm_add); draw_set_alpha(.3*enter); draw_set_colour(b.color); draw_line_width(mx, my, mx + c*opt(b, "len", 1200), my + s*opt(b, "len", 1200), wdb*1.8); gpu_set_blendmode(bm_normal); draw_set_alpha(enter);
+		draw_set_colour(b.color); draw_line_width(mx, my, mx + c*opt(b, "len", 1200), my + s*opt(b, "len", 1200), wdb);
 		draw_circle(mx, my, wdb/2, false);
-	} else if (b.t > 0 && b.t < b.charge && (floor(b.t*20) mod 2 == 0)) {
+	} else if (!opt(b, "noaim", false) && b.t > 0 && b.t < b.charge && (floor(b.t*20) mod 2 == 0)) {
 		draw_set_alpha(.35*enter); draw_set_colour(b.color); draw_line_width(X + c*22*k, Y + s*22*k, X + c*1200, Y + s*1200, 2); draw_set_alpha(enter);
 	}
 	// sprite du Gaster Blaster (datafiles/sprites/blaster_0.png, gueule vers le bas)
@@ -1217,25 +1264,17 @@ function drawBullets() {
 			break;
 		case "blaster": break;
 		case "arrow": break;
+		case "trident": break;
+		case "redline":
+			if (b.on) { draw_set_colour(b.color); draw_rectangle(b.x, b.y, b.x + b.w, b.y + b.h - 1, false); draw_set_alpha(.35); draw_rectangle(b.x, b.y - 1, b.x + b.w, b.y + b.h, false); draw_set_alpha(1); }
+			break;
+		case "redwash":
+			if (fight.redOn) { draw_set_colour(make_color_rgb(255, 24, 0)); draw_rectangle(b.x - 4, b.y - 4, b.x + b.w + 4, b.y + b.h + 4, false); }
+			break;
 		default:
-			if (b.warn > 0 && b.kind == "redband") { draw_set_alpha(blink ? 1 : .75); draw_set_colour(b.color); draw_rectangle(b.x, b.y + b.h/2 - 1, b.x + b.w, b.y + b.h/2 + 1, false); draw_set_alpha(1); break; }
-			if (b.warn > 0 && (b.kind == "redwash" || b.kind == "trident")) break;
 			if (b.warn > 0) { var wk = 1 - b.warn/max(.001, b.warn0); draw_set_alpha(.12 + .38*wk); draw_set_colour(b.kind == "pix" ? b.color : c_red); draw_rectangle(b.x, b.y, b.x + b.w, b.y + b.h, false); draw_set_alpha(1); if (blink) draw_rectangle(b.x, b.y, b.x + b.w, b.y + b.h, true); if (variable_struct_exists(b, "num")) txt(string(b.num), b.x + b.w/2, b.y + b.h/2 - 13, 22, c_white, "center"); break; }
 			if (b.kind == "safe") { draw_set_alpha(.25); draw_set_colour(b.color); draw_rectangle(b.x, b.y, b.x + b.w, b.y + b.h, false); draw_set_alpha(1); }
 			else if (b.kind == "bonev") drawBone(b.x, b.y, b.w, b.h, tintCol(b.tint, b.color));
-			else if (b.kind == "redwash") { draw_set_alpha(.55); draw_set_colour(b.color); draw_rectangle(b.x, b.y, b.x + b.w, b.y + b.h, false); draw_set_alpha(1); }
-			else if (b.kind == "redband") { draw_set_colour(b.color); draw_rectangle(b.x, b.y - 1, b.x + b.w, b.y + b.h + 1, false); }
-			else if (b.kind == "trident") {
-				var tdy = -(1 - clamp(b.age/.25, 0, 1))*b.h, tcx = b.x + b.w/2, tby = b.y + b.h + tdy, thy = tby - 26;
-				draw_set_colour(b.color);
-				draw_rectangle(tcx - 2, b.y + tdy - 4, tcx + 2, thy, false);
-				draw_rectangle(b.x + 2, thy - 2, b.x + b.w - 2, thy + 2, false);
-				draw_rectangle(b.x + 2, thy, b.x + 5, tby - 12, false); draw_rectangle(b.x + b.w - 5, thy, b.x + b.w - 2, tby - 12, false);
-				draw_triangle(b.x, tby - 13, b.x + 7, tby - 13, b.x + 3.5, tby - 3, false);
-				draw_triangle(b.x + b.w - 7, tby - 13, b.x + b.w, tby - 13, b.x + b.w - 3.5, tby - 3, false);
-				draw_rectangle(tcx - 2, thy, tcx + 2, tby - 12, false);
-				draw_triangle(tcx - 5, tby - 13, tcx + 5, tby - 13, tcx, tby, false);
-			}
 			else if (b.kind == "stab") {
 				var sd2 = opt(b, "side", "bottom"), horiz = (sd2 == "left" || sd2 == "right"), nn, q, pr2 = 1 - opt(b, "pr", 1);
 				var ox = (sd2 == "left") ? -pr2*b.w : ((sd2 == "right") ? pr2*b.w : 0), oy = (sd2 == "top") ? -pr2*b.h : ((sd2 == "bottom") ? pr2*b.h : 0);
@@ -1248,6 +1287,7 @@ function drawBullets() {
 	draw_set_alpha(1);
 }
 function drawBoss(f) {
+	if (f.state == "enemy" && !is_undefined(f.pat) && opt(f.pat.spec, "hideBoss", false)) return;
 	var b = f.b, sp = -1, sc = 1, xx = 320 - 130*(f.dodge > 0 ? 1 - sqr(1 - f.dodge) : 0) + random_range(-.5, .5)*f.enemyShake, yy = 30;
 	if (isLB(f)) {
 		sp = sprLB[min(2, f.ph)];
@@ -1468,6 +1508,8 @@ function drawFight() {
 		surface_set_target(surf); draw_clear_alpha(c_black, 0); drawBullets(); surface_reset_target();
 		matrix_set(matrix_world, ident);
 		draw_surface_part(surf, max(0, box.x), max(0, box.y), box.w, box.h, max(0, box.x), max(0, box.y));
+		for (i = 0; i < array_length(B); i++) if (B[i].kind == "trident" && B[i].age >= 0) drawTrident(B[i]);
+		if (f.redOn) { draw_set_colour(make_color_rgb(255, 24, 0)); draw_rectangle(box.x - 4, box.y - 4, box.x + box.w + 4, box.y + box.h + 4, false); }
 		if (f.state == "enemy" && !is_undefined(f.pat) && opt(f.pat.spec, "gauge", false)) {
 			var gk = clamp(1 - f.patT/max(.1, f.pat.dur), 0, 1);
 			draw_set_colour(make_color_rgb(0, 220, 60)); draw_rectangle(box.x + box.w + 12, box.y + box.h - 6, box.x + box.w + 12 + 64*gk, box.y + box.h - 1, false);
@@ -1476,7 +1518,7 @@ function drawFight() {
 		for (i = 0; i < array_length(TRAIL); i++) { draw_set_alpha(TRAIL[i].t/.2*.3); heart(TRAIL[i].x, TRAIL[i].y, soulCol(f), .7); }
 		draw_set_alpha(1);
 		var sc = (P.inv > 0 && (floor(t*20) mod 2 == 0) && !opt(f.b, "kr", false)) ? -1 : 1;
-		if (sc > 0) heart(P.x, P.y, soulCol(f), .85);
+		if (sc > 0) heart(P.x, P.y, f.redOn ? c_black : soulCol(f), .85);
 		for (i = 0; i < array_length(B); i++) if (B[i].kind == "arrow") { var ab = B[i]; lineBone(ab.x - sign(ab.vx)*9, ab.y - sign(ab.vy)*9, ab.x + sign(ab.vx)*9, ab.y + sign(ab.vy)*9, 6, ab.color); }
 		if (opt(f, "shield", false)) { var sa = shieldDir*pi/2, shx = P.x + cos(sa)*19, shy = P.y - sin(sa)*19, gk;
 			draw_set_colour(make_color_rgb(60, 120, 255)); draw_line_width(shx - sin(sa)*15, shy - cos(sa)*15, shx + sin(sa)*15, shy + cos(sa)*15, 4);
