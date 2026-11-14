@@ -676,16 +676,27 @@ function subUpdate(s, lv, tt) {
 		break;
 	case "tridents": // Dusttale : 3 tridents plantés dans la moitié haute + grand os qui traverse (passer dessous)
 		s.n = opt(o, "rate", 2.4);
-		if (s.ph >= 0) { s.ph = -1; for (i = 0; i < 3; i++) addB({ x: box.x + (i + 1)/4*box.w - 9, y: box.y, w: 18, h: box.h*.55, warn: .8, life: 30, kind: "stab", side: "top", color: c }); }
+		if (s.ph >= 0) { s.ph = -1; for (i = 0; i < 3; i++) addB({ x: box.x + (i + 1)/4*box.w - 15, y: box.y, w: 30, h: box.h*.55, warn: .7, life: 60, kind: "trident", age: 0, color: c }); }
 		dir = choose(1, -1); sp = opt(o, "speed", 120) + lv*15;
 		addB({ x: dir > 0 ? box.x - 12 : box.x + box.w, y: box.y, w: 12, h: box.h - opt(o, "gap", 30), vx: dir*sp, vy: 0, life: (box.w + 30)/sp + .3, color: c, kind: "bonev", tint: "white" });
 		break;
 	case "redflash": // Dusttale : traits rouges alternés gauche/droite puis les demi-bandes s'embrasent
 		s.n = max(2.2, opt(o, "rate", 3) - lv*.2); N = opt(o, "rows", 5); k = irandom(1);
-		for (i = 0; i < N; i++) addB({ x: ((i + k) mod 2 == 0) ? box.x : box.x + box.w/2, y: box.y + i*box.h/N + 1, w: box.w/2, h: box.h/N - 2, warn: opt(o, "warn", 1.3), life: .6, kind: "stab", side: "top", color: c });
+		var rfl = opt(o, "life", .6);
+		for (i = 0; i < N; i++) addB({ x: ((i + k) mod 2 == 0) ? box.x : box.x + box.w/2, y: box.y + i*box.h/N + 1, w: box.w/2, h: box.h/N - 2, warn: opt(o, "warn", 1.3), life: rfl, kind: "redband", color: c });
+		addB({ x: box.x, y: box.y, w: box.w, h: box.h, warn: opt(o, "warn", 1.3), life: rfl, kind: "redwash", harmless: true, color: c });
 		break;
 	case "crossbones": // Dusttale : 4 mini-os se referment en croix sur l'âme
 		s.n = max(.7, opt(o, "rate", 1.1) - lv*.1); xx = P.x; yy = P.y; sp = opt(o, "speed", 85) + lv*10; L = opt(o, "dist", 62);
+		if (random(1) < .35) {
+			N = irandom_range(3, 4); dir = irandom(3);
+			for (i = 0; i < N; i++) { k = (i - (N - 1)/2)*18;
+				if (dir == 0) addB({ x: xx + k - 2.5, y: yy - L - 14, w: 5, h: 14, vx: 0, vy: sp, life: L/sp + .3, color: c, kind: "bonev", tint: "white" });
+				else if (dir == 1) addB({ x: xx + k - 2.5, y: yy + L, w: 5, h: 14, vx: 0, vy: -sp, life: L/sp + .3, color: c, kind: "bonev", tint: "white" });
+				else if (dir == 2) addB({ x: xx - L - 14, y: yy + k - 2.5, w: 14, h: 5, vx: sp, vy: 0, life: L/sp + .3, color: c, kind: "bonev", tint: "white" });
+				else addB({ x: xx + L, y: yy + k - 2.5, w: 14, h: 5, vx: -sp, vy: 0, life: L/sp + .3, color: c, kind: "bonev", tint: "white" }); }
+			break;
+		}
 		addB({ x: xx - 7, y: yy - L, w: 14, h: 5, vx: 0, vy: sp, life: L/sp + .25, color: c, kind: "bonev", tint: "white" });
 		addB({ x: xx - 7, y: yy + L, w: 14, h: 5, vx: 0, vy: -sp, life: L/sp + .25, color: c, kind: "bonev", tint: "white" });
 		addB({ x: xx - L, y: yy - 7, w: 5, h: 14, vx: sp, vy: 0, life: L/sp + .25, color: c, kind: "bonev", tint: "white" });
@@ -1077,7 +1088,8 @@ function stepFight() {
 			if (b.warn > 0) { b.warn -= DT; break; }
 			b.x += b.vx*DT; b.y += b.vy*DT; b.life -= DT; if (b.life <= 0) b.dead = true;
 			if (b.kind == "stab") { if (!variable_struct_exists(b, "life0")) b.life0 = b.life + DT; b.pr = clamp(min((b.life0 - b.life)/.07, b.life/.09), 0, 1); }
-			if (!b.harmless && (b.kind != "stab" || b.pr > .65) && rectHitP(b)) { if (b.tint == "blue") { if (P.moving) hurt = true; } else if (b.tint == "orange") { if (!P.moving) hurt = true; } else hurt = true; }
+			if (b.kind == "trident") b.age += DT;
+			if (!b.harmless && (b.kind != "stab" || b.pr > .65) && (b.kind != "trident" || b.age > .2) && rectHitP(b)) { if (b.tint == "blue") { if (P.moving) hurt = true; } else if (b.tint == "orange") { if (!P.moving) hurt = true; } else hurt = true; }
 			if (b.splash && b.y + b.h >= floorY) { b.dead = true;
 				addB({ x: b.x, y: floorY - 9, w: 8, h: 8, vx: 150, color: b.color, kind: "tar", life: 1.4 }); addB({ x: b.x, y: floorY - 9, w: 8, h: 8, vx: -150, color: b.color, kind: "tar", life: 1.4 }); }
 			if (b.x > box.x + box.w + 120 || b.x + b.w < box.x - 120 || b.y > box.y + box.h + 30) b.dead = true;
@@ -1206,9 +1218,24 @@ function drawBullets() {
 		case "blaster": break;
 		case "arrow": break;
 		default:
+			if (b.warn > 0 && b.kind == "redband") { draw_set_alpha(blink ? 1 : .75); draw_set_colour(b.color); draw_rectangle(b.x, b.y + b.h/2 - 1, b.x + b.w, b.y + b.h/2 + 1, false); draw_set_alpha(1); break; }
+			if (b.warn > 0 && (b.kind == "redwash" || b.kind == "trident")) break;
 			if (b.warn > 0) { var wk = 1 - b.warn/max(.001, b.warn0); draw_set_alpha(.12 + .38*wk); draw_set_colour(b.kind == "pix" ? b.color : c_red); draw_rectangle(b.x, b.y, b.x + b.w, b.y + b.h, false); draw_set_alpha(1); if (blink) draw_rectangle(b.x, b.y, b.x + b.w, b.y + b.h, true); if (variable_struct_exists(b, "num")) txt(string(b.num), b.x + b.w/2, b.y + b.h/2 - 13, 22, c_white, "center"); break; }
 			if (b.kind == "safe") { draw_set_alpha(.25); draw_set_colour(b.color); draw_rectangle(b.x, b.y, b.x + b.w, b.y + b.h, false); draw_set_alpha(1); }
 			else if (b.kind == "bonev") drawBone(b.x, b.y, b.w, b.h, tintCol(b.tint, b.color));
+			else if (b.kind == "redwash") { draw_set_alpha(.55); draw_set_colour(b.color); draw_rectangle(b.x, b.y, b.x + b.w, b.y + b.h, false); draw_set_alpha(1); }
+			else if (b.kind == "redband") { draw_set_colour(b.color); draw_rectangle(b.x, b.y - 1, b.x + b.w, b.y + b.h + 1, false); }
+			else if (b.kind == "trident") {
+				var tdy = -(1 - clamp(b.age/.25, 0, 1))*b.h, tcx = b.x + b.w/2, tby = b.y + b.h + tdy, thy = tby - 26;
+				draw_set_colour(b.color);
+				draw_rectangle(tcx - 2, b.y + tdy - 4, tcx + 2, thy, false);
+				draw_rectangle(b.x + 2, thy - 2, b.x + b.w - 2, thy + 2, false);
+				draw_rectangle(b.x + 2, thy, b.x + 5, tby - 12, false); draw_rectangle(b.x + b.w - 5, thy, b.x + b.w - 2, tby - 12, false);
+				draw_triangle(b.x, tby - 13, b.x + 7, tby - 13, b.x + 3.5, tby - 3, false);
+				draw_triangle(b.x + b.w - 7, tby - 13, b.x + b.w, tby - 13, b.x + b.w - 3.5, tby - 3, false);
+				draw_rectangle(tcx - 2, thy, tcx + 2, tby - 12, false);
+				draw_triangle(tcx - 5, tby - 13, tcx + 5, tby - 13, tcx, tby, false);
+			}
 			else if (b.kind == "stab") {
 				var sd2 = opt(b, "side", "bottom"), horiz = (sd2 == "left" || sd2 == "right"), nn, q, pr2 = 1 - opt(b, "pr", 1);
 				var ox = (sd2 == "left") ? -pr2*b.w : ((sd2 == "right") ? pr2*b.w : 0), oy = (sd2 == "top") ? -pr2*b.h : ((sd2 == "bottom") ? pr2*b.h : 0);
@@ -1441,6 +1468,10 @@ function drawFight() {
 		surface_set_target(surf); draw_clear_alpha(c_black, 0); drawBullets(); surface_reset_target();
 		matrix_set(matrix_world, ident);
 		draw_surface_part(surf, max(0, box.x), max(0, box.y), box.w, box.h, max(0, box.x), max(0, box.y));
+		if (f.state == "enemy" && !is_undefined(f.pat) && opt(f.pat.spec, "gauge", false)) {
+			var gk = clamp(1 - f.patT/max(.1, f.pat.dur), 0, 1);
+			draw_set_colour(make_color_rgb(0, 220, 60)); draw_rectangle(box.x + box.w + 12, box.y + box.h - 6, box.x + box.w + 12 + 64*gk, box.y + box.h - 1, false);
+		}
 		for (i = 0; i < array_length(B); i++) if (B[i].kind == "blaster") drawBlaster(B[i]);
 		for (i = 0; i < array_length(TRAIL); i++) { draw_set_alpha(TRAIL[i].t/.2*.3); heart(TRAIL[i].x, TRAIL[i].y, soulCol(f), .7); }
 		draw_set_alpha(1);

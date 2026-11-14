@@ -95,7 +95,7 @@ const want = (process.env.FIGHTS || 'INK:0,INK:1,DUSTTRUST:2,DUST:0,LAST BREATH:
 for (const w of want) {
   const [nm, ph] = w.split(':'); const idx = R(`(function(){ for (var i=0;i<array_length(bosses);i++) if (bosses[i].short == "${nm}") return i; return -1; })()`);
   if (idx < 0) { console.log('boss inconnu', nm); continue; }
-  fightShots(idx, Number(ph), `${nm.toLowerCase().replace(/ /g, '-')}-phase${Number(ph) + 1}`, Number(process.env.SHOTS || 5), 260);
+  fightShots(idx, Number(ph), `${nm.toLowerCase().replace(/ /g, '-')}-phase${Number(ph) + 1}`, Number(process.env.SHOTS || 5), Number(process.env.STEP || 260));
 }
 fs.writeFileSync(path.join(outDir, 'frames.json'), JSON.stringify(captures));
 console.log('captures enregistrées:', captures.length);
