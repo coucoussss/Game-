@@ -821,6 +821,26 @@ function subUpdate(s, lv, tt) {
 		s.n = opt(o, "rate", .12);
 		addB({ kind: "rect", x: rnd(box.x + 4, box.x + box.w - 9), y: rnd(box.y + 4, box.y + box.h - 9), w: 5, h: 5, warn: .35, life: rnd(1.2, 2.2), oa: 1, color: c });
 		break;
+	case "shardburst": // Ink rouge : croix d'alerte puis anneau d'éclats rouges qui s'ouvre
+		s.n = max(.35, opt(o, "rate", .55) - lv*.04);
+		if (random(1) < .6) { xx = choose(rnd(30, box.x - 30), rnd(box.x + box.w + 30, 610)); yy = rnd(60, 360); } else { xx = rnd(box.x, box.x + box.w); yy = rnd(box.y, box.y + box.h); }
+		addB({ kind: "xmark", x: xx, y: yy, life: .5, color: c, harmless: true });
+		N = opt(o, "n", 16); sp = opt(o, "speed", 120) + lv*10;
+		for (i = 0; i < N; i++) { a = i/N*6.283; addB({ kind: "rbone", plain: true, x: xx, y: yy, vx: cos(a)*sp, vy: sin(a)*sp, rot: a, len: 6, warn: .5, life: 3, color: c }); }
+		break;
+	case "words": // Ink vert (code) : des mots verts traversent la boîte ; « Heal » soigne, les autres blessent
+		s.n = max(.25, opt(o, "rate", .4) - lv*.03); var WL = ["Heal", "Pain", "Verlatat", "Heal", "Dulce", "Heal", "Rakan", "Nevir"], wd0 = pick(WL); dir = choose(1, -1); sp = opt(o, "speed", 70) + lv*8;
+		addB({ kind: "word", txt: wd0, heal: (wd0 == "Heal") ? opt(o, "heal", 4) : 0, x: dir > 0 ? box.x - 50 : box.x + box.w + 10, y: rnd(box.y + 6, box.y + box.h - 16), vx: dir*sp, vy: rnd(-12, 12), life: (box.w + 80)/sp, color: c });
+		break;
+	case "stairs": // Ink jaune : escaliers de barres qui traversent la boîte en diagonale
+		s.n = max(.8, opt(o, "rate", 1.3) - lv*.08); sp = opt(o, "speed", 85) + lv*8; dir = choose(1, -1);
+		xx = dir > 0 ? box.x - 110 : box.x + box.w + 110; yy = box.y + box.h + rnd(10, 40);
+		for (i = 0; i < 9; i++) addB({ kind: "rect", x: xx + dir*i*13 - 7, y: yy - i*11, w: 14, h: 3, vx: dir*sp, vy: -sp*.82, life: (box.w + 260)/sp, oa: 1, color: c });
+		break;
+	case "fanwheel": // Ink jaune : roue de barres qui tourne autour de la boîte et balaie l'intérieur
+		s.n = max(2, opt(o, "rate", 3.2)); N = opt(o, "n", 14); var fw0 = rnd(0, 6.28), fwv = choose(1, -1)*opt(o, "spin", 1.6);
+		for (i = 0; i < N; i++) addB({ kind: "spoke", cx: box.x + box.w/2, cy: box.y + box.h/2, ang: fw0 + i*.2, av: fwv, r0: min(box.w, box.h)*.18, r1: max(box.w, box.h)*.85, warn: .35 + i*.05, life: 1.6, color: c });
+		break;
 	case "wallspikes": // Ink bleu : rangée de pointes fixes sur le mur de gauche
 		s.n = 999;
 		addB({ x: box.x, y: box.y, w: 11, h: box.h, life: 99, oa: 1, color: c, kind: "spikes" });
@@ -1177,12 +1197,24 @@ function stepFight() {
 			if (b.life <= 0 || b.x < -40 || b.x > 680 || b.y < -40 || b.y > 440) b.dead = true;
 			if (sqr(b.x - P.x) + sqr(b.y - P.y) < sqr(P.r + 3)) { hurt = true; b.dead = true; }
 			break;
+		case "xmark": b.life -= DT; if (b.life <= 0) b.dead = true; break;
 		case "cross": case "star5": case "rbone":
 			if (b.warn > 0) { b.warn -= DT; break; }
 			b.x += b.vx*DT; b.y += b.vy*DT; b.life -= DT; if (variable_struct_exists(b, "rv")) b.rot += b.rv*DT;
 			if (b.life <= 0 || b.x < -60 || b.x > 700 || b.y < -60 || b.y > 460) { b.dead = true; break; }
-			if (b.kind == "rbone") { var rc0 = cos(b.rot)*b.len, rs0 = sin(b.rot)*b.len; if (segDist(P.x, P.y, b.x - rc0, b.y - rs0, b.x + rc0, b.y + rs0) < 2 + P.r - 2) hurt = true; }
+			if (b.kind == "rbone") { var rc0 = cos(b.rot)*b.len, rs0 = sin(b.rot)*b.len; if (P.x > box.x && P.x < box.x + box.w && segDist(P.x, P.y, b.x - rc0, b.y - rs0, b.x + rc0, b.y + rs0) < 2 + P.r - 2) hurt = true; }
 			else if (sqr(b.x - P.x) + sqr(b.y - P.y) < sqr(P.r + (b.kind == "star5" ? b.sz*.55 : 5))) hurt = true;
+			break;
+		case "word":
+			b.x += b.vx*DT; b.y += b.vy*DT; b.life -= DT; if (b.life <= 0) { b.dead = true; break; }
+			if (P.x > b.x - 2 && P.x < b.x + string_length(b.txt)*8 + 2 && P.y > b.y - 2 && P.y < b.y + 16) {
+				if (b.heal > 0) { P.hp = min(P.max, P.hp + b.heal); P.kr = min(P.kr, max(0, P.hp - 1)); sfx("heal"); } else hurt = true;
+				b.dead = true; }
+			break;
+		case "spoke":
+			if (b.warn > 0) { b.warn -= DT; break; }
+			b.life -= DT; b.ang += b.av*DT; if (b.life <= 0) { b.dead = true; break; }
+			if (segDist(P.x, P.y, b.cx + cos(b.ang)*b.r0, b.cy + sin(b.ang)*b.r0, b.cx + cos(b.ang)*b.r1, b.cy + sin(b.ang)*b.r1) < 2 + P.r - 2) hurt = true;
 			break;
 		case "needle":
 			b.flip += DT; if (b.flip > 2.3) { b.flip = 0; b.av = -b.av*rnd(.8, 1.2); }
@@ -1305,6 +1337,9 @@ function drawFree(b) { // projectiles dessinés aussi hors de la boîte (comme d
 	else if (b.kind == "star5") { draw_set_colour(b.color); var r1 = b.sz, r2 = b.sz*.42;
 		for (i = 0; i < 5; i++) { var a1 = b.rot + i*1.2566, a2 = a1 + .6283, a3 = a1 - .6283;
 			draw_triangle(b.x, b.y, b.x + cos(a1)*r1, b.y + sin(a1)*r1, b.x + cos(a2)*r2, b.y + sin(a2)*r2, false); draw_triangle(b.x, b.y, b.x + cos(a1)*r1, b.y + sin(a1)*r1, b.x + cos(a3)*r2, b.y + sin(a3)*r2, false); } }
+	else if (b.kind == "xmark") { draw_set_colour(b.color); draw_line_width(b.x - 9, b.y - 9, b.x + 9, b.y + 9, 3); draw_line_width(b.x - 9, b.y + 9, b.x + 9, b.y - 9, 3); }
+	else if (b.kind == "word") txt(b.txt, b.x, b.y, 15, b.color);
+	else if (b.kind == "rbone" && opt(b, "plain", false)) { if (b.warn > 0) return; draw_set_colour(b.color); draw_line_width(b.x - cos(b.rot)*b.len, b.y - sin(b.rot)*b.len, b.x + cos(b.rot)*b.len, b.y + sin(b.rot)*b.len, 3); }
 	else if (b.kind == "rbone") { if (b.warn > 0) draw_set_alpha(.4); var rc = cos(b.rot)*b.len, rs = sin(b.rot)*b.len; lineBone(b.x - rc, b.y - rs, b.x + rc, b.y + rs, 4, b.color); draw_set_alpha(1); }
 }
 function drawDecor(f, dc) {
@@ -1338,6 +1373,10 @@ function drawDecor(f, dc) {
 	else if (dc == "pyramids") { // triangles verts en fil de fer
 		draw_set_colour(c); for (var sd2 = -1; sd2 <= 1; sd2 += 2) { var pxm = box.x + box.w/2 + sd2*(box.w/2 + 80), pym = box.y + box.h/2;
 			draw_line(pxm, pym - 28, pxm - 22, pym + 18); draw_line(pxm, pym - 28, pxm + 22, pym + 18); draw_line(pxm - 22, pym + 18, pxm + 22, pym + 18); draw_line(pxm, pym - 28, pxm + 6, pym + 10); draw_line(pxm + 6, pym + 10, pxm - 22, pym + 18); draw_line(pxm + 6, pym + 10, pxm + 22, pym + 18); } }
+	else if (dc == "polys") { // deux gros polyèdres verts en fil de fer qui tournent de part et d'autre d'Ink
+		draw_set_colour(c); for (var sd3 = -1; sd3 <= 1; sd3 += 2) { var pcx = 320 + sd3*130, pcy = 95, pr0 = 52;
+			for (var lay = 0; lay < 3; lay++) { var pa0 = t*(.5 + lay*.3)*sd3 + lay*.4, prr = pr0*(1 - lay*.22);
+				for (i = 0; i < 4; i++) { draw_line(pcx + cos(pa0 + i*pi/2)*prr, pcy + sin(pa0 + i*pi/2)*prr, pcx + cos(pa0 + (i + 1)*pi/2)*prr, pcy + sin(pa0 + (i + 1)*pi/2)*prr); draw_line(pcx, pcy, pcx + cos(pa0 + i*pi/2)*prr, pcy + sin(pa0 + i*pi/2)*prr); } } } }
 	else if (dc == "dots") { // chaîne de gros points bleus qui défile derrière la boîte
 		draw_set_alpha(.28); draw_set_colour(c);
 		for (i = 0; i < 18; i++) { var dx2 = ((i*42 + t*40) mod 756) - 58; draw_circle(dx2, box.y + box.h/2 + sin(i*.9 + t)*8, 13, false); }
@@ -1428,7 +1467,11 @@ function drawBullets() {
 		case "blaster": break;
 		case "arrow": break;
 		case "trident": break;
-		case "bowtie": case "cross": case "star5": case "rbone": break;
+		case "bowtie": case "cross": case "star5": case "rbone": case "xmark": case "word": break;
+		case "spoke":
+			draw_set_colour(b.color); if (b.warn > 0) draw_set_alpha(.25);
+			draw_line_width(b.cx + cos(b.ang)*b.r0, b.cy + sin(b.ang)*b.r0, b.cx + cos(b.ang)*b.r1, b.cy + sin(b.ang)*b.r1, 3); draw_set_alpha(1);
+			break;
 		case "needle":
 			draw_set_colour(b.color); draw_line_width(b.cx - cos(b.ang)*10, b.cy - sin(b.ang)*10, b.cx + cos(b.ang)*b.len, b.cy + sin(b.ang)*b.len, 4); draw_circle(b.cx, b.cy, 4, false);
 			break;
