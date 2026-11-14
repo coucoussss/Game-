@@ -203,6 +203,11 @@ function game_create() {
 	B = []; PART = []; fight = undefined; dlg = undefined; banner = undefined; surf = -1;
 	hitstop = 0; hitCd = 0; hurtFlash = 0; bossFlash = 0; fadeA = 1; lastScene = "title"; loseT = 0; loseCrack = false; loseShard = false; TRAIL = []; STARS = [];
 	for (var si = 0; si < 70; si++) array_push(STARS, { x: rnd(0, 640), y: rnd(0, 480), v: rnd(8, 34), s: choose(1, 1, 2, 2, 3), ph: rnd(0, 6.28) });
+	paused = false; pauseSel = 0; marathon = false; maraN = 0; maraT = 0; runT = 0; runHits = 0; osel = 0; credY = 0; newRec = false; wipeArm = false;
+	OPT = { vol: 10, shake: true, full: false };
+	REC = {};
+	loadSave(); applyOpt();
+	if (OPT.full && !AUTOTEST) window_set_fullscreen(true);
 	LBMENU = [["PHASE 1", "« Not a Slacker Anymore »", "Sans intact, il esquive tout"],
 	          ["PHASE 2", "« The Slaughter Continues »", "Sans entaillé, il bloque à l'os"],
 	          ["PHASE 3", "« An Enigmatic Encounter »", "Gaster derrière lui, survie sans menu"]];
@@ -291,6 +296,7 @@ function newFight(i) {
 		lbSaid: false, surv: 0, lbLast: false, over: "", startPh: 0, res: undefined, resTxt: "", enemyShake: 0, dodge: 0,
 		phase3: false, gravDir: 0, gravT: 0, animT: -1, poseI: 0, poseT: 0, gravity: 0, slam: false, invert: false, level: undefined, levelColor: c_black, levelEdge: c_white };
 	if (isLB(fight)) { fight.max = 60; fight.hp = 60; fight.cur = LBPATS[0]; }
+	runT = 0; runHits = 0; paused = false;
 	P.max = opt(b, "kr", false) ? 92 : 30; P.hp = P.max; P.inv = 0; P.kr = 0; P.vy = 0; P.bound = 0; B = []; banner = undefined;
 	setBox(560, 130); box.x = box.tx; box.y = box.ty; box.w = box.tw; box.h = box.th;
 	scene = "fight";
@@ -318,6 +324,61 @@ function rushStart(i, ph) {
 	say(b.p2, "enemy");
 }
 
+// ---------- Sauvegarde, options, records, marathon ----------
+function loadSave() {
+	if (!file_exists("save.json")) return;
+	try {
+		var fh = file_text_open_read("save.json"); var js0 = file_text_read_string(fh); file_text_close(fh);
+		var d0 = json_parse(js0);
+		var o0 = opt(d0, "opt", undefined);
+		if (is_struct(o0)) { OPT.vol = clamp(opt(o0, "vol", 10), 0, 10); OPT.shake = opt(o0, "shake", true) ? true : false; OPT.full = opt(o0, "full", false) ? true : false; }
+		var r0 = opt(d0, "rec", undefined);
+		if (is_struct(r0)) REC = r0;
+	} catch (e0) { REC = {}; }
+}
+function saveGame() {
+	if (AUTOTEST) return;
+	var fh = file_text_open_write("save.json"); file_text_write_string(fh, json_stringify({ opt: OPT, rec: REC })); file_text_close(fh);
+}
+function applyOpt() { if (!AUTOTEST) audio_master_gain(muted ? 0 : OPT.vol/10); }
+function fmtTime(sec) { var m0 = floor(sec/60), s0 = floor(sec) mod 60; return string(m0) + ":" + (s0 < 10 ? "0" : "") + string(s0); }
+function recOf(k) {
+	var r = opt(REC, k, undefined);
+	if (!is_struct(r)) return { wins: 0, best: -1, hits: -1 };
+	return { wins: opt(r, "wins", 0), best: opt(r, "best", -1), hits: opt(r, "hits", -1) };
+}
+function onWin() {
+	newRec = false;
+	if (AUTOTEST) return;
+	var f = fight;
+	if (marathon) maraN += 1;
+	if (f.startPh != 0) return;
+	var r = recOf(f.b.short);
+	r.wins += 1;
+	if (r.best < 0 || runT < r.best) { r.best = runT; newRec = true; }
+	if (r.hits < 0 || runHits < r.hits) r.hits = runHits;
+	REC[$ f.b.short] = r; saveGame();
+}
+function startMarathon() { marathon = true; maraN = 0; maraT = 0; rushStart(0, 0); }
+function endMarathon() {
+	var r = opt(REC, "_marathon", undefined), bn = -1, bt = -1;
+	if (is_struct(r)) { bn = opt(r, "n", -1); bt = opt(r, "time", -1); }
+	newRec = (maraN > bn) || (maraN == bn && maraT < bt);
+	if (newRec) { REC[$ "_marathon"] = { n: maraN, time: maraT }; saveGame(); }
+	marathon = false; stopSong(); scene = "maraend";
+}
+function stepPause() {
+	var n = marathon ? 2 : 3;
+	if (kp("up")) { pauseSel = (pauseSel + n - 1) mod n; sfx("move"); }
+	if (kp("down")) { pauseSel = (pauseSel + 1) mod n; sfx("move"); }
+	if (!kp("ok")) return;
+	sfx("select"); paused = false;
+	if (pauseSel == 0) return;
+	if (!marathon && pauseSel == 1) { rushStart(fight.i, fight.startPh); return; }
+	patEnd(); B = []; stopSong();
+	if (marathon) endMarathon(); else scene = "select";
+}
+
 // ---------- Dialogues ----------
 function say(lines, th) {
 	dlg = { lines: flat(lines, []), i: 0, c: 0, th: th };
@@ -341,8 +402,8 @@ function doThen(th) {
 	switch (th) {
 		case "menu": toMenu(); break;
 		case "enemy": startEnemy(); break;
-		case "finish_kill": scene = "win"; winRes = "kill"; winT = 0; break;
-		case "finish_spare": scene = "win"; winRes = "spare"; break;
+		case "finish_kill": scene = "win"; winRes = "kill"; winT = 0; onWin(); break;
+		case "finish_spare": scene = "win"; winRes = "spare"; onWin(); break;
 		case "lb_death": fight.hp = 0; phaseUp(); break;
 		case "phase_p2": playSong("LB2"); toMenu(); break;
 		case "phase_p3": P.hp = P.max; P.kr = 0; shake = 10; startEnemy(); break;
@@ -729,8 +790,8 @@ function game_step() {
 	t += DT;
 	if (t < DT*3) show_debug_message("STEP scene=" + scene);
 	if (AUTOTEST) autoStep();
-	if (keyboard_check_pressed(ord("M"))) { muted = !muted; audio_master_gain(muted ? 0 : 1); }
-	if (keyboard_check_pressed(vk_f4)) window_set_fullscreen(!window_get_fullscreen());
+	if (keyboard_check_pressed(ord("M"))) { muted = !muted; applyOpt(); }
+	if (keyboard_check_pressed(vk_f4)) { OPT.full = !window_get_fullscreen(); window_set_fullscreen(OPT.full); saveGame(); }
 	var k = min(1, DT*12);
 	box.x = lerp(box.x, box.tx, k); box.y = lerp(box.y, box.ty, k); box.w = lerp(box.w, box.tw, k); box.h = lerp(box.h, box.th, k);
 	shake = max(0, shake - DT*20);
@@ -742,17 +803,47 @@ function game_step() {
 	var keepP = [];
 	for (var i = 0; i < array_length(PART); i++) { var p = PART[i]; p.t += DT; p.vy += p.g*DT; p.x += p.vx*DT; p.y += p.vy*DT; if (p.t < p.life) array_push(keepP, p); }
 	PART = keepP;
-	if (scene == "title" || scene == "select" || scene == "phase" || scene == "win" || scene == "lose") {
+	if (scene != "fight") {
 		if (scene != "win" && scene != "lose") playSong("mus_menu");
 		if (kp("up") || kp("down") || kp("left") || kp("right")) sfx("move");
 		if (kp("ok") || kp("back")) sfx("select");
 	}
 	switch (scene) {
 	case "title":
-		var n = LB_ONLY ? 3 : 2;
+		var n = LB_ONLY ? 3 : 6;
 		if (kp("up")) tsel = (tsel + n - 1) mod n;
 		if (kp("down")) tsel = (tsel + 1) mod n;
-		if (kp("ok")) { if (LB_ONLY) rushStart(lbI, tsel); else if (tsel == 0) { scene = "select"; } else game_end(); }
+		if (kp("ok")) {
+			if (LB_ONLY) rushStart(lbI, tsel);
+			else if (tsel == 0) scene = "select";
+			else if (tsel == 1) startMarathon();
+			else if (tsel == 2) scene = "records";
+			else if (tsel == 3) { scene = "options"; osel = 0; wipeArm = false; }
+			else if (tsel == 4) { scene = "credits"; credY = 0; }
+			else game_end();
+		}
+		return;
+	case "records":
+		if (kp("ok") || kp("back")) scene = "title";
+		return;
+	case "credits":
+		credY += DT*(kd("down") ? 140 : 32);
+		if (kp("ok") || kp("back")) scene = "title";
+		return;
+	case "maraend":
+		if (kp("ok") || kp("back")) scene = "title";
+		return;
+	case "options":
+		if (kp("up")) { osel = (osel + 4) mod 5; wipeArm = false; }
+		if (kp("down")) { osel = (osel + 1) mod 5; wipeArm = false; }
+		if (osel == 0 && (kp("left") || kp("right"))) { OPT.vol = clamp(OPT.vol + (kp("right") ? 1 : -1), 0, 10); applyOpt(); saveGame(); }
+		if (kp("ok") || (osel != 0 && osel != 3 && osel != 4 && (kp("left") || kp("right")))) {
+			if (osel == 1) { OPT.shake = !OPT.shake; saveGame(); }
+			else if (osel == 2) { OPT.full = !OPT.full; window_set_fullscreen(OPT.full); saveGame(); }
+			else if (osel == 3 && kp("ok")) { if (wipeArm) { REC = {}; saveGame(); wipeArm = false; } else wipeArm = true; }
+			else if (osel == 4 && kp("ok")) scene = "title";
+		}
+		if (kp("back")) scene = "title";
 		return;
 	case "select":
 		var nb = array_length(bosses);
@@ -771,17 +862,26 @@ function game_step() {
 		else if (kp("ok")) rushStart(sel, psel);
 		return;
 	case "win":
-		winT += DT; if (kp("ok") && (!isLB(fight) || winRes != "kill" || winT > 7)) { stopSong(); scene = LB_ONLY ? "title" : "select"; }
+		winT += DT;
+		if (kp("ok") && (!isLB(fight) || winRes != "kill" || winT > 7)) {
+			stopSong();
+			if (marathon) { if (fight.i + 1 < array_length(bosses)) rushStart(fight.i + 1, 0); else endMarathon(); }
+			else scene = LB_ONLY ? "title" : "select";
+		}
 		return;
 	case "lose":
 		loseT += DT;
 		if (loseT >= .45 && !loseCrack) { loseCrack = true; sfx("hit"); }
 		if (loseT >= .95 && !loseShard) { loseShard = true; sfx("dust"); spark(P.x, P.y, 34, c_red, 230, 1.1, 420); }
 		if (loseT < 1.6) return;
+		if (marathon) { if (kp("ok") || kp("back")) endMarathon(); return; }
 		if (kp("ok")) rushStart(fight.i, fight.startPh);
 		else if (kp("back")) { stopSong(); scene = LB_ONLY ? "title" : "select"; if (LB_ONLY) tsel = fight.startPh; }
 		return;
 	case "fight":
+		if (!AUTOTEST && (keyboard_check_pressed(ord("P")) || (keyboard_check_pressed(vk_escape) && (paused || fight.state == "enemy")))) { paused = !paused; pauseSel = 0; sfx("select"); return; }
+		if (paused) { stepPause(); return; }
+		runT += DT; if (marathon) maraT += DT;
 		stepFight();
 		return;
 	}
@@ -988,6 +1088,7 @@ function stepFight() {
 	// KR comme dans Undertale
 	if (P.kr > 0) { var fr = P.kr >= 40 ? 1 : (P.kr >= 30 ? 2 : (P.kr >= 20 ? 5 : (P.kr >= 10 ? 15 : 30))); P.krT += DT; if (P.krT >= fr/30) { P.krT = 0; P.kr--; P.hp = max(1, P.hp - 1); } }
 	if (hurt && P.inv <= 0) {
+		runHits += 1;
 		if (opt(f.b, "kr", false)) { P.hp = max(0, P.hp - 1); P.kr = min(40, max(0, P.hp - 1), P.kr + (hurtBl ? 10 : 6)); P.inv = 1/30; }
 		else { P.hp = max(0, P.hp - f.b.dmg); P.inv = 20/30; }
 		shake = 6; spark(P.x, P.y, 14, make_color_rgb(255, 48, 64), 220, .5, 150); sfx("hurt"); if (hitCd <= 0) { hurtFlash = .7; hitstop = .05; hitCd = .4; }
@@ -1169,7 +1270,8 @@ function drawHud(f) {
 function game_draw() {
 	if (t < DT*3) show_debug_message("DRAW scene=" + scene);
 	draw_clear(c_black);
-	var sx = random_range(-1, 1)*shake*.6, sy = random_range(-1, 1)*shake*.6;
+	var shk = OPT.shake ? shake : 0;
+	var sx = random_range(-1, 1)*shk*.6, sy = random_range(-1, 1)*shk*.6;
 	if (abs(scrRot) > .5) matrix_set(matrix_world, matrix_multiply(matrix_multiply(matrix_build(-320, -240, 0, 0, 0, 0, 1, 1, 1), matrix_build(0, 0, 0, 0, 0, scrRot, 1, 1, 1)), matrix_build(320 + sx, 240 + sy, 0, 0, 0, 0, 1, 1, 1)));
 	else matrix_set(matrix_world, matrix_build(sx, sy, 0, 0, 0, 0, 1, 1, 1));
 	var grey = make_color_rgb(125, 132, 153), i;
@@ -1182,11 +1284,13 @@ function game_draw() {
 			for (i = 0; i < 3; i++) { var yy = 180 + i*78, on = (i == tsel);
 				if (on) heart(150, yy + 16); txt(LBMENU[i][0], 176, yy, 34, on ? c_yellow : c_white); txt(LBMENU[i][1], 320, yy + 6, 22, on ? c_yellow : make_color_rgb(200, 205, 224)); txt(LBMENU[i][2], 176, yy + 38, 20, grey); }
 		} else {
-			txt(GAME_TITLE, 320, 150, 48, c_white, "center");
-			var opts = ["Boss rush", "Quitter"];
-			for (i = 0; i < 2; i++) { var y2 = 260 + i*40; if (i == tsel) heart(200, y2 + 14); txt(opts[i], 224, y2, 28, i == tsel ? c_yellow : c_white); }
+			txt(GAME_TITLE, 320, 96, 48, c_white, "center");
+			var opts = ["Boss rush", "Marathon", "Records", "Options", "Crédits", "Quitter"];
+			for (i = 0; i < 6; i++) { var y2 = 190 + i*36; if (i == tsel) heart(214, y2 + 14); txt(opts[i], 238, y2, 28, i == tsel ? c_yellow : c_white); }
+			var tips = ["Choisis un adversaire et sa phase de départ.", "Tous les adversaires à la suite, sans seconde chance.", "Tes meilleurs temps et tes victoires.", "Volume, secousses, plein écran.", "Les créateurs des AU et des fan games.", "Fermer le jeu."];
+			txt(tips[tsel], 320, 410, 18, make_color_rgb(200, 205, 224), "center");
 		}
-		txt("[HAUT BAS] choisir   [Z] valider   [M] son   [F4] plein écran", 320, 440, 18, grey, "center");
+		txt("[HAUT BAS] choisir   [Z] valider   [P] pause en combat   [M] son   [F4] plein écran", 320, 446, 16, grey, "center");
 		break;
 	case "select":
 		drawStars(hexc(bosses[sel].col));
@@ -1215,6 +1319,50 @@ function game_draw() {
 			if (on3) heart(150, y3 + 16); txt(O[i][0], 176, y3, 34, on3 ? c_yellow : c_white); txt(O[i][1], 320, y3 + 6, 22, on3 ? c_yellow : make_color_rgb(200, 205, 224)); txt(O[i][2], 176, y3 + 38, 20, grey); }
 		txt("[HAUT BAS] choisir   [Z] combattre   [X] retour", 320, 446, 20, grey, "center");
 		break;
+	case "records":
+		drawStars(make_color_rgb(120, 140, 255));
+		txt("RECORDS", 320, 10, 36, c_white, "center");
+		txt("ADVERSAIRE", 40, 52, 16, grey); txt("VICTOIRES", 300, 52, 16, grey); txt("MEILLEUR TEMPS", 400, 52, 16, grey); txt("COUPS", 550, 52, 16, grey);
+		for (i = 0; i < array_length(bosses); i++) { var rr = recOf(bosses[i].short), ry = 74 + i*22, rc = rr.wins > 0 ? c_white : make_color_rgb(85, 91, 110);
+			txt(nm(bosses[i]), 40, ry, 16, rr.wins > 0 ? hexc(bosses[i].col) : rc); txt(string(rr.wins), 300, ry, 16, rc);
+			txt(rr.best >= 0 ? fmtTime(rr.best) : "-", 400, ry, 16, rc); txt(rr.hits >= 0 ? string(rr.hits) : "-", 550, ry, 16, rc); }
+		var mr0 = opt(REC, "_marathon", undefined);
+		txt("MARATHON : " + (is_struct(mr0) ? string(opt(mr0, "n", 0)) + " / " + string(array_length(bosses)) + " en " + fmtTime(opt(mr0, "time", 0)) : "jamais tenté"), 320, 392, 20, c_yellow, "center");
+		txt("Les records comptent pour un combat commencé en phase 1.", 320, 420, 16, grey, "center");
+		txt("[Z] retour", 320, 448, 18, grey, "center");
+		break;
+	case "options":
+		drawStars(make_color_rgb(120, 140, 255));
+		txt("OPTIONS", 320, 40, 40, c_white, "center");
+		var ol = ["Volume", "Secousses d'écran", "Plein écran", wipeArm ? "Effacer les records : [Z] pour confirmer" : "Effacer les records", "Retour"];
+		var ov = ["", OPT.shake ? "oui" : "non", OPT.full ? "oui" : "non", "", ""];
+		for (i = 0; i < 5; i++) { var oy = 140 + i*48, oon = (i == osel);
+			if (oon) heart(120, oy + 14); txt(ol[i], 146, oy, 26, oon ? c_yellow : c_white); txt(ov[i], 460, oy, 26, oon ? c_yellow : c_white);
+			if (i == 0) { for (var vi = 0; vi < 10; vi++) { draw_set_colour(vi < OPT.vol ? (oon ? c_yellow : c_white) : make_color_rgb(60, 64, 80)); draw_rectangle(400 + vi*16, oy + 6, 411 + vi*16, oy + 24, false); } } }
+		txt("[HAUT BAS] choisir   [GAUCHE DROITE] régler   [X] retour", 320, 440, 18, grey, "center");
+		break;
+	case "credits":
+		drawStars(make_color_rgb(120, 140, 255));
+		var CL = [[GAME_TITLE, 40, c_white], ["", 20, grey], ["Fan game non officiel et non commercial.", 20, c_white], ["", 20, grey],
+			["UNDERTALE et DELTARUNE", 26, c_yellow], ["Toby Fox", 22, c_white], ["", 20, grey], ["LES ADVERSAIRES", 26, c_yellow]];
+		for (i = 0; i < array_length(bosses); i++) { var cb = bosses[i]; array_push(CL, [nm(cb), 22, hexc(cb.col)]); array_push(CL, [cb.au + (opt(cb, "by", "") != "" ? " - " + cb.by : ""), 18, grey]); }
+		array_push(CL, ["", 20, grey]); array_push(CL, ["Les personnages, musiques et sprites", 20, c_white]); array_push(CL, ["appartiennent à leurs auteurs respectifs.", 20, c_white]);
+		array_push(CL, ["", 20, grey]); array_push(CL, ["Merci d'avoir joué.", 26, c_yellow]);
+		var cy0 = 470 - credY, ctot = 0;
+		for (i = 0; i < array_length(CL); i++) { var ch = CL[i][1] + 12; if (cy0 > -40 && cy0 < 440) txt(CL[i][0], 320, cy0, CL[i][1], CL[i][2], "center"); cy0 += ch; ctot += ch; }
+		if (credY > ctot + 480) credY = 0;
+		draw_set_colour(c_black); draw_rectangle(0, 446, 640, 480, false);
+		txt("[BAS] accélérer   [Z] retour", 320, 452, 18, grey, "center");
+		break;
+	case "maraend":
+		drawStars(make_color_rgb(255, 200, 80));
+		txt("MARATHON", 320, 80, 56, c_white, "center");
+		txt(maraN >= array_length(bosses) ? "Tous les adversaires sont vaincus." : "Le marathon s'arrête ici.", 320, 170, 24, grey, "center");
+		txt(string(maraN) + " / " + string(array_length(bosses)) + " adversaires", 320, 220, 34, c_yellow, "center");
+		txt("Temps de combat : " + fmtTime(maraT), 320, 274, 24, c_white, "center");
+		if (newRec) txt("NOUVEAU RECORD", 320, 320, 26, c_yellow, "center");
+		txt("[Z] retour", 320, 410, 24, grey, "center");
+		break;
 	case "win":
 		if (isLB(fight) && winRes == "kill") {
 			var wsp = sprLB[2];
@@ -1225,13 +1373,15 @@ function game_draw() {
 		}
 		txt(winRes == "spare" ? "ÉPARGNÉ" : "VICTOIRE", 320, 150, 64, c_white, "center");
 		txt(nm(fight.b) + (winRes == "spare" ? " a été épargné." : " est vaincu."), 320, 250, 26, grey, "center");
-		txt("[Z] retour", 320, 400, 24, c_white, "center");
+		if (fight.startPh == 0) txt("Temps " + fmtTime(runT) + "   Coups reçus " + string(runHits) + (newRec ? "   NOUVEAU RECORD" : ""), 320, 300, 20, newRec ? c_yellow : c_white, "center");
+		if (marathon) txt("Marathon : " + string(maraN) + " / " + string(array_length(bosses)), 320, 340, 22, c_yellow, "center");
+		txt(marathon ? "[Z] combat suivant" : "[Z] retour", 320, 400, 24, c_white, "center");
 		break;
 	case "lose":
 		txt("GAME", 320, 90, 96, c_white, "center"); txt("OVER", 320, 180, 96, c_white, "center");
 		if (isLB(fight)) { var go = LBTXT.gameover; for (i = 0; i < array_length(go); i++) txt(go[i], 320, 292 + i*28, 24, c_white, "center"); }
 		else txt("Reste déterminé...", 320, 320, 26, c_white, "center");
-		txt("[Z] réessayer    [X] " + (LB_ONLY ? "choix de phase" : "boss rush"), 320, 410, 24, grey, "center");
+		txt(marathon ? "[Z] fin du marathon" : "[Z] réessayer    [X] " + (LB_ONLY ? "choix de phase" : "boss rush"), 320, 410, 24, grey, "center");
 		draw_set_alpha(1 - clamp((loseT - 1.1)/.5, 0, 1)); draw_set_colour(c_black); draw_rectangle(-20, -20, 660, 500, false); draw_set_alpha(1);
 		if (loseT < .95) { heart(P.x, P.y, c_red, 1.1); if (loseCrack) { draw_set_colour(c_black); draw_line_width(P.x - 1, P.y - 8, P.x + 3, P.y - 3, 2); draw_line_width(P.x + 3, P.y - 3, P.x - 3, P.y + 1, 2); draw_line_width(P.x - 3, P.y + 1, P.x + 1, P.y + 8, 2); } }
 		drawPart();
@@ -1241,6 +1391,13 @@ function game_draw() {
 		break;
 	}
 	matrix_set(matrix_world, matrix_build_identity());
+	if (paused && scene == "fight") {
+		draw_set_alpha(.72); draw_set_colour(c_black); draw_rectangle(-20, -20, 660, 500, false); draw_set_alpha(1);
+		txt("PAUSE", 320, 110, 56, c_white, "center");
+		var pl = marathon ? ["Reprendre", "Abandonner le marathon"] : ["Reprendre", "Recommencer", "Quitter le combat"];
+		for (i = 0; i < array_length(pl); i++) { var py0 = 220 + i*44; if (i == pauseSel) heart(196, py0 + 14); txt(pl[i], 222, py0, 28, i == pauseSel ? c_yellow : c_white); }
+		txt("[P] ou [Échap] reprendre", 320, 420, 18, grey, "center");
+	}
 	if (fadeA > 0) { draw_set_alpha(fadeA); draw_set_colour(c_black); draw_rectangle(-20, -20, 660, 500, false); draw_set_alpha(1); }
 	if (AUTOTEST && atShot < 16 && (atFrame mod 1300) == 700) { screen_save("at_" + string(atShot) + ".png"); atShot++; }
 }

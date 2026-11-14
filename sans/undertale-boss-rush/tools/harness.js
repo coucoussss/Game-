@@ -15,7 +15,7 @@ function rand() { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294
 // --- structs stricts : lire un champ absent lève une erreur, comme en GML ---
 function strict(o) {
   if (o === null || typeof o !== 'object' || Array.isArray(o) || o.__strict) return o;
-  return new Proxy(o, { get(t, k) { if (k === '__strict') return true; if (typeof k === 'string' && !(k in t)) throw new Error('GML: variable <struct>.' + k + ' lue avant d\'être définie'); return t[k]; } });
+  return new Proxy(o, { get(t, k) { if (k === '__strict') return true; if (typeof k === 'string' && k !== 'toJSON' && !(k in t)) throw new Error('GML: variable <struct>.' + k + ' lue avant d\'être définie'); return t[k]; } });
 }
 function deepStrict(o) { if (Array.isArray(o)) return o.map(deepStrict); if (o && typeof o === 'object') { for (const k of Object.keys(o)) o[k] = deepStrict(o[k]); return strict(o); } return o; }
 const keys = { down: new Set(), pressed: new Set() };
