@@ -91,6 +91,23 @@ function fightShots(i, ph, label, shots, step) {
   }
   while (R('scene') !== 'select' && R('scene') !== 'title') { for (let k = 0; k < 600 && R('scene') === 'fight'; k++) { R('P.hp = P.max'); frame(k % 3 === 0 ? [K.ok] : []); } frame([K.back]); frame([K.ok]); if (++spent > 90000) break; }
 }
+// PATS="INK:0,1,3" : rend des motifs précis (index dans pats) sans passer par le choix de teinte
+if (process.env.PATS) {
+  const [pn, plist] = process.env.PATS.split(':');
+  const pidx = R(`(function(){ for (var i=0;i<array_length(bosses);i++) if (bosses[i].short == "${pn}") return i; return -1; })()`);
+  for (const n of plist.split(',').map(Number)) {
+    R(`rushStart(${pidx}, 0); dlg = undefined; fight.hue = -1; fight.pidx = ${n}; startEnemy()`);
+    let got = 0, guard = 0;
+    while (got < Number(process.env.SHOTS || 6) && guard++ < 4000) {
+      for (let k = 0; k < Number(process.env.STEP || 60); k++) { R('P.hp = P.max; P.kr = 0'); frame(k % 9 === 0 ? [K.up] : [], k % 40 < 20 ? [K.left] : [K.right]); if (R('fight.state') !== 'enemy' && R('fight.state') !== 'boxing') break; }
+      if (R('fight.state') !== 'enemy') break;
+      grab(`${pn.toLowerCase()}-pat${String(n).padStart(2, '0')}-${String(++got).padStart(2, '0')}`);
+    }
+  }
+  fs.writeFileSync(path.join(outDir, 'frames.json'), JSON.stringify(captures));
+  console.log('captures enregistrées:', captures.length);
+  process.exit(0);
+}
 const want = (process.env.FIGHTS || 'INK:0,INK:1,DUSTTRUST:2,DUST:0,LAST BREATH:0').split(',');
 for (const w of want) {
   const [nm, ph] = w.split(':'); const idx = R(`(function(){ for (var i=0;i<array_length(bosses);i++) if (bosses[i].short == "${nm}") return i; return -1; })()`);
