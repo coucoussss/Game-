@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Grotte des Échos — VR</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #07060c; overflow: hidden; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #f2ecff; }
+  canvas { display: block; }
+  #ecran {
+    position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+    background: radial-gradient(circle at 50% 40%, rgba(70, 40, 120, .55), rgba(7, 6, 12, .96) 70%); text-align: center; padding: 24px; z-index: 10;
+  }
+  #ecran h1 { font-size: clamp(34px, 7vw, 72px); margin: 0; letter-spacing: .04em; text-shadow: 0 0 30px #9b6bff; }
+  #ecran p { max-width: 640px; line-height: 1.55; margin: 0; color: #d9cff5; }
+  .boutons { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; margin-top: 8px; }
+  button {
+    font: 600 18px system-ui, sans-serif; padding: 14px 26px; border-radius: 999px; border: 2px solid #b996ff; cursor: pointer;
+    background: #2a1a4d; color: #fff; transition: transform .1s, background .2s;
+  }
+  button:hover { background: #3d2770; transform: translateY(-1px); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .commandes { display: grid; grid-template-columns: repeat(2, minmax(220px, 1fr)); gap: 14px; max-width: 760px; font-size: 14px; text-align: left; }
+  .commandes div { background: rgba(255, 255, 255, .06); border: 1px solid rgba(255, 255, 255, .12); border-radius: 14px; padding: 12px 16px; }
+  .commandes b { color: #ffe27a; }
+  #hud { position: fixed; left: 18px; bottom: 18px; z-index: 5; font-size: 15px; pointer-events: none; display: none; text-shadow: 0 2px 6px #000; }
+  #hud .barre { width: 240px; height: 14px; background: rgba(255,255,255,.15); border-radius: 8px; overflow: hidden; margin: 4px 0 10px; }
+  #hud .barre i { display: block; height: 100%; width: 100%; transition: width .2s; }
+  #viseur { position: fixed; left: 50%; top: 50%; width: 8px; height: 8px; margin: -4px; border-radius: 50%; background: #fff; opacity: .7; display: none; z-index: 5; pointer-events: none; }
+  @media (max-width: 560px) { .commandes { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div id="ecran">
+  <h1>Grotte des Échos</h1>
+  <p id="intro">Au fond d'une grotte qui brille, Mousseline, un golem de mousse au caractère de cochon, garde le passage.
+     Tu peux le battre… ou trouver ce qui le rend si grognon. Pas de pluie de projectiles : tu bouges, tu bloques, tu ripostes.</p>
+  <div class="boutons">
+    <button id="btnVR" disabled>Vérification du casque…</button>
+    <button id="btnPC">Jouer sur ordinateur</button>
+  </div>
+  <div class="commandes">
+    <div><b>Casque VR</b><br>Joystick gauche : se déplacer<br>Joystick droit : tourner<br>Gâchette droite : lancer un sort<br>Coup de baguette rapide près de lui : coup d'estoc<br>Grip gauche : lever le bouclier</div>
+    <div><b>Agir (sans frapper)</b><br>A : complimenter · B : blaguer · X : écouter<br>Y : épargner (quand il est calmé)<br><br><b>Ordinateur</b><br>ZQSD/WASD, souris, clic gauche : sort, clic droit : bouclier, Espace : esquive, 1/2/3 : agir, 4 : épargner</div>
+  </div>
+</div>
+<div id="hud">
+  <div>Toi</div><div class="barre"><i id="pvJoueur" style="background:#ff5d7a"></i></div>
+  <div>Mousseline</div><div class="barre"><i id="pvMonstre" style="background:#7be08a"></i></div>
+  <div>Humeur</div><div class="barre"><i id="humeur" style="background:#ffe27a;width:0"></i></div>
+</div>
+<div id="viseur"></div>
+<script type="module" src="game.js"></script>
+</body>
+</html>
