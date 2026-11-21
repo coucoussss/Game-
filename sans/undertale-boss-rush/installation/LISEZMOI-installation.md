@@ -1,5 +1,15 @@
 # Installer le boss rush Sans (v4) sur le PC
 
+## Appliquer la v4 à TON projet VraisFanGames (recommandé)
+1. Ferme GameMaker.
+2. Mets `appliquer-au-projet.ps1` et `VraisFanGames-v4.zip` dans le même dossier.
+3. Clic droit sur `appliquer-au-projet.ps1` > « Exécuter avec PowerShell ».
+4. Ouvre `VraisFanGames.yyp`, F5.
+
+Le script sauvegarde d'abord `scr_game.gml`, `datafiles\` et `VraisFanGames.yyp` dans
+`GameMaker-Projets\sauvegarde-avant-v4-<date>\`, puis remplace le moteur et les données,
+et ajoute les nouveaux sprites aux « Included Files ». Pour revenir en arrière, recopie la sauvegarde.
+
 ## Méthode rapide (aucune commande)
 1. Télécharge `VraisFanGames-v4.zip`.
 2. Décompresse-le dans `Documents\GameMaker-Projets\`.
