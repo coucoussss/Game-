@@ -179,6 +179,8 @@ function game_create() {
 	for (var i = 0; i < 3; i++) { var fn2 = working_directory + "sprites/lb_" + string(i) + ".png"; if (file_exists(fn2)) sprLB[i] = sprite_add(fn2, 1, false, false, 0, 0); }
 	sprBl = [];
 	for (var q1 = 0; q1 < 6; q1++) { var fnb = working_directory + "sprites/blaster_" + string(q1) + ".png"; if (!file_exists(fnb)) break; var sb0 = sprite_add(fnb, 1, false, false, 0, 0); sprite_set_offset(sb0, sprite_get_width(sb0)/2, sprite_get_height(sb0)/2); array_push(sprBl, sb0); }
+	sprDraw = {}; var DN = ["ASRIEL", "PAPYRUS", "TORIEL", "METTATON NEO", "MUFFET", "ASGORE", "???", "UNDYNE"], DF = ["asriel", "papyrus", "toriel", "mettaton_neo", "muffet", "asgore", "jaune", "undyne"];
+	for (var di = 0; di < 8; di++) { var dfn = working_directory + "sprites/draw_" + DF[di] + ".png"; if (file_exists(dfn)) sprDraw[$ DN[di]] = sprite_add(dfn, 1, false, false, 0, 0); }
 	if (file_exists(working_directory + "sprites/gaster.png")) sprGaster =sprite_add(working_directory + "sprites/gaster.png", 1, false, false, 0, 0);
 	POSEMAP = { bones: "raise", floor: "raise", stab: "raise", zone: "raise", rain: "raise", slam: "down", blaster: "point", giant: "point", grid: "point", beams: "point", chase: "point", echo: "point", burst: "point", strings: "point", target: "point", lanes: "point",
 		blasterwall: "spread", spin: "spread", circle: "spread", ring: "spread", tunnel: "spread", tide: "spread", slash: "sweep", eels: "sweep", tentacle: "sweep", comb: "raise", diag: "sweep" };
@@ -458,10 +460,26 @@ function phaseUp() {
 
 // ---------- Motifs d'attaque ----------
 function makePattern(spec, lv) {
-	var p = { spec: spec, lv: lv, dur: opt(spec, "dur", 7), w: opt(spec, "w", 240), h: opt(spec, "h", 180), subs: [] };
-	var mix = opt(spec, "mix", []);
-	for (var i = 0; i < array_length(mix); i++) array_push(p.subs, { o: mix[i], t: mix[i].t, n: 0, q: [], ph: rnd(0, 6) });
+	var p = { spec: spec, lv: lv, dur: opt(spec, "dur", 7), w: opt(spec, "w", 240), h: opt(spec, "h", 180), subs: [], si: 0, t0: 0, seq: undefined, base: spec };
+	var sq = opt(spec, "seq", undefined);
+	if (is_array(sq) && array_length(sq) > 0) { // attaque scénarisée : une suite d'étapes minutées
+		p.seq = sq; p.dur = 0; for (var k = 0; k < array_length(sq); k++) p.dur += opt(sq[k], "dur", 5);
+		p.spec = stageSpec(spec, sq[0]); p.w = opt(p.spec, "w", 240); p.h = opt(p.spec, "h", 180);
+	}
+	buildSubs(p);
 	return p;
+}
+function buildSubs(p) {
+	p.subs = [];
+	var mix = opt(p.spec, "mix", []);
+	for (var i = 0; i < array_length(mix); i++) array_push(p.subs, { o: mix[i], t: mix[i].t, n: 0, q: [], ph: rnd(0, 6) });
+}
+function stageSpec(base, st) {
+	var o = {}, nm0 = variable_struct_get_names(base), i;
+	for (i = 0; i < array_length(nm0); i++) if (nm0[i] != "seq" && nm0[i] != "mix" && nm0[i] != "dur") o[$ nm0[i]] = base[$ nm0[i]];
+	nm0 = variable_struct_get_names(st);
+	for (i = 0; i < array_length(nm0); i++) o[$ nm0[i]] = st[$ nm0[i]];
+	return o;
 }
 function patInit(p) {
 	var s, i, spec = p.spec;
@@ -484,7 +502,7 @@ function patInit(p) {
 	if (opt(spec, "invert", false)) { fight.invert = true; banner = { txt: "COMMANDES INVERSÉES", t: 1.6 }; }
 	scrRotT = opt(spec, "rot", 0);
 	fight.frameC = hexc(opt(spec, "frame", "#ffffff")); fight.soulC = opt(spec, "soulc", ""); fight.shield = opt(spec, "shield", false); shieldDir = 2;
-	var dr = opt(spec, "draw", ""); fight.drawn = dr; if (dr != "") { flashT = .55; flashC = hexc(opt(spec, "flash", "#ffffff")); sfx("phase"); banner = { txt: "INK DESSINE : " + dr, t: 2.6 }; }
+	var dr = opt(spec, "draw", ""); fight.drawn = dr; if (dr != "" && (p.si == 0 || opt(spec, "reflash", false))) { flashT = .55; flashC = hexc(opt(spec, "flash", "#ffffff")); sfx("phase"); banner = { txt: "INK DESSINE : " + dr, t: 2.6 }; }
 	var bn = opt(spec, "banner", ""); if (bn != "") banner = { txt: bn, t: 2.4 };
 }
 function patEnd() { fight.redOn = false; fight.rails = 0; fight.frameC = c_white; fight.soulC = ""; fight.shield = false; fight.drawn = ""; scrRotT = 0; fight.slam = false; fight.gravDir = 0; fight.gravT = 0; fight.invert = false; fight.level = undefined; fight.gravity = 0; P.bound = 0; }
@@ -503,6 +521,12 @@ function bossPose(tp) {
 }
 function patUpdate(p, tt) {
 	if (floor(tt/1.5) != floor((tt - DT)/1.5)) bossAnim();
+	if (!is_undefined(p.seq) && p.si < array_length(p.seq) - 1 && tt - p.t0 >= opt(p.seq[p.si], "dur", 5)) {
+		p.si++; p.t0 = tt; p.spec = stageSpec(p.base, p.seq[p.si]); p.w = opt(p.spec, "w", p.w); p.h = opt(p.spec, "h", p.h);
+		if (opt(p.spec, "clear", false)) B = [];
+		patEnd(); buildSubs(p); patInit(p); setBox(p.w, p.h, opt(p.spec, "cx", BCX), opt(p.spec, "cy", BCY));
+	}
+	tt -= p.t0;
 	for (var i = 0; i < array_length(p.subs); i++) subUpdate(p.subs[i], p.lv, tt);
 	var jp = opt(p.spec, "jump", 0); if (jp > 0 && floor(tt/jp) != floor((tt - DT)/jp)) setBox(p.w, p.h, rnd(150, 490), rnd(232, 300));
 	var sw = opt(p.spec, "sway", 0); if (sw > 0) setBox(p.w, p.h, BCX + sin(tt*1.3)*sw, BCY + sin(tt*.9 + 1)*sw*.25);
@@ -841,6 +865,15 @@ function subUpdate(s, lv, tt) {
 		s.n = max(2, opt(o, "rate", 3.2)); N = opt(o, "n", 14); var fw0 = rnd(0, 6.28), fwv = choose(1, -1)*opt(o, "spin", 1.6);
 		for (i = 0; i < N; i++) addB({ kind: "spoke", cx: box.x + box.w/2, cy: box.y + box.h/2, ang: fw0 + i*.2, av: fwv, r0: min(box.w, box.h)*.18, r1: max(box.w, box.h)*.85, warn: .35 + i*.05, life: 1.6, color: c });
 		break;
+	case "web": // Muffet : fils magenta qui se tendent à travers la boîte (de plus en plus nombreux)
+		s.n = max(.15, opt(o, "rate", .35) - lv*.03);
+		xx = box.x + rnd(0, box.w); var wx2 = box.x + rnd(0, box.w);
+		addB({ kind: "line", x1: xx, y1: box.y, x2: wx2, y2: box.y + box.h, wd: 2, warn: .5, life: opt(o, "life", 1.6), color: c });
+		break;
+	case "flamegrid": // Toriel : damier serré de flammes blanches / orange qui descend sur toute la largeur
+		s.n = opt(o, "rate", .5); s.ph += 1;
+		for (i = 0; i < 16; i++) if ((i + s.ph) mod 3 != 0) addB({ kind: "orb", x: box.x + (i + .5)*box.w/16 + ((s.ph mod 2) ? box.w/32 : 0), y: box.y - 8, vx: 0, vy: opt(o, "speed", 70), r: 4, home: 0, warn: 0, life: (box.h + 20)/opt(o, "speed", 70), color: (i mod 2 == 0) ? c : hexc(opt(o, "color2", "#ffffff")), shape: "orb" });
+		break;
 	case "wallspikes": // Ink bleu : rangée de pointes fixes sur le mur de gauche
 		s.n = 999;
 		addB({ x: box.x, y: box.y, w: 11, h: box.h, life: 99, oa: 1, color: c, kind: "spikes" });
@@ -853,7 +886,7 @@ function subUpdate(s, lv, tt) {
 	case "spiral": // bras en spirale depuis un point (os de Papyrus, flammes de Toriel)
 		s.n = opt(o, "rate", .1); s.ph += opt(o, "turn", .31); sp = opt(o, "speed", 95) + lv*10; xx = box.x + box.w*opt(o, "cx", .5); yy = box.y + box.h*opt(o, "cy", 0); N = opt(o, "arms", 2);
 		for (i = 0; i < N; i++) { a = s.ph + i*6.283/N; if (sin(a) < -.2 && opt(o, "cy", 0) <= 0) continue;
-			addB({ kind: "orb", x: xx, y: yy, vx: cos(a)*sp, vy: sin(a)*sp, r: opt(o, "r", 5), home: 0, warn: 0, life: 6, color: (i mod 2 == 0) ? c : hexc(opt(o, "color2", "#ffffff")), shape: "orb" }); }
+			addB({ kind: "orb", free: true, x: xx, y: yy, vx: cos(a)*sp, vy: sin(a)*sp, r: opt(o, "r", 5), home: 0, warn: 0, life: 6, color: (i mod 2 == 0) ? c : hexc(opt(o, "color2", "#ffffff")), shape: "orb" }); }
 		break;
 	case "star": // plusieurs grands os/rayons qui tournent ensemble autour du centre
 		s.n = opt(o, "rate", 4.4); dir = choose(1, -1); a = rnd(0, 6.28); L = point_distance(0, 0, box.w, box.h)/2 + 8; N = opt(o, "n", 3);
@@ -1261,7 +1294,7 @@ function stepFight() {
 			if (b.life <= 0 && opt(b, "burst", 0) > 0) { var nbst = b.burst, ob = rnd(0, 6.28);
 				for (var q = 0; q < nbst; q++) { var ba = ob + q/nbst*6.28; addB({ kind: "orb", x: b.x, y: b.y, vx: cos(ba)*150, vy: sin(ba)*150, r: 6, home: 0, warn: 0, life: 3, color: b.bcol, shape: "orb" }); }
 				b.burst = 0; }
-			if (b.life <= 0 || (!variable_struct_exists(b, "oa") && (b.x < box.x - 40 || b.x > box.x + box.w + 40 || b.y < box.y - 40 || b.y > box.y + box.h + 40))) b.dead = true;
+			if (b.life <= 0 || (!variable_struct_exists(b, "oa") && !opt(b, "free", false) && (b.x < box.x - 40 || b.x > box.x + box.w + 40 || b.y < box.y - 40 || b.y > box.y + box.h + 40))) b.dead = true;
 			break;
 		case "line":
 			if (b.warn > 0) { b.warn -= DT; break; }
@@ -1333,7 +1366,8 @@ function btri(X, Y, c, s, k, x1, y1, x2, y2, x3, y3) {
 function bquad(X, Y, c, s, k, x1, y1, x2, y2) { btri(X, Y, c, s, k, x1, y1, x2, y1, x2, y2); btri(X, Y, c, s, k, x1, y1, x2, y2, x1, y2); }
 function drawFree(b) { // projectiles dessinés aussi hors de la boîte (comme dans Ink!Sans)
 	var i;
-	if (b.kind == "cross") { draw_set_colour(b.color); for (i = 0; i < 4; i++) draw_circle(b.x + cos(i*pi/2 + t*4)*4, b.y + sin(i*pi/2 + t*4)*4, 3, false); draw_circle(b.x, b.y, 2, false); }
+	if (b.kind == "orb" && opt(b, "free", false)) { draw_set_colour(b.color); draw_circle(b.x, b.y, b.r, false); }
+	else if (b.kind == "cross") { draw_set_colour(b.color); for (i = 0; i < 4; i++) draw_circle(b.x + cos(i*pi/2 + t*4)*4, b.y + sin(i*pi/2 + t*4)*4, 3, false); draw_circle(b.x, b.y, 2, false); }
 	else if (b.kind == "star5") { draw_set_colour(b.color); var r1 = b.sz, r2 = b.sz*.42;
 		for (i = 0; i < 5; i++) { var a1 = b.rot + i*1.2566, a2 = a1 + .6283, a3 = a1 - .6283;
 			draw_triangle(b.x, b.y, b.x + cos(a1)*r1, b.y + sin(a1)*r1, b.x + cos(a2)*r2, b.y + sin(a2)*r2, false); draw_triangle(b.x, b.y, b.x + cos(a1)*r1, b.y + sin(a1)*r1, b.x + cos(a3)*r2, b.y + sin(a3)*r2, false); } }
@@ -1518,7 +1552,10 @@ function drawBoss(f) {
 		var br = sin(t*2.2), syy = sc*(1 + br*.014), sxx = sc*(1 - br*.009), sw = sin(t*1.1)*2 + xx;
 		var px = sw - sprite_get_width(sp)*sxx/2, py = yy + 175 - sprite_get_height(sp)*syy;
 		if (f.phase2) { gpu_set_blendmode(bm_add); var ac = hexc(b.col); for (var ai = 0; ai < 3; ai++) draw_sprite_ext(sp, 0, px + cos(t*3 + ai*2.1)*4, py + sin(t*3 + ai*2.1)*3, sxx, syy, 0, ac, .2); gpu_set_blendmode(bm_normal); }
-		if (opt(f, "drawn", "") != "" && f.state == "enemy") { gpu_set_fog(true, c_white, 0, 0); draw_sprite_ext(sp, 0, px, py, sxx, syy, 0, c_white, 1); gpu_set_fog(false, c_white, 0, 0); txt(f.drawn, 320, 4, 18, flashC, "center"); }
+		if (opt(f, "drawn", "") != "" && f.state == "enemy") {
+			var dsp = opt(sprDraw, f.drawn, -1);
+			if (dsp != -1) { var dsc = min(3, 150/sprite_get_height(dsp)); draw_sprite_ext(dsp, 0, sw - sprite_get_width(dsp)*dsc/2, yy + 178 - sprite_get_height(dsp)*dsc*syy, dsc, dsc*syy, 0, c_white, 1); } // personnage dessiné, extrait de la vidéo
+			else { gpu_set_fog(true, c_white, 0, 0); draw_sprite_ext(sp, 0, px, py, sxx, syy, 0, c_white, 1); gpu_set_fog(false, c_white, 0, 0); txt(f.drawn, 320, 4, 18, flashC, "center"); } }
 		else draw_sprite_ext(sp, 0, px, py, sxx, syy, 0, c_white, 1);
 		if (bossFlash > 0) { gpu_set_fog(true, c_white, 0, 0); draw_sprite_ext(sp, 0, px, py, sxx, syy, 0, c_white, bossFlash*.8); gpu_set_fog(false, c_white, 0, 0); }
 	}
