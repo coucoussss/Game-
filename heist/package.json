@@ -1,0 +1,23 @@
+{
+  "name": "sans-filet",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Jeu de braquage à la première personne : on part de rien, on repère, on prépare, on frappe.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "check": "tsc --noEmit && vitest run"
+  },
+  "dependencies": {
+    "three": "0.180.0"
+  },
+  "devDependencies": {
+    "@types/three": "0.180.0",
+    "typescript": "5.9.3",
+    "vite": "^8.0.0",
+    "vitest": "^5.0.0"
+  }
+}
